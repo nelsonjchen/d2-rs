@@ -1,0 +1,2284 @@
+[
+ {
+  "name": "label-dimensions-root",
+  "source": "label: title {width: 100; height: 50}\n"
+ },
+ {
+  "name": "label-dimensions-node",
+  "source": "a: {label: title {width: 100; height: 50}}\n"
+ },
+ {
+  "name": "label-dimensions-edge",
+  "source": "a -> b: {label: title {width: 100; height: 50}}\n"
+ },
+ {
+  "name": "label-dimensions-arrowhead",
+  "source": "a -> b: {target-arrowhead: {label: title {width: 100; height: 50}}}\n"
+ },
+ {
+  "name": "label-dimensions-class",
+  "source": "classes.c: {label: title {width: 100; height: 50}}\na.class: c\n"
+ },
+ {
+  "name": "label-dimensions-unused-class",
+  "source": "classes.c: {label: title {width: 100; height: 50}}\na\n"
+ },
+ {
+  "name": "label-dimensions-board",
+  "source": "layers.x: {a: {label: title {width: 100; height: 50}}}\n"
+ },
+ {
+  "name": "label-valid-near-root",
+  "source": "label: title {near: top-center}\n"
+ },
+ {
+  "name": "label-valid-near-node",
+  "source": "a: {label: title {near: top-center}}\n"
+ },
+ {
+  "name": "label-valid-near-edge",
+  "source": "a -> b: {label: title {near: top-center}}\n"
+ },
+ {
+  "name": "label-valid-near-arrowhead",
+  "source": "a -> b: {target-arrowhead: {label: title {near: top-center}}}\n"
+ },
+ {
+  "name": "label-valid-near-class",
+  "source": "classes.c: {label: title {near: top-center}}\na.class: c\n"
+ },
+ {
+  "name": "label-valid-near-unused-class",
+  "source": "classes.c: {label: title {near: top-center}}\na\n"
+ },
+ {
+  "name": "label-valid-near-board",
+  "source": "layers.x: {a: {label: title {near: top-center}}}\n"
+ },
+ {
+  "name": "label-outside-near-root",
+  "source": "label: title {near: outside-top-center}\n"
+ },
+ {
+  "name": "label-outside-near-node",
+  "source": "a: {label: title {near: outside-top-center}}\n"
+ },
+ {
+  "name": "label-outside-near-edge",
+  "source": "a -> b: {label: title {near: outside-top-center}}\n"
+ },
+ {
+  "name": "label-outside-near-arrowhead",
+  "source": "a -> b: {target-arrowhead: {label: title {near: outside-top-center}}}\n"
+ },
+ {
+  "name": "label-outside-near-class",
+  "source": "classes.c: {label: title {near: outside-top-center}}\na.class: c\n"
+ },
+ {
+  "name": "label-outside-near-unused-class",
+  "source": "classes.c: {label: title {near: outside-top-center}}\na\n"
+ },
+ {
+  "name": "label-outside-near-board",
+  "source": "layers.x: {a: {label: title {near: outside-top-center}}}\n"
+ },
+ {
+  "name": "label-center-near-root",
+  "source": "label: title {near: center-center}\n"
+ },
+ {
+  "name": "label-center-near-node",
+  "source": "a: {label: title {near: center-center}}\n"
+ },
+ {
+  "name": "label-center-near-edge",
+  "source": "a -> b: {label: title {near: center-center}}\n"
+ },
+ {
+  "name": "label-center-near-arrowhead",
+  "source": "a -> b: {target-arrowhead: {label: title {near: center-center}}}\n"
+ },
+ {
+  "name": "label-center-near-class",
+  "source": "classes.c: {label: title {near: center-center}}\na.class: c\n"
+ },
+ {
+  "name": "label-center-near-unused-class",
+  "source": "classes.c: {label: title {near: center-center}}\na\n"
+ },
+ {
+  "name": "label-center-near-board",
+  "source": "layers.x: {a: {label: title {near: center-center}}}\n"
+ },
+ {
+  "name": "label-bad-near-root",
+  "source": "label: title {near: nowhere}\n"
+ },
+ {
+  "name": "label-bad-near-node",
+  "source": "a: {label: title {near: nowhere}}\n"
+ },
+ {
+  "name": "label-bad-near-edge",
+  "source": "a -> b: {label: title {near: nowhere}}\n"
+ },
+ {
+  "name": "label-bad-near-arrowhead",
+  "source": "a -> b: {target-arrowhead: {label: title {near: nowhere}}}\n"
+ },
+ {
+  "name": "label-bad-near-class",
+  "source": "classes.c: {label: title {near: nowhere}}\na.class: c\n"
+ },
+ {
+  "name": "label-bad-near-unused-class",
+  "source": "classes.c: {label: title {near: nowhere}}\na\n"
+ },
+ {
+  "name": "label-bad-near-board",
+  "source": "layers.x: {a: {label: title {near: nowhere}}}\n"
+ },
+ {
+  "name": "label-empty-near-root",
+  "source": "label: title {near}\n"
+ },
+ {
+  "name": "label-empty-near-node",
+  "source": "a: {label: title {near}}\n"
+ },
+ {
+  "name": "label-empty-near-edge",
+  "source": "a -> b: {label: title {near}}\n"
+ },
+ {
+  "name": "label-empty-near-arrowhead",
+  "source": "a -> b: {target-arrowhead: {label: title {near}}}\n"
+ },
+ {
+  "name": "label-empty-near-class",
+  "source": "classes.c: {label: title {near}}\na.class: c\n"
+ },
+ {
+  "name": "label-empty-near-unused-class",
+  "source": "classes.c: {label: title {near}}\na\n"
+ },
+ {
+  "name": "label-empty-near-board",
+  "source": "layers.x: {a: {label: title {near}}}\n"
+ },
+ {
+  "name": "label-map-near-root",
+  "source": "label: title {near: {a: b}}\n"
+ },
+ {
+  "name": "label-map-near-node",
+  "source": "a: {label: title {near: {a: b}}}\n"
+ },
+ {
+  "name": "label-map-near-edge",
+  "source": "a -> b: {label: title {near: {a: b}}}\n"
+ },
+ {
+  "name": "label-map-near-arrowhead",
+  "source": "a -> b: {target-arrowhead: {label: title {near: {a: b}}}}\n"
+ },
+ {
+  "name": "label-map-near-class",
+  "source": "classes.c: {label: title {near: {a: b}}}\na.class: c\n"
+ },
+ {
+  "name": "label-map-near-unused-class",
+  "source": "classes.c: {label: title {near: {a: b}}}\na\n"
+ },
+ {
+  "name": "label-map-near-board",
+  "source": "layers.x: {a: {label: title {near: {a: b}}}}\n"
+ },
+ {
+  "name": "label-array-near-root",
+  "source": "label: title {near: [top-center]}\n"
+ },
+ {
+  "name": "label-array-near-node",
+  "source": "a: {label: title {near: [top-center]}}\n"
+ },
+ {
+  "name": "label-array-near-edge",
+  "source": "a -> b: {label: title {near: [top-center]}}\n"
+ },
+ {
+  "name": "label-array-near-arrowhead",
+  "source": "a -> b: {target-arrowhead: {label: title {near: [top-center]}}}\n"
+ },
+ {
+  "name": "label-array-near-class",
+  "source": "classes.c: {label: title {near: [top-center]}}\na.class: c\n"
+ },
+ {
+  "name": "label-array-near-unused-class",
+  "source": "classes.c: {label: title {near: [top-center]}}\na\n"
+ },
+ {
+  "name": "label-array-near-board",
+  "source": "layers.x: {a: {label: title {near: [top-center]}}}\n"
+ },
+ {
+  "name": "label-null-near-root",
+  "source": "label: title {near: null}\n"
+ },
+ {
+  "name": "label-null-near-node",
+  "source": "a: {label: title {near: null}}\n"
+ },
+ {
+  "name": "label-null-near-edge",
+  "source": "a -> b: {label: title {near: null}}\n"
+ },
+ {
+  "name": "label-null-near-arrowhead",
+  "source": "a -> b: {target-arrowhead: {label: title {near: null}}}\n"
+ },
+ {
+  "name": "label-null-near-class",
+  "source": "classes.c: {label: title {near: null}}\na.class: c\n"
+ },
+ {
+  "name": "label-null-near-unused-class",
+  "source": "classes.c: {label: title {near: null}}\na\n"
+ },
+ {
+  "name": "label-null-near-board",
+  "source": "layers.x: {a: {label: title {near: null}}}\n"
+ },
+ {
+  "name": "label-quoted-near-root",
+  "source": "label: title {\"near\": top-center}\n"
+ },
+ {
+  "name": "label-quoted-near-node",
+  "source": "a: {label: title {\"near\": top-center}}\n"
+ },
+ {
+  "name": "label-quoted-near-edge",
+  "source": "a -> b: {label: title {\"near\": top-center}}\n"
+ },
+ {
+  "name": "label-quoted-near-arrowhead",
+  "source": "a -> b: {target-arrowhead: {label: title {\"near\": top-center}}}\n"
+ },
+ {
+  "name": "label-quoted-near-class",
+  "source": "classes.c: {label: title {\"near\": top-center}}\na.class: c\n"
+ },
+ {
+  "name": "label-quoted-near-unused-class",
+  "source": "classes.c: {label: title {\"near\": top-center}}\na\n"
+ },
+ {
+  "name": "label-quoted-near-board",
+  "source": "layers.x: {a: {label: title {\"near\": top-center}}}\n"
+ },
+ {
+  "name": "label-upper-near-root",
+  "source": "label: title {NEAR: top-center}\n"
+ },
+ {
+  "name": "label-upper-near-node",
+  "source": "a: {label: title {NEAR: top-center}}\n"
+ },
+ {
+  "name": "label-upper-near-edge",
+  "source": "a -> b: {label: title {NEAR: top-center}}\n"
+ },
+ {
+  "name": "label-upper-near-arrowhead",
+  "source": "a -> b: {target-arrowhead: {label: title {NEAR: top-center}}}\n"
+ },
+ {
+  "name": "label-upper-near-class",
+  "source": "classes.c: {label: title {NEAR: top-center}}\na.class: c\n"
+ },
+ {
+  "name": "label-upper-near-unused-class",
+  "source": "classes.c: {label: title {NEAR: top-center}}\na\n"
+ },
+ {
+  "name": "label-upper-near-board",
+  "source": "layers.x: {a: {label: title {NEAR: top-center}}}\n"
+ },
+ {
+  "name": "label-quoted-field-root",
+  "source": "label: title {\"width\": 100}\n"
+ },
+ {
+  "name": "label-quoted-field-node",
+  "source": "a: {label: title {\"width\": 100}}\n"
+ },
+ {
+  "name": "label-quoted-field-edge",
+  "source": "a -> b: {label: title {\"width\": 100}}\n"
+ },
+ {
+  "name": "label-quoted-field-arrowhead",
+  "source": "a -> b: {target-arrowhead: {label: title {\"width\": 100}}}\n"
+ },
+ {
+  "name": "label-quoted-field-class",
+  "source": "classes.c: {label: title {\"width\": 100}}\na.class: c\n"
+ },
+ {
+  "name": "label-quoted-field-unused-class",
+  "source": "classes.c: {label: title {\"width\": 100}}\na\n"
+ },
+ {
+  "name": "label-quoted-field-board",
+  "source": "layers.x: {a: {label: title {\"width\": 100}}}\n"
+ },
+ {
+  "name": "label-nested-style-root",
+  "source": "label: title {style.fill: red}\n"
+ },
+ {
+  "name": "label-nested-style-node",
+  "source": "a: {label: title {style.fill: red}}\n"
+ },
+ {
+  "name": "label-nested-style-edge",
+  "source": "a -> b: {label: title {style.fill: red}}\n"
+ },
+ {
+  "name": "label-nested-style-arrowhead",
+  "source": "a -> b: {target-arrowhead: {label: title {style.fill: red}}}\n"
+ },
+ {
+  "name": "label-nested-style-class",
+  "source": "classes.c: {label: title {style.fill: red}}\na.class: c\n"
+ },
+ {
+  "name": "label-nested-style-unused-class",
+  "source": "classes.c: {label: title {style.fill: red}}\na\n"
+ },
+ {
+  "name": "label-nested-style-board",
+  "source": "layers.x: {a: {label: title {style.fill: red}}}\n"
+ },
+ {
+  "name": "label-edge-map-root",
+  "source": "label: title {x -> y}\n"
+ },
+ {
+  "name": "label-edge-map-node",
+  "source": "a: {label: title {x -> y}}\n"
+ },
+ {
+  "name": "label-edge-map-edge",
+  "source": "a -> b: {label: title {x -> y}}\n"
+ },
+ {
+  "name": "label-edge-map-arrowhead",
+  "source": "a -> b: {target-arrowhead: {label: title {x -> y}}}\n"
+ },
+ {
+  "name": "label-edge-map-class",
+  "source": "classes.c: {label: title {x -> y}}\na.class: c\n"
+ },
+ {
+  "name": "label-edge-map-unused-class",
+  "source": "classes.c: {label: title {x -> y}}\na\n"
+ },
+ {
+  "name": "label-edge-map-board",
+  "source": "layers.x: {a: {label: title {x -> y}}}\n"
+ },
+ {
+  "name": "label-ordered-root",
+  "source": "label: title {width: 100; near: nowhere; height: 50}\n"
+ },
+ {
+  "name": "label-ordered-node",
+  "source": "a: {label: title {width: 100; near: nowhere; height: 50}}\n"
+ },
+ {
+  "name": "label-ordered-edge",
+  "source": "a -> b: {label: title {width: 100; near: nowhere; height: 50}}\n"
+ },
+ {
+  "name": "label-ordered-arrowhead",
+  "source": "a -> b: {target-arrowhead: {label: title {width: 100; near: nowhere; height: 50}}}\n"
+ },
+ {
+  "name": "label-ordered-class",
+  "source": "classes.c: {label: title {width: 100; near: nowhere; height: 50}}\na.class: c\n"
+ },
+ {
+  "name": "label-ordered-unused-class",
+  "source": "classes.c: {label: title {width: 100; near: nowhere; height: 50}}\na\n"
+ },
+ {
+  "name": "label-ordered-board",
+  "source": "layers.x: {a: {label: title {width: 100; near: nowhere; height: 50}}}\n"
+ },
+ {
+  "name": "label-bare-root",
+  "source": "label\n"
+ },
+ {
+  "name": "label-bare-node",
+  "source": "a: {label}\n"
+ },
+ {
+  "name": "label-bare-edge",
+  "source": "a -> b: {label}\n"
+ },
+ {
+  "name": "label-map-only-root",
+  "source": "label: {width: 100}\n"
+ },
+ {
+  "name": "label-map-only-node",
+  "source": "a: {label: {width: 100}}\n"
+ },
+ {
+  "name": "label-map-only-edge",
+  "source": "a -> b: {label: {width: 100}}\n"
+ },
+ {
+  "name": "label-empty-map-root",
+  "source": "label: {}\n"
+ },
+ {
+  "name": "label-empty-map-node",
+  "source": "a: {label: {}}\n"
+ },
+ {
+  "name": "label-empty-map-edge",
+  "source": "a -> b: {label: {}}\n"
+ },
+ {
+  "name": "label-array-root",
+  "source": "label: [foo]\n"
+ },
+ {
+  "name": "label-array-node",
+  "source": "a: {label: [foo]}\n"
+ },
+ {
+  "name": "label-array-edge",
+  "source": "a -> b: {label: [foo]}\n"
+ },
+ {
+  "name": "icon-dimensions-root",
+  "source": "icon: https://example.com/icon.svg {width: 100; height: 50}\n"
+ },
+ {
+  "name": "icon-dimensions-node",
+  "source": "a: {icon: https://example.com/icon.svg {width: 100; height: 50}}\n"
+ },
+ {
+  "name": "icon-dimensions-edge",
+  "source": "a -> b: {icon: https://example.com/icon.svg {width: 100; height: 50}}\n"
+ },
+ {
+  "name": "icon-dimensions-arrowhead",
+  "source": "a -> b: {target-arrowhead: {icon: https://example.com/icon.svg {width: 100; height: 50}}}\n"
+ },
+ {
+  "name": "icon-dimensions-class",
+  "source": "classes.c: {icon: https://example.com/icon.svg {width: 100; height: 50}}\na.class: c\n"
+ },
+ {
+  "name": "icon-dimensions-unused-class",
+  "source": "classes.c: {icon: https://example.com/icon.svg {width: 100; height: 50}}\na\n"
+ },
+ {
+  "name": "icon-dimensions-board",
+  "source": "layers.x: {a: {icon: https://example.com/icon.svg {width: 100; height: 50}}}\n"
+ },
+ {
+  "name": "icon-valid-near-root",
+  "source": "icon: https://example.com/icon.svg {near: top-center}\n"
+ },
+ {
+  "name": "icon-valid-near-node",
+  "source": "a: {icon: https://example.com/icon.svg {near: top-center}}\n"
+ },
+ {
+  "name": "icon-valid-near-edge",
+  "source": "a -> b: {icon: https://example.com/icon.svg {near: top-center}}\n"
+ },
+ {
+  "name": "icon-valid-near-arrowhead",
+  "source": "a -> b: {target-arrowhead: {icon: https://example.com/icon.svg {near: top-center}}}\n"
+ },
+ {
+  "name": "icon-valid-near-class",
+  "source": "classes.c: {icon: https://example.com/icon.svg {near: top-center}}\na.class: c\n"
+ },
+ {
+  "name": "icon-valid-near-unused-class",
+  "source": "classes.c: {icon: https://example.com/icon.svg {near: top-center}}\na\n"
+ },
+ {
+  "name": "icon-valid-near-board",
+  "source": "layers.x: {a: {icon: https://example.com/icon.svg {near: top-center}}}\n"
+ },
+ {
+  "name": "icon-outside-near-root",
+  "source": "icon: https://example.com/icon.svg {near: outside-top-center}\n"
+ },
+ {
+  "name": "icon-outside-near-node",
+  "source": "a: {icon: https://example.com/icon.svg {near: outside-top-center}}\n"
+ },
+ {
+  "name": "icon-outside-near-edge",
+  "source": "a -> b: {icon: https://example.com/icon.svg {near: outside-top-center}}\n"
+ },
+ {
+  "name": "icon-outside-near-arrowhead",
+  "source": "a -> b: {target-arrowhead: {icon: https://example.com/icon.svg {near: outside-top-center}}}\n"
+ },
+ {
+  "name": "icon-outside-near-class",
+  "source": "classes.c: {icon: https://example.com/icon.svg {near: outside-top-center}}\na.class: c\n"
+ },
+ {
+  "name": "icon-outside-near-unused-class",
+  "source": "classes.c: {icon: https://example.com/icon.svg {near: outside-top-center}}\na\n"
+ },
+ {
+  "name": "icon-outside-near-board",
+  "source": "layers.x: {a: {icon: https://example.com/icon.svg {near: outside-top-center}}}\n"
+ },
+ {
+  "name": "icon-center-near-root",
+  "source": "icon: https://example.com/icon.svg {near: center-center}\n"
+ },
+ {
+  "name": "icon-center-near-node",
+  "source": "a: {icon: https://example.com/icon.svg {near: center-center}}\n"
+ },
+ {
+  "name": "icon-center-near-edge",
+  "source": "a -> b: {icon: https://example.com/icon.svg {near: center-center}}\n"
+ },
+ {
+  "name": "icon-center-near-arrowhead",
+  "source": "a -> b: {target-arrowhead: {icon: https://example.com/icon.svg {near: center-center}}}\n"
+ },
+ {
+  "name": "icon-center-near-class",
+  "source": "classes.c: {icon: https://example.com/icon.svg {near: center-center}}\na.class: c\n"
+ },
+ {
+  "name": "icon-center-near-unused-class",
+  "source": "classes.c: {icon: https://example.com/icon.svg {near: center-center}}\na\n"
+ },
+ {
+  "name": "icon-center-near-board",
+  "source": "layers.x: {a: {icon: https://example.com/icon.svg {near: center-center}}}\n"
+ },
+ {
+  "name": "icon-bad-near-root",
+  "source": "icon: https://example.com/icon.svg {near: nowhere}\n"
+ },
+ {
+  "name": "icon-bad-near-node",
+  "source": "a: {icon: https://example.com/icon.svg {near: nowhere}}\n"
+ },
+ {
+  "name": "icon-bad-near-edge",
+  "source": "a -> b: {icon: https://example.com/icon.svg {near: nowhere}}\n"
+ },
+ {
+  "name": "icon-bad-near-arrowhead",
+  "source": "a -> b: {target-arrowhead: {icon: https://example.com/icon.svg {near: nowhere}}}\n"
+ },
+ {
+  "name": "icon-bad-near-class",
+  "source": "classes.c: {icon: https://example.com/icon.svg {near: nowhere}}\na.class: c\n"
+ },
+ {
+  "name": "icon-bad-near-unused-class",
+  "source": "classes.c: {icon: https://example.com/icon.svg {near: nowhere}}\na\n"
+ },
+ {
+  "name": "icon-bad-near-board",
+  "source": "layers.x: {a: {icon: https://example.com/icon.svg {near: nowhere}}}\n"
+ },
+ {
+  "name": "icon-empty-near-root",
+  "source": "icon: https://example.com/icon.svg {near}\n"
+ },
+ {
+  "name": "icon-empty-near-node",
+  "source": "a: {icon: https://example.com/icon.svg {near}}\n"
+ },
+ {
+  "name": "icon-empty-near-edge",
+  "source": "a -> b: {icon: https://example.com/icon.svg {near}}\n"
+ },
+ {
+  "name": "icon-empty-near-arrowhead",
+  "source": "a -> b: {target-arrowhead: {icon: https://example.com/icon.svg {near}}}\n"
+ },
+ {
+  "name": "icon-empty-near-class",
+  "source": "classes.c: {icon: https://example.com/icon.svg {near}}\na.class: c\n"
+ },
+ {
+  "name": "icon-empty-near-unused-class",
+  "source": "classes.c: {icon: https://example.com/icon.svg {near}}\na\n"
+ },
+ {
+  "name": "icon-empty-near-board",
+  "source": "layers.x: {a: {icon: https://example.com/icon.svg {near}}}\n"
+ },
+ {
+  "name": "icon-map-near-root",
+  "source": "icon: https://example.com/icon.svg {near: {a: b}}\n"
+ },
+ {
+  "name": "icon-map-near-node",
+  "source": "a: {icon: https://example.com/icon.svg {near: {a: b}}}\n"
+ },
+ {
+  "name": "icon-map-near-edge",
+  "source": "a -> b: {icon: https://example.com/icon.svg {near: {a: b}}}\n"
+ },
+ {
+  "name": "icon-map-near-arrowhead",
+  "source": "a -> b: {target-arrowhead: {icon: https://example.com/icon.svg {near: {a: b}}}}\n"
+ },
+ {
+  "name": "icon-map-near-class",
+  "source": "classes.c: {icon: https://example.com/icon.svg {near: {a: b}}}\na.class: c\n"
+ },
+ {
+  "name": "icon-map-near-unused-class",
+  "source": "classes.c: {icon: https://example.com/icon.svg {near: {a: b}}}\na\n"
+ },
+ {
+  "name": "icon-map-near-board",
+  "source": "layers.x: {a: {icon: https://example.com/icon.svg {near: {a: b}}}}\n"
+ },
+ {
+  "name": "icon-array-near-root",
+  "source": "icon: https://example.com/icon.svg {near: [top-center]}\n"
+ },
+ {
+  "name": "icon-array-near-node",
+  "source": "a: {icon: https://example.com/icon.svg {near: [top-center]}}\n"
+ },
+ {
+  "name": "icon-array-near-edge",
+  "source": "a -> b: {icon: https://example.com/icon.svg {near: [top-center]}}\n"
+ },
+ {
+  "name": "icon-array-near-arrowhead",
+  "source": "a -> b: {target-arrowhead: {icon: https://example.com/icon.svg {near: [top-center]}}}\n"
+ },
+ {
+  "name": "icon-array-near-class",
+  "source": "classes.c: {icon: https://example.com/icon.svg {near: [top-center]}}\na.class: c\n"
+ },
+ {
+  "name": "icon-array-near-unused-class",
+  "source": "classes.c: {icon: https://example.com/icon.svg {near: [top-center]}}\na\n"
+ },
+ {
+  "name": "icon-array-near-board",
+  "source": "layers.x: {a: {icon: https://example.com/icon.svg {near: [top-center]}}}\n"
+ },
+ {
+  "name": "icon-null-near-root",
+  "source": "icon: https://example.com/icon.svg {near: null}\n"
+ },
+ {
+  "name": "icon-null-near-node",
+  "source": "a: {icon: https://example.com/icon.svg {near: null}}\n"
+ },
+ {
+  "name": "icon-null-near-edge",
+  "source": "a -> b: {icon: https://example.com/icon.svg {near: null}}\n"
+ },
+ {
+  "name": "icon-null-near-arrowhead",
+  "source": "a -> b: {target-arrowhead: {icon: https://example.com/icon.svg {near: null}}}\n"
+ },
+ {
+  "name": "icon-null-near-class",
+  "source": "classes.c: {icon: https://example.com/icon.svg {near: null}}\na.class: c\n"
+ },
+ {
+  "name": "icon-null-near-unused-class",
+  "source": "classes.c: {icon: https://example.com/icon.svg {near: null}}\na\n"
+ },
+ {
+  "name": "icon-null-near-board",
+  "source": "layers.x: {a: {icon: https://example.com/icon.svg {near: null}}}\n"
+ },
+ {
+  "name": "icon-quoted-near-root",
+  "source": "icon: https://example.com/icon.svg {\"near\": top-center}\n"
+ },
+ {
+  "name": "icon-quoted-near-node",
+  "source": "a: {icon: https://example.com/icon.svg {\"near\": top-center}}\n"
+ },
+ {
+  "name": "icon-quoted-near-edge",
+  "source": "a -> b: {icon: https://example.com/icon.svg {\"near\": top-center}}\n"
+ },
+ {
+  "name": "icon-quoted-near-arrowhead",
+  "source": "a -> b: {target-arrowhead: {icon: https://example.com/icon.svg {\"near\": top-center}}}\n"
+ },
+ {
+  "name": "icon-quoted-near-class",
+  "source": "classes.c: {icon: https://example.com/icon.svg {\"near\": top-center}}\na.class: c\n"
+ },
+ {
+  "name": "icon-quoted-near-unused-class",
+  "source": "classes.c: {icon: https://example.com/icon.svg {\"near\": top-center}}\na\n"
+ },
+ {
+  "name": "icon-quoted-near-board",
+  "source": "layers.x: {a: {icon: https://example.com/icon.svg {\"near\": top-center}}}\n"
+ },
+ {
+  "name": "icon-upper-near-root",
+  "source": "icon: https://example.com/icon.svg {NEAR: top-center}\n"
+ },
+ {
+  "name": "icon-upper-near-node",
+  "source": "a: {icon: https://example.com/icon.svg {NEAR: top-center}}\n"
+ },
+ {
+  "name": "icon-upper-near-edge",
+  "source": "a -> b: {icon: https://example.com/icon.svg {NEAR: top-center}}\n"
+ },
+ {
+  "name": "icon-upper-near-arrowhead",
+  "source": "a -> b: {target-arrowhead: {icon: https://example.com/icon.svg {NEAR: top-center}}}\n"
+ },
+ {
+  "name": "icon-upper-near-class",
+  "source": "classes.c: {icon: https://example.com/icon.svg {NEAR: top-center}}\na.class: c\n"
+ },
+ {
+  "name": "icon-upper-near-unused-class",
+  "source": "classes.c: {icon: https://example.com/icon.svg {NEAR: top-center}}\na\n"
+ },
+ {
+  "name": "icon-upper-near-board",
+  "source": "layers.x: {a: {icon: https://example.com/icon.svg {NEAR: top-center}}}\n"
+ },
+ {
+  "name": "icon-quoted-field-root",
+  "source": "icon: https://example.com/icon.svg {\"width\": 100}\n"
+ },
+ {
+  "name": "icon-quoted-field-node",
+  "source": "a: {icon: https://example.com/icon.svg {\"width\": 100}}\n"
+ },
+ {
+  "name": "icon-quoted-field-edge",
+  "source": "a -> b: {icon: https://example.com/icon.svg {\"width\": 100}}\n"
+ },
+ {
+  "name": "icon-quoted-field-arrowhead",
+  "source": "a -> b: {target-arrowhead: {icon: https://example.com/icon.svg {\"width\": 100}}}\n"
+ },
+ {
+  "name": "icon-quoted-field-class",
+  "source": "classes.c: {icon: https://example.com/icon.svg {\"width\": 100}}\na.class: c\n"
+ },
+ {
+  "name": "icon-quoted-field-unused-class",
+  "source": "classes.c: {icon: https://example.com/icon.svg {\"width\": 100}}\na\n"
+ },
+ {
+  "name": "icon-quoted-field-board",
+  "source": "layers.x: {a: {icon: https://example.com/icon.svg {\"width\": 100}}}\n"
+ },
+ {
+  "name": "icon-nested-style-root",
+  "source": "icon: https://example.com/icon.svg {style.fill: red}\n"
+ },
+ {
+  "name": "icon-nested-style-node",
+  "source": "a: {icon: https://example.com/icon.svg {style.fill: red}}\n"
+ },
+ {
+  "name": "icon-nested-style-edge",
+  "source": "a -> b: {icon: https://example.com/icon.svg {style.fill: red}}\n"
+ },
+ {
+  "name": "icon-nested-style-arrowhead",
+  "source": "a -> b: {target-arrowhead: {icon: https://example.com/icon.svg {style.fill: red}}}\n"
+ },
+ {
+  "name": "icon-nested-style-class",
+  "source": "classes.c: {icon: https://example.com/icon.svg {style.fill: red}}\na.class: c\n"
+ },
+ {
+  "name": "icon-nested-style-unused-class",
+  "source": "classes.c: {icon: https://example.com/icon.svg {style.fill: red}}\na\n"
+ },
+ {
+  "name": "icon-nested-style-board",
+  "source": "layers.x: {a: {icon: https://example.com/icon.svg {style.fill: red}}}\n"
+ },
+ {
+  "name": "icon-edge-map-root",
+  "source": "icon: https://example.com/icon.svg {x -> y}\n"
+ },
+ {
+  "name": "icon-edge-map-node",
+  "source": "a: {icon: https://example.com/icon.svg {x -> y}}\n"
+ },
+ {
+  "name": "icon-edge-map-edge",
+  "source": "a -> b: {icon: https://example.com/icon.svg {x -> y}}\n"
+ },
+ {
+  "name": "icon-edge-map-arrowhead",
+  "source": "a -> b: {target-arrowhead: {icon: https://example.com/icon.svg {x -> y}}}\n"
+ },
+ {
+  "name": "icon-edge-map-class",
+  "source": "classes.c: {icon: https://example.com/icon.svg {x -> y}}\na.class: c\n"
+ },
+ {
+  "name": "icon-edge-map-unused-class",
+  "source": "classes.c: {icon: https://example.com/icon.svg {x -> y}}\na\n"
+ },
+ {
+  "name": "icon-edge-map-board",
+  "source": "layers.x: {a: {icon: https://example.com/icon.svg {x -> y}}}\n"
+ },
+ {
+  "name": "icon-ordered-root",
+  "source": "icon: https://example.com/icon.svg {width: 100; near: nowhere; height: 50}\n"
+ },
+ {
+  "name": "icon-ordered-node",
+  "source": "a: {icon: https://example.com/icon.svg {width: 100; near: nowhere; height: 50}}\n"
+ },
+ {
+  "name": "icon-ordered-edge",
+  "source": "a -> b: {icon: https://example.com/icon.svg {width: 100; near: nowhere; height: 50}}\n"
+ },
+ {
+  "name": "icon-ordered-arrowhead",
+  "source": "a -> b: {target-arrowhead: {icon: https://example.com/icon.svg {width: 100; near: nowhere; height: 50}}}\n"
+ },
+ {
+  "name": "icon-ordered-class",
+  "source": "classes.c: {icon: https://example.com/icon.svg {width: 100; near: nowhere; height: 50}}\na.class: c\n"
+ },
+ {
+  "name": "icon-ordered-unused-class",
+  "source": "classes.c: {icon: https://example.com/icon.svg {width: 100; near: nowhere; height: 50}}\na\n"
+ },
+ {
+  "name": "icon-ordered-board",
+  "source": "layers.x: {a: {icon: https://example.com/icon.svg {width: 100; near: nowhere; height: 50}}}\n"
+ },
+ {
+  "name": "icon-bare-root",
+  "source": "icon\n"
+ },
+ {
+  "name": "icon-bare-node",
+  "source": "a: {icon}\n"
+ },
+ {
+  "name": "icon-bare-edge",
+  "source": "a -> b: {icon}\n"
+ },
+ {
+  "name": "icon-map-only-root",
+  "source": "icon: {width: 100}\n"
+ },
+ {
+  "name": "icon-map-only-node",
+  "source": "a: {icon: {width: 100}}\n"
+ },
+ {
+  "name": "icon-map-only-edge",
+  "source": "a -> b: {icon: {width: 100}}\n"
+ },
+ {
+  "name": "icon-empty-map-root",
+  "source": "icon: {}\n"
+ },
+ {
+  "name": "icon-empty-map-node",
+  "source": "a: {icon: {}}\n"
+ },
+ {
+  "name": "icon-empty-map-edge",
+  "source": "a -> b: {icon: {}}\n"
+ },
+ {
+  "name": "icon-array-root",
+  "source": "icon: [foo]\n"
+ },
+ {
+  "name": "icon-array-node",
+  "source": "a: {icon: [foo]}\n"
+ },
+ {
+  "name": "icon-array-edge",
+  "source": "a -> b: {icon: [foo]}\n"
+ },
+ {
+  "name": "tooltip-dimensions-root",
+  "source": "tooltip: tip {width: 100; height: 50}\n"
+ },
+ {
+  "name": "tooltip-dimensions-node",
+  "source": "a: {tooltip: tip {width: 100; height: 50}}\n"
+ },
+ {
+  "name": "tooltip-dimensions-edge",
+  "source": "a -> b: {tooltip: tip {width: 100; height: 50}}\n"
+ },
+ {
+  "name": "tooltip-dimensions-arrowhead",
+  "source": "a -> b: {target-arrowhead: {tooltip: tip {width: 100; height: 50}}}\n"
+ },
+ {
+  "name": "tooltip-dimensions-class",
+  "source": "classes.c: {tooltip: tip {width: 100; height: 50}}\na.class: c\n"
+ },
+ {
+  "name": "tooltip-dimensions-unused-class",
+  "source": "classes.c: {tooltip: tip {width: 100; height: 50}}\na\n"
+ },
+ {
+  "name": "tooltip-dimensions-board",
+  "source": "layers.x: {a: {tooltip: tip {width: 100; height: 50}}}\n"
+ },
+ {
+  "name": "tooltip-valid-near-root",
+  "source": "tooltip: tip {near: top-center}\n"
+ },
+ {
+  "name": "tooltip-valid-near-node",
+  "source": "a: {tooltip: tip {near: top-center}}\n"
+ },
+ {
+  "name": "tooltip-valid-near-edge",
+  "source": "a -> b: {tooltip: tip {near: top-center}}\n"
+ },
+ {
+  "name": "tooltip-valid-near-arrowhead",
+  "source": "a -> b: {target-arrowhead: {tooltip: tip {near: top-center}}}\n"
+ },
+ {
+  "name": "tooltip-valid-near-class",
+  "source": "classes.c: {tooltip: tip {near: top-center}}\na.class: c\n"
+ },
+ {
+  "name": "tooltip-valid-near-unused-class",
+  "source": "classes.c: {tooltip: tip {near: top-center}}\na\n"
+ },
+ {
+  "name": "tooltip-valid-near-board",
+  "source": "layers.x: {a: {tooltip: tip {near: top-center}}}\n"
+ },
+ {
+  "name": "tooltip-outside-near-root",
+  "source": "tooltip: tip {near: outside-top-center}\n"
+ },
+ {
+  "name": "tooltip-outside-near-node",
+  "source": "a: {tooltip: tip {near: outside-top-center}}\n"
+ },
+ {
+  "name": "tooltip-outside-near-edge",
+  "source": "a -> b: {tooltip: tip {near: outside-top-center}}\n"
+ },
+ {
+  "name": "tooltip-outside-near-arrowhead",
+  "source": "a -> b: {target-arrowhead: {tooltip: tip {near: outside-top-center}}}\n"
+ },
+ {
+  "name": "tooltip-outside-near-class",
+  "source": "classes.c: {tooltip: tip {near: outside-top-center}}\na.class: c\n"
+ },
+ {
+  "name": "tooltip-outside-near-unused-class",
+  "source": "classes.c: {tooltip: tip {near: outside-top-center}}\na\n"
+ },
+ {
+  "name": "tooltip-outside-near-board",
+  "source": "layers.x: {a: {tooltip: tip {near: outside-top-center}}}\n"
+ },
+ {
+  "name": "tooltip-center-near-root",
+  "source": "tooltip: tip {near: center-center}\n"
+ },
+ {
+  "name": "tooltip-center-near-node",
+  "source": "a: {tooltip: tip {near: center-center}}\n"
+ },
+ {
+  "name": "tooltip-center-near-edge",
+  "source": "a -> b: {tooltip: tip {near: center-center}}\n"
+ },
+ {
+  "name": "tooltip-center-near-arrowhead",
+  "source": "a -> b: {target-arrowhead: {tooltip: tip {near: center-center}}}\n"
+ },
+ {
+  "name": "tooltip-center-near-class",
+  "source": "classes.c: {tooltip: tip {near: center-center}}\na.class: c\n"
+ },
+ {
+  "name": "tooltip-center-near-unused-class",
+  "source": "classes.c: {tooltip: tip {near: center-center}}\na\n"
+ },
+ {
+  "name": "tooltip-center-near-board",
+  "source": "layers.x: {a: {tooltip: tip {near: center-center}}}\n"
+ },
+ {
+  "name": "tooltip-bad-near-root",
+  "source": "tooltip: tip {near: nowhere}\n"
+ },
+ {
+  "name": "tooltip-bad-near-node",
+  "source": "a: {tooltip: tip {near: nowhere}}\n"
+ },
+ {
+  "name": "tooltip-bad-near-edge",
+  "source": "a -> b: {tooltip: tip {near: nowhere}}\n"
+ },
+ {
+  "name": "tooltip-bad-near-arrowhead",
+  "source": "a -> b: {target-arrowhead: {tooltip: tip {near: nowhere}}}\n"
+ },
+ {
+  "name": "tooltip-bad-near-class",
+  "source": "classes.c: {tooltip: tip {near: nowhere}}\na.class: c\n"
+ },
+ {
+  "name": "tooltip-bad-near-unused-class",
+  "source": "classes.c: {tooltip: tip {near: nowhere}}\na\n"
+ },
+ {
+  "name": "tooltip-bad-near-board",
+  "source": "layers.x: {a: {tooltip: tip {near: nowhere}}}\n"
+ },
+ {
+  "name": "tooltip-empty-near-root",
+  "source": "tooltip: tip {near}\n"
+ },
+ {
+  "name": "tooltip-empty-near-node",
+  "source": "a: {tooltip: tip {near}}\n"
+ },
+ {
+  "name": "tooltip-empty-near-edge",
+  "source": "a -> b: {tooltip: tip {near}}\n"
+ },
+ {
+  "name": "tooltip-empty-near-arrowhead",
+  "source": "a -> b: {target-arrowhead: {tooltip: tip {near}}}\n"
+ },
+ {
+  "name": "tooltip-empty-near-class",
+  "source": "classes.c: {tooltip: tip {near}}\na.class: c\n"
+ },
+ {
+  "name": "tooltip-empty-near-unused-class",
+  "source": "classes.c: {tooltip: tip {near}}\na\n"
+ },
+ {
+  "name": "tooltip-empty-near-board",
+  "source": "layers.x: {a: {tooltip: tip {near}}}\n"
+ },
+ {
+  "name": "tooltip-map-near-root",
+  "source": "tooltip: tip {near: {a: b}}\n"
+ },
+ {
+  "name": "tooltip-map-near-node",
+  "source": "a: {tooltip: tip {near: {a: b}}}\n"
+ },
+ {
+  "name": "tooltip-map-near-edge",
+  "source": "a -> b: {tooltip: tip {near: {a: b}}}\n"
+ },
+ {
+  "name": "tooltip-map-near-arrowhead",
+  "source": "a -> b: {target-arrowhead: {tooltip: tip {near: {a: b}}}}\n"
+ },
+ {
+  "name": "tooltip-map-near-class",
+  "source": "classes.c: {tooltip: tip {near: {a: b}}}\na.class: c\n"
+ },
+ {
+  "name": "tooltip-map-near-unused-class",
+  "source": "classes.c: {tooltip: tip {near: {a: b}}}\na\n"
+ },
+ {
+  "name": "tooltip-map-near-board",
+  "source": "layers.x: {a: {tooltip: tip {near: {a: b}}}}\n"
+ },
+ {
+  "name": "tooltip-array-near-root",
+  "source": "tooltip: tip {near: [top-center]}\n"
+ },
+ {
+  "name": "tooltip-array-near-node",
+  "source": "a: {tooltip: tip {near: [top-center]}}\n"
+ },
+ {
+  "name": "tooltip-array-near-edge",
+  "source": "a -> b: {tooltip: tip {near: [top-center]}}\n"
+ },
+ {
+  "name": "tooltip-array-near-arrowhead",
+  "source": "a -> b: {target-arrowhead: {tooltip: tip {near: [top-center]}}}\n"
+ },
+ {
+  "name": "tooltip-array-near-class",
+  "source": "classes.c: {tooltip: tip {near: [top-center]}}\na.class: c\n"
+ },
+ {
+  "name": "tooltip-array-near-unused-class",
+  "source": "classes.c: {tooltip: tip {near: [top-center]}}\na\n"
+ },
+ {
+  "name": "tooltip-array-near-board",
+  "source": "layers.x: {a: {tooltip: tip {near: [top-center]}}}\n"
+ },
+ {
+  "name": "tooltip-null-near-root",
+  "source": "tooltip: tip {near: null}\n"
+ },
+ {
+  "name": "tooltip-null-near-node",
+  "source": "a: {tooltip: tip {near: null}}\n"
+ },
+ {
+  "name": "tooltip-null-near-edge",
+  "source": "a -> b: {tooltip: tip {near: null}}\n"
+ },
+ {
+  "name": "tooltip-null-near-arrowhead",
+  "source": "a -> b: {target-arrowhead: {tooltip: tip {near: null}}}\n"
+ },
+ {
+  "name": "tooltip-null-near-class",
+  "source": "classes.c: {tooltip: tip {near: null}}\na.class: c\n"
+ },
+ {
+  "name": "tooltip-null-near-unused-class",
+  "source": "classes.c: {tooltip: tip {near: null}}\na\n"
+ },
+ {
+  "name": "tooltip-null-near-board",
+  "source": "layers.x: {a: {tooltip: tip {near: null}}}\n"
+ },
+ {
+  "name": "tooltip-quoted-near-root",
+  "source": "tooltip: tip {\"near\": top-center}\n"
+ },
+ {
+  "name": "tooltip-quoted-near-node",
+  "source": "a: {tooltip: tip {\"near\": top-center}}\n"
+ },
+ {
+  "name": "tooltip-quoted-near-edge",
+  "source": "a -> b: {tooltip: tip {\"near\": top-center}}\n"
+ },
+ {
+  "name": "tooltip-quoted-near-arrowhead",
+  "source": "a -> b: {target-arrowhead: {tooltip: tip {\"near\": top-center}}}\n"
+ },
+ {
+  "name": "tooltip-quoted-near-class",
+  "source": "classes.c: {tooltip: tip {\"near\": top-center}}\na.class: c\n"
+ },
+ {
+  "name": "tooltip-quoted-near-unused-class",
+  "source": "classes.c: {tooltip: tip {\"near\": top-center}}\na\n"
+ },
+ {
+  "name": "tooltip-quoted-near-board",
+  "source": "layers.x: {a: {tooltip: tip {\"near\": top-center}}}\n"
+ },
+ {
+  "name": "tooltip-upper-near-root",
+  "source": "tooltip: tip {NEAR: top-center}\n"
+ },
+ {
+  "name": "tooltip-upper-near-node",
+  "source": "a: {tooltip: tip {NEAR: top-center}}\n"
+ },
+ {
+  "name": "tooltip-upper-near-edge",
+  "source": "a -> b: {tooltip: tip {NEAR: top-center}}\n"
+ },
+ {
+  "name": "tooltip-upper-near-arrowhead",
+  "source": "a -> b: {target-arrowhead: {tooltip: tip {NEAR: top-center}}}\n"
+ },
+ {
+  "name": "tooltip-upper-near-class",
+  "source": "classes.c: {tooltip: tip {NEAR: top-center}}\na.class: c\n"
+ },
+ {
+  "name": "tooltip-upper-near-unused-class",
+  "source": "classes.c: {tooltip: tip {NEAR: top-center}}\na\n"
+ },
+ {
+  "name": "tooltip-upper-near-board",
+  "source": "layers.x: {a: {tooltip: tip {NEAR: top-center}}}\n"
+ },
+ {
+  "name": "tooltip-quoted-field-root",
+  "source": "tooltip: tip {\"width\": 100}\n"
+ },
+ {
+  "name": "tooltip-quoted-field-node",
+  "source": "a: {tooltip: tip {\"width\": 100}}\n"
+ },
+ {
+  "name": "tooltip-quoted-field-edge",
+  "source": "a -> b: {tooltip: tip {\"width\": 100}}\n"
+ },
+ {
+  "name": "tooltip-quoted-field-arrowhead",
+  "source": "a -> b: {target-arrowhead: {tooltip: tip {\"width\": 100}}}\n"
+ },
+ {
+  "name": "tooltip-quoted-field-class",
+  "source": "classes.c: {tooltip: tip {\"width\": 100}}\na.class: c\n"
+ },
+ {
+  "name": "tooltip-quoted-field-unused-class",
+  "source": "classes.c: {tooltip: tip {\"width\": 100}}\na\n"
+ },
+ {
+  "name": "tooltip-quoted-field-board",
+  "source": "layers.x: {a: {tooltip: tip {\"width\": 100}}}\n"
+ },
+ {
+  "name": "tooltip-nested-style-root",
+  "source": "tooltip: tip {style.fill: red}\n"
+ },
+ {
+  "name": "tooltip-nested-style-node",
+  "source": "a: {tooltip: tip {style.fill: red}}\n"
+ },
+ {
+  "name": "tooltip-nested-style-edge",
+  "source": "a -> b: {tooltip: tip {style.fill: red}}\n"
+ },
+ {
+  "name": "tooltip-nested-style-arrowhead",
+  "source": "a -> b: {target-arrowhead: {tooltip: tip {style.fill: red}}}\n"
+ },
+ {
+  "name": "tooltip-nested-style-class",
+  "source": "classes.c: {tooltip: tip {style.fill: red}}\na.class: c\n"
+ },
+ {
+  "name": "tooltip-nested-style-unused-class",
+  "source": "classes.c: {tooltip: tip {style.fill: red}}\na\n"
+ },
+ {
+  "name": "tooltip-nested-style-board",
+  "source": "layers.x: {a: {tooltip: tip {style.fill: red}}}\n"
+ },
+ {
+  "name": "tooltip-edge-map-root",
+  "source": "tooltip: tip {x -> y}\n"
+ },
+ {
+  "name": "tooltip-edge-map-node",
+  "source": "a: {tooltip: tip {x -> y}}\n"
+ },
+ {
+  "name": "tooltip-edge-map-edge",
+  "source": "a -> b: {tooltip: tip {x -> y}}\n"
+ },
+ {
+  "name": "tooltip-edge-map-arrowhead",
+  "source": "a -> b: {target-arrowhead: {tooltip: tip {x -> y}}}\n"
+ },
+ {
+  "name": "tooltip-edge-map-class",
+  "source": "classes.c: {tooltip: tip {x -> y}}\na.class: c\n"
+ },
+ {
+  "name": "tooltip-edge-map-unused-class",
+  "source": "classes.c: {tooltip: tip {x -> y}}\na\n"
+ },
+ {
+  "name": "tooltip-edge-map-board",
+  "source": "layers.x: {a: {tooltip: tip {x -> y}}}\n"
+ },
+ {
+  "name": "tooltip-ordered-root",
+  "source": "tooltip: tip {width: 100; near: nowhere; height: 50}\n"
+ },
+ {
+  "name": "tooltip-ordered-node",
+  "source": "a: {tooltip: tip {width: 100; near: nowhere; height: 50}}\n"
+ },
+ {
+  "name": "tooltip-ordered-edge",
+  "source": "a -> b: {tooltip: tip {width: 100; near: nowhere; height: 50}}\n"
+ },
+ {
+  "name": "tooltip-ordered-arrowhead",
+  "source": "a -> b: {target-arrowhead: {tooltip: tip {width: 100; near: nowhere; height: 50}}}\n"
+ },
+ {
+  "name": "tooltip-ordered-class",
+  "source": "classes.c: {tooltip: tip {width: 100; near: nowhere; height: 50}}\na.class: c\n"
+ },
+ {
+  "name": "tooltip-ordered-unused-class",
+  "source": "classes.c: {tooltip: tip {width: 100; near: nowhere; height: 50}}\na\n"
+ },
+ {
+  "name": "tooltip-ordered-board",
+  "source": "layers.x: {a: {tooltip: tip {width: 100; near: nowhere; height: 50}}}\n"
+ },
+ {
+  "name": "tooltip-bare-root",
+  "source": "tooltip\n"
+ },
+ {
+  "name": "tooltip-bare-node",
+  "source": "a: {tooltip}\n"
+ },
+ {
+  "name": "tooltip-bare-edge",
+  "source": "a -> b: {tooltip}\n"
+ },
+ {
+  "name": "tooltip-map-only-root",
+  "source": "tooltip: {width: 100}\n"
+ },
+ {
+  "name": "tooltip-map-only-node",
+  "source": "a: {tooltip: {width: 100}}\n"
+ },
+ {
+  "name": "tooltip-map-only-edge",
+  "source": "a -> b: {tooltip: {width: 100}}\n"
+ },
+ {
+  "name": "tooltip-empty-map-root",
+  "source": "tooltip: {}\n"
+ },
+ {
+  "name": "tooltip-empty-map-node",
+  "source": "a: {tooltip: {}}\n"
+ },
+ {
+  "name": "tooltip-empty-map-edge",
+  "source": "a -> b: {tooltip: {}}\n"
+ },
+ {
+  "name": "tooltip-array-root",
+  "source": "tooltip: [foo]\n"
+ },
+ {
+  "name": "tooltip-array-node",
+  "source": "a: {tooltip: [foo]}\n"
+ },
+ {
+  "name": "tooltip-array-edge",
+  "source": "a -> b: {tooltip: [foo]}\n"
+ },
+ {
+  "name": "mixed-style-order",
+  "source": "a: {label: hi {near: bad}; style.opacity: 2; icon: icon.svg {width: 10}; tooltip: tip {near: center-center}}\n"
+ },
+ {
+  "name": "overwritten-position-field",
+  "source": "a.label: text {width: 10}\na.label.width: null\n"
+ },
+ {
+  "name": "quoted-holder-object",
+  "source": "\"label\": text {width: 100; height: 50}\n"
+ },
+ {
+  "name": "class-overridden",
+  "source": "classes.c.label: text {near: bad}\na: {class: c; label.near: top-center}\n"
+ },
+ {
+  "name": "label-all-position-top-left-root",
+  "source": "label: title {near: top-left}\n"
+ },
+ {
+  "name": "label-all-position-top-left-node",
+  "source": "a: {label: title {near: top-left}}\n"
+ },
+ {
+  "name": "label-all-position-top-center-root",
+  "source": "label: title {near: top-center}\n"
+ },
+ {
+  "name": "label-all-position-top-center-node",
+  "source": "a: {label: title {near: top-center}}\n"
+ },
+ {
+  "name": "label-all-position-top-right-root",
+  "source": "label: title {near: top-right}\n"
+ },
+ {
+  "name": "label-all-position-top-right-node",
+  "source": "a: {label: title {near: top-right}}\n"
+ },
+ {
+  "name": "label-all-position-center-left-root",
+  "source": "label: title {near: center-left}\n"
+ },
+ {
+  "name": "label-all-position-center-left-node",
+  "source": "a: {label: title {near: center-left}}\n"
+ },
+ {
+  "name": "label-all-position-center-center-root",
+  "source": "label: title {near: center-center}\n"
+ },
+ {
+  "name": "label-all-position-center-center-node",
+  "source": "a: {label: title {near: center-center}}\n"
+ },
+ {
+  "name": "label-all-position-center-right-root",
+  "source": "label: title {near: center-right}\n"
+ },
+ {
+  "name": "label-all-position-center-right-node",
+  "source": "a: {label: title {near: center-right}}\n"
+ },
+ {
+  "name": "label-all-position-bottom-left-root",
+  "source": "label: title {near: bottom-left}\n"
+ },
+ {
+  "name": "label-all-position-bottom-left-node",
+  "source": "a: {label: title {near: bottom-left}}\n"
+ },
+ {
+  "name": "label-all-position-bottom-center-root",
+  "source": "label: title {near: bottom-center}\n"
+ },
+ {
+  "name": "label-all-position-bottom-center-node",
+  "source": "a: {label: title {near: bottom-center}}\n"
+ },
+ {
+  "name": "label-all-position-bottom-right-root",
+  "source": "label: title {near: bottom-right}\n"
+ },
+ {
+  "name": "label-all-position-bottom-right-node",
+  "source": "a: {label: title {near: bottom-right}}\n"
+ },
+ {
+  "name": "label-all-position-outside-top-left-root",
+  "source": "label: title {near: outside-top-left}\n"
+ },
+ {
+  "name": "label-all-position-outside-top-left-node",
+  "source": "a: {label: title {near: outside-top-left}}\n"
+ },
+ {
+  "name": "label-all-position-outside-top-center-root",
+  "source": "label: title {near: outside-top-center}\n"
+ },
+ {
+  "name": "label-all-position-outside-top-center-node",
+  "source": "a: {label: title {near: outside-top-center}}\n"
+ },
+ {
+  "name": "label-all-position-outside-top-right-root",
+  "source": "label: title {near: outside-top-right}\n"
+ },
+ {
+  "name": "label-all-position-outside-top-right-node",
+  "source": "a: {label: title {near: outside-top-right}}\n"
+ },
+ {
+  "name": "label-all-position-outside-left-top-root",
+  "source": "label: title {near: outside-left-top}\n"
+ },
+ {
+  "name": "label-all-position-outside-left-top-node",
+  "source": "a: {label: title {near: outside-left-top}}\n"
+ },
+ {
+  "name": "label-all-position-outside-left-center-root",
+  "source": "label: title {near: outside-left-center}\n"
+ },
+ {
+  "name": "label-all-position-outside-left-center-node",
+  "source": "a: {label: title {near: outside-left-center}}\n"
+ },
+ {
+  "name": "label-all-position-outside-left-bottom-root",
+  "source": "label: title {near: outside-left-bottom}\n"
+ },
+ {
+  "name": "label-all-position-outside-left-bottom-node",
+  "source": "a: {label: title {near: outside-left-bottom}}\n"
+ },
+ {
+  "name": "label-all-position-outside-right-top-root",
+  "source": "label: title {near: outside-right-top}\n"
+ },
+ {
+  "name": "label-all-position-outside-right-top-node",
+  "source": "a: {label: title {near: outside-right-top}}\n"
+ },
+ {
+  "name": "label-all-position-outside-right-center-root",
+  "source": "label: title {near: outside-right-center}\n"
+ },
+ {
+  "name": "label-all-position-outside-right-center-node",
+  "source": "a: {label: title {near: outside-right-center}}\n"
+ },
+ {
+  "name": "label-all-position-outside-right-bottom-root",
+  "source": "label: title {near: outside-right-bottom}\n"
+ },
+ {
+  "name": "label-all-position-outside-right-bottom-node",
+  "source": "a: {label: title {near: outside-right-bottom}}\n"
+ },
+ {
+  "name": "label-all-position-outside-bottom-left-root",
+  "source": "label: title {near: outside-bottom-left}\n"
+ },
+ {
+  "name": "label-all-position-outside-bottom-left-node",
+  "source": "a: {label: title {near: outside-bottom-left}}\n"
+ },
+ {
+  "name": "label-all-position-outside-bottom-center-root",
+  "source": "label: title {near: outside-bottom-center}\n"
+ },
+ {
+  "name": "label-all-position-outside-bottom-center-node",
+  "source": "a: {label: title {near: outside-bottom-center}}\n"
+ },
+ {
+  "name": "label-all-position-outside-bottom-right-root",
+  "source": "label: title {near: outside-bottom-right}\n"
+ },
+ {
+  "name": "label-all-position-outside-bottom-right-node",
+  "source": "a: {label: title {near: outside-bottom-right}}\n"
+ },
+ {
+  "name": "label-all-position-border-top-left-root",
+  "source": "label: title {near: border-top-left}\n"
+ },
+ {
+  "name": "label-all-position-border-top-left-node",
+  "source": "a: {label: title {near: border-top-left}}\n"
+ },
+ {
+  "name": "label-all-position-border-top-center-root",
+  "source": "label: title {near: border-top-center}\n"
+ },
+ {
+  "name": "label-all-position-border-top-center-node",
+  "source": "a: {label: title {near: border-top-center}}\n"
+ },
+ {
+  "name": "label-all-position-border-top-right-root",
+  "source": "label: title {near: border-top-right}\n"
+ },
+ {
+  "name": "label-all-position-border-top-right-node",
+  "source": "a: {label: title {near: border-top-right}}\n"
+ },
+ {
+  "name": "label-all-position-border-left-top-root",
+  "source": "label: title {near: border-left-top}\n"
+ },
+ {
+  "name": "label-all-position-border-left-top-node",
+  "source": "a: {label: title {near: border-left-top}}\n"
+ },
+ {
+  "name": "label-all-position-border-left-center-root",
+  "source": "label: title {near: border-left-center}\n"
+ },
+ {
+  "name": "label-all-position-border-left-center-node",
+  "source": "a: {label: title {near: border-left-center}}\n"
+ },
+ {
+  "name": "label-all-position-border-left-bottom-root",
+  "source": "label: title {near: border-left-bottom}\n"
+ },
+ {
+  "name": "label-all-position-border-left-bottom-node",
+  "source": "a: {label: title {near: border-left-bottom}}\n"
+ },
+ {
+  "name": "label-all-position-border-right-top-root",
+  "source": "label: title {near: border-right-top}\n"
+ },
+ {
+  "name": "label-all-position-border-right-top-node",
+  "source": "a: {label: title {near: border-right-top}}\n"
+ },
+ {
+  "name": "label-all-position-border-right-center-root",
+  "source": "label: title {near: border-right-center}\n"
+ },
+ {
+  "name": "label-all-position-border-right-center-node",
+  "source": "a: {label: title {near: border-right-center}}\n"
+ },
+ {
+  "name": "label-all-position-border-right-bottom-root",
+  "source": "label: title {near: border-right-bottom}\n"
+ },
+ {
+  "name": "label-all-position-border-right-bottom-node",
+  "source": "a: {label: title {near: border-right-bottom}}\n"
+ },
+ {
+  "name": "label-all-position-border-bottom-left-root",
+  "source": "label: title {near: border-bottom-left}\n"
+ },
+ {
+  "name": "label-all-position-border-bottom-left-node",
+  "source": "a: {label: title {near: border-bottom-left}}\n"
+ },
+ {
+  "name": "label-all-position-border-bottom-center-root",
+  "source": "label: title {near: border-bottom-center}\n"
+ },
+ {
+  "name": "label-all-position-border-bottom-center-node",
+  "source": "a: {label: title {near: border-bottom-center}}\n"
+ },
+ {
+  "name": "label-all-position-border-bottom-right-root",
+  "source": "label: title {near: border-bottom-right}\n"
+ },
+ {
+  "name": "label-all-position-border-bottom-right-node",
+  "source": "a: {label: title {near: border-bottom-right}}\n"
+ },
+ {
+  "name": "icon-all-position-top-left-root",
+  "source": "icon: https://example.com/icon.svg {near: top-left}\n"
+ },
+ {
+  "name": "icon-all-position-top-left-node",
+  "source": "a: {icon: https://example.com/icon.svg {near: top-left}}\n"
+ },
+ {
+  "name": "icon-all-position-top-center-root",
+  "source": "icon: https://example.com/icon.svg {near: top-center}\n"
+ },
+ {
+  "name": "icon-all-position-top-center-node",
+  "source": "a: {icon: https://example.com/icon.svg {near: top-center}}\n"
+ },
+ {
+  "name": "icon-all-position-top-right-root",
+  "source": "icon: https://example.com/icon.svg {near: top-right}\n"
+ },
+ {
+  "name": "icon-all-position-top-right-node",
+  "source": "a: {icon: https://example.com/icon.svg {near: top-right}}\n"
+ },
+ {
+  "name": "icon-all-position-center-left-root",
+  "source": "icon: https://example.com/icon.svg {near: center-left}\n"
+ },
+ {
+  "name": "icon-all-position-center-left-node",
+  "source": "a: {icon: https://example.com/icon.svg {near: center-left}}\n"
+ },
+ {
+  "name": "icon-all-position-center-center-root",
+  "source": "icon: https://example.com/icon.svg {near: center-center}\n"
+ },
+ {
+  "name": "icon-all-position-center-center-node",
+  "source": "a: {icon: https://example.com/icon.svg {near: center-center}}\n"
+ },
+ {
+  "name": "icon-all-position-center-right-root",
+  "source": "icon: https://example.com/icon.svg {near: center-right}\n"
+ },
+ {
+  "name": "icon-all-position-center-right-node",
+  "source": "a: {icon: https://example.com/icon.svg {near: center-right}}\n"
+ },
+ {
+  "name": "icon-all-position-bottom-left-root",
+  "source": "icon: https://example.com/icon.svg {near: bottom-left}\n"
+ },
+ {
+  "name": "icon-all-position-bottom-left-node",
+  "source": "a: {icon: https://example.com/icon.svg {near: bottom-left}}\n"
+ },
+ {
+  "name": "icon-all-position-bottom-center-root",
+  "source": "icon: https://example.com/icon.svg {near: bottom-center}\n"
+ },
+ {
+  "name": "icon-all-position-bottom-center-node",
+  "source": "a: {icon: https://example.com/icon.svg {near: bottom-center}}\n"
+ },
+ {
+  "name": "icon-all-position-bottom-right-root",
+  "source": "icon: https://example.com/icon.svg {near: bottom-right}\n"
+ },
+ {
+  "name": "icon-all-position-bottom-right-node",
+  "source": "a: {icon: https://example.com/icon.svg {near: bottom-right}}\n"
+ },
+ {
+  "name": "icon-all-position-outside-top-left-root",
+  "source": "icon: https://example.com/icon.svg {near: outside-top-left}\n"
+ },
+ {
+  "name": "icon-all-position-outside-top-left-node",
+  "source": "a: {icon: https://example.com/icon.svg {near: outside-top-left}}\n"
+ },
+ {
+  "name": "icon-all-position-outside-top-center-root",
+  "source": "icon: https://example.com/icon.svg {near: outside-top-center}\n"
+ },
+ {
+  "name": "icon-all-position-outside-top-center-node",
+  "source": "a: {icon: https://example.com/icon.svg {near: outside-top-center}}\n"
+ },
+ {
+  "name": "icon-all-position-outside-top-right-root",
+  "source": "icon: https://example.com/icon.svg {near: outside-top-right}\n"
+ },
+ {
+  "name": "icon-all-position-outside-top-right-node",
+  "source": "a: {icon: https://example.com/icon.svg {near: outside-top-right}}\n"
+ },
+ {
+  "name": "icon-all-position-outside-left-top-root",
+  "source": "icon: https://example.com/icon.svg {near: outside-left-top}\n"
+ },
+ {
+  "name": "icon-all-position-outside-left-top-node",
+  "source": "a: {icon: https://example.com/icon.svg {near: outside-left-top}}\n"
+ },
+ {
+  "name": "icon-all-position-outside-left-center-root",
+  "source": "icon: https://example.com/icon.svg {near: outside-left-center}\n"
+ },
+ {
+  "name": "icon-all-position-outside-left-center-node",
+  "source": "a: {icon: https://example.com/icon.svg {near: outside-left-center}}\n"
+ },
+ {
+  "name": "icon-all-position-outside-left-bottom-root",
+  "source": "icon: https://example.com/icon.svg {near: outside-left-bottom}\n"
+ },
+ {
+  "name": "icon-all-position-outside-left-bottom-node",
+  "source": "a: {icon: https://example.com/icon.svg {near: outside-left-bottom}}\n"
+ },
+ {
+  "name": "icon-all-position-outside-right-top-root",
+  "source": "icon: https://example.com/icon.svg {near: outside-right-top}\n"
+ },
+ {
+  "name": "icon-all-position-outside-right-top-node",
+  "source": "a: {icon: https://example.com/icon.svg {near: outside-right-top}}\n"
+ },
+ {
+  "name": "icon-all-position-outside-right-center-root",
+  "source": "icon: https://example.com/icon.svg {near: outside-right-center}\n"
+ },
+ {
+  "name": "icon-all-position-outside-right-center-node",
+  "source": "a: {icon: https://example.com/icon.svg {near: outside-right-center}}\n"
+ },
+ {
+  "name": "icon-all-position-outside-right-bottom-root",
+  "source": "icon: https://example.com/icon.svg {near: outside-right-bottom}\n"
+ },
+ {
+  "name": "icon-all-position-outside-right-bottom-node",
+  "source": "a: {icon: https://example.com/icon.svg {near: outside-right-bottom}}\n"
+ },
+ {
+  "name": "icon-all-position-outside-bottom-left-root",
+  "source": "icon: https://example.com/icon.svg {near: outside-bottom-left}\n"
+ },
+ {
+  "name": "icon-all-position-outside-bottom-left-node",
+  "source": "a: {icon: https://example.com/icon.svg {near: outside-bottom-left}}\n"
+ },
+ {
+  "name": "icon-all-position-outside-bottom-center-root",
+  "source": "icon: https://example.com/icon.svg {near: outside-bottom-center}\n"
+ },
+ {
+  "name": "icon-all-position-outside-bottom-center-node",
+  "source": "a: {icon: https://example.com/icon.svg {near: outside-bottom-center}}\n"
+ },
+ {
+  "name": "icon-all-position-outside-bottom-right-root",
+  "source": "icon: https://example.com/icon.svg {near: outside-bottom-right}\n"
+ },
+ {
+  "name": "icon-all-position-outside-bottom-right-node",
+  "source": "a: {icon: https://example.com/icon.svg {near: outside-bottom-right}}\n"
+ },
+ {
+  "name": "icon-all-position-border-top-left-root",
+  "source": "icon: https://example.com/icon.svg {near: border-top-left}\n"
+ },
+ {
+  "name": "icon-all-position-border-top-left-node",
+  "source": "a: {icon: https://example.com/icon.svg {near: border-top-left}}\n"
+ },
+ {
+  "name": "icon-all-position-border-top-center-root",
+  "source": "icon: https://example.com/icon.svg {near: border-top-center}\n"
+ },
+ {
+  "name": "icon-all-position-border-top-center-node",
+  "source": "a: {icon: https://example.com/icon.svg {near: border-top-center}}\n"
+ },
+ {
+  "name": "icon-all-position-border-top-right-root",
+  "source": "icon: https://example.com/icon.svg {near: border-top-right}\n"
+ },
+ {
+  "name": "icon-all-position-border-top-right-node",
+  "source": "a: {icon: https://example.com/icon.svg {near: border-top-right}}\n"
+ },
+ {
+  "name": "icon-all-position-border-left-top-root",
+  "source": "icon: https://example.com/icon.svg {near: border-left-top}\n"
+ },
+ {
+  "name": "icon-all-position-border-left-top-node",
+  "source": "a: {icon: https://example.com/icon.svg {near: border-left-top}}\n"
+ },
+ {
+  "name": "icon-all-position-border-left-center-root",
+  "source": "icon: https://example.com/icon.svg {near: border-left-center}\n"
+ },
+ {
+  "name": "icon-all-position-border-left-center-node",
+  "source": "a: {icon: https://example.com/icon.svg {near: border-left-center}}\n"
+ },
+ {
+  "name": "icon-all-position-border-left-bottom-root",
+  "source": "icon: https://example.com/icon.svg {near: border-left-bottom}\n"
+ },
+ {
+  "name": "icon-all-position-border-left-bottom-node",
+  "source": "a: {icon: https://example.com/icon.svg {near: border-left-bottom}}\n"
+ },
+ {
+  "name": "icon-all-position-border-right-top-root",
+  "source": "icon: https://example.com/icon.svg {near: border-right-top}\n"
+ },
+ {
+  "name": "icon-all-position-border-right-top-node",
+  "source": "a: {icon: https://example.com/icon.svg {near: border-right-top}}\n"
+ },
+ {
+  "name": "icon-all-position-border-right-center-root",
+  "source": "icon: https://example.com/icon.svg {near: border-right-center}\n"
+ },
+ {
+  "name": "icon-all-position-border-right-center-node",
+  "source": "a: {icon: https://example.com/icon.svg {near: border-right-center}}\n"
+ },
+ {
+  "name": "icon-all-position-border-right-bottom-root",
+  "source": "icon: https://example.com/icon.svg {near: border-right-bottom}\n"
+ },
+ {
+  "name": "icon-all-position-border-right-bottom-node",
+  "source": "a: {icon: https://example.com/icon.svg {near: border-right-bottom}}\n"
+ },
+ {
+  "name": "icon-all-position-border-bottom-left-root",
+  "source": "icon: https://example.com/icon.svg {near: border-bottom-left}\n"
+ },
+ {
+  "name": "icon-all-position-border-bottom-left-node",
+  "source": "a: {icon: https://example.com/icon.svg {near: border-bottom-left}}\n"
+ },
+ {
+  "name": "icon-all-position-border-bottom-center-root",
+  "source": "icon: https://example.com/icon.svg {near: border-bottom-center}\n"
+ },
+ {
+  "name": "icon-all-position-border-bottom-center-node",
+  "source": "a: {icon: https://example.com/icon.svg {near: border-bottom-center}}\n"
+ },
+ {
+  "name": "icon-all-position-border-bottom-right-root",
+  "source": "icon: https://example.com/icon.svg {near: border-bottom-right}\n"
+ },
+ {
+  "name": "icon-all-position-border-bottom-right-node",
+  "source": "a: {icon: https://example.com/icon.svg {near: border-bottom-right}}\n"
+ },
+ {
+  "name": "tooltip-all-position-top-left-root",
+  "source": "tooltip: tip {near: top-left}\n"
+ },
+ {
+  "name": "tooltip-all-position-top-left-node",
+  "source": "a: {tooltip: tip {near: top-left}}\n"
+ },
+ {
+  "name": "tooltip-all-position-top-center-root",
+  "source": "tooltip: tip {near: top-center}\n"
+ },
+ {
+  "name": "tooltip-all-position-top-center-node",
+  "source": "a: {tooltip: tip {near: top-center}}\n"
+ },
+ {
+  "name": "tooltip-all-position-top-right-root",
+  "source": "tooltip: tip {near: top-right}\n"
+ },
+ {
+  "name": "tooltip-all-position-top-right-node",
+  "source": "a: {tooltip: tip {near: top-right}}\n"
+ },
+ {
+  "name": "tooltip-all-position-center-left-root",
+  "source": "tooltip: tip {near: center-left}\n"
+ },
+ {
+  "name": "tooltip-all-position-center-left-node",
+  "source": "a: {tooltip: tip {near: center-left}}\n"
+ },
+ {
+  "name": "tooltip-all-position-center-center-root",
+  "source": "tooltip: tip {near: center-center}\n"
+ },
+ {
+  "name": "tooltip-all-position-center-center-node",
+  "source": "a: {tooltip: tip {near: center-center}}\n"
+ },
+ {
+  "name": "tooltip-all-position-center-right-root",
+  "source": "tooltip: tip {near: center-right}\n"
+ },
+ {
+  "name": "tooltip-all-position-center-right-node",
+  "source": "a: {tooltip: tip {near: center-right}}\n"
+ },
+ {
+  "name": "tooltip-all-position-bottom-left-root",
+  "source": "tooltip: tip {near: bottom-left}\n"
+ },
+ {
+  "name": "tooltip-all-position-bottom-left-node",
+  "source": "a: {tooltip: tip {near: bottom-left}}\n"
+ },
+ {
+  "name": "tooltip-all-position-bottom-center-root",
+  "source": "tooltip: tip {near: bottom-center}\n"
+ },
+ {
+  "name": "tooltip-all-position-bottom-center-node",
+  "source": "a: {tooltip: tip {near: bottom-center}}\n"
+ },
+ {
+  "name": "tooltip-all-position-bottom-right-root",
+  "source": "tooltip: tip {near: bottom-right}\n"
+ },
+ {
+  "name": "tooltip-all-position-bottom-right-node",
+  "source": "a: {tooltip: tip {near: bottom-right}}\n"
+ },
+ {
+  "name": "tooltip-all-position-outside-top-left-root",
+  "source": "tooltip: tip {near: outside-top-left}\n"
+ },
+ {
+  "name": "tooltip-all-position-outside-top-left-node",
+  "source": "a: {tooltip: tip {near: outside-top-left}}\n"
+ },
+ {
+  "name": "tooltip-all-position-outside-top-center-root",
+  "source": "tooltip: tip {near: outside-top-center}\n"
+ },
+ {
+  "name": "tooltip-all-position-outside-top-center-node",
+  "source": "a: {tooltip: tip {near: outside-top-center}}\n"
+ },
+ {
+  "name": "tooltip-all-position-outside-top-right-root",
+  "source": "tooltip: tip {near: outside-top-right}\n"
+ },
+ {
+  "name": "tooltip-all-position-outside-top-right-node",
+  "source": "a: {tooltip: tip {near: outside-top-right}}\n"
+ },
+ {
+  "name": "tooltip-all-position-outside-left-top-root",
+  "source": "tooltip: tip {near: outside-left-top}\n"
+ },
+ {
+  "name": "tooltip-all-position-outside-left-top-node",
+  "source": "a: {tooltip: tip {near: outside-left-top}}\n"
+ },
+ {
+  "name": "tooltip-all-position-outside-left-center-root",
+  "source": "tooltip: tip {near: outside-left-center}\n"
+ },
+ {
+  "name": "tooltip-all-position-outside-left-center-node",
+  "source": "a: {tooltip: tip {near: outside-left-center}}\n"
+ },
+ {
+  "name": "tooltip-all-position-outside-left-bottom-root",
+  "source": "tooltip: tip {near: outside-left-bottom}\n"
+ },
+ {
+  "name": "tooltip-all-position-outside-left-bottom-node",
+  "source": "a: {tooltip: tip {near: outside-left-bottom}}\n"
+ },
+ {
+  "name": "tooltip-all-position-outside-right-top-root",
+  "source": "tooltip: tip {near: outside-right-top}\n"
+ },
+ {
+  "name": "tooltip-all-position-outside-right-top-node",
+  "source": "a: {tooltip: tip {near: outside-right-top}}\n"
+ },
+ {
+  "name": "tooltip-all-position-outside-right-center-root",
+  "source": "tooltip: tip {near: outside-right-center}\n"
+ },
+ {
+  "name": "tooltip-all-position-outside-right-center-node",
+  "source": "a: {tooltip: tip {near: outside-right-center}}\n"
+ },
+ {
+  "name": "tooltip-all-position-outside-right-bottom-root",
+  "source": "tooltip: tip {near: outside-right-bottom}\n"
+ },
+ {
+  "name": "tooltip-all-position-outside-right-bottom-node",
+  "source": "a: {tooltip: tip {near: outside-right-bottom}}\n"
+ },
+ {
+  "name": "tooltip-all-position-outside-bottom-left-root",
+  "source": "tooltip: tip {near: outside-bottom-left}\n"
+ },
+ {
+  "name": "tooltip-all-position-outside-bottom-left-node",
+  "source": "a: {tooltip: tip {near: outside-bottom-left}}\n"
+ },
+ {
+  "name": "tooltip-all-position-outside-bottom-center-root",
+  "source": "tooltip: tip {near: outside-bottom-center}\n"
+ },
+ {
+  "name": "tooltip-all-position-outside-bottom-center-node",
+  "source": "a: {tooltip: tip {near: outside-bottom-center}}\n"
+ },
+ {
+  "name": "tooltip-all-position-outside-bottom-right-root",
+  "source": "tooltip: tip {near: outside-bottom-right}\n"
+ },
+ {
+  "name": "tooltip-all-position-outside-bottom-right-node",
+  "source": "a: {tooltip: tip {near: outside-bottom-right}}\n"
+ },
+ {
+  "name": "tooltip-all-position-border-top-left-root",
+  "source": "tooltip: tip {near: border-top-left}\n"
+ },
+ {
+  "name": "tooltip-all-position-border-top-left-node",
+  "source": "a: {tooltip: tip {near: border-top-left}}\n"
+ },
+ {
+  "name": "tooltip-all-position-border-top-center-root",
+  "source": "tooltip: tip {near: border-top-center}\n"
+ },
+ {
+  "name": "tooltip-all-position-border-top-center-node",
+  "source": "a: {tooltip: tip {near: border-top-center}}\n"
+ },
+ {
+  "name": "tooltip-all-position-border-top-right-root",
+  "source": "tooltip: tip {near: border-top-right}\n"
+ },
+ {
+  "name": "tooltip-all-position-border-top-right-node",
+  "source": "a: {tooltip: tip {near: border-top-right}}\n"
+ },
+ {
+  "name": "tooltip-all-position-border-left-top-root",
+  "source": "tooltip: tip {near: border-left-top}\n"
+ },
+ {
+  "name": "tooltip-all-position-border-left-top-node",
+  "source": "a: {tooltip: tip {near: border-left-top}}\n"
+ },
+ {
+  "name": "tooltip-all-position-border-left-center-root",
+  "source": "tooltip: tip {near: border-left-center}\n"
+ },
+ {
+  "name": "tooltip-all-position-border-left-center-node",
+  "source": "a: {tooltip: tip {near: border-left-center}}\n"
+ },
+ {
+  "name": "tooltip-all-position-border-left-bottom-root",
+  "source": "tooltip: tip {near: border-left-bottom}\n"
+ },
+ {
+  "name": "tooltip-all-position-border-left-bottom-node",
+  "source": "a: {tooltip: tip {near: border-left-bottom}}\n"
+ },
+ {
+  "name": "tooltip-all-position-border-right-top-root",
+  "source": "tooltip: tip {near: border-right-top}\n"
+ },
+ {
+  "name": "tooltip-all-position-border-right-top-node",
+  "source": "a: {tooltip: tip {near: border-right-top}}\n"
+ },
+ {
+  "name": "tooltip-all-position-border-right-center-root",
+  "source": "tooltip: tip {near: border-right-center}\n"
+ },
+ {
+  "name": "tooltip-all-position-border-right-center-node",
+  "source": "a: {tooltip: tip {near: border-right-center}}\n"
+ },
+ {
+  "name": "tooltip-all-position-border-right-bottom-root",
+  "source": "tooltip: tip {near: border-right-bottom}\n"
+ },
+ {
+  "name": "tooltip-all-position-border-right-bottom-node",
+  "source": "a: {tooltip: tip {near: border-right-bottom}}\n"
+ },
+ {
+  "name": "tooltip-all-position-border-bottom-left-root",
+  "source": "tooltip: tip {near: border-bottom-left}\n"
+ },
+ {
+  "name": "tooltip-all-position-border-bottom-left-node",
+  "source": "a: {tooltip: tip {near: border-bottom-left}}\n"
+ },
+ {
+  "name": "tooltip-all-position-border-bottom-center-root",
+  "source": "tooltip: tip {near: border-bottom-center}\n"
+ },
+ {
+  "name": "tooltip-all-position-border-bottom-center-node",
+  "source": "a: {tooltip: tip {near: border-bottom-center}}\n"
+ },
+ {
+  "name": "tooltip-all-position-border-bottom-right-root",
+  "source": "tooltip: tip {near: border-bottom-right}\n"
+ },
+ {
+  "name": "tooltip-all-position-border-bottom-right-node",
+  "source": "a: {tooltip: tip {near: border-bottom-right}}\n"
+ },
+ {
+  "name": "unicode-0-False",
+  "source": "a: {label: \"é😀\" {near: bad}}\n",
+  "utf16": false
+ },
+ {
+  "name": "unicode-0-True",
+  "source": "a: {label: \"é😀\" {near: bad}}\n",
+  "utf16": true
+ },
+ {
+  "name": "unicode-1-False",
+  "source": "a: {tooltip: \"é😀\" {near: center-center}}\n",
+  "utf16": false
+ },
+ {
+  "name": "unicode-1-True",
+  "source": "a: {tooltip: \"é😀\" {near: center-center}}\n",
+  "utf16": true
+ },
+ {
+  "name": "unicode-2-False",
+  "source": "a: {label: \"é😀\" {\"near\": top-left; width: 20}}\n",
+  "utf16": false
+ },
+ {
+  "name": "unicode-2-True",
+  "source": "a: {label: \"é😀\" {\"near\": top-left; width: 20}}\n",
+  "utf16": true
+ },
+ {
+  "name": "unicode-3-False",
+  "source": "é😀: {label: {height: 20}}\n",
+  "utf16": false
+ },
+ {
+  "name": "unicode-3-True",
+  "source": "é😀: {label: {height: 20}}\n",
+  "utf16": true
+ },
+ {
+  "name": "unicode-4-False",
+  "source": "classes.c.label: \"é😀\" {width: 10}\na.class: c\n",
+  "utf16": false
+ },
+ {
+  "name": "unicode-4-True",
+  "source": "classes.c.label: \"é😀\" {width: 10}\na.class: c\n",
+  "utf16": true
+ },
+ {
+  "name": "unicode-5-False",
+  "source": "a -> b: {label: \"é😀\" {near: bad}}\n",
+  "utf16": false
+ },
+ {
+  "name": "unicode-5-True",
+  "source": "a -> b: {label: \"é😀\" {near: bad}}\n",
+  "utf16": true
+ },
+ {
+  "name": "unicode-6-False",
+  "source": "layers.x: {é😀: {label: {width: 20}}}\n",
+  "utf16": false
+ },
+ {
+  "name": "unicode-6-True",
+  "source": "layers.x: {é😀: {label: {width: 20}}}\n",
+  "utf16": true
+ }
+]

@@ -1,0 +1,86 @@
+{
+  "description": "Markdown text shapes built into d2scene documents (viewports, appendix, link budgets); snippet 21 is also markdown-layout-viewport.",
+  "segments": [
+    {
+      "prefix": "metadata",
+      "const": {"DisableLinks": false, "MaxRegions": 1000, "MaxStringBytes": 65536},
+      "axes": [
+        {"fields": ["Family"], "values": [["sans"], ["mono"], ["hand"]], "labels": ["sans", "mono", "hand"]},
+        {"fields": ["FontSize"], "values": [[12], [16], [22]], "labels": ["12", "16", "22"]},
+        {"fields": ["Height", "Width"], "values": [[-1, -1], [-1, 7], [1, -1], [-1, 0], [0, -1]], "labels": ["natural", "narrow", "short", "zero-width", "zero-height"]},
+        {"fields": ["Appendix"], "values": [[false], [true]], "labels": ["appendix0", "appendix1"]}
+      ],
+      "snippets": [
+        ["00", "<code></code>"],
+        ["01", "<code></code> tail"],
+        ["02", "before <code></code> after"],
+        ["03", "<code> </code> tail"],
+        ["04", "<code>\t</code> tail"],
+        ["05", "<code><b></b></code> tail"],
+        ["06", "<b><code></code></b> tail"],
+        ["07", "<em><code></code></em> tail"],
+        ["08", "[<code></code>](https://example.com)"],
+        ["09", "[<code>abc</code>](https://example.com)"],
+        ["10", "before [<code>abc def</code>](https://example.com) after"],
+        ["11", "<code>a</code><code></code><code>b</code>"],
+        ["12", "<code>a<b>b c</b>d</code> tail"],
+        ["13", "<code>a<em>b c</em>d</code> tail"],
+        ["14", "<code></code><code></code>"],
+        ["15", "~~<code></code>~~ tail"],
+        ["16", "[**`code`**](https://example.com)"],
+        ["17", "[~~`code`~~](https://example.com)"],
+        ["18", "<code>甲乙</code> tail"],
+        ["19", "`ab` `cd`"],
+        ["20", "[<code></code>](https://example.com \"A & B\")"],
+        ["21", "[<code>abc</code>](https://example.com \"A & B\")"],
+        ["22", "<code><a href=\"https://example.com\" title=\"inner\">abc</a></code>"],
+        ["23", "~~<a href=\"https://example.com\">code</a>~~"],
+        ["24", "<a href=\"https://example.com\">~~code~~</a>"],
+        ["25", "<del>left <del>middle</del> right</del>"],
+        ["26", "[code]()"],
+        ["27", "<a title=\"no href\"><code></code>tail</a>"],
+        ["28", "<code>a<br/>b</code> tail"],
+        ["29", "<code><br/></code> tail"],
+        ["30", "[plain](https://example.com \"plain title\")"],
+        ["31", "[**bold**](root.html \"relative title\")"],
+        ["32", "[a b](https://example.com \"same\") [c](https://example.com \"same\")"],
+        ["33", "# [heading](https://example.com \"heading title\")"],
+        ["34", "- [item](https://example.com \"list title\")"],
+        ["35", "| header |\n| --- |\n| [cell](https://example.com \"cell title\") |"]
+      ]
+    },
+    {
+      "prefix": "budget",
+      "const": {"Family": "sans", "FontSize": 16, "Width": -1, "Height": -1, "Appendix": true, "MaxRegions": 0, "MaxStringBytes": 65536},
+      "combos": [
+        {"label": "65536-outer0", "set": {"DisableLinks": false}},
+        {"label": "65536-outer1", "set": {"DisableLinks": true}}
+      ],
+      "snippets": [
+        ["0", "[<code>abc</code>](https://example.com \"A & B\")"]
+      ]
+    },
+    {
+      "prefix": "budget",
+      "const": {"Family": "sans", "FontSize": 16, "Width": -1, "Height": -1, "Appendix": true, "MaxRegions": 1, "MaxStringBytes": 65536},
+      "combos": [
+        {"label": "65536-outer0", "set": {"DisableLinks": false}},
+        {"label": "65536-outer1", "set": {"DisableLinks": true}}
+      ],
+      "snippets": [
+        ["1", "[<code>abc</code>](https://example.com \"A & B\")"]
+      ]
+    },
+    {
+      "prefix": "budget",
+      "const": {"Family": "sans", "FontSize": 16, "Width": -1, "Height": -1, "Appendix": true, "MaxRegions": 1000},
+      "axes": [
+        {"fields": ["MaxStringBytes"], "values": [[0], [16]], "labels": ["0", "16"]},
+        {"fields": ["DisableLinks"], "values": [[false], [true]], "labels": ["outer0", "outer1"]}
+      ],
+      "snippets": [
+        ["1000", "[<code>abc</code>](https://example.com \"A & B\")"]
+      ]
+    }
+  ]
+}

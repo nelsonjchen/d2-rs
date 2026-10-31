@@ -1,0 +1,197 @@
+diff --git a/d2layouts/d2layouts.go b/d2layouts/d2layouts.go
+index 5081a3417..687d99c80 100644
+--- a/d2layouts/d2layouts.go
++++ b/d2layouts/d2layouts.go
+@@ -2,9 +2,11 @@ package d2layouts
+ 
+ import (
+ 	"context"
++	"encoding/hex"
+ 	"fmt"
+ 	"log/slog"
+ 	"math"
++	"os"
+ 	"sort"
+ 	"strings"
+ 
+@@ -282,6 +284,11 @@ func LayoutNested(ctx context.Context, g *d2graph.Graph, graphInfo GraphInfo, co
+ 			if err = d2grid.Layout(ctx, g); err != nil {
+ 				return err
+ 			}
++			if os.Getenv("D2_DEBUG_GRID") != "" {
++				for _, obj := range g.Root.ChildrenArray {
++					fmt.Fprintf(os.Stderr, "GRID_AFTER root=%s child=%s x=%v y=%v w=%v h=%v\n", g.Root.AbsID(), obj.AbsID(), obj.TopLeft.X, obj.TopLeft.Y, obj.Width, obj.Height)
++				}
++			}
+ 
+ 		case SequenceDiagram:
+ 			log.Debug(ctx, "layout sequence", slog.Any("rootlevel", g.RootLevel), slog.Any("shapes", g.PrintString()))
+@@ -295,6 +302,14 @@ func LayoutNested(ctx context.Context, g *d2graph.Graph, graphInfo GraphInfo, co
+ 			if err != nil {
+ 				return err
+ 			}
++			if os.Getenv("D2_DEBUG_GRID") != "" {
++				for _, obj := range g.Root.ChildrenArray {
++					fmt.Fprintf(os.Stderr, "CORE_AFTER root=%s child=%s x=%v y=%v w=%v h=%v\n", g.Root.AbsID(), obj.AbsID(), obj.TopLeft.X, obj.TopLeft.Y, obj.Width, obj.Height)
++					for _, nested := range obj.ChildrenArray {
++						fmt.Fprintf(os.Stderr, "CORE_DESC parent=%s child=%s x=%v y=%v w=%v h=%v\n", obj.AbsID(), nested.AbsID(), nested.TopLeft.X, nested.TopLeft.Y, nested.Width, nested.Height)
++					}
++				}
++			}
+ 		}
+ 	}
+ 
+@@ -349,6 +364,18 @@ func LayoutNested(ctx context.Context, g *d2graph.Graph, graphInfo GraphInfo, co
+ 		if err != nil {
+ 			return err
+ 		}
++		if os.Getenv("D2_TRACE_GRID_STATE") != "" {
++			traceGridExternalEdges(extractedEdges)
++		}
++		if os.Getenv("D2_TRACE_GRID_ROUTES") != "" {
++			for _, e := range extractedEdges {
++				fmt.Fprintf(os.Stderr, "GRID_TRACE stage=extracted-edge edge=%s srcBox=(%.6f,%.6f,%.6f,%.6f) dstBox=(%.6f,%.6f,%.6f,%.6f)", e.AbsID(), e.Src.TopLeft.X, e.Src.TopLeft.Y, e.Src.Width, e.Src.Height, e.Dst.TopLeft.X, e.Dst.TopLeft.Y, e.Dst.Width, e.Dst.Height)
++				for _, point := range e.Route {
++					fmt.Fprintf(os.Stderr, " (%.6f,%.6f)", point.X, point.Y)
++				}
++				fmt.Fprintln(os.Stderr)
++			}
++		}
+ 		// need to update pointers if plugin performs edge routing
+ 		for i, e := range extractedEdges {
+ 			ids := extractedEdgeIDs[i]
+@@ -368,16 +395,80 @@ func LayoutNested(ctx context.Context, g *d2graph.Graph, graphInfo GraphInfo, co
+ 	if err := validateObjectPositions(g.Objects); err != nil {
+ 		return err
+ 	}
++	hasGridScope := graphInfo.DiagramType == GridDiagram
++	if !hasGridScope {
++		for _, object := range g.Objects {
++			if object.IsGridDiagram() {
++				hasGridScope = true
++				break
++			}
++		}
++	}
++	if os.Getenv("D2_TRACE_GRID_STATE") != "" && g.RootLevel == 0 && hasGridScope {
++		traceGridFinal(g)
++	}
+ 
+ 	log.Debug(ctx, "done", slog.Any("rootlevel", g.RootLevel), slog.Any("shapes", g.PrintString()))
+ 	return err
+ }
+ 
++func traceGridFinal(g *d2graph.Graph) {
++	var records []string
++	objects := append([]*d2graph.Object(nil), g.Objects...)
++	sort.Slice(objects, func(i, j int) bool { return objects[i].AbsID() < objects[j].AbsID() })
++	for _, object := range objects {
++		nodeID := hex.EncodeToString([]byte(normalizedGridTraceID(object.AbsID())))
++		records = append(records, fmt.Sprintf(
++			"GRID_STATE stage=layout-final scope=726f6f74 node=%s rect=%016x,%016x,%016x,%016x",
++			nodeID,
++			math.Float64bits(object.TopLeft.X), math.Float64bits(object.TopLeft.Y),
++			math.Float64bits(object.Width), math.Float64bits(object.Height),
++		))
++		if object.LabelPosition != nil {
++			records = append(records, fmt.Sprintf(
++				"GRID_LABEL stage=layout-final scope=726f6f74 node=%s position=%s",
++				nodeID, *object.LabelPosition,
++			))
++		}
++	}
++	ordinals := make(map[string]int)
++	for _, edge := range g.Edges {
++		source := hex.EncodeToString([]byte(normalizedGridTraceID(edge.Src.AbsID())))
++		target := hex.EncodeToString([]byte(normalizedGridTraceID(edge.Dst.AbsID())))
++		pair := source + ">" + target
++		ordinal := ordinals[pair]
++		ordinals[pair] = ordinal + 1
++		if len(edge.Route) == 0 {
++			continue
++		}
++		points := make([]string, 0, len(edge.Route))
++		for _, point := range edge.Route {
++			points = append(points, fmt.Sprintf("%016x,%016x", math.Float64bits(point.X), math.Float64bits(point.Y)))
++		}
++		records = append(records, fmt.Sprintf(
++			"GRID_ROUTE stage=layout-final scope=726f6f74 edge=%s>%s#%d points=%s",
++			source, target, ordinal, strings.Join(points, ";"),
++		))
++	}
++	sort.Strings(records)
++	for _, record := range records {
++		fmt.Fprintln(os.Stderr, record)
++	}
++}
++
+ func DefaultRouter(ctx context.Context, graph *d2graph.Graph, edges []*d2graph.Edge) error {
+ 	for _, e := range edges {
+ 		// TODO replace simple straight line edge routing
+ 		e.Route = []*geo.Point{e.Src.Center(), e.Dst.Center()}
+ 		e.TraceToShape(e.Route, 0, 1)
++		if os.Getenv("D2_TRACE_GRID_ROUTES") != "" {
++			fmt.Fprintf(os.Stderr, "GRID_TRACE stage=default-router edge=%s srcBox=(%.6f,%.6f,%.6f,%.6f) dstBox=(%.6f,%.6f,%.6f,%.6f)", e.AbsID(), e.Src.TopLeft.X, e.Src.TopLeft.Y, e.Src.Width, e.Src.Height, e.Dst.TopLeft.X, e.Dst.TopLeft.Y, e.Dst.Width, e.Dst.Height)
++			for _, point := range e.Route {
++				fmt.Fprintf(os.Stderr, " (%.6f,%.6f)", point.X, point.Y)
++			}
++			fmt.Fprintln(os.Stderr)
++		}
++
+ 		if e.Label.Value != "" {
+ 			e.LabelPosition = go2.Pointer(label.InsideMiddleCenter.String())
+ 		}
+@@ -385,6 +476,10 @@ func DefaultRouter(ctx context.Context, graph *d2graph.Graph, edges []*d2graph.E
+ 	return nil
+ }
+ 
++func normalizedGridTraceID(id string) string {
++	return strings.TrimPrefix(id, "b.")
++}
++
+ func NestedGraphInfo(obj *d2graph.Object) (gi GraphInfo) {
+ 	if obj.Graph.RootLevel == 0 && obj.IsConstantNear() {
+ 		gi.IsConstantNear = true
+@@ -817,3 +912,42 @@ func FitToGraph(container *d2graph.Object, nestedGraph *d2graph.Graph, padding g
+ 	container.Width = padding.Left + width + padding.Right
+ 	container.Height = padding.Top + height + padding.Bottom
+ }
++
++func traceGridExternalEdges(edges []*d2graph.Edge) {
++    if os.Getenv("D2_TRACE_GRID_CALLBACK") == "1" && len(edges) > 0 {
++        graph := edges[0].Src.Graph
++        names := make([]string, 0, len(graph.Objects))
++        for _, object := range graph.Objects { names = append(names, object.AbsID()) }
++        fmt.Fprintf(os.Stderr, "GRID_CALLBACK root=%q nodes=%d edges=%d objects=%q\n", graph.Root.AbsID(), len(graph.Objects), len(graph.Edges), names)
++    }
++
++	ordinals := make(map[string]int)
++	var records []string
++	for _, e := range edges {
++		source := hex.EncodeToString([]byte(normalizedGridTraceID(e.Src.AbsID())))
++		target := hex.EncodeToString([]byte(normalizedGridTraceID(e.Dst.AbsID())))
++		scope := "root"
++		for parent := e.Src.Parent; parent != nil; parent = parent.Parent {
++			if parent.IsGridDiagram() {
++				scope = normalizedGridTraceID(parent.AbsID())
++				if scope == "" {
++					scope = "root"
++				}
++				break
++			}
++		}
++		scopeHex := hex.EncodeToString([]byte(scope))
++		pair := scopeHex + ":" + source + ">" + target
++		ordinal := ordinals[pair]
++		ordinals[pair]++
++		points := make([]string, 0, len(e.Route))
++		for _, point := range e.Route {
++			points = append(points, fmt.Sprintf("%016x,%016x", math.Float64bits(point.X), math.Float64bits(point.Y)))
++		}
++		records = append(records, fmt.Sprintf("GRID_ROUTE stage=external-route scope=%s edge=%s>%s#%d points=%s", scopeHex, source, target, ordinal, strings.Join(points, ";")))
++	}
++	sort.Strings(records)
++	for _, record := range records {
++		fmt.Fprintln(os.Stderr, record)
++	}
++}

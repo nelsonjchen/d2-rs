@@ -1,0 +1,35 @@
+[package]
+name = "d2-rs-math"
+description = "In-process D2 math measurement and SVG boundary"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish = false
+
+[features]
+# Oracle tier: tests that read Go-oracle artifacts regenerated into
+# oracle-cache/fixtures by scripts/regen-fixtures.py (docs/FIXTURES.md).
+oracle-fixtures = []
+
+[dependencies]
+flate2.workspace = true
+brotli-decompressor.workspace = true
+base64.workspace = true
+sha2.workspace = true
+regex.workspace = true
+d2-rs-core.workspace = true
+roxmltree.workspace = true
+quick-xml = "=0.36.2"
+libm.workspace = true
+num-rational.workspace = true
+num-traits = "0.2.19"
+svgtypes.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+d2-rs-testdata.workspace = true

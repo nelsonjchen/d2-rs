@@ -1,0 +1,147 @@
+[workspace]
+members = ["crates/d2-rs-text", "crates/d2-rs-core", "crates/d2-rs-language", "crates/d2-tala-rs", "crates/d2-rs-dagre", "crates/d2-rs-elk", "crates/d2-rs-layout", "crates/d2-rs-lib", "crates/d2-rs-wasm", "crates/d2-rs-cli", "crates/d2-rs-render", "crates/d2-rs-editor", "crates/d2-rs-math", "crates/d2-rs-sketch", "crates/d2-rs-export", "crates/d2-rs-goflate", "crates/d2-rs-isometric", "crates/d2-rs-scene", "crates/d2-rs-fontface", "crates/d2-rs-scenebuild", "crates/d2-rs-raster", "crates/d2-rs-target", "crates/d2-rs-testdata"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98.1"
+license = "MPL-2.0"
+authors = ["Nelson Chen"]
+repository = "https://github.com/nelsonjchen/d2-rs"
+
+[workspace.dependencies]
+regex = "1.12"
+num-bigint = "0.4.8"
+num-rational = "0.4.2"
+base64 = "0.22"
+roxmltree = { version = "0.21.1", features = ["positions"] }
+svgtypes = "0.16.1"
+libm = "0.2.16"
+flate2 = { version = "1.1.10", default-features = false, features = ["rust_backend"] }
+mimalloc = { version = "0.1", default-features = false }
+rayon = "1.11"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", features = ["preserve_order", "float_roundtrip", "raw_value"] }
+thiserror = "2.0"
+wasm-bindgen = "=0.2.128"
+# Keep the SVG parser/font surface explicit, but include the raster decoders
+# used by D2's native PNG/PDF/PPTX path for embedded image nodes.  Without
+# this feature complex scenes fall back to resvg and silently omit raster
+# assets after the custom scanline renderer declines them.
+resvg = { version = "0.48.1", default-features = false, features = ["text", "system-fonts", "raster-images"] }
+gif = "0.13.1"
+png = "0.18.1"
+ttf-parser = "0.25.1"
+sha2 = "0.10"
+rustybuzz = { version = "0.20.1", path = "vendor/rustybuzz-go-v090" }
+unicode-segmentation = "1.12.0"
+unicode-width = "0.1.14"
+zip = { version = "6.0.0", default-features = false, features = ["deflate"] }
+brotli-decompressor = "5.0.3"
+reqwest = { version = "0.12.28", default-features = false, features = ["rustls-tls"] }
+hyper = { version = "1.12.0", default-features = false, features = ["client", "http1"] }
+tokio = { version = "1", features = ["rt", "time", "net", "macros"] }
+zune-jpeg = "0.5.9"
+image-webp = "0.2.4"
+imagesize = "0.15.0"
+ring = "0.17.14"
+ctrlc = "3.5.2"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
+
+# Keep the everyday edit/build loop cheap while retaining source locations in
+# panics and backtraces.
+[profile.dev]
+debug = "line-tables-only"
+
+# The recovered optimizer deliberately evaluates many candidate placements.
+# Use this profile for oracle/corpus validation, where runtime dominates rebuild
+# latency. Ordinary development builds intentionally remain unoptimized.
+[profile.oracle]
+inherits = "dev"
+# Incremental state (and the thin-LTO objects it retains) grew target/ past
+# its 10 GiB ceiling in one test cycle; LTO with one codegen unit gains
+# nothing from it.
+incremental = false
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+debug-assertions = false
+overflow-checks = false
+
+[workspace.dependencies.d2-rs-testdata]
+path = "crates/d2-rs-testdata"
+
+[workspace.dependencies.d2-rs-core]
+path = "crates/d2-rs-core"
+
+[workspace.dependencies.d2-rs-language]
+path = "crates/d2-rs-language"
+
+[workspace.dependencies.d2-rs-text]
+path = "crates/d2-rs-text"
+
+[workspace.dependencies.d2-tala-rs]
+path = "crates/d2-tala-rs"
+default-features = false
+
+[workspace.dependencies.d2-rs-layout]
+path = "crates/d2-rs-layout"
+
+[workspace.dependencies.d2-rs-dagre]
+path = "crates/d2-rs-dagre"
+
+[workspace.dependencies.d2-rs-elk]
+path = "crates/d2-rs-elk"
+
+[profile.diagnostic]
+inherits = "release"
+debug = 0
+strip = "none"
+# Keep ordinary parity builds bounded. Enable symbols only for a scoped debugger run
+# with CARGO_PROFILE_DIAGNOSTIC_DEBUG=2, then retire its obsolete variants.
+lto = false
+codegen-units = 16
+
+[workspace.dependencies.d2-rs-lib]
+path = "crates/d2-rs-lib"
+
+[workspace.dependencies.d2-rs-render]
+path = "crates/d2-rs-render"
+
+[workspace.dependencies.d2-rs-editor]
+path = "crates/d2-rs-editor"
+
+[workspace.dependencies.d2-rs-goflate]
+path = "crates/d2-rs-goflate"
+
+[workspace.dependencies.d2-rs-math]
+path = "crates/d2-rs-math"
+
+[workspace.dependencies.d2-rs-sketch]
+path = "crates/d2-rs-sketch"
+
+[workspace.dependencies.d2-rs-fontface]
+path = "crates/d2-rs-fontface"
+
+[workspace.dependencies.d2-rs-scenebuild]
+path = "crates/d2-rs-scenebuild"
+
+[workspace.dependencies.d2-rs-raster]
+path = "crates/d2-rs-raster"
+
+[workspace.dependencies.d2-rs-target]
+path = "crates/d2-rs-target"
+
+[workspace.dependencies.d2-rs-scene]
+path = "crates/d2-rs-scene"
+
+[workspace.dependencies.d2-rs-isometric]
+path = "crates/d2-rs-isometric"
+
+[workspace.dependencies.d2-rs-export]
+path = "crates/d2-rs-export"

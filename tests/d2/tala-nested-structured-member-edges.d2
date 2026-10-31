@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: MPL-2.0
+outer: {
+  "class.name": {
+    shape: class
+    "i.d": int
+    parent: Record
+    "i.d" -> parent: class loop
+  }
+  "table.name": {
+    shape: sql_table
+    "i.d": int
+    parent: int
+    "i.d" -> parent: table loop
+  }
+  "class.name"."i.d" -> "table.name"."i.d": cross
+}
+outside
+outer."table.name".parent -> outside: export

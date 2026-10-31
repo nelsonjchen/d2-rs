@@ -1,0 +1,12 @@
+--- a/d2layouts/d2dagrelayout/layout.go
++++ b/d2layouts/d2dagrelayout/layout.go
+@@ -228,6 +228,9 @@
+ 		if !ok {
+ 			return fmt.Errorf("dagro returned edge %q without points", dagreEdges[i].Name)
+ 		}
++		if os.Getenv("DAGRE_TRACE_RAW_POINTS") != "" {
++			fmt.Fprintf(os.Stderr, "GO_DAGRE_RAW edge=%s points=%v\n", edge.AbsID(), dagrePoints)
++		}
+ 
+ 		points := make([]*geo.Point, len(dagrePoints))
+ 		for i, point := range dagrePoints {

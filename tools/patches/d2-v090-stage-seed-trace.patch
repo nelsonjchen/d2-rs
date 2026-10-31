@@ -1,0 +1,96 @@
+--- a/d2layouts/d2talalayout/internal/engine/pipeline.go
++++ b/d2layouts/d2talalayout/internal/engine/pipeline.go
+@@ -65,6 +65,8 @@
+ type normalizedTraceEvent struct {
+ 	Stage string                `json:"stage"`
+ 	Event string                `json:"event"`
++	Seed  *int64                `json:"seed"`
++	Scope string                `json:"scope,omitempty"`
+ 	Nodes []normalizedTraceNode `json:"nodes,omitempty"`
+ 	Edges []normalizedTraceEdge `json:"edges,omitempty"`
+ }
+@@ -77,7 +79,10 @@
+ 	if os.Getenv("TALA_TRACE_JSONL") == "" {
+ 		return
+ 	}
+-	event := normalizedTraceEvent{Stage: stage, Event: "stage"}
++	event := normalizedTraceEvent{Stage: stage, Event: "stage", Seed: p.traceSeed}
++	if p.traceSeed == nil {
++		event.Scope = "seed-unavailable"
++	}
+ 	for _, node := range p.graph.Nodes {
+ 		if node == nil {
+ 			continue
+@@ -138,8 +143,10 @@
+ }
+ 
+ type pipeline struct {
+-	graph                    *layoutgraph.Graph
+-	seed                     int64
++	graph *layoutgraph.Graph
++	seed  int64
++	// Diagnostic identity is bound only by a known seed constructor/caller.
++	traceSeed                *int64
+ 	random                   *rand.Rand
+ 	hierarchyPlacementRandom *rand.Rand
+ 	stages                   []pipelineStage
+@@ -260,6 +267,7 @@
+ 	return &pipeline{
+ 		graph:                    graph,
+ 		seed:                     randSeed,
++		traceSeed:                &randSeed,
+ 		hierarchyPlacementRandom: trace.NewRand(randSeed, "hierarchy-placement"),
+ 		random:                   trace.NewRand(randSeed, "pipeline-random"),
+ 		storeSnapshots:           storeSnapshots,
+@@ -696,6 +704,6 @@
+ }
+ 
+ // TraceSelectedGraph records the adapter-selected graph for development comparisons.
+-func TraceSelectedGraph(g *layoutgraph.Graph) {
+-	(&pipeline{graph: g}).emitNormalizedTrace("SelectedResult")
+-}
++func TraceSelectedGraph(g *layoutgraph.Graph, seed *int64) {
++	(&pipeline{graph: g, traceSeed: seed}).emitNormalizedTrace("SelectedResult")
++}
+--- a/d2layouts/d2talalayout/layout.go
++++ b/d2layouts/d2talalayout/layout.go
+@@ -211,6 +211,9 @@
+ 		if bestIndex < 0 || comparison < 0 || (comparison == 0 && attempt.index > bestIndex) {
+ 			bestIndex = attempt.index
+ 			best = attempt.result
++			// Bind the selected ordinary seed, independent of worker completion order.
++			traceSeed := attempt.seed
++			best.traceSeed = &traceSeed
+ 		}
+ 	}
+ 
+@@ -280,12 +283,16 @@
+ 		if candidate == best.graph {
+ 			return best, nil
+ 		}
+-		return evaluateSeedResult(workCtx, input, candidate)
++		evaluated, err := evaluateSeedResult(workCtx, input, candidate)
++		// Compound proposals preserve the ordinary winning seed provenance;
++		// their own reroute pipeline has its explicit algorithm seed of zero.
++		evaluated.traceSeed = best.traceSeed
++		return evaluated, err
+ 	})
+ 	if err != nil {
+ 		return err
+ 	}
+-	engine.TraceSelectedGraph(best.graph)
++	engine.TraceSelectedGraph(best.graph, best.traceSeed)
+ 	return applySeedResult(workCtx, graph, best)
+ }
+ 
+--- a/d2layouts/d2talalayout/result.go
++++ b/d2layouts/d2talalayout/result.go
+@@ -60,6 +60,8 @@
+ 
+ // seedResult is a successfully validated and scored local layout attempt.
+ type seedResult struct {
++	// Diagnostic provenance of the ordinary seed selected by the coordinator.
++	traceSeed     *int64
+ 	bindings      translation
+ 	graph         *layoutgraph.Graph
+ 	sequenceEdges map[layoutgraph.EntityID]struct{}

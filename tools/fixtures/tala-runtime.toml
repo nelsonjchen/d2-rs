@@ -1,0 +1,15 @@
+# Go runtime oracle for crates/d2-tala-rs/src/internal/runtime (GoRng, the
+# math/rand source TALA seeds per layout). Keyed on the manifest Go
+# toolchain only, not the D2 pin. See docs/FIXTURES.md.
+#
+# Regenerate:  uv run --no-project python scripts/regen-fixtures.py --only tala-go-rng-int63n
+# Test:        cargo test -p d2-tala-rs --features oracle-fixtures go_rng
+
+[[recipe]]
+name = "tala-go-rng-int63n"
+kind = "go-program"
+description = "Go math/rand Int63n draws and the next Float64 at the 31/63-bit rejection edges, eight seeds"
+outputs = ["crates/d2-tala-rs/src/internal/runtime/fixtures/go127-int63n.json"]
+program = "tools/fixtures/programs/tala-go-rng"
+module = "tools/fixtures/programs/tala-go-rng"
+stdout = "crates/d2-tala-rs/src/internal/runtime/fixtures/go127-int63n.json"

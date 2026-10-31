@@ -1,0 +1,31 @@
+[package]
+publish = false
+name = "d2-rs-lib"
+description = "D2 Rust library; currently provides measured-graph TALA layout"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+readme = "../../README.md"
+
+[features]
+default = []
+diagnostic-traces = ["d2-tala-rs/diagnostic-traces"]
+# Oracle tier: tests that read Go-oracle artifacts regenerated into
+# oracle-cache/fixtures by scripts/regen-fixtures.py (docs/FIXTURES.md).
+oracle-fixtures = []
+
+[dependencies]
+base64.workspace = true
+d2-rs-goflate.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+d2-tala-rs = { workspace = true, default-features = false }
+d2-rs-core.workspace = true
+d2-rs-language.workspace = true
+
+[dev-dependencies]
+d2-rs-testdata.workspace = true

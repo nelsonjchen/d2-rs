@@ -1,0 +1,50 @@
+--- a/d2layouts/d2talalayout/internal/routing/ovg.go
++++ b/d2layouts/d2talalayout/internal/routing/ovg.go
+@@ -160,6 +160,7 @@
+ 	if err := ovg.addPorts(g, guard); err != nil {
+ 		return nil, err
+ 	}
++	traceOVGConstructionCounts(g,ovg,"after-addPorts")
+ 	for _, hOVG := range hierarchyOVGs {
+ 		if err := guard.step(); err != nil {
+ 			return nil, err
+@@ -171,6 +172,7 @@
+ 	if err := ovg.addNodesIntersections(g, guard); err != nil {
+ 		return nil, err
+ 	}
++	traceOVGConstructionCounts(g,ovg,"after-addNodesIntersections")
+ 	for _, hOVG := range hierarchyOVGs {
+ 		if err := guard.step(); err != nil {
+ 			return nil, err
+@@ -183,9 +185,11 @@
+ 	if err := ovg.addEdgesNodes(g, guard); err != nil {
+ 		return nil, err
+ 	}
++	traceOVGConstructionCounts(g,ovg,"after-addEdgesNodes")
+ 	if err := ovg.addTreeNodes(g, guard); err != nil {
+ 		return nil, err
+ 	}
++	traceOVGConstructionCounts(g,ovg,"after-addTreeNodes")
+ 	tl, br, err := guard.tightBoundingBox(layoutgraph.Nodes(ovg.NodesInsideBoundingBox))
+ 	if err != nil {
+ 		return nil, err
+@@ -193,15 +197,19 @@
+ 	if err := ovg.addNewBoundaryLayers(g, tl, br, guard); err != nil {
+ 		return nil, err
+ 	}
++	traceOVGConstructionCounts(g,ovg,"after-addNewBoundaryLayers")
+ 	if err := ovg.addPortConnectionNodesAtBoundaries(g, tl, br, guard); err != nil {
+ 		return nil, err
+ 	}
++	traceOVGConstructionCounts(g,ovg,"after-addPortConnectionNodesAtBoundaries")
+ 	if err := ovg.addCornerNodes(g, tl, br, guard); err != nil {
+ 		return nil, err
+ 	}
++	traceOVGConstructionCounts(g,ovg,"after-addCornerNodes")
+ 	if err := ovg.addTunnels(g, guard); err != nil {
+ 		return nil, err
+ 	}
++	traceOVGConstructionCounts(g,ovg,"after-addTunnels")
+ 
+ 	// TODO if any OVG nodes are too close to container edge, split them
+ 	if err := ovg.connectNodes(g, guard); err != nil {

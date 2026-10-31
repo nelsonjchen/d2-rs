@@ -1,0 +1,1059 @@
+[
+ {
+  "name": "retained-0",
+  "source": "x: \"Single\" {shape:class;style.font-size:16;style.italic:false;f:int;m()}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-1",
+  "source": "x: \"Single\" {shape:class;style.font-size:16;style.italic:true;f:int;m()}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-2",
+  "source": "x: \"Single\" {shape:class;style.font-size:30;style.italic:false;f:int;m()}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-3",
+  "source": "x: \"Single\" {shape:class;style.font-size:30;style.italic:true;f:int;m()}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-4",
+  "source": "x: \"First\\nSecond\" {shape:class;style.font-size:16;style.italic:false;f:int;m()}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-5",
+  "source": "x: \"First\\nSecond\" {shape:class;style.font-size:16;style.italic:true;f:int;m()}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-6",
+  "source": "x: \"First\\nSecond\" {shape:class;style.font-size:30;style.italic:false;f:int;m()}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-7",
+  "source": "x: \"First\\nSecond\" {shape:class;style.font-size:30;style.italic:true;f:int;m()}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-8",
+  "source": "x: \"First\\n\\nThird\" {shape:class;style.font-size:16;style.italic:false;f:int;m()}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-9",
+  "source": "x: \"First\\n\\nThird\" {shape:class;style.font-size:16;style.italic:true;f:int;m()}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-10",
+  "source": "x: \"First\\n\\nThird\" {shape:class;style.font-size:30;style.italic:false;f:int;m()}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-11",
+  "source": "x: \"First\\n\\nThird\" {shape:class;style.font-size:30;style.italic:true;f:int;m()}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-12",
+  "source": "classes: {U:{style.underline:true}}\nx:{shape:class;f:int;m():void}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-13",
+  "source": "classes: {U:{style.underline:true}}\nx:{shape:class;f:int;m():void {style.underline:true}}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-14",
+  "source": "classes: {U:{style.underline:true}}\nx:{shape:class;f:int;m():void {style.underline:false}}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-15",
+  "source": "classes: {U:{style.underline:true}}\nx:{shape:class;f:int;m():void {class: U}}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-16",
+  "source": "classes: {U:{style.underline:true}}\nx:{shape:class;f:int {style.underline:true};m():void}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-17",
+  "source": "classes: {U:{style.underline:true}}\nx:{shape:class;f:int {style.underline:true};m():void {style.underline:true}}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-18",
+  "source": "classes: {U:{style.underline:true}}\nx:{shape:class;f:int {style.underline:true};m():void {style.underline:false}}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-19",
+  "source": "classes: {U:{style.underline:true}}\nx:{shape:class;f:int {style.underline:true};m():void {class: U}}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-20",
+  "source": "classes: {U:{style.underline:true}}\nx:{shape:class;f:int {style.underline:false};m():void}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-21",
+  "source": "classes: {U:{style.underline:true}}\nx:{shape:class;f:int {style.underline:false};m():void {style.underline:true}}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-22",
+  "source": "classes: {U:{style.underline:true}}\nx:{shape:class;f:int {style.underline:false};m():void {style.underline:false}}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-23",
+  "source": "classes: {U:{style.underline:true}}\nx:{shape:class;f:int {style.underline:false};m():void {class: U}}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-24",
+  "source": "classes: {U:{style.underline:true}}\nx:{shape:class;f:int {class: U};m():void}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-25",
+  "source": "classes: {U:{style.underline:true}}\nx:{shape:class;f:int {class: U};m():void {style.underline:true}}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-26",
+  "source": "classes: {U:{style.underline:true}}\nx:{shape:class;f:int {class: U};m():void {style.underline:false}}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-27",
+  "source": "classes: {U:{style.underline:true}}\nx:{shape:class;f:int {class: U};m():void {class: U}}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-28",
+  "source": "x:{shape:class;\"f\":int {style.underline:true};\"m()\":Result {style.underline:false}}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-29",
+  "source": "x:{shape:class;\"f\":int {style.underline:true};\"+m()\":Result {style.underline:false}}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-30",
+  "source": "x:{shape:class;\"f\":int {style.underline:true};\"-m()\":Result {style.underline:false}}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-31",
+  "source": "x:{shape:class;\"f\":int {style.underline:true};\"#m()\":Result {style.underline:false}}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-32",
+  "source": "x:{shape:class;\"+f\":int {style.underline:true};\"m()\":Result {style.underline:false}}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-33",
+  "source": "x:{shape:class;\"+f\":int {style.underline:true};\"+m()\":Result {style.underline:false}}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-34",
+  "source": "x:{shape:class;\"+f\":int {style.underline:true};\"-m()\":Result {style.underline:false}}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-35",
+  "source": "x:{shape:class;\"+f\":int {style.underline:true};\"#m()\":Result {style.underline:false}}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-36",
+  "source": "x:{shape:class;\"-f\":int {style.underline:true};\"m()\":Result {style.underline:false}}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-37",
+  "source": "x:{shape:class;\"-f\":int {style.underline:true};\"+m()\":Result {style.underline:false}}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-38",
+  "source": "x:{shape:class;\"-f\":int {style.underline:true};\"-m()\":Result {style.underline:false}}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-39",
+  "source": "x:{shape:class;\"-f\":int {style.underline:true};\"#m()\":Result {style.underline:false}}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-40",
+  "source": "x:{shape:class;\"#f\":int {style.underline:true};\"m()\":Result {style.underline:false}}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-41",
+  "source": "x:{shape:class;\"#f\":int {style.underline:true};\"+m()\":Result {style.underline:false}}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-42",
+  "source": "x:{shape:class;\"#f\":int {style.underline:true};\"-m()\":Result {style.underline:false}}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-43",
+  "source": "x:{shape:class;\"#f\":int {style.underline:true};\"#m()\":Result {style.underline:false}}",
+  "path": "class.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-44",
+  "source": "x:\"Header\" {shape:class}",
+  "path": "rows.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-45",
+  "source": "x:\"Header\" {shape:class;style.font-size:30}",
+  "path": "rows.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-46",
+  "source": "x:\"\" {shape:class}",
+  "path": "rows.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-47",
+  "source": "x:\"\" {shape:class;style.font-size:30}",
+  "path": "rows.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-48",
+  "source": "x:\"Header\" {shape:class;f:int}",
+  "path": "rows.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-49",
+  "source": "x:\"Header\" {shape:class;style.font-size:30;f:int}",
+  "path": "rows.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-50",
+  "source": "x:\"\" {shape:class;f:int}",
+  "path": "rows.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-51",
+  "source": "x:\"\" {shape:class;style.font-size:30;f:int}",
+  "path": "rows.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-52",
+  "source": "x:\"Header\" {shape:class;m():Result}",
+  "path": "rows.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-53",
+  "source": "x:\"Header\" {shape:class;style.font-size:30;m():Result}",
+  "path": "rows.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-54",
+  "source": "x:\"\" {shape:class;m():Result}",
+  "path": "rows.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-55",
+  "source": "x:\"\" {shape:class;style.font-size:30;m():Result}",
+  "path": "rows.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-56",
+  "source": "x: rectangle",
+  "path": "rows.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-57",
+  "source": "x:{shape:sql_table}",
+  "path": "rows.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "retained-58",
+  "source": "x:{shape:sql_table;id:int;name:string}",
+  "path": "rows.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "shape-rectangle",
+  "source": "x: {shape: rectangle}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "shape-square",
+  "source": "x: {shape: square}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "shape-circle",
+  "source": "x: {shape: circle}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "shape-oval",
+  "source": "x: {shape: oval}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "shape-diamond",
+  "source": "x: {shape: diamond}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "shape-hexagon",
+  "source": "x: {shape: hexagon}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "shape-cloud",
+  "source": "x: {shape: cloud}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "shape-cylinder",
+  "source": "x: {shape: cylinder}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "shape-document",
+  "source": "x: {shape: document}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "shape-page",
+  "source": "x: {shape: page}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "shape-queue",
+  "source": "x: {shape: queue}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "shape-package",
+  "source": "x: {shape: package}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "shape-step",
+  "source": "x: {shape: step}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "shape-parallelogram",
+  "source": "x: {shape: parallelogram}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "shape-stored_data",
+  "source": "x: {shape: stored_data}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "shape-person",
+  "source": "x: {shape: person}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "shape-callout",
+  "source": "x: {shape: callout}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "shape-triangle",
+  "source": "x: {shape: triangle}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "shape-text",
+  "source": "x: |md\n  # Hello\n|\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "shape-class",
+  "source": "x: {shape: class}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "shape-sql_table",
+  "source": "x: {shape: sql_table}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "shape-image",
+  "source": "x: {shape: image; icon: https://example.com/icon.svg}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "shape-c4-person",
+  "source": "x: {shape: c4-person}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "ordinary-style",
+  "source": "x: Hello {style: {fill: \"#abc\"; stroke: red; font-color: blue; opacity: 0.5; stroke-width: 3; stroke-dash: 2; border-radius: 4; bold: true; italic: true; underline: true}; tooltip: hover; link: https://example.com/a?q=x#y}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "outside-label",
+  "source": "x: Hello {label.near: top-left}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "container",
+  "source": "outer: {a; b; a -> b}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "grid",
+  "source": "outer: {grid-columns: 2; a; b; c}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "sequence",
+  "source": "x: {shape: sequence_diagram; a -> b: hi}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "class-blank-header",
+  "source": "x: \"\" {shape:class; f: int; m(): bool}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "class-empty-members",
+  "source": "x: {shape:class; \"\": \"\"; \"()\": \"\"}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "class-repeated-prefix",
+  "source": "x: {shape:class; \"++f\": \"T\"; \"--m()\": \"R\"; \"##z\": null}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "class-unicode",
+  "source": "x: Δ {shape:class; \"+雪\": \"型\"; \"#é(λ)\": \"結果\"; \"-😀\": false}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "class-styled",
+  "source": "x: Hello {shape:class; style: {font: mono; font-size: 30; bold: true; italic: true; underline: true; font-color: blue; fill: \"#abc\"; stroke: red}; a: {label: T; style.underline: true}; m(): {label: R; style.underline: true}}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "dagre-class-empty",
+  "source": "x: {shape: class}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "dagre-class-one-sided",
+  "source": "x: {shape:class; a: T}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "dagre-class-methods",
+  "source": "x: {shape:class; \"+m()\": \"R\"; \"#n(a)\"}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "dagre-class-mixed",
+  "source": "x: {shape:class; \"+f\": int; \"-g\": bool; \"#m()\": float}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "dagre-class-mono",
+  "source": "x: {shape:class; style.font:mono; style.font-size:10; a:long; m():bool}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "dagre-sql-table",
+  "source": "x: {shape:sql_table; id: int {constraint: primary_key}; name: text}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "dagre-sql-empty",
+  "source": "x: {shape:sql_table; style.font-size:10}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "dagre-ordinary-pair",
+  "source": "a -> b\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "dagre-mixed-pair",
+  "source": "a: {shape:class; f:bool; m():string}\nb: {shape:sql_table; id:int}\na -> b\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "dagre-structured-grid",
+  "source": "x: {grid-columns:2; a: {shape:class; f:bool}; b: {shape:sql_table; id:int}}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "tala-class-empty",
+  "source": "vars: {d2-config: {data: {tala-seeds: [1]}}}\nx: {shape: class}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "tala"
+ },
+ {
+  "name": "tala-class-one-sided",
+  "source": "vars: {d2-config: {data: {tala-seeds: [1]}}}\nx: {shape:class; a: T}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "tala"
+ },
+ {
+  "name": "tala-class-methods",
+  "source": "vars: {d2-config: {data: {tala-seeds: [1]}}}\nx: {shape:class; \"+m()\": \"R\"; \"#n(a)\"}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "tala"
+ },
+ {
+  "name": "tala-class-mixed",
+  "source": "vars: {d2-config: {data: {tala-seeds: [1]}}}\nx: {shape:class; \"+f\": int; \"-g\": bool; \"#m()\": float}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "tala"
+ },
+ {
+  "name": "tala-class-mono",
+  "source": "vars: {d2-config: {data: {tala-seeds: [1]}}}\nx: {shape:class; style.font:mono; style.font-size:10; a:long; m():bool}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "tala"
+ },
+ {
+  "name": "tala-sql-table",
+  "source": "vars: {d2-config: {data: {tala-seeds: [1]}}}\nx: {shape:sql_table; id: int {constraint: primary_key}; name: text}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "tala"
+ },
+ {
+  "name": "tala-sql-empty",
+  "source": "vars: {d2-config: {data: {tala-seeds: [1]}}}\nx: {shape:sql_table; style.font-size:10}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "tala"
+ },
+ {
+  "name": "tala-ordinary-pair",
+  "source": "vars: {d2-config: {data: {tala-seeds: [1]}}}\na -> b\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "tala"
+ },
+ {
+  "name": "tala-mixed-pair",
+  "source": "vars: {d2-config: {data: {tala-seeds: [1]}}}\na: {shape:class; f:bool; m():string}\nb: {shape:sql_table; id:int}\na -> b\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "tala"
+ },
+ {
+  "name": "tala-structured-grid",
+  "source": "vars: {d2-config: {data: {tala-seeds: [1]}}}\nx: {grid-columns:2; a: {shape:class; f:bool}; b: {shape:sql_table; id:int}}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "tala"
+ },
+ {
+  "name": "elk-class-empty",
+  "source": "x: {shape: class}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "elk"
+ },
+ {
+  "name": "elk-class-one-sided",
+  "source": "x: {shape:class; a: T}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "elk"
+ },
+ {
+  "name": "elk-class-methods",
+  "source": "x: {shape:class; \"+m()\": \"R\"; \"#n(a)\"}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "elk"
+ },
+ {
+  "name": "elk-class-mixed",
+  "source": "x: {shape:class; \"+f\": int; \"-g\": bool; \"#m()\": float}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "elk"
+ },
+ {
+  "name": "elk-class-mono",
+  "source": "x: {shape:class; style.font:mono; style.font-size:10; a:long; m():bool}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "elk"
+ },
+ {
+  "name": "elk-sql-table",
+  "source": "x: {shape:sql_table; id: int {constraint: primary_key}; name: text}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "elk"
+ },
+ {
+  "name": "elk-sql-empty",
+  "source": "x: {shape:sql_table; style.font-size:10}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "elk"
+ },
+ {
+  "name": "elk-ordinary-pair",
+  "source": "a -> b\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "elk"
+ },
+ {
+  "name": "elk-mixed-pair",
+  "source": "a: {shape:class; f:bool; m():string}\nb: {shape:sql_table; id:int}\na -> b\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "elk"
+ },
+ {
+  "name": "elk-structured-grid",
+  "source": "x: {grid-columns:2; a: {shape:class; f:bool}; b: {shape:sql_table; id:int}}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "elk"
+ },
+ {
+  "name": "ordinary-style-quoted-url",
+  "source": "x: Hello {style: {fill: \"#abc\"; stroke: red; font-color: blue; opacity: 0.5; stroke-width: 3; stroke-dash: 2; border-radius: 4; bold: true; italic: true; underline: true}; tooltip: hover; link: \"https://example.com/a?q=x#y\"}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "styled-circle",
+  "source": "a: {shape: circle; style.fill: red; tooltip: hi; link: https://example.com}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "cloud-124",
+  "source": "x: \"x\" {shape:cloud}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "cloud-125",
+  "source": "x: \"x\" {shape:cloud; width: 200; height: 100}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "cloud-126",
+  "source": "x: \"xxx\" {shape:cloud}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "cloud-127",
+  "source": "x: \"xxx\" {shape:cloud; width: 200; height: 100}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "cloud-128",
+  "source": "x: \"WWWWWWW\" {shape:cloud}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "cloud-129",
+  "source": "x: \"WWWWWWW\" {shape:cloud; width: 200; height: 100}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "cloud-130",
+  "source": "x: \"x\\nx\\nx\" {shape:cloud}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "cloud-131",
+  "source": "x: \"x\\nx\\nx\" {shape:cloud; width: 200; height: 100}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "cloud-132",
+  "source": "x: \"\" {shape:cloud}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "cloud-133",
+  "source": "x: \"\" {shape:cloud; width: 200; height: 100}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "cloud-outside",
+  "source": "x: {shape:cloud; label.near: outside-bottom-center}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "cloud-zero-width",
+  "source": "x: {shape:cloud; width: 0}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "cloud-mono",
+  "source": "x: {shape:cloud; style.font:mono}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "cloud-container",
+  "source": "x: {shape:cloud; a -> b}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "pretty-link-plain-long",
+  "source": "x: {link: \"https://Example.com/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"; tooltip: details}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "pretty-link-redundant-escapes",
+  "source": "x: {link: \"https://Example.com/%61%61%61%61%61%61%61%61%61%61%61%61%61%61%61%61%61%61%61%61\"; tooltip: details}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "pretty-link-canonical-escapes",
+  "source": "x: {link: \"https://Example.com/%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20\"; tooltip: details}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "pretty-link-slash-escapes",
+  "source": "x: {link: \"HTTPS://u:p@Example.com/%2f%2f%2f%2f%2f%2f%2f%2f%2f%2f%2f%2f%2f%2f%2f%2f%2f%2f%2f%2f?hello=yes#frag\"; tooltip: details}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "pretty-link-unicode-cut",
+  "source": "x: {link: \"https://Example.com/prefix/雪雪雪雪雪雪雪雪雪雪雪雪雪雪雪雪雪雪雪雪\"; tooltip: details}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "pretty-link-emoji-cut",
+  "source": "x: {link: \"https://Example.com/xx/😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀\"; tooltip: details}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "pretty-link-path-fragment",
+  "source": "x: {link: \"https://Example.com/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa#frag\"; tooltip: details}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "pretty-link-small-escaped-path",
+  "source": "x: {link: \"https://Example.com/%2f\"; tooltip: details}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "sequence-group",
+  "source": "x: {shape: sequence_diagram; a -> b; phase: {a -> b: hi}}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "sequence-width",
+  "source": "x: {shape: sequence_diagram; style.stroke-width: 3; a -> b: hi}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "sequence-colored-group",
+  "source": "x: {shape: sequence_diagram; a -> b; phase: {style.fill: red; a -> b: hi}}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "dagre"
+ },
+ {
+  "name": "elk-outside-label",
+  "source": "x: {label.near: outside-top-center}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "elk"
+ },
+ {
+  "name": "elk-container",
+  "source": "x: {a -> b}\n",
+  "path": "target.d2",
+  "files": {},
+  "layout": "elk"
+ }
+]

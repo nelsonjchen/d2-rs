@@ -1,0 +1,62 @@
+--- a/d2graph/d2graph.go
++++ b/d2graph/d2graph.go
+@@ -61,6 +61,9 @@
+ 
+ 	// Object.Level uses the location of a nested graph
+ 	RootLevel int `json:"rootLevel,omitempty"`
++	// TraceScope carries the original object path into diagnostic-only layout
++	// traces after LayoutNested extracts and re-roots a subgraph.
++	TraceScope string `json:"-"`
+ 
+ 	// Currently this holds data embedded from source code configuration variables
+ 	// Plugins only have access to exported graph, so this data structure allows
+--- a/d2layouts/d2layouts.go
++++ b/d2layouts/d2layouts.go
+@@ -7,4 +7,5 @@
+ 	"math"
++	"os"
+ 	"sort"
+ 	"strings"
+ 
+@@ -477,6 +477,20 @@
+ 		nestedGraph := d2graph.NewGraph()
+ 		nestedGraph.Data = cloneGraphData(g.Data)
+ 		nestedGraph.RootLevel = int(spec.container.Level())
++		if os.Getenv("DAGRE_TRACE_OBJECTS") != "" {
++			localScope := spec.container.AbsID()
++			if spec.includeSelf {
++				localScope = ""
++				if spec.container.Parent != nil {
++					localScope = spec.container.Parent.AbsID()
++				}
++			}
++			nestedGraph.TraceScope = g.TraceScope
++			if nestedGraph.TraceScope != "" && localScope != "" {
++				nestedGraph.TraceScope += "."
++			}
++			nestedGraph.TraceScope += localScope
++		}
+ 		if spec.includeSelf {
+ 			nestedGraph.RootLevel--
+ 		}
+@@ -640,6 +654,20 @@
+ 	nestedGraph = d2graph.NewGraph()
+ 	nestedGraph.Data = cloneGraphData(container.Graph.Data)
+ 	nestedGraph.RootLevel = int(container.Level())
++	if os.Getenv("DAGRE_TRACE_OBJECTS") != "" {
++		localScope := container.AbsID()
++		if includeSelf {
++			localScope = ""
++			if container.Parent != nil {
++				localScope = container.Parent.AbsID()
++			}
++		}
++		nestedGraph.TraceScope = container.Graph.TraceScope
++		if nestedGraph.TraceScope != "" && localScope != "" {
++			nestedGraph.TraceScope += "."
++		}
++		nestedGraph.TraceScope += localScope
++	}
+ 	if includeSelf {
+ 		nestedGraph.RootLevel--
+ 	}

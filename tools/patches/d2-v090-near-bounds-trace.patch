@@ -1,0 +1,63 @@
+diff --git a/d2layouts/d2near/layout.go b/d2layouts/d2near/layout.go
+index b857cb6db..09fa86379 100644
+--- a/d2layouts/d2near/layout.go
++++ b/d2layouts/d2near/layout.go
+@@ -4,7 +4,9 @@ package d2near
+ 
+ import (
+ 	"context"
++	"fmt"
+ 	"math"
++	"os"
+ 	"strings"
+ 
+ 	"github.com/d2lang/d2/d2graph"
+@@ -98,6 +100,9 @@ func place(obj *d2graph.Object) (float64, float64) {
+ 	h := br.Y - tl.Y
+ 
+ 	nearKeyStr := d2graph.Key(obj.NearKey)[0]
++	if os.Getenv("D2_DEBUG_NEAR") != "" {
++		fmt.Fprintf(os.Stderr, "GO_NEAR obj=%s key=%s bounds=(%.1f,%.1f)-(%.1f,%.1f) size=(%.1f,%.1f)\n", obj.AbsID(), nearKeyStr, tl.X, tl.Y, br.X, br.Y, obj.Width, obj.Height)
++	}
+ 	var x, y float64
+ 	switch nearKeyStr {
+ 	case "top-left":
+@@ -158,6 +163,9 @@ func boundingBox(g *d2graph.Graph) (tl, br *geo.Point) {
+ 	y2 := math.Inf(-1)
+ 
+ 	for _, obj := range g.Objects {
++		if os.Getenv("D2_DEBUG_NEAR") != "" {
++			fmt.Fprintf(os.Stderr, "GO_BOUND_OBJ %s near=%v outer=%v tl=(%.1f,%.1f) size=(%.1f,%.1f) label=%v pos=%v\n", obj.AbsID(), obj.NearKey, obj.OuterNearContainer(), obj.TopLeft.X, obj.TopLeft.Y, obj.Width, obj.Height, obj.Label.Value, obj.LabelPosition)
++		}
+ 		if obj.NearKey != nil {
+ 			// Top left should not be MORE top than top-center
+ 			// But it should go more left if top-center label extends beyond bounds of diagram
+@@ -191,6 +199,9 @@ func boundingBox(g *d2graph.Graph) (tl, br *geo.Point) {
+ 	}
+ 
+ 	for _, edge := range g.Edges {
++		if os.Getenv("D2_DEBUG_NEAR") != "" {
++			fmt.Fprintf(os.Stderr, "GO_BOUND_EDGE %s src=%s dst=%s route=%v\n", edge.AbsID(), edge.Src.AbsID(), edge.Dst.AbsID(), edge.Route)
++		}
+ 		if edge.Src.OuterNearContainer() != nil || edge.Dst.OuterNearContainer() != nil {
+ 			continue
+ 		}
+@@ -213,5 +224,18 @@ func boundingBox(g *d2graph.Graph) (tl, br *geo.Point) {
+ 		y2 = 0
+ 	}
+ 
++	if os.Getenv("D2_TRACE_NEAR_BOUNDS") != "" {
++		fmt.Fprintf(os.Stderr, "NEAR_BOUNDS bounds=%016x,%016x,%016x,%016x\n", math.Float64bits(x1), math.Float64bits(y1), math.Float64bits(x2), math.Float64bits(y2))
++		for _, edge := range g.Edges {
++			if edge.Src.OuterNearContainer() != nil || edge.Dst.OuterNearContainer() != nil {
++				continue
++			}
++			points := make([]string, 0, len(edge.Route))
++			for _, p := range edge.Route {
++				points = append(points, fmt.Sprintf("%016x,%016x", math.Float64bits(p.X), math.Float64bits(p.Y)))
++			}
++			fmt.Fprintf(os.Stderr, "NEAR_BOUND_ROUTE source=%x target=%x points=%s\n", edge.Src.AbsID(), edge.Dst.AbsID(), strings.Join(points, ";"))
++		}
++	}
+ 	return geo.NewPoint(x1, y1), geo.NewPoint(x2, y2)
+ }

@@ -1,0 +1,24 @@
+[package]
+name = "d2-rs-core"
+description = "Shared D2 Rust graph and geometry types"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[features]
+# Oracle tier: tests that read Go-oracle artifacts regenerated into
+# oracle-cache/fixtures by scripts/regen-fixtures.py (docs/FIXTURES.md).
+oracle-fixtures = []
+
+[dependencies]
+num-bigint.workspace = true
+num-rational.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+d2-rs-testdata.workspace = true
+serde_json.workspace = true

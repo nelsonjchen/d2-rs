@@ -1,0 +1,194 @@
+# Bundled-TALA oracle fixtures for crates/d2-tala-rs, captured against the
+# manifest pin's patched upstream tree. See docs/FIXTURES.md.
+#
+# Generators are subcommands of scripts/tala_oracle_fixtures.py (Go builds in
+# the recipe workdir, two runs, byte-identity check) except
+# tala-labelled-graph-bounds, a plain go-test-hook. The large TALA internal
+# control matrices of the v0.9.0 era were retired instead of recipe'd; see
+# docs/fixture-retirements/tala.md.
+#
+# Regenerate:  uv run --no-project python scripts/regen-fixtures.py --only 'tala-*'
+# Test:        cargo test -p d2-tala-rs --features oracle-fixtures
+#              (the table-port reader is an example test: add --examples)
+
+[defaults]
+kind = "command"
+upstream = true
+timeout = 1800
+
+[defaults.key_deps]
+files = [
+  "scripts/tala_oracle_fixtures.py",
+  "scripts/fixture_recipe.py",
+  "scripts/exact_json.py",
+  "scripts/references.py",
+]
+go_toolchain = true
+# TALA and the upstream packages its internal tree imports.
+upstream_paths = [
+  "d2layouts/d2talalayout",
+  "d2target",
+  "d2themes",
+  "d2renderers/d2fonts",
+  "lib",
+  "internal",
+  "go.mod",
+  "go.sum",
+]
+
+[[recipe]]
+name = "tala-engine-label-obstacles"
+description = "Complete seeded engine layout of big_many_subgraphs (label obstacles, table-port member obstacles)"
+outputs = [
+  "crates/d2-tala-rs/tests/fixtures/label-obstacles-source-v090.json",
+  "crates/d2-tala-rs/tests/fixtures/table-port-member-obstacles-source-v090.json",
+]
+argv = ["{python}", "scripts/tala_oracle_fixtures.py", "layout", "label-obstacles"]
+key_deps.files = ["tools/engine-oracle"]
+
+[[recipe]]
+name = "tala-engine-tree-containers"
+description = "Complete seeded engine layouts of seven upstream tree/container inputs"
+outputs = ["crates/d2-tala-rs/tests/fixtures/tree-containers-source-v090.json"]
+argv = ["{python}", "scripts/tala_oracle_fixtures.py", "layout", "tree-containers"]
+key_deps.files = ["tools/engine-oracle"]
+
+[[recipe]]
+name = "tala-arrowhead-label-codec"
+description = "graphjson Unmarshal/Marshal round trip of arrowhead labels at every label position spelling"
+outputs = ["crates/d2-tala-rs/tests/fixtures/arrowhead-label-codec-source-v090.json"]
+argv = ["{python}", "scripts/tala_oracle_fixtures.py", "codec"]
+key_deps.files = ["tools/engine-oracle"]
+
+[[recipe]]
+name = "tala-tree-publication"
+description = "GraphJSON graph after each pre-placement stage of big_connected, seed 1"
+outputs = ["crates/d2-tala-rs/tests/fixtures/tree-publication-source-v090.json"]
+argv = [
+  "{python}", "scripts/tala_oracle_fixtures.py", "stages",
+  "--input", "d2layouts/d2talalayout/internal/testdata/benchmark/big_connected.json",
+  "--seed", "1",
+  "--last", "PreprocessHubs",
+]
+key_deps.files = ["tools/fixtures/hooks/tala-tree-publication"]
+
+[[recipe]]
+name = "tala-route-validation"
+description = "Public d2talalayout.RouteEdges/Layout errors and routed graphs for invalid edge routes"
+outputs = ["crates/d2-tala-rs/tests/fixtures/route-validation-source-v090.json"]
+argv = ["{python}", "scripts/tala_oracle_fixtures.py", "route-validation"]
+key_deps.files = ["tools/tala-route-validation-oracle"]
+# The routed graph is d2graph's JSON encoding, so it depends on most of D2.
+key_deps.upstream_paths = ["."]
+
+[[recipe]]
+name = "tala-labelled-graph-bounds"
+kind = "go-test-hook"
+description = "layoutgraph bounding box and area with edge labels and arrowhead labels"
+outputs = ["crates/d2-tala-rs/tests/fixtures/tala-labelled-graph-bounds-v090.json"]
+package = "d2layouts/d2talalayout/internal/proximity"
+hooks = ["tools/fixtures/hooks/tala-labelled-graph-bounds/d2rs_labelled_graph_bounds_test.go"]
+test = "TestD2RSLabelledGraphBounds"
+
+# Second pass (small fixtures): complete seeded layouts of upstream TALA
+# testdata read by examples/graphjson-layout.rs and graphjson/serialize.rs.
+[[recipe]]
+name = "tala-engine-graphjson-owners"
+description = "Complete seeded engine layouts of clusters, two container benchmarks, expand_cluster_other_dir and large_nested"
+outputs = [
+  "crates/d2-tala-rs/tests/fixtures/cluster-hub-owner-source-v090.json",
+  "crates/d2-tala-rs/tests/fixtures/container-direct-owner-source-v090.json",
+  "crates/d2-tala-rs/tests/fixtures/container-refit-owner-source-v090.json",
+  "crates/d2-tala-rs/tests/fixtures/cluster-owner-restore-source-v090.json",
+  "crates/d2-tala-rs/tests/fixtures/packing-member-obstacles-source-v090.json",
+]
+argv = ["{python}", "scripts/tala_oracle_fixtures.py", "layout", "graphjson-owners"]
+key_deps.files = ["tools/engine-oracle"]
+
+[[recipe]]
+name = "tala-engine-serialize"
+description = "Complete seeded engine layouts of upstream testdata and hand-built graphs (cluster policy, crossing cache, hubs, trees, live records, seeded cluster/sequence replays)"
+outputs = [
+  "crates/d2-tala-rs/tests/fixtures/cluster-policy-source-v090.json",
+  "crates/d2-tala-rs/tests/fixtures/crossing-cache-source-v090.json",
+  "crates/d2-tala-rs/tests/fixtures/hub-incidence-source-v090.json",
+  "crates/d2-tala-rs/tests/fixtures/tree-mirror-source-v090.json",
+  "crates/d2-tala-rs/tests/fixtures/live-graphjson-source-v090.json",
+  "crates/d2-tala-rs/tests/fixtures/seeded-cluster-sequence-publication-source-v090.json",
+]
+argv = ["{python}", "scripts/tala_oracle_fixtures.py", "layout", "serialize"]
+key_deps.files = ["tools/engine-oracle", "tools/fixtures/seeds/tala-live-graphjson.json"]
+
+[[recipe]]
+name = "tala-engine-layout-errors"
+description = "Exit status, stdout and stderr of single-node layouts at and beyond the Prescale dimension limit"
+outputs = ["crates/d2-tala-rs/tests/fixtures/graphjson-layout-errors-source-v090.json"]
+argv = ["{python}", "scripts/tala_oracle_fixtures.py", "layout", "errors"]
+key_deps.files = ["tools/engine-oracle"]
+
+[[recipe]]
+name = "tala-stages-cluster-creation"
+description = "cloud_contains_cluster (verbatim upstream input) and its graph after PreprocessClusters and PreprocessHubs, seeds 1, 2, 7, 42"
+outputs = [
+  "crates/d2-tala-rs/tests/fixtures/cluster-creation/input.json",
+  "crates/d2-tala-rs/tests/fixtures/cluster-creation/1-PreprocessClusters.json",
+  "crates/d2-tala-rs/tests/fixtures/cluster-creation/1-PreprocessHubs.json",
+  "crates/d2-tala-rs/tests/fixtures/cluster-creation/2-PreprocessClusters.json",
+  "crates/d2-tala-rs/tests/fixtures/cluster-creation/2-PreprocessHubs.json",
+  "crates/d2-tala-rs/tests/fixtures/cluster-creation/7-PreprocessClusters.json",
+  "crates/d2-tala-rs/tests/fixtures/cluster-creation/7-PreprocessHubs.json",
+  "crates/d2-tala-rs/tests/fixtures/cluster-creation/42-PreprocessClusters.json",
+  "crates/d2-tala-rs/tests/fixtures/cluster-creation/42-PreprocessHubs.json",
+]
+argv = ["{python}", "scripts/tala_oracle_fixtures.py", "stage-sets", "cluster-creation"]
+key_deps.files = ["tools/fixtures/hooks/tala-tree-publication"]
+
+[[recipe]]
+name = "tala-stages-preprocess"
+description = "GraphJSON graph after each of the seven preprocessing stages, seeded cloud/sequence-cluster replays"
+outputs = ["crates/d2-tala-rs/tests/fixtures/preprocess-stage-serialization-source-v090.json"]
+argv = ["{python}", "scripts/tala_oracle_fixtures.py", "stage-sets", "preprocess"]
+key_deps.files = ["tools/fixtures/hooks/tala-tree-publication"]
+
+[[recipe]]
+name = "tala-stages-nested-cluster-initialization"
+description = "large_nested graph after NodePlacement, seeds 1 and 42"
+outputs = ["crates/d2-tala-rs/tests/fixtures/nested-cluster-initialization-source-v090.json"]
+argv = ["{python}", "scripts/tala_oracle_fixtures.py", "stage-sets", "nested-cluster-initialization"]
+key_deps.files = ["tools/fixtures/hooks/tala-tree-publication"]
+
+[[recipe]]
+name = "tala-route-geometry"
+description = "Public d2talalayout.RouteEdges request preflight and existing-route object validation/geometry"
+outputs = [
+  "crates/d2-tala-rs/tests/fixtures/requested-routing-source-v090.json",
+  "crates/d2-tala-rs/tests/fixtures/route-geometry-source-v090.json",
+]
+argv = ["{python}", "scripts/tala_oracle_fixtures.py", "route-geometry"]
+key_deps.files = ["tools/tala-route-geometry-oracle", "tools/fixtures/seeds/tala-route-geometry.json"]
+# The routed graph is d2graph's JSON encoding, so it depends on most of D2.
+key_deps.upstream_paths = ["."]
+
+[[recipe]]
+name = "tala-authored-geometry"
+kind = "go-test-hook"
+description = "TALA adapter validation of D2 width/height/top/left attribute bytes (validateD2Objects)"
+outputs = ["crates/d2-tala-rs/tests/fixtures/authored-geometry-source-v090.json"]
+inputs = [{ path = "authored-geometry-requests.json", generate = ["{python}", "scripts/tala_oracle_fixtures.py", "authored-geometry-requests"] }]
+package = "d2layouts/d2talalayout"
+hooks = ["tools/fixtures/hooks/tala-authored-geometry/d2rs_authored_geometry_test.go"]
+test = "TestD2RSAuthoredGeometry"
+key_deps.upstream_paths = ["d2graph", "d2ast", "d2target"]
+
+[[recipe]]
+name = "tala-tree-sentinel-hierarchy"
+description = "TALA seed-1 target boxes of a container holding a retained branching-tree sentinel (whole d2lib compile)"
+outputs = ["crates/d2-tala-rs/tests/fixtures/tree-sentinel-hierarchy-eligibility-v090.json"]
+argv = ["{python}", "scripts/layout_oracle_fixtures.py", "tala-tree-sentinel"]
+key_deps.files = [
+  "scripts/layout_oracle_fixtures.py",
+  "tools/d2-layout-oracle",
+  "tools/fixtures/seeds/tala-tree-sentinel-hierarchy.json",
+]
+key_deps.upstream_paths = ["."]
+

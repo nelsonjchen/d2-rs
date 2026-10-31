@@ -1,0 +1,71 @@
+--- a/d2layouts/d2talalayout/internal/routing/ovg_edge_router.go
++++ b/d2layouts/d2talalayout/internal/routing/ovg_edge_router.go
+@@ -623,6 +623,8 @@
+ 		return nil, 0, err
+ 	}
+ 
++	router.traceGenerationWork(gEdge,"search-arrays-done")
++
+ 	// Get maps from pool to reduce allocations
+ 	fromFacingPorts := borrowPortMap()
+ 	defer returnPortMap(fromFacingPorts)
+@@ -687,6 +689,8 @@
+ 		}
+ 	}
+ 
++	router.traceGenerationWork(gEdge,"search-labels-done")
++
+ 	overlap := false
+ 	// That's fine, could be overlapped
+ 	fromOrientation := gSource.Orientation(gTarget)
+@@ -725,6 +729,8 @@
+ 		return nil, 0, err
+ 	}
+ 
++	router.traceGenerationWork(gEdge,"search-descendants-done")
++
+ 	// Fast access to find if a node is a cluster node (cluster nodes sharing routes is nice)
+ 	sourceClusterNodes, targetClusterNodes, err := sourceAndTargetClusterNodesGuarded(originalGraph, gSource, gTarget, router.work)
+ 	if err != nil {
+@@ -732,6 +738,8 @@
+ 	}
+ 	isSourceCluster := len(sourceClusterNodes) > 0
+ 	isTargetCluster := len(targetClusterNodes) > 0
++
++	router.traceGenerationWork(gEdge,"search-clusters-done")
+ 
+ 	undesirableClusterArrangement := router.isUndesirableClusterArrangement(gSource, gTarget)
+ 
+@@ -848,6 +856,8 @@
+ 		}
+ 	}
+ 
++	router.traceGenerationWork(gEdge,"search-blocked-ports-done")
++
+ 	idealTurnAxes := idealTurnAxes(gSource, gTarget)
+ 
+ 	sourcePortsUsed, targetPortsUsed, duplicateSourcePortsUsed, duplicateTargetPortsUsed, sharedClusterSourcePortsUsed, sharedClusterTargetPortsUsed, err := router.usedPorts(
+@@ -856,10 +866,14 @@
+ 	if err != nil {
+ 		return nil, 0, err
+ 	}
++	router.traceGenerationWork(gEdge,"search-usedports-done")
++
+ 	nodeIsCenterSymmetricalPort, err := router.centerSymmetricalPorts(ctx, gSource, gTarget, sourcePortsUsed, targetPortsUsed)
+ 	if err != nil {
+ 		return nil, 0, err
+ 	}
++
++	router.traceGenerationWork(gEdge,"search-symmetry-done")
+ 
+ 	if !router.fixedOverlapsSet {
+ 		router.fixedOverlaps, err = fixedOverlapsForRoute(layoutgraph.Nodes(originalGraph.Nodes), router.work)
+@@ -869,6 +883,8 @@
+ 		router.fixedOverlapsSet = true
+ 	}
+ 	fixedOverlaps := router.fixedOverlaps
++
++	router.traceGenerationWork(gEdge,"search-fixed-overlaps-done")
+ 
+ 	// Create the initial source node context
+ 	sourceContext := &router.nodeContextValues[source.Index]

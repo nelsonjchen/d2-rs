@@ -1,0 +1,19 @@
+[package]
+name = "d2-rs-sketch"
+description = "Deterministic rough-drawing primitives for D2 scenes"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+d2-rs-core.workspace = true
+
+[features]
+oracle-fixtures = []
+
+[dev-dependencies]
+d2-rs-testdata.workspace = true

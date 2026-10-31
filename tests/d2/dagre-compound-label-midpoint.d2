@@ -1,0 +1,11 @@
+# Dagro's label proxy survives empty-rank compaction and places the long
+# edge's label dummy at the normalized midpoint, beside the middle node.
+source_group: {
+  a -> b
+  b -> c
+  a -> c: middle label
+}
+target_group: {
+  d
+}
+source_group.c -> target_group.d

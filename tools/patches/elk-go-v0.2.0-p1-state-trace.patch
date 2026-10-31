@@ -1,0 +1,97 @@
+--- a/internal/layered/p1cycles/greedy.go
++++ b/internal/layered/p1cycles/greedy.go
+@@ -111,6 +111,7 @@
+ 		}
+ 	}
+ 
++	traceP1(arena, graphID, "begin", -1, nodes, indegree, outdegree, mark, sources, sinks)
+ 	unprocessed := nodeCount
+ 	nextRight, nextLeft := -1, 1
+ 	for unprocessed > 0 {
+@@ -124,6 +125,7 @@
+ 			mark[index] = nextRight
+ 			nextRight--
+ 			updateNeighbors(nodeID)
++			traceP1(arena, graphID, "sink", int(nodeID), nodes, indegree, outdegree, mark, sources, sinks)
+ 			unprocessed--
+ 		}
+ 		for len(sources) > 0 {
+@@ -136,6 +138,7 @@
+ 			mark[index] = nextLeft
+ 			nextLeft++
+ 			updateNeighbors(nodeID)
++			traceP1(arena, graphID, "source", int(nodeID), nodes, indegree, outdegree, mark, sources, sinks)
+ 			unprocessed--
+ 		}
+ 		if unprocessed == 0 {
+@@ -165,6 +168,7 @@
+ 		mark[arena.Node(chosen).ID] = nextLeft
+ 		nextLeft++
+ 		updateNeighbors(chosen)
++		traceP1(arena, graphID, "maximum", int(chosen), nodes, indegree, outdegree, mark, sources, sinks)
+ 		unprocessed--
+ 	}
+ 
+@@ -185,6 +189,7 @@
+ 			}
+ 		}
+ 	}
++	traceP1(arena, graphID, "end", -1, nodes, indegree, outdegree, mark, sources, sinks)
+ 	return nil
+ }
+ 
+--- /dev/null
++++ b/internal/layered/p1cycles/p1_diagnostic_trace.go
+@@ -0,0 +1,39 @@
++// Copyright (c) 2026 Nelson Chen. Development diagnostics only.
++// SPDX-License-Identifier: MPL-2.0
++//go:build d2elkdiagnostic
++
++package p1cycles
++
++import (
++	"encoding/json"
++	basegraph "github.com/d2lang/elk-go/internal/graph"
++	"github.com/d2lang/elk-go/internal/layered"
++	"os"
++)
++
++func traceP1(arena *layered.LGraphArena, graph layered.LGraphID, operation string, chosen int, nodes []layered.LNodeID, indegree, outdegree, marks []int, sources, sinks []layered.LNodeID) {
++	if os.Getenv("D2_ELK_TRACE") == "" {
++		return
++	}
++	type Edge struct {
++		ID         layered.LEdgeID `json:"id"`
++		Source     layered.LNodeID `json:"source"`
++		Target     layered.LNodeID `json:"target"`
++		SourcePort layered.LPortID `json:"source_port"`
++		TargetPort layered.LPortID `json:"target_port"`
++		Reversed   bool            `json:"reversed"`
++	}
++	edges := []Edge{}
++	for _, node := range nodes {
++		for _, port := range arena.Node(node).Ports {
++			for _, edge := range arena.Port(port).OutgoingEdges {
++				e := arena.Edge(edge)
++				if e.Source == nil || e.Target == nil {
++					continue
++				}
++				edges = append(edges, Edge{edge, arena.EdgeSourceNode(edge), arena.EdgeTargetNode(edge), *e.Source, *e.Target, basegraph.Get(&e.Properties, layered.Reversed)})
++			}
++		}
++	}
++	_ = json.NewEncoder(os.Stderr).Encode(map[string]any{"stage": "p1-cycle", "graph": graph, "operation": operation, "chosen": chosen, "nodes": nodes, "indegree": indegree, "outdegree": outdegree, "marks": marks, "sources": sources, "sinks": sinks, "edges": edges})
++}
+--- /dev/null
++++ b/internal/layered/p1cycles/p1_diagnostic_trace_off.go
+@@ -0,0 +1,10 @@
++// Copyright (c) 2026 Nelson Chen. Development diagnostics only.
++// SPDX-License-Identifier: MPL-2.0
++//go:build !d2elkdiagnostic
++
++package p1cycles
++
++import "github.com/d2lang/elk-go/internal/layered"
++
++func traceP1(_ *layered.LGraphArena, _ layered.LGraphID, _ string, _ int, _ []layered.LNodeID, _, _, _ []int, _, _ []layered.LNodeID) {
++}

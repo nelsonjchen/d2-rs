@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: MPL-2.0
+# Table loops, repeated foreign keys and an opposing column edge.
+users: {
+  shape: sql_table
+  left: 0
+  top: 0
+  width: 200
+  height: 180
+  id: int
+  parent_id: int
+}
+orders: {
+  shape: sql_table
+  left: 360
+  top: 220
+  width: 200
+  height: 180
+  id: int
+  user_id: int
+}
+users.id -> users.parent_id: parent
+users.id -> orders.user_id: first
+users.id -> orders.user_id: second
+orders.user_id -> users.id: reverse

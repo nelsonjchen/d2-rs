@@ -1,0 +1,180 @@
+# d2-rs-language oracle fixtures over the public d2compiler and the master-only
+# internal d2compiler/d2ir tests, captured at the manifest pin.
+#
+# - lang-edge-key-validation: a go-test-hook compiling the generated
+#   edge/arrowhead key matrix (scripts/edge_key_validation_cases.py) with the
+#   public d2compiler.Compile.
+# - lang-master-*: scripts/check-language-master-hooks.py replays original
+#   upstream tests (assertions active) with their call sites routed through the
+#   env-gated observers in tools/language-master-scoreboard, via go test
+#   -overlay; the upstream tree is never modified.
+#
+# Regenerate:  uv run --no-project python scripts/regen-fixtures.py --only 'lang-edge-key-*' --only 'lang-master-*'
+# Test:        cargo test -p d2-rs-language --features oracle-fixtures
+
+[defaults]
+timeout = 1800
+
+[defaults.key_deps]
+go_toolchain = true
+# The package closure of d2compiler inside the D2 module (`go list -deps`),
+# which contains d2ir's; the replayed tests live in d2compiler and d2ir.
+upstream_paths = [
+  "go.mod",
+  "go.sum",
+  "d2ast",
+  "d2compiler",
+  "d2format",
+  "d2graph",
+  "d2ir",
+  "d2parser",
+  "d2target",
+  "d2themes",
+  "d2renderers/d2fonts",
+  "d2renderers/d2latex",
+  "d2renderers/d2scene",
+  "d2renderers/internal",
+  "lib/color",
+  "lib/font",
+  "lib/geo",
+  "lib/label",
+  "lib/shape",
+  "lib/svg",
+  "lib/syncmap",
+  "lib/textmeasure",
+]
+
+[[recipe]]
+name = "lang-edge-key-validation"
+kind = "go-test-hook"
+description = "d2compiler.Compile diagnostics for the edge/arrowhead map key and value matrix"
+outputs = ["crates/d2-rs-language/tests/fixtures/edge-key-validation-source-master.json"]
+inputs = [{ path = "edge-key-cases.json", generate = ["{python}", "scripts/edge_key_validation_cases.py"] }]
+package = "d2compiler"
+hooks = ["tools/fixtures/hooks/lang-edge-key-validation/d2rs_edge_key_validation_test.go"]
+test = "TestD2RSEdgeKeyValidation"
+
+[recipe.key_deps]
+files = ["scripts/edge_key_validation_cases.py"]
+
+[[recipe]]
+name = "lang-master-class-index"
+kind = "command"
+upstream = true
+description = "TestClassLookup*: every class lookup, typed error and retained index count"
+outputs = ["crates/d2-rs-language/tests/fixtures/master-class-index.json"]
+argv = ["{python}", "scripts/check-language-master-hooks.py", "class-index"]
+key_deps.files = ["scripts/fixture_recipe.py", "scripts/language_oracle.py", "scripts/check-language-master-hooks.py",
+                  "tools/language-master-scoreboard/class_index_hook_test.go"]
+
+[[recipe]]
+name = "lang-master-graph-materialization"
+kind = "command"
+upstream = true
+description = "Graph materialization alias budgets and cancellation"
+outputs = ["crates/d2-rs-language/tests/fixtures/master-graph-materialization.json"]
+argv = ["{python}", "scripts/check-language-master-hooks.py", "graph-materialization"]
+key_deps.files = ["scripts/fixture_recipe.py", "scripts/language_oracle.py", "scripts/check-language-master-hooks.py",
+                  "tools/language-master-scoreboard/graph_hook_test.go"]
+
+[[recipe]]
+name = "lang-master-import-depth"
+kind = "command"
+upstream = true
+description = "d2ir import depth limit, boundary, nil FS and imported-parse cancellation"
+outputs = ["crates/d2-rs-language/tests/fixtures/master-import-depth.json"]
+argv = ["{python}", "scripts/check-language-master-hooks.py", "import-depth"]
+key_deps.files = ["scripts/fixture_recipe.py", "scripts/language_oracle.py", "scripts/check-language-master-hooks.py",
+                  "tools/language-master-scoreboard/ir_import_hook_test.go"]
+
+[[recipe]]
+name = "lang-master-ir-internal"
+kind = "command"
+upstream = true
+description = "d2ir variable/glob/edge expansion budgets and cancellation"
+outputs = ["crates/d2-rs-language/tests/fixtures/master-ir-internal.json"]
+argv = ["{python}", "scripts/check-language-master-hooks.py", "ir-internal"]
+key_deps.files = ["scripts/fixture_recipe.py", "scripts/language_oracle.py", "scripts/check-language-master-hooks.py",
+                  "tools/language-master-scoreboard/ir_internal_hook_test.go"]
+
+[[recipe]]
+name = "lang-master-compiler-bounds"
+kind = "command"
+upstream = true
+description = "d2compiler.Compile calls of the master bound, link-safety, grid-capacity and isometric-config tests"
+outputs = ["crates/d2-rs-language/tests/fixtures/master-compiler-bounds.json"]
+argv = ["{python}", "scripts/check-language-master-hooks.py", "compiler-bounds"]
+key_deps.files = ["scripts/fixture_recipe.py", "scripts/language_oracle.py", "scripts/check-language-master-hooks.py",
+                  "tools/language-master-scoreboard/compiler_hook_test.go"]
+
+[[recipe]]
+name = "lang-master-variable-expansion"
+kind = "command"
+upstream = true
+description = "d2compiler.Compile diagnostics of the master variable-expansion and composite-cycle tests"
+outputs = ["crates/d2-rs-language/tests/fixtures/master-variable-expansion.json"]
+argv = ["{python}", "scripts/check-language-master-hooks.py", "variable-expansion"]
+key_deps.files = ["scripts/fixture_recipe.py", "scripts/language_oracle.py", "scripts/check-language-master-hooks.py",
+                  "tools/language-master-scoreboard/compiler_hook_test.go"]
+
+[[recipe]]
+name = "lang-master-glob-expansion"
+kind = "command"
+upstream = true
+description = "d2ir.Compile calls of the master glob-expansion budget tests"
+outputs = ["crates/d2-rs-language/tests/fixtures/master-glob-expansion.json"]
+argv = ["{python}", "scripts/check-language-master-hooks.py", "glob-expansion"]
+key_deps.files = ["scripts/fixture_recipe.py", "scripts/language_oracle.py", "scripts/check-language-master-hooks.py",
+                  "tools/language-master-scoreboard/ir_glob_hook_test.go"]
+
+[[recipe]]
+name = "lang-master-import-expansion"
+kind = "command"
+upstream = true
+description = "d2ir.Compile calls of the master imported-expansion budget tests"
+outputs = ["crates/d2-rs-language/tests/fixtures/master-import-expansion.json"]
+argv = ["{python}", "scripts/check-language-master-hooks.py", "import-expansion"]
+key_deps.files = ["scripts/fixture_recipe.py", "scripts/language_oracle.py", "scripts/check-language-master-hooks.py",
+                  "tools/language-master-scoreboard/ir_glob_hook_test.go"]
+
+[[recipe]]
+name = "lang-master-ir-cancellation"
+kind = "command"
+upstream = true
+description = "The d2ir.Compile call of TestCompileCancellationDuringIRConstruction"
+outputs = ["crates/d2-rs-language/tests/fixtures/master-ir-cancellation.json"]
+argv = ["{python}", "scripts/check-language-master-hooks.py", "ir-cancellation"]
+key_deps.files = ["scripts/fixture_recipe.py", "scripts/language_oracle.py", "scripts/check-language-master-hooks.py",
+                  "tools/language-master-scoreboard/ir_glob_hook_test.go"]
+
+[[recipe]]
+name = "lang-master-ast-clone"
+kind = "command"
+upstream = true
+description = "Cached-import AST clone cancellation calls"
+outputs = ["crates/d2-rs-language/tests/fixtures/master-ast-clone.json"]
+argv = ["{python}", "scripts/check-language-master-hooks.py", "ast-clone"]
+key_deps.files = ["scripts/fixture_recipe.py", "scripts/language_oracle.py", "scripts/check-language-master-hooks.py",
+                  "tools/language-master-scoreboard/ast_clone_hook_test.go"]
+
+[[recipe]]
+name = "lang-master-ir-copy"
+kind = "command"
+upstream = true
+description = "Variable-expansion copy sessions and node units"
+outputs = ["crates/d2-rs-language/tests/fixtures/master-ir-copy.json"]
+argv = ["{python}", "scripts/check-language-master-hooks.py", "ir-copy"]
+key_deps.files = ["scripts/fixture_recipe.py", "scripts/language_oracle.py", "scripts/check-language-master-hooks.py",
+                  "tools/language-master-scoreboard/ir_copy_hook_test.go"]
+
+[[recipe]]
+name = "lang-master-small"
+kind = "command"
+upstream = true
+description = "Grid capacity, EnsureField, composite cycle and dangerous-link calls"
+outputs = ["crates/d2-rs-language/tests/fixtures/master-small.json"]
+argv = ["{python}", "scripts/check-language-master-hooks.py", "small"]
+key_deps.files = ["scripts/fixture_recipe.py", "scripts/language_oracle.py", "scripts/check-language-master-hooks.py",
+                  "tools/language-master-scoreboard/small_grid_hook_test.go",
+                  "tools/language-master-scoreboard/small_ir_hook_test.go",
+                  "tools/language-master-scoreboard/small_links_hook_test.go"]

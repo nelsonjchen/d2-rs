@@ -1,0 +1,13 @@
+/target/
+/.reference/
+/analysis/
+__pycache__/
+*.pyc
+.DS_Store
+/crates/d2-rs-wasm/pkg/
+
+/crates/d2-rs-wasm/node_modules/
+/crates/d2-rs-wasm/browser-test-output.json
+
+# Regenerated Go-oracle fixtures and disposable upstream checkouts (docs/FIXTURES.md).
+/oracle-cache/

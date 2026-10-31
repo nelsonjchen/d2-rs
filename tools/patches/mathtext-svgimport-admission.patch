@@ -1,0 +1,30 @@
+diff --git a/d2renderers/d2svgimport/compile.go b/d2renderers/d2svgimport/compile.go
+--- a/d2renderers/d2svgimport/compile.go
++++ b/d2renderers/d2svgimport/compile.go
+@@ -330,6 +330,11 @@
+ 		element.viewportY = y
+ 	}
+ 
++	if i.d2rsElementAdmissionOnly {
++		// d2-rs oracle instrumentation: stop before geometry/use compilation.
++		i.d2rsElementAdmissionReached = true
++		return nil
++	}
+ 	element.geometry, err = i.compileGeometry(element)
+ 	if err != nil {
+ 		return err
+diff --git a/d2renderers/d2svgimport/import.go b/d2renderers/d2svgimport/import.go
+--- a/d2renderers/d2svgimport/import.go
++++ b/d2renderers/d2svgimport/import.go
+@@ -370,6 +370,11 @@
+ 	rootCurrentColor   color.NRGBA
+ 	rasterBytes        int
+ 	rasterDecodedBytes int64
++
++	// d2-rs oracle instrumentation (tools/patches/mathtext-svgimport-admission.patch):
++	// set only by package-internal capture hooks; zero values keep upstream behavior.
++	d2rsElementAdmissionOnly    bool
++	d2rsElementAdmissionReached bool
+ }
+ 
+ type contextReader struct {

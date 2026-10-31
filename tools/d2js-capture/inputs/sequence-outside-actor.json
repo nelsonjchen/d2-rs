@@ -1,0 +1,20 @@
+[
+{"name": "outside-00", "source": "shape:sequence_diagram\na: \"actor\" {shape:person;}\nb: control\na -> b\n"},
+{"name": "outside-01", "source": "seq:{shape:sequence_diagram\na: \"actor\" {shape:person;}\nb: control\na -> b\n}\n"},
+{"name": "outside-02", "source": "shape:sequence_diagram\na: \"actor\" {shape:person;;icon.near:top-right}\nb: control\na -> b\n"},
+{"name": "outside-03", "source": "seq:{shape:sequence_diagram\na: \"actor\" {shape:person;;icon.near:top-right}\nb: control\na -> b\n}\n"},
+{"name": "outside-04", "source": "shape:sequence_diagram\na: \"one\\ntwo\" {shape:person;}\nb: control\na -> b\n"},
+{"name": "outside-05", "source": "seq:{shape:sequence_diagram\na: \"one\\ntwo\" {shape:person;}\nb: control\na -> b\n}\n"},
+{"name": "outside-06", "source": "shape:sequence_diagram\na: \"one\\ntwo\" {shape:person;;icon.near:top-right}\nb: control\na -> b\n"},
+{"name": "outside-07", "source": "seq:{shape:sequence_diagram\na: \"one\\ntwo\" {shape:person;;icon.near:top-right}\nb: control\na -> b\n}\n"},
+{"name": "outside-08", "source": "shape:sequence_diagram\na: \"\" {shape:person;}\nb: control\na -> b\n"},
+{"name": "outside-09", "source": "seq:{shape:sequence_diagram\na: \"\" {shape:person;}\nb: control\na -> b\n}\n"},
+{"name": "outside-10", "source": "shape:sequence_diagram\na: \"\" {shape:person;;icon.near:top-right}\nb: control\na -> b\n"},
+{"name": "outside-11", "source": "seq:{shape:sequence_diagram\na: \"\" {shape:person;;icon.near:top-right}\nb: control\na -> b\n}\n"},
+{"name": "outside-12", "source": "shape:sequence_diagram\na: \"actor\" {shape:image;icon:https://icons.terrastruct.com/essentials/004-picture.svg}\nb: control\na -> b\n"},
+{"name": "outside-13", "source": "seq:{shape:sequence_diagram\na: \"actor\" {shape:image;icon:https://icons.terrastruct.com/essentials/004-picture.svg}\nb: control\na -> b\n}\n"},
+{"name": "outside-14", "source": "shape:sequence_diagram\na: \"one\\ntwo\" {shape:image;icon:https://icons.terrastruct.com/essentials/004-picture.svg}\nb: control\na -> b\n"},
+{"name": "outside-15", "source": "seq:{shape:sequence_diagram\na: \"one\\ntwo\" {shape:image;icon:https://icons.terrastruct.com/essentials/004-picture.svg}\nb: control\na -> b\n}\n"},
+{"name": "outside-16", "source": "shape:sequence_diagram\na: \"\" {shape:image;icon:https://icons.terrastruct.com/essentials/004-picture.svg}\nb: control\na -> b\n"},
+{"name": "outside-17", "source": "seq:{shape:sequence_diagram\na: \"\" {shape:image;icon:https://icons.terrastruct.com/essentials/004-picture.svg}\nb: control\na -> b\n}\n"}
+]

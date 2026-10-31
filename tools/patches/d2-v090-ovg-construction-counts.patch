@@ -1,0 +1,25 @@
+--- a/d2layouts/d2talalayout/internal/routing/ovg.go
++++ b/d2layouts/d2talalayout/internal/routing/ovg.go
+@@ -207,9 +207,11 @@
+ 	if err := ovg.connectNodes(g, guard); err != nil {
+ 		return nil, err
+ 	}
++	traceOVGConstructionCounts(g,ovg,"after-connectNodes")
+ 	if err := ovg.connectPortsToCenter(guard); err != nil {
+ 		return nil, err
+ 	}
++	traceOVGConstructionCounts(g,ovg,"after-connectPortsToCenter")
+ 	if err := ovg.removeIsolatedNodes(guard); err != nil {
+ 		return nil, err
+ 	}
+--- a/d2layouts/d2talalayout/internal/routing/ovg_edge_router.go
++++ b/d2layouts/d2talalayout/internal/routing/ovg_edge_router.go
+@@ -1988,3 +1988,8 @@
+  for _,e:=range ovg.Edges { kind:="other"; if e.isVertical() {kind="vertical"} else if e.isHorizontal() {kind="horizontal"}; edges=append(edges,[]string{kind,fmt.Sprintf("%016x",math.Float64bits(e.From.X)),fmt.Sprintf("%016x",math.Float64bits(e.From.Y)),fmt.Sprintf("%016x",math.Float64bits(e.To.X)),fmt.Sprintf("%016x",math.Float64bits(e.To.Y))}) }
+  data,_:=json.Marshal(map[string]any{"event":"ovg-import-stage","stage":stage,"scope_nodes":len(g.Nodes),"scope_edges":len(g.Edges),"edges":edges}); fmt.Fprintln(os.Stderr,string(data))
+ }
++
++func traceOVGConstructionCounts(g *layoutgraph.Graph, ovg *OVG, stage string) {
++ if os.Getenv("D2_TRACE_OVG_STAGE_SCOPE")!=fmt.Sprintf("%d:%d",len(g.Nodes),len(g.Edges)) {return}
++ data,_:=json.Marshal(map[string]any{"event":"ovg-construction-counts","stage":stage,"scope_nodes":len(g.Nodes),"scope_edges":len(g.Edges),"nodes":len(ovg.Nodes),"edges":len(ovg.Edges)}); fmt.Fprintln(os.Stderr,string(data))
++}

@@ -1,0 +1,74 @@
+[
+  {
+    "name": "nil_graph",
+    "input": "null"
+  },
+  {
+    "name": "zero_node",
+    "input": "{\"nodes\":[{}]}"
+  },
+  {
+    "name": "duplicate_node",
+    "input": "{\"nodes\":[{\"id\":1},{\"id\":1}]}"
+  },
+  {
+    "name": "zero_edge",
+    "input": "{\"edges\":[{}]}"
+  },
+  {
+    "name": "duplicate_edge",
+    "input": "{\"edges\":[{\"id\":1},{\"id\":1}]}"
+  },
+  {
+    "name": "positive_original_id",
+    "input": "{\"edges\":[{\"id\":1,\"originalId\":0}]}"
+  },
+  {
+    "name": "nonzero_original_id",
+    "input": "{\"edges\":[{\"id\":-1,\"originalId\":2}]}"
+  },
+  {
+    "name": "cluster_self",
+    "input": "{\"clusters\":{\"1\":{\"Container\":1}}}"
+  },
+  {
+    "name": "sequence_self",
+    "input": "{\"sequences\":{\"2\":{\"Container\":2}}}"
+  },
+  {
+    "name": "repeated_node_mismatch",
+    "input": "{\"nodes\":[{\"id\":1,\"width\":5}],\"clusterVessels\":{\"1\":{\"id\":1,\"width\":6}}}"
+  },
+  {
+    "name": "repeated_node_null_empty",
+    "input": "{\"nodes\":[{\"id\":1}],\"sequenceVessels\":{\"1\":{\"id\":1,\"nears\":[]}}}"
+  },
+  {
+    "name": "duplicate_tree_owner",
+    "input": "{\"trees\":{\"0\":[{\"Node\":{\"id\":1},\"SentinelEdge\":{\"id\":1}},{\"Node\":{\"id\":1},\"SentinelEdge\":{\"id\":2}}]}}"
+  },
+  {
+    "name": "non_top_level_tree_record",
+    "input": "{\"clusterVessels\":{\"1\":{\"id\":1}},\"trees\":{\"0\":[{\"Node\":{\"id\":1},\"SentinelEdge\":{\"id\":1}}]}}"
+  },
+  {
+    "name": "repeated_tree_node_mismatch",
+    "input": "{\"nodes\":[{\"id\":1,\"width\":3}],\"trees\":{\"0\":[{\"Node\":{\"id\":1,\"width\":4},\"SentinelEdge\":{\"id\":1}}]}}"
+  },
+  {
+    "name": "repeated_edge_style_mismatch",
+    "input": "{\"edges\":[{\"id\":1,\"style\":{\"stroke\":{\"value\":\"red\"}}}],\"trees\":{\"0\":[{\"Node\":{\"id\":1},\"SentinelEdge\":{\"id\":1,\"style\":{\"stroke\":{\"value\":\"blue\"}}}}]}}"
+  },
+  {
+    "name": "duplicate_hierarchy_owner",
+    "input": "{\"hierarchies\":[{\"Levels\":{\"1\":0}},{\"Levels\":{\"1\":1}}]}"
+  },
+  {
+    "name": "zero_tree_node",
+    "input": "{\"trees\":{\"0\":[{}]}}"
+  },
+  {
+    "name": "zero_tree_edge",
+    "input": "{\"trees\":{\"0\":[{\"Node\":{\"id\":1}}]}}"
+  }
+]

@@ -1,0 +1,190 @@
+--- a/internal/layered/p4nodes/bk_compactor.go
++++ b/internal/layered/p4nodes/bk_compactor.go
+@@ -163,6 +163,7 @@
+ 					}
+ 					layout.Y[rootIndex] = floatPointer(value)
+ 				}
++				traceBKConstraint(arena, layout, current, neighbor, rootID, neighborRoot, spacing, newPosition)
+ 				initialAssignment = false
+ 			} else {
+ 				spacing := basegraph.Get(&arena.Graph(graphID).Properties, layered.SpacingNodeNode)
+@@ -178,8 +179,9 @@
+ 						arena.Node(current).Margin.Top - requireFloat(layout.Y[arena.Node(neighborRoot).ID], "y") -
+ 						requireFloat(layout.InnerShift[arena.Node(neighbor).ID], "inner shift") - arena.Node(neighbor).Size.Y -
+ 						arena.Node(neighbor).Margin.Bottom - spacing
+-				}
+-				compactor.addClassEdge(sinkNode, neighborClass, requiredSpace)
++					}
++					traceBKClassConstraint(arena, layout, rootSink, neighborSink, requiredSpace)
++					compactor.addClassEdge(sinkNode, neighborClass, requiredSpace)
+ 			}
+ 		} else {
+ 			threshold = compactor.threshold.CalculateThreshold(arena, layout, threshold, rootID, current)
+@@ -226,6 +228,7 @@
+ 	for _, sinkID := range compactor.sinkOrder {
+ 		class := compactor.classNodes[compactor.sinkNodes[sinkID]]
+ 		layout.Shift[arena.Node(class.node).ID] = class.classShift
++		traceBKClassShift(arena, layout, sinkID, *class.classShift)
+ 	}
+ }
+ 
+--- a/internal/layered/p4nodes/threshold_strategy.go
++++ b/internal/layered/p4nodes/threshold_strategy.go
+@@ -200,14 +200,19 @@
+ 	blockNode := *arena.Port(block).Node
+ 	if delta > 0 && delta < straighteningThreshold {
+ 		available := layout.CheckSpaceAbove(arena, blockNode, delta, info)
++		before := requireFloat(layout.Y[arena.Node(blockNode).ID], "y")
+ 		layout.ShiftBlock(arena, blockNode, -available)
++		traceBKPostProcess(arena, layout, processable.free, edgeID, blockNode, delta, available, before, requireFloat(layout.Y[arena.Node(blockNode).ID], "y"))
+ 		return available > 0
+ 	}
+ 	if delta < 0 && -delta < straighteningThreshold {
+ 		available := layout.CheckSpaceBelow(arena, blockNode, -delta, info)
++		before := requireFloat(layout.Y[arena.Node(blockNode).ID], "y")
+ 		layout.ShiftBlock(arena, blockNode, available)
++		traceBKPostProcess(arena, layout, processable.free, edgeID, blockNode, delta, available, before, requireFloat(layout.Y[arena.Node(blockNode).ID], "y"))
+ 		return available > 0
+ 	}
++	traceBKPostProcess(arena, layout, processable.free, edgeID, blockNode, delta, 0, requireFloat(layout.Y[arena.Node(blockNode).ID], "y"), requireFloat(layout.Y[arena.Node(blockNode).ID], "y"))
+ 	return false
+ }
+ 
+--- a/internal/layered/p4nodes/diagnostic_bk_compaction_trace.go
++++ b/internal/layered/p4nodes/diagnostic_bk_compaction_trace.go
+@@ -0,0 +1,114 @@
++// Copyright (c) 2015 Kiel University and others.
++//
++// This program and the accompanying materials are made available under the
++// terms of the Eclipse Public License 2.0 which is available at
++// https://www.eclipse.org/legal/epl-2.0.
++//
++// SPDX-License-Identifier: EPL-2.0
++
++//go:build d2elkdiagnostic
++
++package p4nodes
++
++import (
++	"encoding/json"
++	"fmt"
++	"os"
++
++	"github.com/d2lang/elk-go/internal/layered"
++)
++
++func traceBKConstraint(
++	arena *layered.LGraphArena,
++	layout *BKAlignedLayout,
++	current, neighbor, root, neighborRoot layered.LNodeID,
++	spacing, position float64,
++) {
++	if os.Getenv("D2_ELK_TRACE") == "" {
++		return
++	}
++	encoded, err := json.Marshal(struct {
++		Stage       string  `json:"stage"`
++		Vertical    int     `json:"vertical"`
++		Horizontal  int     `json:"horizontal"`
++		Current     string  `json:"current"`
++		Neighbor    string  `json:"neighbor"`
++		Root        string  `json:"root"`
++		NeighborRoot string `json:"neighbor_root"`
++		CurrentY    float64 `json:"current_y"`
++		NeighborY   float64 `json:"neighbor_y"`
++		Spacing     float64 `json:"spacing"`
++		Position    float64 `json:"position"`
++	}{
++		"bk-spacing-constraint", int(layout.VDirection), int(layout.HDirection),
++		tracedNodeStableID(arena, current), tracedNodeStableID(arena, neighbor),
++		tracedNodeStableID(arena, root), tracedNodeStableID(arena, neighborRoot),
++		requireFloat(layout.Y[arena.Node(root).ID], "y"),
++		requireFloat(layout.Y[arena.Node(neighborRoot).ID], "y"), spacing, position,
++	})
++	if err != nil {
++		fmt.Fprintln(os.Stderr, "elk trace encoding failed:", err)
++		return
++	}
++	fmt.Fprintln(os.Stderr, string(encoded))
++}
++
++func traceBKClassConstraint(arena *layered.LGraphArena, layout *BKAlignedLayout, source, target layered.LNodeID, separation float64) {
++	if os.Getenv("D2_ELK_TRACE") == "" {
++		return
++	}
++	encoded, err := json.Marshal(struct {
++		Stage      string  `json:"stage"`
++		Vertical   int     `json:"vertical"`
++		Horizontal int     `json:"horizontal"`
++		Source     string  `json:"source"`
++		Target     string  `json:"target"`
++		Separation float64 `json:"separation"`
++	}{"bk-class-constraint", int(layout.VDirection), int(layout.HDirection), tracedNodeStableID(arena, source), tracedNodeStableID(arena, target), separation})
++	if err != nil {
++		fmt.Fprintln(os.Stderr, "elk trace encoding failed:", err)
++		return
++	}
++	fmt.Fprintln(os.Stderr, string(encoded))
++}
++
++func traceBKClassShift(arena *layered.LGraphArena, layout *BKAlignedLayout, sink layered.LNodeID, shift float64) {
++	if os.Getenv("D2_ELK_TRACE") == "" {
++		return
++	}
++	encoded, err := json.Marshal(struct {
++		Stage      string  `json:"stage"`
++		Vertical   int     `json:"vertical"`
++		Horizontal int     `json:"horizontal"`
++		Sink       string  `json:"sink"`
++		Shift      float64 `json:"shift"`
++	}{"bk-class-shift", int(layout.VDirection), int(layout.HDirection), tracedNodeStableID(arena, sink), shift})
++	if err != nil {
++		fmt.Fprintln(os.Stderr, "elk trace encoding failed:", err)
++		return
++	}
++	fmt.Fprintln(os.Stderr, string(encoded))
++}
++
++func traceBKPostProcess(arena *layered.LGraphArena, layout *BKAlignedLayout, free layered.LNodeID, edge layered.LEdgeID, block layered.LNodeID, delta, available, before, after float64) {
++	if os.Getenv("D2_ELK_TRACE") == "" {
++		return
++	}
++	encoded, err := json.Marshal(struct {
++		Stage      string  `json:"stage"`
++		Vertical   int     `json:"vertical"`
++		Horizontal int     `json:"horizontal"`
++		Free       string  `json:"free"`
++		Edge       int     `json:"edge"`
++		Block      string  `json:"block"`
++		Delta      float64 `json:"delta"`
++		Available  float64 `json:"available"`
++		Before     float64 `json:"before"`
++		After      float64 `json:"after"`
++	}{"bk-postprocess", int(layout.VDirection), int(layout.HDirection), tracedNodeStableID(arena, free), int(edge), tracedNodeStableID(arena, block), delta, available, before, after})
++	if err != nil {
++		fmt.Fprintln(os.Stderr, "elk trace encoding failed:", err)
++		return
++	}
++	fmt.Fprintln(os.Stderr, string(encoded))
++}
+--- a/internal/layered/p4nodes/diagnostic_bk_compaction_trace_off.go
++++ b/internal/layered/p4nodes/diagnostic_bk_compaction_trace_off.go
+@@ -0,0 +1,18 @@
++// Copyright (c) 2015 Kiel University and others.
++//
++// This program and the accompanying materials are made available under the
++// terms of the Eclipse Public License 2.0 which is available at
++// https://www.eclipse.org/legal/epl-2.0.
++//
++// SPDX-License-Identifier: EPL-2.0
++
++//go:build !d2elkdiagnostic
++
++package p4nodes
++
++import "github.com/d2lang/elk-go/internal/layered"
++
++func traceBKConstraint(*layered.LGraphArena, *BKAlignedLayout, layered.LNodeID, layered.LNodeID, layered.LNodeID, layered.LNodeID, float64, float64) {}
++func traceBKClassConstraint(*layered.LGraphArena, *BKAlignedLayout, layered.LNodeID, layered.LNodeID, float64) {}
++func traceBKClassShift(*layered.LGraphArena, *BKAlignedLayout, layered.LNodeID, float64) {}
++func traceBKPostProcess(*layered.LGraphArena, *BKAlignedLayout, layered.LNodeID, layered.LEdgeID, layered.LNodeID, float64, float64, float64, float64) {}

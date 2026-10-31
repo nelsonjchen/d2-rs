@@ -1,0 +1,19 @@
+--- a/d2layouts/d2talalayout/internal/routing/ovg_edge_router.go
++++ b/d2layouts/d2talalayout/internal/routing/ovg_edge_router.go
+@@ -1790,7 +1790,7 @@
+ func (router *ovgEdgeRouter) addRoute(route *Route) error {
+ 	tracePublication := func(phase string) {
+ 		if os.Getenv("D2_TRACE_PUBLICATION_WORK") != "1" { return }
+-		data, _ := json.Marshal(map[string]any{"event":"publication-work", "phase":phase, "flavor":fmt.Sprint(router.flavor), "edge":route.GEdge.ID, "nodes":len(route.OVGNodes), "work":router.work.used})
++		data, _ := json.Marshal(map[string]any{"event":"publication-work","scope_nodes":len(router.graph.Nodes),"scope_edges":len(router.graph.Edges), "phase":phase, "flavor":fmt.Sprint(router.flavor), "edge":route.GEdge.ID, "nodes":len(route.OVGNodes), "work":router.work.used})
+ 		fmt.Fprintln(os.Stderr, string(data))
+ 	}
+ 	tracePublication("begin")
+@@ -1972,6 +1972,6 @@
+ 
+ func (router *ovgEdgeRouter) traceGenerationWork(edge *layoutgraph.Edge, phase string) {
+  if os.Getenv("D2_TRACE_GENERATION_WORK") != "1" { return }
+- data, _ := json.Marshal(map[string]any{"event":"generation-work","edge":edge.ID,"flavor":fmt.Sprint(router.flavor),"phase":phase,"work":router.work.used})
++ data, _ := json.Marshal(map[string]any{"event":"generation-work","scope_nodes":len(router.graph.Nodes),"scope_edges":len(router.graph.Edges),"edge":edge.ID,"flavor":fmt.Sprint(router.flavor),"phase":phase,"work":router.work.used})
+  fmt.Fprintln(os.Stderr,string(data))
+ }

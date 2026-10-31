@@ -1,0 +1,28 @@
+[package]
+name = "d2-rs-elk"
+description = "ELK layout boundary for d2-rs"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish = false
+
+[features]
+default = []
+diagnostic-traces = []
+# Oracle tier: tests that read elk-go/Go-oracle artifacts regenerated into
+# oracle-cache/fixtures by scripts/regen-fixtures.py (docs/FIXTURES.md).
+oracle-fixtures = []
+
+[dependencies]
+d2-rs-core.workspace = true
+d2-rs-dagre.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+web-time = "1.1.0"
+
+[dev-dependencies]
+d2-rs-testdata.workspace = true

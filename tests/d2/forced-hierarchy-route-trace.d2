@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: MPL-2.0
+# Derived from D2 v0.9.0 TestLayoutKeepsForcedHierarchyWithUnrelatedFixedNode.
+# Keep node/edge declaration order aligned with the original Go fixture.
+# Omit its unrelated fixed node: authored root hierarchies reject top/left.
+shape: hierarchy
+
+a: {width: 80; height: 50}
+b: {width: 80; height: 50}
+c: {width: 80; height: 50}
+d: {width: 80; height: 50}
+e: {width: 80; height: 50}
+f: {width: 80; height: 50}
+g: {width: 80; height: 50}
+h: {width: 80; height: 50}
+
+a -> c
+b -> d
+c -> e
+d -> f
+c -> f
+e -> g
+f -> h

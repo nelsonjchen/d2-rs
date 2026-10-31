@@ -1,0 +1,38 @@
+--- a/d2layouts/d2talalayout/internal/routing/ovg_edge_router.go
++++ b/d2layouts/d2talalayout/internal/routing/ovg_edge_router.go
+@@ -409,6 +409,7 @@
+ 
+ 	totalDistance := 0.0
+ 	for _, edge := range router.edges {
++		router.traceGenerationWork(edge, "begin")
+ 		if err := router.work.step(); err != nil {
+ 			resp.Err = err
+ 			return resp
+@@ -418,6 +419,7 @@
+ 		var err error
+ 
+ 		ovgNodes, distance, err = router.slingshot(ctx, edge)
++		router.traceGenerationWork(edge, "slingshot-done")
+ 		if err != nil {
+ 			if straightLineFallback {
+ 				ovgNodes, distance, err = router.routeLine(ctx, edge)
+@@ -428,7 +430,9 @@
+ 			}
+ 		}
+ 		if len(ovgNodes) <= 1 {
++			router.traceGenerationWork(edge, "search-begin")
+ 			ovgNodes, distance, err = router.search(ctx, edge)
++			router.traceGenerationWork(edge, "search-done")
+ 			if isContextTermination(err) {
+ 				resp.Err = err
+ 				return resp
+@@ -1965,3 +1969,9 @@
+ 	}
+ 	return sourcePorts, targetPorts, nil
+ }
++
++func (router *ovgEdgeRouter) traceGenerationWork(edge *layoutgraph.Edge, phase string) {
++ if os.Getenv("D2_TRACE_GENERATION_WORK") != "1" { return }
++ data, _ := json.Marshal(map[string]any{"event":"generation-work","edge":edge.ID,"flavor":fmt.Sprint(router.flavor),"phase":phase,"work":router.work.used})
++ fmt.Fprintln(os.Stderr,string(data))
++}

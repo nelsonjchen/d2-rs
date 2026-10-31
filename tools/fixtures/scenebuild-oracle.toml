@@ -1,0 +1,111 @@
+# Upstream scene-build and image-asset test captures for crates/d2-rs-scenebuild,
+# at the manifest pin. See docs/FIXTURES.md.
+#
+# scripts/scenebuild_oracle_fixtures.py applies the same test rewrites and
+# hooks as scripts/{scenebuild-fallback,scenebuild-asset,scenebuild-latex,
+# imageasset}-scoreboard.py, but through `go test -overlay` in the runner's
+# patched upstream tree, runs the capture twice and requires identical output.
+# Upstream-tree paths, t.TempDir() roots and httptest ports are canonicalized
+# (/d2rs/upstream, /d2rs/tmp/<n>, 127.0.0.1:1000<n>) in requests and results.
+#
+# Regenerate:  uv run --no-project python scripts/regen-fixtures.py --only 'scenebuild-*'
+# Test:        cargo test -p d2-rs-scenebuild --features oracle-fixtures --all-targets
+#              uv run --no-project python scripts/test_imageasset_scoreboard.py
+
+[defaults]
+kind = "command"
+upstream = true
+timeout = 1800
+
+[defaults.key_deps]
+files = [
+  "scripts/scenebuild_oracle_fixtures.py",
+  "scripts/fixture_recipe.py",
+  "scripts/references.py",
+]
+go_toolchain = true
+# Scene building pulls in fonts, text measurement, SVG import, LaTeX and
+# image assets: key on the whole tree.
+upstream_paths = ["."]
+
+[[recipe]]
+name = "scenebuild-fallback"
+description = "Bundled Noto Color Emoji fallback Build calls: complete scenes (font assets hashed) or errors"
+outputs = ["crates/d2-rs-scenebuild/tests/fixtures/bundled-fallback-master.json"]
+argv = ["{python}", "scripts/scenebuild_oracle_fixtures.py", "fallback"]
+key_deps.files = [
+  "scripts/scenebuild-fallback-scoreboard.py",
+  "tools/scenebuild-fallback-scoreboard/hook_test.go",
+  "tools/scene-probe/scenejson.go",
+]
+
+[[recipe]]
+name = "scenebuild-assets"
+description = "assets_test.go and latex_test.go Build calls: diagram, asset options, resolver results, scene or error"
+outputs = [
+  "crates/d2-rs-scenebuild/tests/fixtures/image-assets-master.json",
+  "crates/d2-rs-scenebuild/tests/fixtures/latex-master.json",
+]
+argv = ["{python}", "scripts/scenebuild_oracle_fixtures.py", "assets"]
+key_deps.files = [
+  "scripts/scenebuild-asset-scoreboard.py",
+  "scripts/scenebuild-latex-scoreboard.py",
+  "tools/scenebuild-asset-scoreboard/hook_test.go",
+  "tools/scene-probe/scenejson.go",
+]
+
+[[recipe]]
+name = "scenebuild-imageasset-raster"
+description = "lib/imageasset local/data-URI raster Resolve calls and limit failures"
+outputs = ["crates/d2-rs-scenebuild/tests/fixtures/imageasset-local-data-master.jsonl"]
+argv = ["{python}", "scripts/scenebuild_oracle_fixtures.py", "imageasset", "raster"]
+key_deps.files = ["scripts/imageasset-scoreboard.py", "tools/imageasset-scoreboard/hook_test.go"]
+
+[[recipe]]
+name = "scenebuild-imageasset-svg"
+description = "lib/imageasset raw/canonical/ISO-8859-1 SVG Resolve calls"
+outputs = ["crates/d2-rs-scenebuild/tests/fixtures/imageasset-svg-master.jsonl"]
+argv = ["{python}", "scripts/scenebuild_oracle_fixtures.py", "imageasset", "svg"]
+key_deps.files = ["scripts/imageasset-scoreboard.py", "tools/imageasset-scoreboard/hook_test.go"]
+
+[[recipe]]
+name = "scenebuild-imageasset-svg-codecs"
+description = "lib/imageasset compressed declared-SVG codecs and limits"
+outputs = ["crates/d2-rs-scenebuild/tests/fixtures/imageasset-svg-codecs-master.jsonl"]
+argv = ["{python}", "scripts/scenebuild_oracle_fixtures.py", "imageasset", "svg-codecs"]
+key_deps.files = ["scripts/imageasset-scoreboard.py", "tools/imageasset-scoreboard/hook_test.go"]
+
+[[recipe]]
+name = "scenebuild-imageasset-http"
+description = "lib/imageasset HTTP redirects, content sniffing and content encodings (captured exchanges)"
+outputs = ["crates/d2-rs-scenebuild/tests/fixtures/imageasset-http-master.jsonl"]
+argv = ["{python}", "scripts/scenebuild_oracle_fixtures.py", "imageasset", "http"]
+key_deps.files = ["scripts/imageasset-scoreboard.py", "tools/imageasset-scoreboard/hook_test.go"]
+
+[[recipe]]
+name = "scenebuild-imageasset-http-headers"
+description = "lib/imageasset HTTP fragment snapshots and header bounds (captured exchanges)"
+outputs = ["crates/d2-rs-scenebuild/tests/fixtures/imageasset-headers-master.jsonl"]
+argv = ["{python}", "scripts/scenebuild_oracle_fixtures.py", "imageasset", "http-headers"]
+key_deps.files = ["scripts/imageasset-scoreboard.py", "tools/imageasset-scoreboard/hook_test.go"]
+
+[[recipe]]
+name = "scenebuild-imageasset-cache"
+description = "lib/imageasset memory-cache eviction and shared-cache revalidation"
+outputs = ["crates/d2-rs-scenebuild/tests/fixtures/imageasset-cache-master.jsonl"]
+argv = ["{python}", "scripts/scenebuild_oracle_fixtures.py", "imageasset", "cache"]
+key_deps.files = ["scripts/imageasset-scoreboard.py", "tools/imageasset-scoreboard/hook_test.go"]
+
+[[recipe]]
+name = "scenebuild-imageasset-cache-local"
+description = "lib/imageasset optional cache, cumulative charging and local cache keys"
+outputs = ["crates/d2-rs-scenebuild/tests/fixtures/imageasset-cache-local-master.jsonl"]
+argv = ["{python}", "scripts/scenebuild_oracle_fixtures.py", "imageasset", "cache-local"]
+key_deps.files = ["scripts/imageasset-scoreboard.py", "tools/imageasset-scoreboard/hook_test.go"]
+
+[[recipe]]
+name = "scenebuild-imageasset-cache-namespace"
+description = "lib/imageasset shared-cache namespace isolation"
+outputs = ["crates/d2-rs-scenebuild/tests/fixtures/imageasset-cache-namespace-master.jsonl"]
+argv = ["{python}", "scripts/scenebuild_oracle_fixtures.py", "imageasset", "cache-namespace"]
+key_deps.files = ["scripts/imageasset-scoreboard.py", "tools/imageasset-scoreboard/hook_test.go"]

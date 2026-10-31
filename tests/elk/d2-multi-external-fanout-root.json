@@ -1,0 +1,34 @@
+{
+  "id": "root",
+  "layoutOptions": {
+    "elk.algorithm": "layered",
+    "elk.direction": "RIGHT",
+    "elk.hierarchyHandling": "INCLUDE_CHILDREN",
+    "elk.nodeSize.constraints": "MINIMUM_SIZE",
+    "elk.contentAlignment": "H_CENTER V_CENTER",
+    "elk.spacing.nodeNodeBetweenLayers": 20,
+    "elk.spacing.edgeNodeBetweenLayers": 10,
+    "elk.layered.spacing.edgeEdgeBetweenLayers": 50
+  },
+  "children": [
+    {
+      "id": "A",
+      "width": 40,
+      "height": 30,
+      "children": [
+        {
+          "id": "B",
+          "width": 40,
+          "height": 30,
+          "children": [{"id": "C", "width": 40, "height": 30}]
+        }
+      ]
+    },
+    {"id": "Z", "width": 40, "height": 30},
+    {"id": "Y", "width": 40, "height": 30}
+  ],
+  "edges": [
+    {"id": "e0", "sources": ["C"], "targets": ["Z"]},
+    {"id": "e1", "sources": ["C"], "targets": ["Y"]}
+  ]
+}

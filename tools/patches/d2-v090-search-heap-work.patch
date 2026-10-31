@@ -1,0 +1,22 @@
+--- a/d2layouts/d2talalayout/internal/routing/ovg_edge_router.go
++++ b/d2layouts/d2talalayout/internal/routing/ovg_edge_router.go
+@@ -90,15 +90,16 @@
+ }
+ 
+ func traceSearchHeap(router *ovgEdgeRouter, edge *layoutgraph.Edge, operation string, node *OVGNode, horizontal bool, priority float64, oldPriority *float64) {
+-	if os.Getenv("TALA_TRACE_SEARCH_HEAP") != "1" || os.Getenv("TALA_TRACE_SEARCH_FLAVOR") != string(router.flavor) {
+-		return
+-	}
++    enabled := (os.Getenv("D2_TRACE_SEARCH_HEAP") == "1" && os.Getenv("D2_TRACE_SEARCH_FLAVOR") == string(router.flavor)) || (os.Getenv("TALA_TRACE_SEARCH_HEAP") == "1" && os.Getenv("TALA_TRACE_SEARCH_FLAVOR") == string(router.flavor))
++    if !enabled { return }
++    if edgeFilter := os.Getenv("D2_TRACE_SEARCH_EDGE"); edgeFilter != "" && edgeFilter != fmt.Sprint(edge.ID) { return }
+ 	oldBits := any(nil)
+ 	if oldPriority != nil {
+ 		oldBits = fmt.Sprintf("0x%016x", math.Float64bits(*oldPriority))
+ 	}
+ 	event, err := json.Marshal(map[string]any{
+ 		"event": "route-search-heap", "flavor": router.flavor, "edge": edge.ID,
++        "work": router.work.used, "scope_nodes":len(router.graph.Nodes), "scope_edges":len(router.graph.Edges),
+ 		"operation":         operation,
+ 		"x_bits":            fmt.Sprintf("0x%016x", math.Float64bits(node.X)),
+ 		"y_bits":            fmt.Sprintf("0x%016x", math.Float64bits(node.Y)),

@@ -1,0 +1,12 @@
+--- a/d2renderers/d2fonts/fallback.go
++++ b/d2renderers/d2fonts/fallback.go
+@@ -258,6 +258,9 @@
+ 			}
+ 			if int64(len(data)) > r.limits.MaxResolvedBytes-r.work.resolvedBytes {
+ 				return nil, fmt.Errorf("d2fonts: resolved fallback font bytes exceed limit %d while retaining face %d from %q", r.limits.MaxResolvedBytes, bestIndex, filepath.Base(path))
++			}
++			if os.Getenv("D2_TRACE_FONT_FALLBACK_SELECTION") != "" {
++				fmt.Fprintf(os.Stderr, "FONT_FALLBACK_GO family=%q style=%q weight=%d path=%q face=%d profile=%+v runes=%U\n", request.Family, request.Style, request.Weight, path, bestIndex, faceProfiles[bestIndex], bestCoverage)
+ 			}
+ 			selectedFaces[bestIndex] = true
+ 			resolved = append(resolved, FallbackFont{

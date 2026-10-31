@@ -1,0 +1,8 @@
+[
+{"name": "selective-directory", "input": "x: @foo/bar.child\ny: @foobar\n", "old_path": "foo/", "new_path": "new/"},
+{"name": "directory-to-file", "input": "x: @foo/bar.child\n...@foo/baz\n", "old_path": "foo/", "new_path": "new"},
+{"name": "all-dots-prefix", "input": "x: @old.child\n", "old_path": "old", "new_path": "../"},
+{"name": "array-is-not-walked", "input": "x: [@old; {y: @old}]\ny: @old\n", "old_path": "old", "new_path": "new"},
+{"name": "remove-parse-error", "input": "x: {", "old_path": "a\"b", "new_path": null},
+{"name": "update-parse-error", "input": "x: {", "old_path": "a\"b", "new_path": "new\npath"}
+]

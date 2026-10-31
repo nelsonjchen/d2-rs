@@ -1,0 +1,137 @@
+[
+ {
+  "path": "case.d2",
+  "text": "_: a; _: b",
+  "files": {
+   "lib.d2": "a.width.x: y; b.height.x: z"
+  }
+ },
+ {
+  "path": "case.d2",
+  "text": "_: a; _: b",
+  "utf16": true,
+  "files": {
+   "lib.d2": "a.width.x: y; b.height.x: z"
+  }
+ },
+ {
+  "path": "case.d2",
+  "text": "a.width.x: y; b.height.x: z",
+  "files": {
+   "lib.d2": "a.width.x: y; b.height.x: z"
+  }
+ },
+ {
+  "path": "case.d2",
+  "text": "a.width.x: y; b.height.x: z",
+  "utf16": true,
+  "files": {
+   "lib.d2": "a.width.x: y; b.height.x: z"
+  }
+ },
+ {
+  "path": "case.d2",
+  "text": "a: ${missing}; b: ${other}",
+  "files": {
+   "lib.d2": "a.width.x: y; b.height.x: z"
+  }
+ },
+ {
+  "path": "case.d2",
+  "text": "a: ${missing}; b: ${other}",
+  "utf16": true,
+  "files": {
+   "lib.d2": "a.width.x: y; b.height.x: z"
+  }
+ },
+ {
+  "path": "case.d2",
+  "text": "_: invalid; a.shape: unknown",
+  "files": {
+   "lib.d2": "a.width.x: y; b.height.x: z"
+  }
+ },
+ {
+  "path": "case.d2",
+  "text": "_: invalid; a.shape: unknown",
+  "utf16": true,
+  "files": {
+   "lib.d2": "a.width.x: y; b.height.x: z"
+  }
+ },
+ {
+  "path": "case.d2",
+  "text": "😀: ${one}; 雪: ${two}",
+  "files": {
+   "lib.d2": "a.width.x: y; b.height.x: z"
+  }
+ },
+ {
+  "path": "case.d2",
+  "text": "😀: ${one}; 雪: ${two}",
+  "utf16": true,
+  "files": {
+   "lib.d2": "a.width.x: y; b.height.x: z"
+  }
+ },
+ {
+  "path": "case.d2",
+  "text": "a: @missing; b: @other",
+  "files": {
+   "lib.d2": "a.width.x: y; b.height.x: z"
+  }
+ },
+ {
+  "path": "case.d2",
+  "text": "a: @missing; b: @other",
+  "utf16": true,
+  "files": {
+   "lib.d2": "a.width.x: y; b.height.x: z"
+  }
+ },
+ {
+  "path": "case.d2",
+  "text": "a: @lib",
+  "files": {
+   "lib.d2": "a.width.x: y; b.height.x: z"
+  }
+ },
+ {
+  "path": "case.d2",
+  "text": "a: @lib",
+  "utf16": true,
+  "files": {
+   "lib.d2": "a.width.x: y; b.height.x: z"
+  }
+ },
+ {
+  "path": "case.d2",
+  "text": "a.shape: unknown; b.shape: invalid",
+  "files": {
+   "lib.d2": "a.width.x: y; b.height.x: z"
+  }
+ },
+ {
+  "path": "case.d2",
+  "text": "a.shape: unknown; b.shape: invalid",
+  "utf16": true,
+  "files": {
+   "lib.d2": "a.width.x: y; b.height.x: z"
+  }
+ },
+ {
+  "path": "case.d2",
+  "text": "a: ${missing}; vars.d2-config.theme-id: invalid",
+  "files": {
+   "lib.d2": "a.width.x: y; b.height.x: z"
+  }
+ },
+ {
+  "path": "case.d2",
+  "text": "a: ${missing}; vars.d2-config.theme-id: invalid",
+  "utf16": true,
+  "files": {
+   "lib.d2": "a.width.x: y; b.height.x: z"
+  }
+ }
+]

@@ -1,0 +1,271 @@
+{
+ "comment": "edge-icon-positions requests: each route x each variant (connection field overrides).",
+ "routes": [
+  {
+   "raw_route": [
+    {
+     "x": 26.5,
+     "y": 66.0
+    },
+    {
+     "x": 26.5,
+     "y": 166.0
+    }
+   ],
+   "connection": {
+    "route": [
+     {
+      "x": 26.5,
+      "y": 66.0
+     },
+     {
+      "x": 26.5,
+      "y": 166.0
+     }
+    ],
+    "strokeWidth": 2,
+    "label": "",
+    "labelPosition": "INSIDE_MIDDLE_CENTER",
+    "labelWidth": 47,
+    "labelHeight": 21,
+    "labelPercentage": 0.3333333134651184
+   }
+  },
+  {
+   "raw_route": [
+    {
+     "x": -80.5,
+     "y": 11.125
+    },
+    {
+     "x": 115.25,
+     "y": 11.125
+    }
+   ],
+   "connection": {
+    "route": [
+     {
+      "x": -80.5,
+      "y": 11.125
+     },
+     {
+      "x": 115.25,
+      "y": 11.125
+     }
+    ],
+    "strokeWidth": 3,
+    "label": "",
+    "labelPosition": "INSIDE_MIDDLE_CENTER",
+    "labelWidth": 47,
+    "labelHeight": 21,
+    "labelPercentage": 0.3333333134651184
+   }
+  },
+  {
+   "raw_route": [
+    {
+     "x": -14.323998,
+     "y": 20.5009
+    },
+    {
+     "x": 50.99999,
+     "y": 20.5009
+    },
+    {
+     "x": 50.99999,
+     "y": 113.999998
+    }
+   ],
+   "connection": {
+    "route": [
+     {
+      "x": -14.322999954223633,
+      "y": 20.5
+     },
+     {
+      "x": 50.999000549316406,
+      "y": 20.5
+     },
+     {
+      "x": 50.999000549316406,
+      "y": 113.9990005493164
+     }
+    ],
+    "strokeWidth": 4,
+    "label": "",
+    "labelPosition": "INSIDE_MIDDLE_CENTER",
+    "labelWidth": 47,
+    "labelHeight": 21,
+    "labelPercentage": 0.3333333134651184
+   }
+  },
+  {
+   "raw_route": [
+    {
+     "x": 1.3001,
+     "y": -2.7004
+    },
+    {
+     "x": 113.9999,
+     "y": 87.33333
+    }
+   ],
+   "connection": {
+    "route": [
+     {
+      "x": 1.2999999523162842,
+      "y": -2.700000047683716
+     },
+     {
+      "x": 113.9990005493164,
+      "y": 87.33300018310547
+     }
+    ],
+    "strokeWidth": 5,
+    "label": "",
+    "labelPosition": "INSIDE_MIDDLE_CENTER",
+    "labelWidth": 47,
+    "labelHeight": 21,
+    "labelPercentage": 0.3333333134651184
+   }
+  }
+ ],
+ "variants": [
+  {
+   "suffix": "INSIDE_MIDDLE_LEFT",
+   "has_icon": true,
+   "set": {
+    "iconPosition": "INSIDE_MIDDLE_LEFT"
+   },
+   "drop": []
+  },
+  {
+   "suffix": "INSIDE_MIDDLE_CENTER",
+   "has_icon": true,
+   "set": {
+    "iconPosition": "INSIDE_MIDDLE_CENTER"
+   },
+   "drop": []
+  },
+  {
+   "suffix": "INSIDE_MIDDLE_RIGHT",
+   "has_icon": true,
+   "set": {
+    "iconPosition": "INSIDE_MIDDLE_RIGHT"
+   },
+   "drop": []
+  },
+  {
+   "suffix": "OUTSIDE_TOP_LEFT",
+   "has_icon": true,
+   "set": {
+    "iconPosition": "OUTSIDE_TOP_LEFT"
+   },
+   "drop": []
+  },
+  {
+   "suffix": "OUTSIDE_TOP_CENTER",
+   "has_icon": true,
+   "set": {
+    "iconPosition": "OUTSIDE_TOP_CENTER"
+   },
+   "drop": []
+  },
+  {
+   "suffix": "OUTSIDE_TOP_RIGHT",
+   "has_icon": true,
+   "set": {
+    "iconPosition": "OUTSIDE_TOP_RIGHT"
+   },
+   "drop": []
+  },
+  {
+   "suffix": "OUTSIDE_BOTTOM_LEFT",
+   "has_icon": true,
+   "set": {
+    "iconPosition": "OUTSIDE_BOTTOM_LEFT"
+   },
+   "drop": []
+  },
+  {
+   "suffix": "OUTSIDE_BOTTOM_CENTER",
+   "has_icon": true,
+   "set": {
+    "iconPosition": "OUTSIDE_BOTTOM_CENTER"
+   },
+   "drop": []
+  },
+  {
+   "suffix": "OUTSIDE_BOTTOM_RIGHT",
+   "has_icon": true,
+   "set": {
+    "iconPosition": "OUTSIDE_BOTTOM_RIGHT"
+   },
+   "drop": []
+  },
+  {
+   "suffix": "label-INSIDE_MIDDLE_CENTER",
+   "has_icon": true,
+   "set": {
+    "iconPosition": "OUTSIDE_BOTTOM_RIGHT",
+    "label": "label"
+   },
+   "drop": []
+  },
+  {
+   "suffix": "label-OUTSIDE_BOTTOM_LEFT",
+   "has_icon": true,
+   "set": {
+    "iconPosition": "OUTSIDE_BOTTOM_RIGHT",
+    "label": "label",
+    "labelPosition": "OUTSIDE_BOTTOM_LEFT"
+   },
+   "drop": []
+  },
+  {
+   "suffix": "label-UNLOCKED_TOP",
+   "has_icon": true,
+   "set": {
+    "iconPosition": "OUTSIDE_BOTTOM_RIGHT",
+    "label": "label",
+    "labelPosition": "UNLOCKED_TOP"
+   },
+   "drop": []
+  },
+  {
+   "suffix": "label-UNLOCKED_MIDDLE",
+   "has_icon": true,
+   "set": {
+    "iconPosition": "OUTSIDE_BOTTOM_RIGHT",
+    "label": "label",
+    "labelPosition": "UNLOCKED_MIDDLE"
+   },
+   "drop": []
+  },
+  {
+   "suffix": "empty-label",
+   "has_icon": true,
+   "set": {
+    "iconPosition": "OUTSIDE_TOP_LEFT",
+    "labelPosition": "OUTSIDE_BOTTOM_CENTER"
+   },
+   "drop": []
+  },
+  {
+   "suffix": "nil-icon",
+   "has_icon": false,
+   "set": {
+    "iconPosition": "INSIDE_MIDDLE_CENTER"
+   },
+   "drop": []
+  },
+  {
+   "suffix": "invalid-route-position",
+   "has_icon": true,
+   "set": {
+    "iconPosition": "OUTSIDE_LEFT_MIDDLE"
+   },
+   "drop": []
+  }
+ ]
+}

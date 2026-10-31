@@ -1,0 +1,184 @@
+# Go-oracle fixtures for crates/d2-rs-render (renderexport area): Markdown
+# layout/paint/scene grids and renderer geometry probes, read by
+# crates/d2-rs-render (and crates/d2-rs-export) tests under `oracle-fixtures`.
+# See docs/FIXTURES.md; retired/merged inputs are recorded in
+# docs/fixture-retirements/renderexport.md.
+#
+# Hooks and programs were harvested from the v0.9.0-era probes
+# (../d2-v0.9.0-trace *_probe_test.go, .reference/*/tools/probes,
+# .reference/*/source-module) and retargeted to the manifest pin. The
+# historical `-source-v090` logical names are kept so readers did not move.
+#
+# Host architecture matters: the historical captures came from darwin/arm64,
+# where Go fuses multiply-adds. Regenerated on amd64, circle-arrow,
+# legend-connections, sketch-zigzag, badge-anchor (diamond 10x10 anchors) and
+# table-paint (unread legacy_cells widths) differ in the last ulp, and the
+# Rust contract that reproduces arm64 FMA rounding
+# (d2-rs-export legend_animation_source_contract) then fails. Regenerate these
+# on arm64 for exact parity; circle-arrow's reader is already aarch64-only.
+#
+# Regenerate:  uv run --no-project python scripts/regen-fixtures.py --only 'render-*'
+# Test:        cargo test -p d2-rs-render --features oracle-fixtures
+
+[defaults]
+timeout = 1800
+
+[defaults.key_deps]
+upstream_paths = ["go.mod", "go.sum"]
+
+# lib/textmeasure package-internal Markdown layout, legacy cell measurement
+# and inline paint over the seed grids in tools/fixtures/seeds/render-markdown.
+[[recipe]]
+name = "render-markdown-textmeasure"
+kind = "go-test-hook"
+description = "Markdown LayoutMarkdown/RenderMarkdown/legacy cells/inline paint over seed snippet grids"
+package = "lib/textmeasure"
+hooks = ["tools/fixtures/hooks/render-markdown-textmeasure/d2rs_markdown_textmeasure_test.go"]
+test = "TestD2RSMarkdownTextmeasure"
+inputs = [{ path = "markdown-jobs.json", generate = ["{python}", "scripts/render_oracle_fixtures.py", "requests"] }]
+outputs = [
+  "crates/d2-rs-render/tests/fixtures/markdown-natural-source-v090.json",
+  "crates/d2-rs-render/tests/fixtures/markdown-recursive-paint-source-v090.json",
+  "crates/d2-rs-render/tests/fixtures/markdown-table-paint-source-v090.json",
+  "crates/d2-rs-render/tests/fixtures/markdown-mixed-flow-source-v090.json",
+  "crates/d2-rs-render/tests/fixtures/markdown-table-inline-source-v090.json",
+  "crates/d2-rs-render/tests/fixtures/paragraph-wrap-source-v090.json",
+  "crates/d2-rs-render/tests/fixtures/markdown-heading-flow-source-v090.json",
+]
+key_deps.files = ["scripts/fixture_recipe.py", "tools/fixtures/seeds/render-markdown"]
+key_deps.upstream_paths = [
+  "lib/textmeasure", "d2renderers/d2fonts", "d2renderers/d2scene", "d2renderers/internal/fontface",
+  "d2renderers/internal/fontfallback", "lib/compression", "lib/font", "lib/geo", "lib/svg", "lib/syncmap",
+]
+
+# One Markdown text shape per request built by d2scenebuild.Build; the
+# generator projects the rows into the two fixtures.
+[[recipe]]
+name = "render-markdown-scene"
+kind = "command"
+upstream = true
+description = "Markdown text-shape scenes: link metadata, appendix titles, viewport/clip rows"
+argv = ["{python}", "scripts/render_oracle_fixtures.py", "scene"]
+outputs = [
+  "crates/d2-rs-render/tests/fixtures/markdown-scene-metadata-source-v090.json",
+  "crates/d2-rs-render/tests/fixtures/markdown-layout-viewport-source-v090.json",
+]
+key_deps.go_toolchain = true
+key_deps.files = [
+  "scripts/fixture_recipe.py", "tools/fixtures/seeds/render-markdown/scene.json",
+  "tools/fixtures/hooks/render-markdown-scene",
+]
+key_deps.upstream_paths = [
+  "d2renderers/d2scenebuild", "d2renderers/d2scene", "d2renderers/d2fonts", "d2renderers/d2latex",
+  "d2renderers/d2sketch", "d2renderers/d2svgimport", "d2renderers/internal", "d2target", "d2themes",
+  "d2ast", "d2format", "d2graph", "d2parser", "internal/rasterimage", "lib/color", "lib/compression",
+  "lib/font", "lib/geo", "lib/imageasset", "lib/label", "lib/localfile", "lib/netpolicy", "lib/shape",
+  "lib/svg", "lib/syncmap", "lib/textmeasure",
+]
+
+[[recipe]]
+name = "render-badge-anchor"
+kind = "go-test-hook"
+description = "d2svg appendix badge anchors and viewBoxes per shape kind x metadata x size x origin x stroke"
+package = "d2renderers/d2svg"
+hooks = ["tools/fixtures/hooks/render-badge-anchor/d2rs_badge_anchor_test.go"]
+test = "TestD2RSBadgeAnchor"
+outputs = ["crates/d2-rs-render/tests/fixtures/badge-anchor-source-v090.json"]
+key_deps.upstream_paths = [
+  "d2renderers", "d2target", "d2themes", "d2layouts/d2sequence", "d2ast", "d2format", "d2graph",
+  "d2parser", "internal/rasterimage", "lib/color", "lib/compression", "lib/font", "lib/geo",
+  "lib/imageasset", "lib/label", "lib/localfile", "lib/netpolicy", "lib/shape", "lib/svg",
+  "lib/syncmap", "lib/textmeasure", "lib/version",
+]
+
+[[recipe]]
+name = "render-positioned-tooltip"
+kind = "command"
+upstream = true
+description = "d2svg positioned tooltips: target bounds, Markdown layout, rendered callout box/tail/text"
+argv = ["{python}", "scripts/render_oracle_fixtures.py", "tooltip"]
+outputs = ["crates/d2-rs-render/tests/fixtures/positioned-tooltip-source-v090.json"]
+key_deps.go_toolchain = true
+key_deps.files = ["scripts/fixture_recipe.py", "tools/fixtures/hooks/render-positioned-tooltip"]
+key_deps.upstream_paths = [
+  "d2renderers", "d2target", "d2themes", "d2layouts/d2sequence", "d2ast", "d2format", "d2graph",
+  "d2parser", "internal/rasterimage", "lib/color", "lib/compression", "lib/font", "lib/geo",
+  "lib/imageasset", "lib/label", "lib/localfile", "lib/netpolicy", "lib/shape", "lib/svg",
+  "lib/syncmap", "lib/textmeasure", "lib/version",
+]
+
+[[recipe]]
+name = "render-circle-arrow"
+kind = "go-test-hook"
+description = "d2scenebuild circle arrowhead ellipse matrices/radii (float bits) per width x side x direction x origin"
+package = "d2renderers/d2scenebuild"
+hooks = ["tools/fixtures/hooks/render-circle-arrow/d2rs_circle_arrow_test.go"]
+test = "TestD2RSCircleArrow"
+outputs = ["crates/d2-rs-render/tests/fixtures/circle-arrow-source-v090.json"]
+key_deps.upstream_paths = [
+  "d2renderers/d2scenebuild", "d2renderers/d2scene", "d2renderers/d2fonts", "d2renderers/d2latex",
+  "d2renderers/d2sketch", "d2renderers/d2svgimport", "d2renderers/internal", "d2target", "d2themes",
+  "d2ast", "d2format", "d2graph", "d2parser", "internal/rasterimage", "lib/color", "lib/compression",
+  "lib/font", "lib/geo", "lib/imageasset", "lib/label", "lib/localfile", "lib/netpolicy", "lib/shape",
+  "lib/svg", "lib/syncmap", "lib/textmeasure",
+]
+
+[[recipe]]
+name = "render-legend-connections"
+kind = "go-test-hook"
+description = "Legend connection icon scenes per arrowhead x stroke width x dash/animation mode"
+package = "d2renderers/d2scenebuild"
+hooks = ["tools/fixtures/hooks/render-legend-connections/d2rs_legend_connections_test.go"]
+test = "TestD2RSLegendConnections"
+outputs = ["crates/d2-rs-render/tests/fixtures/legend-connections-source-v090.json"]
+key_deps.upstream_paths = [
+  "d2renderers/d2scenebuild", "d2renderers/d2scene", "d2renderers/d2fonts", "d2renderers/d2latex",
+  "d2renderers/d2sketch", "d2renderers/d2svgimport", "d2renderers/internal", "d2target", "d2themes",
+  "d2ast", "d2format", "d2graph", "d2parser", "internal/rasterimage", "lib/color", "lib/compression",
+  "lib/font", "lib/geo", "lib/imageasset", "lib/label", "lib/localfile", "lib/netpolicy", "lib/shape",
+  "lib/svg", "lib/syncmap", "lib/textmeasure",
+]
+
+[[recipe]]
+name = "render-legend-layout"
+kind = "go-test-hook"
+description = "Legend panel layouts and label origins per label set x font family x pad"
+package = "d2renderers/d2scenebuild"
+hooks = ["tools/fixtures/hooks/render-legend-layout/d2rs_legend_layout_test.go"]
+test = "TestD2RSLegendLayout"
+outputs = ["crates/d2-rs-render/tests/fixtures/legend-layout-source-v090.json"]
+key_deps.upstream_paths = [
+  "d2renderers/d2scenebuild", "d2renderers/d2scene", "d2renderers/d2fonts", "d2renderers/d2latex",
+  "d2renderers/d2sketch", "d2renderers/d2svgimport", "d2renderers/internal", "d2target", "d2themes",
+  "d2ast", "d2format", "d2graph", "d2parser", "internal/rasterimage", "lib/color", "lib/compression",
+  "lib/font", "lib/geo", "lib/imageasset", "lib/label", "lib/localfile", "lib/netpolicy", "lib/shape",
+  "lib/svg", "lib/syncmap", "lib/textmeasure",
+]
+
+[[recipe]]
+name = "render-sketch-connection"
+kind = "go-test-hook"
+description = "Sketch connection routes, arrowhead drawables and placement matrices (d2sketch)"
+package = "d2renderers/d2sketch"
+hooks = ["tools/fixtures/hooks/render-sketch-connection/d2rs_sketch_connection_test.go"]
+test = "TestD2RSSketchConnection"
+outputs = ["crates/d2-rs-render/tests/fixtures/sketch-connection-source-v090.json"]
+key_deps.upstream_paths = [
+  "d2renderers/d2sketch", "d2renderers/d2scene", "d2renderers/d2fonts", "d2renderers/internal",
+  "d2target", "d2themes", "lib/color", "lib/compression", "lib/font", "lib/geo", "lib/label",
+  "lib/shape", "lib/svg", "lib/syncmap", "lib/textmeasure",
+]
+
+[[recipe]]
+name = "render-sketch-zigzag"
+kind = "go-test-hook"
+description = "rough-go zigzag polygon fills compiled to d2sketch scene paths"
+package = "d2renderers/d2sketch"
+hooks = ["tools/fixtures/hooks/render-sketch-zigzag/d2rs_sketch_zigzag_test.go"]
+test = "TestD2RSSketchZigzag"
+outputs = ["crates/d2-rs-render/tests/fixtures/sketch-zigzag-source-v090.json"]
+key_deps.upstream_paths = [
+  "d2renderers/d2sketch", "d2renderers/d2scene", "d2renderers/d2fonts", "d2renderers/internal",
+  "d2target", "d2themes", "lib/color", "lib/compression", "lib/font", "lib/geo", "lib/label",
+  "lib/shape", "lib/svg", "lib/syncmap", "lib/textmeasure",
+]

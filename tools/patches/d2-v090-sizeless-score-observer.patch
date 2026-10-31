@@ -1,0 +1,21 @@
+--- a/d2layouts/d2talalayout/internal/placement/sizeless_optimizer.go
++++ b/d2layouts/d2talalayout/internal/placement/sizeless_optimizer.go
+@@ -474,6 +474,18 @@
+ 			restoreNodePositions(originalPositions)
+ 			return false, err
+ 		}
++		if os.Getenv("TALA_TRACE_SIZELESS_SCORE") != "" {
++			event := map[string]interface{}{
++				"event": "sizeless-score", "node_id": node.DebugID(),
++				"x_bits": fmt.Sprintf("%016x", math.Float64bits(x)),
++				"y_bits": fmt.Sprintf("%016x", math.Float64bits(y)),
++				"score_bits": fmt.Sprintf("%016x", math.Float64bits(edgeLength)),
++				"best_bits": fmt.Sprintf("%016x", math.Float64bits(leastDistance)),
++			}
++			if encoded, traceErr := json.Marshal(event); traceErr == nil {
++				fmt.Fprintln(os.Stderr, string(encoded))
++			}
++		}
+ 		switch geo.PrecisionCompare(edgeLength, leastDistance, geo.PRECISION) {
+ 		case -1:
+ 			leastDistance = edgeLength

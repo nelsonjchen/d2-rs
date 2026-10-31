@@ -1,0 +1,27 @@
+--- a/d2layouts/d2layouts.go
++++ b/d2layouts/d2layouts.go
+@@ -77,7 +77,15 @@
+ 	}
+ }
+ 
++type diagnosticFinalLayoutContextKey struct{}
++
+ func LayoutNested(ctx context.Context, g *d2graph.Graph, graphInfo GraphInfo, coreLayout d2graph.LayoutGraph, edgeRouter d2graph.RouteEdges) error {
++    nongridSnapshotRoot := false
++    if os.Getenv("D2_TRACE_LAYOUT_FINAL") != "" {
++        nongridSnapshotRoot = ctx.Value(diagnosticFinalLayoutContextKey{}) == nil
++        ctx = context.WithValue(ctx, diagnosticFinalLayoutContextKey{}, true)
++    }
++
+ 	g.Root.Box = &geo.Box{}
+ 
+ 	// Before we can layout these nodes, we need to handle all nested diagrams first.
+@@ -404,7 +412,7 @@
+ 			}
+ 		}
+ 	}
+-	if os.Getenv("D2_TRACE_GRID_STATE") != "" && g.RootLevel == 0 && (hasGridScope || os.Getenv("D2_TRACE_LAYOUT_FINAL") != "") {
++	if os.Getenv("D2_TRACE_GRID_STATE") != "" && g.RootLevel == 0 && (hasGridScope || nongridSnapshotRoot) {
+ 		traceGridFinal(g)
+ 	}
+ 

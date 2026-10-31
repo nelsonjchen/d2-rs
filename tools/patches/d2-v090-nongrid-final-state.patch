@@ -1,0 +1,11 @@
+--- a/d2layouts/d2layouts.go
++++ b/d2layouts/d2layouts.go
+@@ -404,7 +404,7 @@
+ 			}
+ 		}
+ 	}
+-	if os.Getenv("D2_TRACE_GRID_STATE") != "" && g.RootLevel == 0 && hasGridScope {
++	if os.Getenv("D2_TRACE_GRID_STATE") != "" && g.RootLevel == 0 && (hasGridScope || os.Getenv("D2_TRACE_LAYOUT_FINAL") != "") {
+ 		traceGridFinal(g)
+ 	}
+ 

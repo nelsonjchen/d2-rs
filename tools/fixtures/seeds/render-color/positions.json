@@ -1,0 +1,56 @@
+[
+  {
+    "op": "parse",
+    "css": "linear-gradient(red -0%, blue)"
+  },
+  {
+    "op": "parse",
+    "css": "linear-gradient(red 1e-4%, blue)"
+  },
+  {
+    "op": "parse",
+    "css": "linear-gradient(red 1e-5%, blue)"
+  },
+  {
+    "op": "parse",
+    "css": "linear-gradient(red 1e5%, blue)"
+  },
+  {
+    "op": "parse",
+    "css": "linear-gradient(red 1e6%, blue)"
+  },
+  {
+    "op": "parse",
+    "css": "linear-gradient(red 0x1p-1%, blue)"
+  },
+  {
+    "op": "parse",
+    "css": "linear-gradient(red 4.9406564584124654e-324%, blue)"
+  },
+  {
+    "op": "parse",
+    "css": "linear-gradient(red 1.7976931348623157e308%, blue)"
+  },
+  {
+    "op": "parse",
+    "css": "linear-gradient()"
+  },
+  {
+    "op": "parse",
+    "css": "linear-gradient(red,,blue)"
+  },
+  {
+    "gradient": {
+      "Type": "radial",
+      "Direction": "",
+      "ColorStops": [
+        {
+          "Color": "red\" onload=\"alert(1)",
+          "Position": "0%\"/><script onload=\"alert(1)\">x</script><!--"
+        }
+      ],
+      "ID": "gradient\" onload=\"alert(1)"
+    },
+    "op": "svg"
+  }
+]

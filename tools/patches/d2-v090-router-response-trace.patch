@@ -1,0 +1,217 @@
+diff --git a/d2layouts/d2talalayout/internal/routing/coordinator.go b/d2layouts/d2talalayout/internal/routing/coordinator.go
+index 4e1dff517..4ea804255 100644
+--- a/d2layouts/d2talalayout/internal/routing/coordinator.go
++++ b/d2layouts/d2talalayout/internal/routing/coordinator.go
+@@ -3,11 +3,14 @@ package routing
+ import (
+ 	"cmp"
+ 	"context"
++	"encoding/json"
+ 	"errors"
+ 	"fmt"
+ 	"math"
++	"os"
+ 	"slices"
+ 	"sort"
++	"strings"
+ 	"sync"
+ 
+ 	"github.com/d2lang/d2/d2layouts/d2talalayout/internal/invariant"
+@@ -428,6 +431,30 @@ func routeEdgesWithResourceGuards(
+ 		return ovg, err
+ 	}
+ 
++	if os.Getenv("TALA_TRACE_OVG_JSONL") != "" {
++		scope := make([]int64, 0, len(g.Nodes))
++		boxes := make([]map[string]any, 0, len(ovg.NodesInsideBoundingBox))
++		points := make([]map[string]any, 0, len(ovg.Nodes))
++		for _, node := range g.Nodes {
++			scope = append(scope, node.ID)
++		}
++		for _, node := range ovg.NodesInsideBoundingBox {
++			boxes = append(boxes, map[string]any{"id": node.ID, "x": node.TopLeft.X, "y": node.TopLeft.Y, "w": node.Width, "h": node.Height})
++		}
++		for _, node := range ovg.Nodes {
++			neighbors := make([][]float64, 0, len(node.Edges))
++			for _, edge := range node.Edges {
++				adjacent := node.Adjacent(edge)
++				neighbors = append(neighbors, []float64{adjacent.X, adjacent.Y})
++			}
++			points = append(points, map[string]any{"x": node.X, "y": node.Y, "neighbors": neighbors})
++		}
++		encoded, err := json.Marshal(map[string]any{"event": "ovg-topology", "scope": scope, "boxes": boxes, "points": points})
++		if err == nil {
++			fmt.Fprintln(os.Stderr, string(encoded))
++		}
++	}
++
+ 	// Route all tree edges first, then route the remaining edges
+ 	existingRoutes := make([]*Route, 0)
+ 	isTreeEdge := g.TreeEdgeMap()
+@@ -501,6 +528,12 @@ func routeEdgesWithResourceGuards(
+ 	var bestWork *routeSearchWorkGuard
+ 	leastDistance := math.Inf(1)
+ 
++	if os.Getenv("D2_TRACE_ROUTER_RESPONSES") == "1" {
++        for _, response := range responses {
++            encoded, _ := json.Marshal(map[string]any{"event": "route-response", "flavor": response.Flavor, "scope_nodes": len(g.Nodes), "scope_edges": len(g.Edges), "error": fmt.Sprint(response.Err), "routes": len(response.Routes), "work_used": response.work.used, "distance_bits": fmt.Sprintf("0x%016x", math.Float64bits(response.Distance))})
++            fmt.Fprintln(os.Stderr, string(encoded))
++        }
++    }
+ 	flavorToResponse, err := successfulRouteFlavorResponses(responses)
+ 	if err != nil {
+ 		return ovg, err
+@@ -509,6 +542,7 @@ func routeEdgesWithResourceGuards(
+ 	// compare responses in fixed order
+ 	for _, flavor := range flavors {
+ 		if response, has := flavorToResponse[flavor]; has {
++			traceRouteFlavor(response)
+ 			if geo.PrecisionCompare(response.Distance, leastDistance, geo.PRECISION) < 0 {
+ 				leastDistance = response.Distance
+ 				bestRoutes = response.Routes
+@@ -619,6 +653,7 @@ func routeAdditionalEdgesWithResourceLimits(
+ 	g.CrossingCost()
+ 	g.TurnCost()
+ 	g.NonCenterPortCost()
++	traceAdditionalRoutingCosts(g)
+ 
+ 	flavors := []RouteGenerationFlavor{ShortestToLongest, LongestToShortest, Default}
+ 	if g.Nodes[0].Hierarchy != nil {
+@@ -642,6 +677,12 @@ func routeAdditionalEdgesWithResourceLimits(
+ 	var bestWork *routeSearchWorkGuard
+ 	leastDistance := math.Inf(1)
+ 
++	if os.Getenv("D2_TRACE_ROUTER_RESPONSES") == "1" {
++        for _, response := range responses {
++            encoded, _ := json.Marshal(map[string]any{"event": "route-response", "flavor": response.Flavor, "scope_nodes": len(g.Nodes), "scope_edges": len(g.Edges), "error": fmt.Sprint(response.Err), "routes": len(response.Routes), "work_used": response.work.used, "distance_bits": fmt.Sprintf("0x%016x", math.Float64bits(response.Distance))})
++            fmt.Fprintln(os.Stderr, string(encoded))
++        }
++    }
+ 	flavorToResponse, err := successfulRouteFlavorResponses(responses)
+ 	if err != nil {
+ 		return ovg, err
+@@ -650,6 +691,7 @@ func routeAdditionalEdgesWithResourceLimits(
+ 	// compare responses in fixed order
+ 	for _, flavor := range flavors {
+ 		if response, has := flavorToResponse[flavor]; has {
++			traceRouteFlavor(response)
+ 			if geo.PrecisionCompare(response.Distance, leastDistance, geo.PRECISION) < 0 {
+ 				leastDistance = response.Distance
+ 				bestRoutes = response.Routes
+@@ -1670,7 +1712,7 @@ func reorderDuplicatesInEdges(ctx context.Context, edges []*layoutgraph.Edge) er
+ 	}()
+ 
+ 	// look for labeled straight edges that have duplicates
+-	for _, e := range edges {
++	for edgeOrder, e := range edges {
+ 		if err := checkCanceled(); err != nil {
+ 			return err
+ 		}
+@@ -1695,17 +1737,24 @@ func reorderDuplicatesInEdges(ctx context.Context, edges []*layoutgraph.Edge) er
+ 				continue
+ 			}
+ 			// Note: only need to check for matching arrowheads if one of the edges overlaps another edge
+-			if hasOverlappingEnd || other.HasOverlappingEnd() {
++			overlaps := hasOverlappingEnd || other.HasOverlappingEnd()
++			arrowheadsMatch := true
++			if overlaps {
+ 				sourceArrow := e.SourceArrowhead
+ 				targetArrow := e.TargetArrowhead
+ 				if other.From == e.To {
+ 					// Note: since other is in opposite direction, we reverse points when swapping below
+ 					sourceArrow, targetArrow = targetArrow, sourceArrow
+ 				}
+-				if other.TargetArrowhead == targetArrow && other.SourceArrowhead == sourceArrow {
+-					duplicates = append(duplicates, i)
+-				}
+-			} else {
++				arrowheadsMatch = other.TargetArrowhead == targetArrow && other.SourceArrowhead == sourceArrow
++			}
++			traceReorderDuplicatesJSONL(map[string]any{
++				"stage": "ReorderDuplicates", "event": "candidate",
++				"edge_order": edgeOrder, "other_order": i,
++				"overlap": overlaps, "arrow_match": arrowheadsMatch,
++				"included": arrowheadsMatch,
++			})
++			if arrowheadsMatch {
+ 				duplicates = append(duplicates, i)
+ 			}
+ 		}
+@@ -1755,6 +1804,11 @@ func reorderDuplicatesInEdges(ctx context.Context, edges []*layoutgraph.Edge) er
+ 					return ei.Points[len(ei.Points)-1].Y < ej.Points[len(ej.Points)-1].Y
+ 				})
+ 			}
++			traceReorderDuplicatesJSONL(map[string]any{
++				"stage": "ReorderDuplicates", "event": "orders", "edge_order": edgeOrder,
++				"source_order": traceReorderDuplicateOrder(edges, sourceOrder),
++				"target_order": traceReorderDuplicateOrder(edges, targetOrder),
++			})
+ 			if err := checkCanceled(); err != nil {
+ 				return err
+ 			}
+@@ -1788,6 +1842,12 @@ func reorderDuplicatesInEdges(ctx context.Context, edges []*layoutgraph.Edge) er
+ 				return err
+ 			}
+ 
++			swapWith := last
++			if last.Label != nil {
++				swapWith = first
++			}
++			edgeBefore := traceReorderDuplicateRoute(e.Points)
++			otherBefore := traceReorderDuplicateRoute(swapWith.Points)
+ 			if last.Label == nil {
+ 				e.Points, last.Points = last.Points, e.Points
+ 				if last.From == e.To {
+@@ -1810,6 +1870,14 @@ func reorderDuplicatesInEdges(ctx context.Context, edges []*layoutgraph.Edge) er
+ 					}
+ 				}
+ 			}
++			traceReorderDuplicatesJSONL(map[string]any{
++				"stage": "ReorderDuplicates", "event": "swap", "edge_order": edgeOrder,
++				"swap_order":  traceReorderDuplicateOrder(edges, []*layoutgraph.Edge{swapWith})[0],
++				"reverse":     swapWith.From == e.To,
++				"edge_before": edgeBefore, "other_before": otherBefore,
++				"edge_after":  traceReorderDuplicateRoute(e.Points),
++				"other_after": traceReorderDuplicateRoute(swapWith.Points),
++			})
+ 		}
+ 	}
+ 	if err := checkCanceled(); err != nil {
+@@ -2046,3 +2114,37 @@ func straightLineIntersectsNonAncestorNodesGuarded(g *layoutgraph.Graph, edge *l
+ 
+ 	return false, nil
+ }
++
++// Development-only observer: invoked in declared flavor order, not worker order.
++func traceRouteFlavor(response GenerateRouteResponse) {
++	if os.Getenv("TALA_TRACE_ROUTING") == "" {
++		return
++	}
++	routes := make([]map[string]any, 0, len(response.Routes))
++	for _, route := range response.Routes {
++		points := make([]map[string]string, 0, len(route.OVGNodes))
++		for _, point := range route.OVGNodes {
++			points = append(points, map[string]string{"x_bits": fmt.Sprintf("0x%016x", math.Float64bits(point.X)), "y_bits": fmt.Sprintf("0x%016x", math.Float64bits(point.Y))})
++		}
++		routes = append(routes, map[string]any{"id": route.GEdge.ID, "from": route.GEdge.From.ID, "to": route.GEdge.To.ID, "points": points})
++	}
++	encoded, err := json.Marshal(map[string]any{"event": "route-flavor", "flavor": response.Flavor, "distance_bits": fmt.Sprintf("0x%016x", math.Float64bits(response.Distance)), "routes": routes})
++	if err == nil {
++		fmt.Fprintln(os.Stderr, string(encoded))
++	}
++}
++
++func traceAdditionalRoutingCosts(g *layoutgraph.Graph) {
++    if os.Getenv("D2_TRACE_ROUTER_COSTS") != "1" { return }
++    costs := g.RoutingCosts()
++    var snapshot strings.Builder
++    fmt.Fprintf(&snapshot, "ROUTER_COSTS begin nodes=%d edges=%d\n", len(g.Nodes), len(g.Edges))
++    fmt.Fprintf(&snapshot, "ROUTER_COST_VALUES cell=%016x crossing=%016x turn=%016x noncenter=%016x root=%t\n", math.Float64bits(g.CellSize), math.Float64bits(costs.Crossing), math.Float64bits(costs.Turn), math.Float64bits(costs.NonCenterPort), g.IsRootHierarchy)
++    for _, node := range g.Nodes {
++        edges := make([]string, 0, len(node.Edges))
++        for _, edge := range node.Edges { edges = append(edges, fmt.Sprint(edge.ID)) }
++        fmt.Fprintf(&snapshot, "ROUTER_COST_NODE node=%d container=%t hierarchy=%t edges=%s\n", node.IDValue(), node.IsContainer(), node.Hierarchy != nil, strings.Join(edges, ","))
++    }
++    fmt.Fprintln(&snapshot, "ROUTER_COSTS end")
++    fmt.Fprint(os.Stderr, snapshot.String())
++}

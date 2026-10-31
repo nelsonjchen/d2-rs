@@ -1,0 +1,42 @@
+[
+ {
+  "name": "note-between",
+  "source": "shape: sequence_diagram\na -> b\na: {note: Notice}\nphase: {_.a -> _.b}\n"
+ },
+ {
+  "name": "note-before",
+  "source": "shape: sequence_diagram\na: {note: Notice}\na -> b\n"
+ },
+ {
+  "name": "note-after",
+  "source": "shape: sequence_diagram\na -> b\na -> b: second\na: {note: Notice}\n"
+ },
+ {
+  "name": "same-line",
+  "source": "shape: sequence_diagram; a -> b; a: {note: Notice}; a -> b: second\n"
+ },
+ {
+  "name": "two-notes",
+  "source": "shape: sequence_diagram\na -> b\nb: {note: First}\na: {note: Second}\na -> b: again\n"
+ },
+ {
+  "name": "self-before-note",
+  "source": "shape: sequence_diagram\na -> a: self\na: {note: Notice}\na -> b\n"
+ },
+ {
+  "name": "repeated-label",
+  "source": "shape: sequence_diagram\na: {note: First}\na -> b\na.note: Second\n"
+ },
+ {
+  "name": "glob-object",
+  "source": "shape: sequence_diagram\na; b\n*: {child: Notice}\na -> b\n"
+ },
+ {
+  "name": "glob-edge",
+  "source": "shape: sequence_diagram\na; b\na -> *\na: {note: Notice}\n"
+ },
+ {
+  "name": "nested",
+  "source": "outer: {\nshape: sequence_diagram\na -> b\na: {note: Notice}\nphase: {_.a -> _.b}\n}\n"
+ }
+]

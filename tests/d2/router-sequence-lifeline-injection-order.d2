@@ -1,0 +1,14 @@
+holder: {
+  branch: {
+    later: {
+      shape: sequence_diagram
+      a -> b: deeper message
+    }
+  }
+  earlier: {
+    shape: sequence_diagram
+    a -> b: shallow message
+  }
+}
+outside
+holder.earlier.a -> outside: crossing

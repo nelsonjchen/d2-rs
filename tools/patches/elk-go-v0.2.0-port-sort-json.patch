@@ -1,0 +1,33 @@
+diff --git a/internal/layered/intermediate/ports.go b/internal/layered/intermediate/ports.go
+--- a/internal/layered/intermediate/ports.go
++++ b/internal/layered/intermediate/ports.go
+@@ -8,7 +8,9 @@
+ package intermediate
+ 
+ import (
++	"encoding/json"
+ 	"fmt"
++	"os"
+ 	"sort"
+ 
+ 	basegraph "github.com/d2lang/elk-go/internal/graph"
+@@ -20,4 +22,8 @@
+ 	for _, nodeID := range arena.GraphAllNodes(graphID) {
+ 		node := arena.Node(nodeID)
+ 		constraints := basegraph.Get(&node.Properties, layered.PortConstraintsOption)
++		if os.Getenv("D2_ELK_TRACE") != "" {
++			ports, _ := json.Marshal(node.Ports)
++			fmt.Fprintf(os.Stderr, "{\"stage\":\"port-sort-before\",\"graph\":%d,\"node\":%d,\"constraints\":%d,\"ports\":%s}\n", graphID, nodeID, constraints, ports)
++		}
+ 		if constraints.IsOrderFixed() {
+@@ -55,6 +63,10 @@
+ 			}
+ 		}
+ 		arena.CachePortSides(nodeID)
++		if os.Getenv("D2_ELK_TRACE") != "" {
++			ports, _ := json.Marshal(node.Ports)
++			fmt.Fprintf(os.Stderr, "{\"stage\":\"port-sort-after\",\"graph\":%d,\"node\":%d,\"ports\":%s}\n", graphID, nodeID, ports)
++		}
+ 	}
+ 	return nil
+ }

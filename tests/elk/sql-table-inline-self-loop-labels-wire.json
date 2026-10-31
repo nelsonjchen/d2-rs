@@ -1,0 +1,785 @@
+{
+  "id": "",
+  "layoutOptions": {
+    "elk.spacing.edgeNode": 40,
+    "elk.layered.nodePlacement.bk.fixedAlignment": "BALANCED",
+    "elk.layered.thoroughness": 8,
+    "elk.layered.spacing.edgeEdgeBetweenLayers": 50,
+    "elk.direction": "DOWN",
+    "elk.hierarchyHandling": "INCLUDE_CHILDREN",
+    "elk.layered.considerModelOrder.strategy": "NODES_AND_EDGES",
+    "elk.layered.cycleBreaking.strategy": "GREEDY_MODEL_ORDER",
+    "elk.nodeSize.constraints": "MINIMUM_SIZE",
+    "elk.contentAlignment": "H_CENTER V_CENTER",
+    "elk.algorithm": "layered",
+    "spacing.nodeNodeBetweenLayers": 70,
+    "spacing.edgeNodeBetweenLayers": 40,
+    "elk.spacing.nodeSelfLoop": 88
+  },
+  "children": [
+    {
+      "id": "User",
+      "x": 0,
+      "y": 0,
+      "width": 280,
+      "height": 144,
+      "ports": [
+        {
+          "id": "User.id.src",
+          "x": 0,
+          "y": 54,
+          "width": 0,
+          "height": 0,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.port.side": "EAST",
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        },
+        {
+          "id": "User.id.dst",
+          "x": 0,
+          "y": 54,
+          "width": 0,
+          "height": 0,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.port.side": "WEST",
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        },
+        {
+          "id": "User.parent_id.src",
+          "x": 0,
+          "y": 90,
+          "width": 0,
+          "height": 0,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.port.side": "EAST",
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        },
+        {
+          "id": "User.parent_id.dst",
+          "x": 0,
+          "y": 90,
+          "width": 0,
+          "height": 0,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.port.side": "WEST",
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        },
+        {
+          "id": "User.spouse_id.src",
+          "x": 0,
+          "y": 126,
+          "width": 0,
+          "height": 0,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.port.side": "EAST",
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        },
+        {
+          "id": "User.spouse_id.dst",
+          "x": 0,
+          "y": 126,
+          "width": 0,
+          "height": 0,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.port.side": "WEST",
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        },
+        {
+          "id": "User.__root__.src.0",
+          "x": 35,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.port.side": "SOUTH",
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        },
+        {
+          "id": "User.__root__.dst.0",
+          "x": 93.33333333333333,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.port.side": "NORTH",
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        },
+        {
+          "id": "User.__root__.src.1",
+          "x": 70,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.port.side": "SOUTH",
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        },
+        {
+          "id": "User.__root__.dst.1",
+          "x": 186.66666666666666,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.port.side": "NORTH",
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        },
+        {
+          "id": "User.__root__.src.2",
+          "x": 105,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.port.side": "SOUTH",
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        },
+        {
+          "id": "User.__root__.src.3",
+          "x": 140,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.port.side": "SOUTH",
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        },
+        {
+          "id": "User.__root__.src.4",
+          "x": 175,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.port.side": "SOUTH",
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        },
+        {
+          "id": "User.__root__.src.5",
+          "x": 210,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.port.side": "SOUTH",
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        },
+        {
+          "id": "User.__root__.src.6",
+          "x": 245,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.port.side": "SOUTH",
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        }
+      ],
+      "layoutOptions": {
+        "elk.direction": "",
+        "elk.layered.edgeRouting.selfLoopDistribution": "EQUALLY",
+        "elk.portConstraints": "FIXED_POS",
+        "elk.spacing.nodeSelfLoop": 0
+      }
+    },
+    {
+      "id": "Pet",
+      "x": 0,
+      "y": 0,
+      "width": 193,
+      "height": 108,
+      "ports": [
+        {
+          "id": "Pet.id.src",
+          "x": 0,
+          "y": 54,
+          "width": 0,
+          "height": 0,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.port.side": "EAST",
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        },
+        {
+          "id": "Pet.id.dst",
+          "x": 0,
+          "y": 54,
+          "width": 0,
+          "height": 0,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.port.side": "WEST",
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        },
+        {
+          "id": "Pet.owner_id.src",
+          "x": 0,
+          "y": 90,
+          "width": 0,
+          "height": 0,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.port.side": "EAST",
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        },
+        {
+          "id": "Pet.owner_id.dst",
+          "x": 0,
+          "y": 90,
+          "width": 0,
+          "height": 0,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.port.side": "WEST",
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        },
+        {
+          "id": "Pet.__root__.dst.2",
+          "x": 96.5,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.port.side": "NORTH",
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        }
+      ],
+      "layoutOptions": {
+        "elk.direction": "",
+        "elk.layered.edgeRouting.selfLoopDistribution": "EQUALLY",
+        "elk.portConstraints": "FIXED_POS",
+        "elk.spacing.nodeSelfLoop": 0
+      }
+    },
+    {
+      "id": "Card",
+      "x": 0,
+      "y": 0,
+      "width": 193,
+      "height": 108,
+      "ports": [
+        {
+          "id": "Card.id.src",
+          "x": 0,
+          "y": 54,
+          "width": 0,
+          "height": 0,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.port.side": "EAST",
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        },
+        {
+          "id": "Card.id.dst",
+          "x": 0,
+          "y": 54,
+          "width": 0,
+          "height": 0,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.port.side": "WEST",
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        },
+        {
+          "id": "Card.owner_id.src",
+          "x": 0,
+          "y": 90,
+          "width": 0,
+          "height": 0,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.port.side": "EAST",
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        },
+        {
+          "id": "Card.owner_id.dst",
+          "x": 0,
+          "y": 90,
+          "width": 0,
+          "height": 0,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.port.side": "WEST",
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        },
+        {
+          "id": "Card.__root__.dst.3",
+          "x": 96.5,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.port.side": "NORTH",
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        }
+      ],
+      "layoutOptions": {
+        "elk.direction": "",
+        "elk.layered.edgeRouting.selfLoopDistribution": "EQUALLY",
+        "elk.portConstraints": "FIXED_POS",
+        "elk.spacing.nodeSelfLoop": 0
+      }
+    },
+    {
+      "id": "Post",
+      "x": 0,
+      "y": 0,
+      "width": 222,
+      "height": 144,
+      "ports": [
+        {
+          "id": "Post.id.src",
+          "x": 0,
+          "y": 54,
+          "width": 0,
+          "height": 0,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.port.side": "EAST",
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        },
+        {
+          "id": "Post.id.dst",
+          "x": 0,
+          "y": 54,
+          "width": 0,
+          "height": 0,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.port.side": "WEST",
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        },
+        {
+          "id": "Post.text.src",
+          "x": 0,
+          "y": 90,
+          "width": 0,
+          "height": 0,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.port.side": "EAST",
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        },
+        {
+          "id": "Post.text.dst",
+          "x": 0,
+          "y": 90,
+          "width": 0,
+          "height": 0,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.port.side": "WEST",
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        },
+        {
+          "id": "Post.author_id.src",
+          "x": 0,
+          "y": 126,
+          "width": 0,
+          "height": 0,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.port.side": "EAST",
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        },
+        {
+          "id": "Post.author_id.dst",
+          "x": 0,
+          "y": 126,
+          "width": 0,
+          "height": 0,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.port.side": "WEST",
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        },
+        {
+          "id": "Post.__root__.dst.4",
+          "x": 111,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.port.side": "NORTH",
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        }
+      ],
+      "layoutOptions": {
+        "elk.direction": "",
+        "elk.layered.edgeRouting.selfLoopDistribution": "EQUALLY",
+        "elk.portConstraints": "FIXED_POS",
+        "elk.spacing.nodeSelfLoop": 0
+      }
+    },
+    {
+      "id": "Metadata",
+      "x": 0,
+      "y": 0,
+      "width": 145,
+      "height": 108,
+      "ports": [
+        {
+          "id": "Metadata.id.src",
+          "x": 0,
+          "y": 54,
+          "width": 0,
+          "height": 0,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.port.side": "EAST",
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        },
+        {
+          "id": "Metadata.id.dst",
+          "x": 0,
+          "y": 54,
+          "width": 0,
+          "height": 0,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.port.side": "WEST",
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        },
+        {
+          "id": "Metadata.age.src",
+          "x": 0,
+          "y": 90,
+          "width": 0,
+          "height": 0,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.port.side": "EAST",
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        },
+        {
+          "id": "Metadata.age.dst",
+          "x": 0,
+          "y": 90,
+          "width": 0,
+          "height": 0,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.port.side": "WEST",
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        },
+        {
+          "id": "Metadata.__root__.dst.5",
+          "x": 72.5,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.port.side": "NORTH",
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        }
+      ],
+      "layoutOptions": {
+        "elk.direction": "",
+        "elk.layered.edgeRouting.selfLoopDistribution": "EQUALLY",
+        "elk.portConstraints": "FIXED_POS",
+        "elk.spacing.nodeSelfLoop": 0
+      }
+    },
+    {
+      "id": "Info",
+      "x": 0,
+      "y": 0,
+      "width": 308,
+      "height": 108,
+      "ports": [
+        {
+          "id": "Info.id.src",
+          "x": 0,
+          "y": 54,
+          "width": 0,
+          "height": 0,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.port.side": "EAST",
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        },
+        {
+          "id": "Info.id.dst",
+          "x": 0,
+          "y": 54,
+          "width": 0,
+          "height": 0,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.port.side": "WEST",
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        },
+        {
+          "id": "Info.content.src",
+          "x": 0,
+          "y": 90,
+          "width": 0,
+          "height": 0,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.port.side": "EAST",
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        },
+        {
+          "id": "Info.content.dst",
+          "x": 0,
+          "y": 90,
+          "width": 0,
+          "height": 0,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.port.side": "WEST",
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        },
+        {
+          "id": "Info.__root__.dst.6",
+          "x": 154,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.port.side": "NORTH",
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        }
+      ],
+      "layoutOptions": {
+        "elk.direction": "",
+        "elk.layered.edgeRouting.selfLoopDistribution": "EQUALLY",
+        "elk.portConstraints": "FIXED_POS",
+        "elk.spacing.nodeSelfLoop": 0
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "(User <-> User)[0]",
+      "sources": [
+        "User.__root__.src.0"
+      ],
+      "targets": [
+        "User.__root__.dst.0"
+      ],
+      "labels": [
+        {
+          "text": "spouse",
+          "x": 0,
+          "y": 0,
+          "width": 48,
+          "height": 21,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.edgeLabels.inline": true,
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        }
+      ],
+      "container": ""
+    },
+    {
+      "id": "(User <-> User)[1]",
+      "sources": [
+        "User.__root__.src.1"
+      ],
+      "targets": [
+        "User.__root__.dst.1"
+      ],
+      "labels": [
+        {
+          "text": "children/parent/ancestor",
+          "x": 0,
+          "y": 0,
+          "width": 167,
+          "height": 21,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.edgeLabels.inline": true,
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        }
+      ],
+      "container": ""
+    },
+    {
+      "id": "(User <-> Pet)[0]",
+      "sources": [
+        "User.__root__.src.2"
+      ],
+      "targets": [
+        "Pet.__root__.dst.2"
+      ],
+      "labels": [
+        {
+          "text": "pets/owner",
+          "x": 0,
+          "y": 0,
+          "width": 77,
+          "height": 21,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.edgeLabels.inline": true,
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        }
+      ],
+      "container": ""
+    },
+    {
+      "id": "(User <-> Card)[0]",
+      "sources": [
+        "User.__root__.src.3"
+      ],
+      "targets": [
+        "Card.__root__.dst.3"
+      ],
+      "labels": [
+        {
+          "text": "card/owner",
+          "x": 0,
+          "y": 0,
+          "width": 78,
+          "height": 21,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.edgeLabels.inline": true,
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        }
+      ],
+      "container": ""
+    },
+    {
+      "id": "(User <-> Post)[0]",
+      "sources": [
+        "User.__root__.src.4"
+      ],
+      "targets": [
+        "Post.__root__.dst.4"
+      ],
+      "labels": [
+        {
+          "text": "posts/author",
+          "x": 0,
+          "y": 0,
+          "width": 88,
+          "height": 21,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.edgeLabels.inline": true,
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        }
+      ],
+      "container": ""
+    },
+    {
+      "id": "(User <-> Metadata)[0]",
+      "sources": [
+        "User.__root__.src.5"
+      ],
+      "targets": [
+        "Metadata.__root__.dst.5"
+      ],
+      "labels": [
+        {
+          "text": "metadata/user",
+          "x": 0,
+          "y": 0,
+          "width": 101,
+          "height": 21,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.edgeLabels.inline": true,
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        }
+      ],
+      "container": ""
+    },
+    {
+      "id": "(User <-> Info)[0]",
+      "sources": [
+        "User.__root__.src.6"
+      ],
+      "targets": [
+        "Info.__root__.dst.6"
+      ],
+      "labels": [
+        {
+          "text": "info/user",
+          "x": 0,
+          "y": 0,
+          "width": 60,
+          "height": 21,
+          "layoutOptions": {
+            "elk.direction": "",
+            "elk.edgeLabels.inline": true,
+            "elk.spacing.nodeSelfLoop": 0
+          }
+        }
+      ],
+      "container": ""
+    }
+  ]
+}

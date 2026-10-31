@@ -1,0 +1,16 @@
+[package]
+name = "d2-rs-scene"
+description = "Native port of D2's renderer-neutral scene model (d2renderers/d2scene)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+d2-rs-render.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+base64.workspace = true

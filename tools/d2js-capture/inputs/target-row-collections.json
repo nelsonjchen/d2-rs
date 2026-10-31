@@ -1,0 +1,17 @@
+[
+{"source": "x:\"Header\" {shape:class}"},
+{"source": "x:\"Header\" {shape:class;style.font-size:30}"},
+{"source": "x:\"\" {shape:class}"},
+{"source": "x:\"\" {shape:class;style.font-size:30}"},
+{"source": "x:\"Header\" {shape:class;f:int}"},
+{"source": "x:\"Header\" {shape:class;style.font-size:30;f:int}"},
+{"source": "x:\"\" {shape:class;f:int}"},
+{"source": "x:\"\" {shape:class;style.font-size:30;f:int}"},
+{"source": "x:\"Header\" {shape:class;m():Result}"},
+{"source": "x:\"Header\" {shape:class;style.font-size:30;m():Result}"},
+{"source": "x:\"\" {shape:class;m():Result}"},
+{"source": "x:\"\" {shape:class;style.font-size:30;m():Result}"},
+{"source": "x: rectangle"},
+{"source": "x:{shape:sql_table}"},
+{"source": "x:{shape:sql_table;id:int;name:string}"}
+]

@@ -1,0 +1,386 @@
+[
+ {
+  "input": "m: {\nlabel: ||latex\n \n||\nstyle.text-transform: none\n}\n",
+  "body": "",
+  "transform": "none",
+  "whitespace": " "
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n \n||\nstyle.text-transform: uppercase\n}\n",
+  "body": "",
+  "transform": "uppercase",
+  "whitespace": " "
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n \n||\nstyle.text-transform: lowercase\n}\n",
+  "body": "",
+  "transform": "lowercase",
+  "whitespace": " "
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n \n||\nstyle.text-transform: capitalize\n}\n",
+  "body": "",
+  "transform": "capitalize",
+  "whitespace": " "
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n a\n||\nstyle.text-transform: none\n}\n",
+  "body": "a",
+  "transform": "none",
+  "whitespace": " "
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n a\n||\nstyle.text-transform: uppercase\n}\n",
+  "body": "a",
+  "transform": "uppercase",
+  "whitespace": " "
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n a\n||\nstyle.text-transform: lowercase\n}\n",
+  "body": "a",
+  "transform": "lowercase",
+  "whitespace": " "
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n a\n||\nstyle.text-transform: capitalize\n}\n",
+  "body": "a",
+  "transform": "capitalize",
+  "whitespace": " "
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n\t\n||\nstyle.text-transform: none\n}\n",
+  "body": "",
+  "transform": "none",
+  "whitespace": "\t"
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n\t\n||\nstyle.text-transform: uppercase\n}\n",
+  "body": "",
+  "transform": "uppercase",
+  "whitespace": "\t"
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n\t\n||\nstyle.text-transform: lowercase\n}\n",
+  "body": "",
+  "transform": "lowercase",
+  "whitespace": "\t"
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n\t\n||\nstyle.text-transform: capitalize\n}\n",
+  "body": "",
+  "transform": "capitalize",
+  "whitespace": "\t"
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n\ta\n||\nstyle.text-transform: none\n}\n",
+  "body": "a",
+  "transform": "none",
+  "whitespace": "\t"
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n\ta\n||\nstyle.text-transform: uppercase\n}\n",
+  "body": "a",
+  "transform": "uppercase",
+  "whitespace": "\t"
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n\ta\n||\nstyle.text-transform: lowercase\n}\n",
+  "body": "a",
+  "transform": "lowercase",
+  "whitespace": "\t"
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n\ta\n||\nstyle.text-transform: capitalize\n}\n",
+  "body": "a",
+  "transform": "capitalize",
+  "whitespace": "\t"
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n \n||\nstyle.text-transform: none\n}\n",
+  "body": "",
+  "transform": "none",
+  "whitespace": " "
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n \n||\nstyle.text-transform: uppercase\n}\n",
+  "body": "",
+  "transform": "uppercase",
+  "whitespace": " "
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n \n||\nstyle.text-transform: lowercase\n}\n",
+  "body": "",
+  "transform": "lowercase",
+  "whitespace": " "
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n \n||\nstyle.text-transform: capitalize\n}\n",
+  "body": "",
+  "transform": "capitalize",
+  "whitespace": " "
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n a\n||\nstyle.text-transform: none\n}\n",
+  "body": "a",
+  "transform": "none",
+  "whitespace": " "
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n a\n||\nstyle.text-transform: uppercase\n}\n",
+  "body": "a",
+  "transform": "uppercase",
+  "whitespace": " "
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n a\n||\nstyle.text-transform: lowercase\n}\n",
+  "body": "a",
+  "transform": "lowercase",
+  "whitespace": " "
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n a\n||\nstyle.text-transform: capitalize\n}\n",
+  "body": "a",
+  "transform": "capitalize",
+  "whitespace": " "
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n \n||\nstyle.text-transform: none\n}\n",
+  "body": "",
+  "transform": "none",
+  "whitespace": " "
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n \n||\nstyle.text-transform: uppercase\n}\n",
+  "body": "",
+  "transform": "uppercase",
+  "whitespace": " "
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n \n||\nstyle.text-transform: lowercase\n}\n",
+  "body": "",
+  "transform": "lowercase",
+  "whitespace": " "
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n \n||\nstyle.text-transform: capitalize\n}\n",
+  "body": "",
+  "transform": "capitalize",
+  "whitespace": " "
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n a\n||\nstyle.text-transform: none\n}\n",
+  "body": "a",
+  "transform": "none",
+  "whitespace": " "
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n a\n||\nstyle.text-transform: uppercase\n}\n",
+  "body": "a",
+  "transform": "uppercase",
+  "whitespace": " "
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n a\n||\nstyle.text-transform: lowercase\n}\n",
+  "body": "a",
+  "transform": "lowercase",
+  "whitespace": " "
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n a\n||\nstyle.text-transform: capitalize\n}\n",
+  "body": "a",
+  "transform": "capitalize",
+  "whitespace": " "
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n \n||\nstyle.text-transform: none\n}\n",
+  "body": "",
+  "transform": "none",
+  "whitespace": " "
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n \n||\nstyle.text-transform: uppercase\n}\n",
+  "body": "",
+  "transform": "uppercase",
+  "whitespace": " "
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n \n||\nstyle.text-transform: lowercase\n}\n",
+  "body": "",
+  "transform": "lowercase",
+  "whitespace": " "
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n \n||\nstyle.text-transform: capitalize\n}\n",
+  "body": "",
+  "transform": "capitalize",
+  "whitespace": " "
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n a\n||\nstyle.text-transform: none\n}\n",
+  "body": "a",
+  "transform": "none",
+  "whitespace": " "
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n a\n||\nstyle.text-transform: uppercase\n}\n",
+  "body": "a",
+  "transform": "uppercase",
+  "whitespace": " "
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n a\n||\nstyle.text-transform: lowercase\n}\n",
+  "body": "a",
+  "transform": "lowercase",
+  "whitespace": " "
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n a\n||\nstyle.text-transform: capitalize\n}\n",
+  "body": "a",
+  "transform": "capitalize",
+  "whitespace": " "
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n \n||\nstyle.text-transform: none\n}\n",
+  "body": "",
+  "transform": "none",
+  "whitespace": " "
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n \n||\nstyle.text-transform: uppercase\n}\n",
+  "body": "",
+  "transform": "uppercase",
+  "whitespace": " "
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n \n||\nstyle.text-transform: lowercase\n}\n",
+  "body": "",
+  "transform": "lowercase",
+  "whitespace": " "
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n \n||\nstyle.text-transform: capitalize\n}\n",
+  "body": "",
+  "transform": "capitalize",
+  "whitespace": " "
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n a\n||\nstyle.text-transform: none\n}\n",
+  "body": "a",
+  "transform": "none",
+  "whitespace": " "
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n a\n||\nstyle.text-transform: uppercase\n}\n",
+  "body": "a",
+  "transform": "uppercase",
+  "whitespace": " "
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n a\n||\nstyle.text-transform: lowercase\n}\n",
+  "body": "a",
+  "transform": "lowercase",
+  "whitespace": " "
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n a\n||\nstyle.text-transform: capitalize\n}\n",
+  "body": "a",
+  "transform": "capitalize",
+  "whitespace": " "
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n​\n||\nstyle.text-transform: none\n}\n",
+  "body": "",
+  "transform": "none",
+  "whitespace": "​"
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n​\n||\nstyle.text-transform: uppercase\n}\n",
+  "body": "",
+  "transform": "uppercase",
+  "whitespace": "​"
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n​\n||\nstyle.text-transform: lowercase\n}\n",
+  "body": "",
+  "transform": "lowercase",
+  "whitespace": "​"
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n​\n||\nstyle.text-transform: capitalize\n}\n",
+  "body": "",
+  "transform": "capitalize",
+  "whitespace": "​"
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n​a\n||\nstyle.text-transform: none\n}\n",
+  "body": "a",
+  "transform": "none",
+  "whitespace": "​"
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n​a\n||\nstyle.text-transform: uppercase\n}\n",
+  "body": "a",
+  "transform": "uppercase",
+  "whitespace": "​"
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n​a\n||\nstyle.text-transform: lowercase\n}\n",
+  "body": "a",
+  "transform": "lowercase",
+  "whitespace": "​"
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n​a\n||\nstyle.text-transform: capitalize\n}\n",
+  "body": "a",
+  "transform": "capitalize",
+  "whitespace": "​"
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n\n||\nstyle.text-transform: none\n}\n",
+  "body": "",
+  "transform": "none",
+  "whitespace": ""
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n\n||\nstyle.text-transform: uppercase\n}\n",
+  "body": "",
+  "transform": "uppercase",
+  "whitespace": ""
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n\n||\nstyle.text-transform: lowercase\n}\n",
+  "body": "",
+  "transform": "lowercase",
+  "whitespace": ""
+ },
+ {
+  "input": "m: {\nlabel: ||latex\n\n||\nstyle.text-transform: capitalize\n}\n",
+  "body": "",
+  "transform": "capitalize",
+  "whitespace": ""
+ },
+ {
+  "input": "m: {\nlabel: ||latex\na\n||\nstyle.text-transform: none\n}\n",
+  "body": "a",
+  "transform": "none",
+  "whitespace": ""
+ },
+ {
+  "input": "m: {\nlabel: ||latex\na\n||\nstyle.text-transform: uppercase\n}\n",
+  "body": "a",
+  "transform": "uppercase",
+  "whitespace": ""
+ },
+ {
+  "input": "m: {\nlabel: ||latex\na\n||\nstyle.text-transform: lowercase\n}\n",
+  "body": "a",
+  "transform": "lowercase",
+  "whitespace": ""
+ },
+ {
+  "input": "m: {\nlabel: ||latex\na\n||\nstyle.text-transform: capitalize\n}\n",
+  "body": "a",
+  "transform": "capitalize",
+  "whitespace": ""
+ }
+]

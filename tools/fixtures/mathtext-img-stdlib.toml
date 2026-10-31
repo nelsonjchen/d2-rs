@@ -1,0 +1,26 @@
+# Go stdlib image/jpeg for crates/d2-rs-core/src/{jpeg_decode,jpeg_idct}.rs.
+# Keyed on the manifest Go toolchain (and the pinned Pillow that builds the
+# frame inputs), not the D2 pin. See docs/FIXTURES.md.
+#
+# Regenerate:  uv run --no-project python scripts/regen-fixtures.py --only 'mathtext-img-jpeg-frame' --only 'mathtext-img-jpeg-idct'
+# Test:        cargo test -p d2-rs-core --features oracle-fixtures jpeg_
+
+[[recipe]]
+name = "mathtext-img-jpeg-frame"
+kind = "go-program"
+description = "image/jpeg.Decode of Pillow, hand-built, truncated and lone-marker JPEGs"
+outputs = ["crates/d2-rs-core/tests/jpeg-frame-go127.json"]
+inputs = [{ path = "jpeg-frame.json", generate = ["uv", "run", "--no-project", "--with", "pillow==13.0.0", "python", "scripts/fixture-gen-jpeg-frame.py"] }]
+program = "tools/fixtures/programs/mathtext-img-jpeg-frame"
+module = "tools/fixtures/programs/mathtext-img-stdlib"
+stdin = "{input}"
+stdout = "crates/d2-rs-core/tests/jpeg-frame-go127.json"
+key_deps = { files = ["scripts/fixture_recipe.py"] }
+
+[[recipe]]
+name = "mathtext-img-jpeg-idct"
+kind = "command"
+description = "image/jpeg idct (dct.go copied from the toolchain at run time) on basis and seeded random blocks"
+outputs = ["crates/d2-rs-core/tests/jpeg-idct-go127.json"]
+argv = ["{python}", "scripts/fixture-gen-jpeg-idct.py"]
+key_deps = { files = ["scripts/fixture_recipe.py"], go_toolchain = true }

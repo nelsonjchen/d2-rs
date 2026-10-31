@@ -1,0 +1,473 @@
+# Go-oracle fixtures for crates/d2-rs-export, second pass: font shaping/cmap,
+# d2raster frames, d2svgimport/imageasset outcome tables and scenebuild
+# internals. Hooks under tools/fixtures/hooks/renderexport-*/ were harvested
+# from the v0.9.0-era probes (../d2-v0.9.0-trace/**/*_probe_test.go,
+# ../d2-v0.9.0-trace/*.overlay, tools/probes/*.go) and run against the
+# manifest pin. Request grids live in the hooks; hand-authored inputs that are
+# not a grid (cmap subtables, SVG documents) are small seeds under
+# tools/fixtures/inputs/renderexport/. See docs/FIXTURES.md.
+#
+# Regenerate:  uv run --no-project python scripts/regen-fixtures.py --only 'renderexport-*' --jobs 4
+# Test:        cargo test -p d2-rs-export --features oracle-fixtures
+
+[defaults]
+kind = "go-test-hook"
+timeout = 1800
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "lib", "internal", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "renderexport-control-shaping"
+description = "Bundled Source Sans Pro shaping of ASCII control characters (3 faces x 3 sizes x 10 texts)"
+outputs = ["crates/d2-rs-export/tests/fixtures/control-shaping-source-v090.json"]
+package = "d2renderers/d2fonts"
+hooks = ["tools/fixtures/hooks/renderexport-font-shaping/d2rs_font_shaping_test.go"]
+test = "TestD2RSFontShaping"
+env = { D2RS_SHAPING_MODE = "control" }
+
+[[recipe]]
+name = "renderexport-font-color-shaping"
+description = "Source Sans Pro + bundled Noto Color Emoji fallback shaping (3 sizes x 8 texts)"
+outputs = ["crates/d2-rs-export/tests/fixtures/font-color-shaping-source-v090.json"]
+package = "d2renderers/d2fonts"
+hooks = ["tools/fixtures/hooks/renderexport-font-shaping/d2rs_font_shaping_test.go"]
+test = "TestD2RSFontShaping"
+env = { D2RS_SHAPING_MODE = "color" }
+
+[[recipe]]
+name = "renderexport-font-grapheme-shaping"
+description = "Fuzzy Bubbles / Source Code Pro with Source Sans Pro fallback: grapheme, bidi and ignorable shaping"
+outputs = ["crates/d2-rs-export/tests/fixtures/font-grapheme-shaping-source-v090.json"]
+package = "d2renderers/d2fonts"
+hooks = ["tools/fixtures/hooks/renderexport-font-shaping/d2rs_font_shaping_test.go"]
+test = "TestD2RSFontShaping"
+env = { D2RS_SHAPING_MODE = "grapheme" }
+
+[[recipe]]
+name = "renderexport-ascii-shaping"
+description = "Single-face Source Sans Pro kerning/ligature runs (3 faces x 3 sizes x 10 texts)"
+outputs = ["crates/d2-rs-export/tests/fixtures/ascii-shaping-source-v090.json"]
+package = "d2renderers/d2fonts"
+hooks = ["tools/fixtures/hooks/renderexport-font-shaping/d2rs_font_shaping_test.go"]
+test = "TestD2RSFontShaping"
+env = { D2RS_SHAPING_MODE = "ascii" }
+
+[[recipe]]
+name = "renderexport-font-cmap"
+description = "sfnt cmap subtable selection and glyph lookup for 13 committed cmap tables"
+outputs = ["crates/d2-rs-export/tests/fixtures/font-cmap-source-v090.json"]
+inputs = ["tools/fixtures/inputs/renderexport/font-cmap-inputs.json"]
+package = "d2renderers/d2fonts"
+hooks = ["tools/fixtures/hooks/renderexport-font-shaping/d2rs_font_shaping_test.go"]
+test = "TestD2RSFontCmap"
+
+# d2raster frames and prepared-scene internals (one hook, one test per family).
+[[recipe]]
+name = "renderexport-blur-expanded"
+description = "Box-blur passes over unclipped alpha layers (prepareBlurPasses/boxBlurAlpha)"
+outputs = ["crates/d2-rs-export/tests/fixtures/blur-expanded-source-v090.json"]
+package = "d2renderers/d2raster"
+hooks = ["tools/fixtures/hooks/renderexport-raster-probes/d2rs_raster_probes_test.go"]
+test = "TestD2RSBlurExpanded"
+
+[[recipe]]
+name = "renderexport-sketch-blends"
+description = "compositeLayer pixels: 5 blend modes x 6 pixel pairs x 3 opacities"
+outputs = ["crates/d2-rs-export/tests/fixtures/sketch-blends-source-v090.json"]
+package = "d2renderers/d2raster"
+hooks = ["tools/fixtures/hooks/renderexport-raster-probes/d2rs_raster_probes_test.go"]
+test = "TestD2RSSketchBlends"
+
+[[recipe]]
+name = "renderexport-sketch-masked-blends"
+description = "Masked blend-group 8x8 frames: 5 modes x 3 opacities"
+outputs = ["crates/d2-rs-export/tests/fixtures/sketch-masked-blends-source-v090.json"]
+package = "d2renderers/d2raster"
+hooks = ["tools/fixtures/hooks/renderexport-raster-probes/d2rs_raster_probes_test.go"]
+test = "TestD2RSSketchMaskedBlends"
+
+[[recipe]]
+name = "renderexport-markdown-reference"
+description = "Prepared node bounds/reference bounds/clips/transforms of a clipped Markdown code span"
+outputs = ["crates/d2-rs-export/tests/fixtures/markdown-reference-source-v090.json"]
+package = "d2renderers/d2raster"
+hooks = ["tools/fixtures/hooks/renderexport-raster-probes/d2rs_raster_probes_test.go"]
+test = "TestD2RSMarkdownReference"
+
+[[recipe]]
+name = "renderexport-markdown-reference-matrix"
+description = "Markdown viewport reference bounds over 4 sources x 3 sizes x 2 scales x 2 positions x underline"
+outputs = ["crates/d2-rs-export/tests/fixtures/markdown-reference-matrix-source-v090.json"]
+package = "d2renderers/d2raster"
+hooks = ["tools/fixtures/hooks/renderexport-raster-probes/d2rs_raster_probes_test.go"]
+test = "TestD2RSMarkdownReferenceMatrix"
+
+[[recipe]]
+name = "renderexport-markdown-clip-pixels"
+description = "The markdown-reference matrix plus complete rendered frame digests"
+outputs = ["crates/d2-rs-export/tests/fixtures/markdown-clip-pixels-source-v090.json"]
+package = "d2renderers/d2raster"
+hooks = ["tools/fixtures/hooks/renderexport-raster-probes/d2rs_raster_probes_test.go"]
+test = "TestD2RSMarkdownClipPixels"
+
+[[recipe]]
+name = "renderexport-raster-bands"
+description = "Effect frames rendered whole and in 64/256-row bands (7 modes x 2 scales x 3 bands)"
+outputs = ["crates/d2-rs-export/tests/fixtures/raster-bands-source-v090.json"]
+inputs = ["tools/fixtures/inputs/renderexport/raster-bands-svgs.json"]
+package = "d2renderers/d2raster"
+hooks = ["tools/fixtures/hooks/renderexport-raster-probes/d2rs_raster_probes_test.go"]
+test = "TestD2RSRasterBands"
+
+[[recipe]]
+name = "renderexport-imported-primitives"
+description = "Imported SVG ellipse/circle/polygon/polyline frames at scales 1 and 2"
+outputs = ["crates/d2-rs-export/tests/fixtures/imported-primitives-source-v090.json"]
+package = "d2renderers/d2raster"
+hooks = ["tools/fixtures/hooks/renderexport-raster-probes/d2rs_raster_probes_test.go"]
+test = "TestD2RSImportedPrimitives"
+
+[[recipe]]
+name = "renderexport-math-vector-frames"
+description = "d2latex SVG imported as clipped vector images: six formulas at scales 1 and 2"
+outputs = ["crates/d2-rs-export/tests/fixtures/math-vector-frames-source-v090.json"]
+package = "d2renderers/d2raster"
+hooks = ["tools/fixtures/hooks/renderexport-raster-probes/d2rs_raster_probes_test.go"]
+test = "TestD2RSMathVectorFrames"
+
+[[recipe]]
+name = "renderexport-nested-math-clip"
+description = "Nested-viewport math frames: amscd formulas and four hand-authored nested SVGs"
+outputs = ["crates/d2-rs-export/tests/fixtures/nested-math-clip-source-v090.json"]
+inputs = ["tools/fixtures/inputs/renderexport/nested-math-clip-requests.json"]
+package = "d2renderers/d2raster"
+hooks = ["tools/fixtures/hooks/renderexport-raster-probes/d2rs_raster_probes_test.go"]
+test = "TestD2RSMathVectorFrames"
+
+[[recipe]]
+name = "renderexport-opaque-arrow"
+description = "Complete NRGBA frames of a round stroke + triangle, with and without an opaque luminance mask"
+outputs = ["crates/d2-rs-export/tests/fixtures/opaque-arrow-direct.rgba", "crates/d2-rs-export/tests/fixtures/opaque-arrow-masked.rgba"]
+package = "d2renderers/d2raster"
+hooks = ["tools/fixtures/hooks/renderexport-raster-probes/d2rs_raster_probes_test.go"]
+test = "TestD2RSOpaqueArrow"
+
+[[recipe]]
+name = "renderexport-effect-text-bounds"
+description = "Underlined TextRun in a translated opacity group with a stroked box: 4 faces x 6 viewports"
+outputs = ["crates/d2-rs-export/tests/fixtures/effect-text-bounds-go-v090.json"]
+package = "d2renderers/d2raster"
+hooks = ["tools/fixtures/hooks/renderexport-raster-probes/d2rs_raster_probes_test.go"]
+test = "TestD2RSEffectText"
+env = { D2RS_EFFECT_MODE = "bounds" }
+
+[[recipe]]
+name = "renderexport-effect-text-overhang"
+description = "The effect-text-bounds scene at three overhanging TextRun origins"
+outputs = ["crates/d2-rs-export/tests/fixtures/effect-text-overhang-go-v090.json"]
+package = "d2renderers/d2raster"
+hooks = ["tools/fixtures/hooks/renderexport-raster-probes/d2rs_raster_probes_test.go"]
+test = "TestD2RSEffectText"
+env = { D2RS_EFFECT_MODE = "overhang" }
+
+[[recipe]]
+name = "renderexport-native-underline"
+description = "A lone underlined TextRun: 4 faces x 6 viewports"
+outputs = ["crates/d2-rs-export/tests/fixtures/native-underline-go-v090.json"]
+package = "d2renderers/d2raster"
+hooks = ["tools/fixtures/hooks/renderexport-raster-probes/d2rs_raster_probes_test.go"]
+test = "TestD2RSEffectText"
+env = { D2RS_EFFECT_MODE = "underline" }
+
+# SVG admission/import outcome tables over hand-authored SVG documents.
+[[recipe]]
+name = "renderexport-svg-asset-envelope"
+description = "lib/imageasset probeResource outcomes for XML declaration/DOCTYPE/PI envelopes"
+outputs = ["crates/d2-rs-export/tests/fixtures/svg-asset-envelope-outcomes-source-v090.json"]
+inputs = ["tools/fixtures/inputs/renderexport/svg-outcomes-envelope.json"]
+package = "lib/imageasset"
+hooks = ["tools/fixtures/hooks/renderexport-svg-outcomes/d2rs_svg_asset_outcomes_test.go"]
+test = "TestD2RSSVGAssetOutcomes"
+key_deps.upstream_paths = ["lib", "internal", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "renderexport-svg-asset-xml"
+description = "lib/imageasset raw XML validation and probeResource outcomes for malformed documents"
+outputs = ["crates/d2-rs-export/tests/fixtures/svg-asset-xml-outcomes-source-v090.json"]
+inputs = ["tools/fixtures/inputs/renderexport/svg-outcomes-xml.json"]
+package = "lib/imageasset"
+hooks = ["tools/fixtures/hooks/renderexport-svg-outcomes/d2rs_svg_asset_outcomes_test.go"]
+test = "TestD2RSSVGAssetOutcomes"
+env = { D2RS_SVG_RAW = "1" }
+key_deps.upstream_paths = ["lib", "internal", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "renderexport-svg-import-envelope"
+description = "d2svgimport.ImportNode outcomes for XML declaration/DOCTYPE/PI envelopes"
+outputs = ["crates/d2-rs-export/tests/fixtures/svg-import-envelope-outcomes-source-v090.json"]
+inputs = ["tools/fixtures/inputs/renderexport/svg-outcomes-envelope.json"]
+package = "d2renderers/d2svgimport"
+hooks = ["tools/fixtures/hooks/renderexport-svg-outcomes/d2rs_svg_import_outcomes_test.go"]
+test = "TestD2RSSVGImportOutcomes"
+
+[[recipe]]
+name = "renderexport-svg-import-attribute"
+description = "d2svgimport.ImportNode outcomes for unsupported/namespaced root and element attributes"
+outputs = ["crates/d2-rs-export/tests/fixtures/svg-import-attribute-outcomes-source-v090.json"]
+inputs = ["tools/fixtures/inputs/renderexport/svg-outcomes-attribute.json"]
+package = "d2renderers/d2svgimport"
+hooks = ["tools/fixtures/hooks/renderexport-svg-outcomes/d2rs_svg_import_outcomes_test.go"]
+test = "TestD2RSSVGImportOutcomes"
+
+[[recipe]]
+name = "renderexport-svg-import-namespace"
+description = "d2svgimport.ImportNode outcomes for xml/xmlns prefix bindings"
+outputs = ["crates/d2-rs-export/tests/fixtures/svg-import-namespace-outcomes-source-v090.json"]
+inputs = ["tools/fixtures/inputs/renderexport/svg-outcomes-namespace.json"]
+package = "d2renderers/d2svgimport"
+hooks = ["tools/fixtures/hooks/renderexport-svg-outcomes/d2rs_svg_import_outcomes_test.go"]
+test = "TestD2RSSVGImportOutcomes"
+
+[[recipe]]
+name = "renderexport-svg-import-topology"
+description = "d2svgimport.ImportNode outcomes for metadata/title/namedview topology"
+outputs = ["crates/d2-rs-export/tests/fixtures/svg-import-topology-outcomes-source-v090.json"]
+inputs = ["tools/fixtures/inputs/renderexport/svg-outcomes-topology.json"]
+package = "d2renderers/d2svgimport"
+hooks = ["tools/fixtures/hooks/renderexport-svg-outcomes/d2rs_svg_import_outcomes_test.go"]
+test = "TestD2RSSVGImportOutcomes"
+
+[[recipe]]
+name = "renderexport-svg-import-viewport"
+description = "d2svgimport.ImportNode outcomes for root width/height/viewBox values"
+outputs = ["crates/d2-rs-export/tests/fixtures/svg-import-viewport-outcomes-source-v090.json"]
+inputs = ["tools/fixtures/inputs/renderexport/svg-outcomes-viewport.json"]
+package = "d2renderers/d2svgimport"
+hooks = ["tools/fixtures/hooks/renderexport-svg-outcomes/d2rs_svg_import_outcomes_test.go"]
+test = "TestD2RSSVGImportOutcomes"
+
+[[recipe]]
+name = "renderexport-positioned-tooltip-png"
+description = "d2cli PNG admission of the 480 positioned-tooltip target shapes, and decoded RGB digests of the 48 unicode rows"
+after = ["render-positioned-tooltip"]
+outputs = [
+  "crates/d2-rs-export/tests/fixtures/positioned-tooltip-png-admission-source-v090.json",
+  "crates/d2-rs-export/tests/fixtures/positioned-tooltip-unicode-png-source-v090.json",
+]
+package = "d2cli"
+hooks = ["tools/fixtures/hooks/renderexport-positioned-tooltip-png/d2rs_positioned_tooltip_png_test.go"]
+test = "TestD2RSPositionedTooltipPNG"
+key_deps.upstream_paths = ["."]
+
+# Transformed single-shape frames (d2scenebuild.Build + d2raster.Render).
+[[recipe]]
+name = "renderexport-pattern-transforms"
+description = "Fill-pattern rectangle frames: 4 patterns x 5 matrices x 2 scales"
+outputs = ["crates/d2-rs-export/tests/fixtures/pattern-transforms-source-v090.json"]
+package = "d2renderers/d2scenebuild"
+hooks = ["tools/fixtures/hooks/renderexport-shape-frames/d2rs_shape_frames_test.go"]
+test = "TestD2RSShapeFrames"
+env = { D2RS_SHAPE_FRAME_MODE = "pattern" }
+
+[[recipe]]
+name = "renderexport-pattern-double-border"
+description = "Fill-pattern double-border rectangle frames: 4 patterns x 5 matrices x 2 scales"
+outputs = ["crates/d2-rs-export/tests/fixtures/pattern-double-border-source-v090.json"]
+package = "d2renderers/d2scenebuild"
+hooks = ["tools/fixtures/hooks/renderexport-shape-frames/d2rs_shape_frames_test.go"]
+test = "TestD2RSShapeFrames"
+env = { D2RS_SHAPE_FRAME_MODE = "pattern-double" }
+
+[[recipe]]
+name = "renderexport-sketch-affine-frames"
+description = "Sketch rectangle frames: 4 fills x 5 matrices x 2 scales"
+outputs = ["crates/d2-rs-export/tests/fixtures/sketch-affine-frames-source-v090.json"]
+package = "d2renderers/d2scenebuild"
+hooks = ["tools/fixtures/hooks/renderexport-shape-frames/d2rs_shape_frames_test.go"]
+test = "TestD2RSShapeFrames"
+env = { D2RS_SHAPE_FRAME_MODE = "sketch" }
+
+[[recipe]]
+name = "renderexport-sketch-c4-affine"
+description = "Sketch C4 person frames: 4 fills x 5 matrices x 2 scales"
+outputs = ["crates/d2-rs-export/tests/fixtures/sketch-c4-affine-source-v090.json"]
+package = "d2renderers/d2scenebuild"
+hooks = ["tools/fixtures/hooks/renderexport-shape-frames/d2rs_shape_frames_test.go"]
+test = "TestD2RSShapeFrames"
+env = { D2RS_SHAPE_FRAME_MODE = "sketch-c4" }
+
+[[recipe]]
+name = "renderexport-sketch-ellipse-affine"
+description = "Sketch oval frames: 4 fills x 5 matrices x 2 scales"
+outputs = ["crates/d2-rs-export/tests/fixtures/sketch-ellipse-affine-source-v090.json"]
+package = "d2renderers/d2scenebuild"
+hooks = ["tools/fixtures/hooks/renderexport-shape-frames/d2rs_shape_frames_test.go"]
+test = "TestD2RSShapeFrames"
+env = { D2RS_SHAPE_FRAME_MODE = "sketch-oval" }
+
+[[recipe]]
+name = "renderexport-legend-shadows"
+description = "Drop-shadowed legend rectangle frames: 3 scales x 2 opacities x 2 radii x 2 raster scales"
+outputs = ["crates/d2-rs-export/tests/fixtures/legend-shadows-source-v090.json"]
+package = "d2renderers/d2scenebuild"
+hooks = ["tools/fixtures/hooks/renderexport-shape-frames/d2rs_shape_frames_test.go"]
+test = "TestD2RSLegendShadows"
+
+[[recipe]]
+name = "renderexport-sketch-streak-tiles"
+description = "Sketch streak pattern tiles (4 categories x 2 scales x 2 backgrounds) and their SVG controls"
+outputs = [
+  "crates/d2-rs-export/tests/fixtures/sketch-streak-tiles-source-v090.json",
+  "crates/d2-rs-export/tests/fixtures/sketch-streak-bright-source-v090.svg",
+  "crates/d2-rs-export/tests/fixtures/sketch-streak-normal-source-v090.svg",
+  "crates/d2-rs-export/tests/fixtures/sketch-streak-dark-source-v090.svg",
+  "crates/d2-rs-export/tests/fixtures/sketch-streak-darker-source-v090.svg",
+]
+package = "d2renderers/d2scenebuild"
+hooks = ["tools/fixtures/hooks/renderexport-scenebuild-probes/d2rs_scenebuild_probes_test.go"]
+test = "TestD2RSSketchStreakTiles"
+
+[[recipe]]
+name = "renderexport-sketch-font-roles"
+description = "Sketch builder font family/style/weight/asset per primary family, role and bold/italic axes"
+outputs = ["crates/d2-rs-export/tests/fixtures/sketch-font-roles-source-v090.json"]
+package = "d2renderers/d2scenebuild"
+hooks = ["tools/fixtures/hooks/renderexport-scenebuild-probes/d2rs_scenebuild_probes_test.go"]
+test = "TestD2RSSketchFontRoles"
+
+[[recipe]]
+name = "renderexport-mixed-svg-png"
+description = "Imported SVGs with embedded PNGs as vector images: nested matrices/boxes and frame digests (40 assets x 2 boxes x 2 scales)"
+outputs = ["crates/d2-rs-export/tests/fixtures/mixed-svg-png-source-v090.json"]
+inputs = ["tools/fixtures/inputs/renderexport/mixed-svg-png-assets.json"]
+package = "d2renderers/d2svgimport"
+hooks = ["tools/fixtures/hooks/renderexport-svg-outcomes/d2rs_mixed_svg_png_test.go"]
+test = "TestD2RSMixedSVGPNG"
+
+[[recipe]]
+name = "renderexport-vector-image-origin"
+description = "Unavailable-image placeholder frames under translated/affine placements (12 cases)"
+outputs = ["crates/d2-rs-export/tests/fixtures/vector-image-origin-source-v090.json"]
+package = "d2renderers/d2scenebuild"
+hooks = ["tools/fixtures/hooks/renderexport-scenebuild-probes/d2rs_scenebuild_probes_test.go"]
+test = "TestD2RSVectorImageFrames"
+
+[[recipe]]
+name = "renderexport-vector-image-viewport"
+description = "Unavailable-image placeholder frames, meet/slice viewports under five matrices (20 cases)"
+outputs = ["crates/d2-rs-export/tests/fixtures/vector-image-viewport-source-v090.json"]
+package = "d2renderers/d2scenebuild"
+hooks = ["tools/fixtures/hooks/renderexport-scenebuild-probes/d2rs_scenebuild_probes_test.go"]
+test = "TestD2RSVectorImageFrames"
+env = { D2RS_VECTOR_IMAGE_MODE = "viewport" }
+
+[[recipe]]
+name = "renderexport-svg-native-preflight"
+description = "Raster-export SVG image asset preflight (resolveImageAsset under CLI import limits) for 120 documents"
+outputs = ["crates/d2-rs-export/tests/fixtures/svg-native-preflight-v090.json"]
+inputs = ["tools/fixtures/inputs/renderexport/svg-native-preflight-inputs.json"]
+package = "d2renderers/d2scenebuild"
+hooks = ["tools/fixtures/hooks/renderexport-scenebuild-probes/d2rs_scenebuild_probes_test.go"]
+test = "TestD2RSExportPreflight"
+
+# Reuses the mathtext-latex hook (tools/fixtures/mathtext-latex.toml) over its own expression list.
+[[recipe]]
+name = "renderexport-cancel-lines"
+description = "d2latex Render/Measure of 81 \\cancel/\\bcancel/\\xcancel expressions"
+outputs = ["crates/d2-rs-export/tests/fixtures/cancel-lines-source-v090.json"]
+inputs = ["tools/fixtures/inputs/renderexport/cancel-lines.json"]
+package = "d2renderers/d2latex"
+hooks = ["tools/fixtures/hooks/mathtext-latex/d2rs_latex_test.go"]
+test = "TestD2RSCaptureLatex"
+env = { D2RS_LATEX_ERRORS = "omitempty", D2RS_LATEX_JSON = "indent-escape" }
+key_deps.upstream_paths = ["d2renderers/d2latex", "go.mod", "go.sum"]
+
+# Malformed raster icons through the d2cli PNG pipeline (committed encoded images).
+[[recipe]]
+name = "renderexport-png-caller-errors"
+description = "d2cli PNG render errors for malformed PNG icon pixel data"
+outputs = ["crates/d2-rs-export/tests/fixtures/png-caller-errors-v090.json"]
+inputs = ["tools/fixtures/inputs/renderexport/image-png-caller-errors.json"]
+package = "d2cli"
+hooks = ["tools/fixtures/hooks/renderexport-image-errors/d2rs_image_errors_test.go"]
+test = "TestD2RSImageErrors"
+key_deps.upstream_paths = ["."]
+
+[[recipe]]
+name = "renderexport-png-compression-errors"
+description = "d2cli PNG render errors for PNG stream termination, checksum, dictionary and split-IDAT controls"
+outputs = ["crates/d2-rs-export/tests/fixtures/png-compression-errors-v090.json"]
+inputs = ["tools/fixtures/inputs/renderexport/image-png-compression-errors.json"]
+package = "d2cli"
+hooks = ["tools/fixtures/hooks/renderexport-image-errors/d2rs_image_errors_test.go"]
+test = "TestD2RSImageErrors"
+key_deps.upstream_paths = ["."]
+
+[[recipe]]
+name = "renderexport-png-error-order"
+description = "d2cli PNG render errors for combined PNG defects (error precedence)"
+outputs = ["crates/d2-rs-export/tests/fixtures/png-error-order-v090.json"]
+inputs = ["tools/fixtures/inputs/renderexport/image-png-error-order.json"]
+package = "d2cli"
+hooks = ["tools/fixtures/hooks/renderexport-image-errors/d2rs_image_errors_test.go"]
+test = "TestD2RSImageErrors"
+key_deps.upstream_paths = ["."]
+
+[[recipe]]
+name = "renderexport-jpeg-caller-errors"
+description = "d2cli PNG render errors for malformed JPEG icon entropy data"
+outputs = ["crates/d2-rs-export/tests/fixtures/jpeg-caller-errors-v090.json"]
+inputs = ["tools/fixtures/inputs/renderexport/image-jpeg-caller-errors.json"]
+package = "d2cli"
+hooks = ["tools/fixtures/hooks/renderexport-image-errors/d2rs_image_errors_test.go"]
+test = "TestD2RSImageErrors"
+env = { D2RS_IMAGE_ICON = "0", D2RS_IMAGE_KEEP_KIND = "1" }
+key_deps.upstream_paths = ["."]
+
+[[recipe]]
+name = "renderexport-gif-pixels"
+description = "GIF pixel-decoder errors (the wrapped cause of the d2cli render error) for 45 GIF controls"
+outputs = ["crates/d2-rs-export/tests/fixtures/gif-pixels-v090.json"]
+inputs = ["tools/fixtures/inputs/renderexport/image-gif-pixels.json"]
+package = "d2cli"
+hooks = ["tools/fixtures/hooks/renderexport-image-errors/d2rs_image_errors_test.go"]
+test = "TestD2RSImageErrors"
+env = { D2RS_IMAGE_ERROR = "cause" }
+key_deps.upstream_paths = ["."]
+
+[[recipe]]
+name = "renderexport-upstream-gifs"
+kind = "command"
+upstream = true
+description = "Valid animated GIFs copied from the pinned upstream tree (lib/xgif test output, an e2e CLI raster golden)"
+argv = ["{python}", "-c", "import shutil,sys; shutil.copyfile(sys.argv[1], sys.argv[2]); shutil.copyfile(sys.argv[3], sys.argv[4])",
+        "{upstream}/lib/xgif/test_output.gif", "{stage}/crates/d2-rs-export/tests/fixtures/source-xgif-v090.gif",
+        "{upstream}/e2etests-cli/testdata/raster/animation-1050.exp.gif", "{stage}/crates/d2-rs-export/tests/fixtures/source-animation-v090.gif"]
+outputs = ["crates/d2-rs-export/tests/fixtures/source-xgif-v090.gif", "crates/d2-rs-export/tests/fixtures/source-animation-v090.gif"]
+key_deps.upstream_paths = ["lib/xgif/test_output.gif", "e2etests-cli/testdata/raster/animation-1050.exp.gif"]
+
+[[recipe]]
+name = "renderexport-svg-clip-tolerance"
+description = "d2raster flattenTolerance for 30 imported-math path matrices"
+outputs = ["crates/d2-rs-export/tests/fixtures/svg-clip-tolerance-source-v090.json"]
+inputs = ["tools/fixtures/inputs/renderexport/svg-clip-tolerance-matrices.json"]
+package = "d2renderers/d2raster"
+hooks = ["tools/fixtures/hooks/renderexport-raster-probes/d2rs_raster_probes_test.go"]
+test = "TestD2RSClipTolerance"
+
+[[recipe]]
+name = "renderexport-empty-svg-ink"
+description = "Hand-authored math SVGs with empty/unpainted/hidden ink as clipped vector images"
+outputs = ["crates/d2-rs-export/tests/fixtures/empty-svg-ink-source-v090.json"]
+inputs = ["tools/fixtures/inputs/renderexport/empty-svg-ink-requests.json"]
+package = "d2renderers/d2raster"
+hooks = ["tools/fixtures/hooks/renderexport-raster-probes/d2rs_raster_probes_test.go"]
+test = "TestD2RSMathVectorFrames"
+
+[[recipe]]
+name = "renderexport-markdown-document-links"
+description = "Markdown text shapes built at scale with appendix/link budgets: layout, links, viewport"
+outputs = ["crates/d2-rs-export/tests/fixtures/markdown-document-links-source-v090.json"]
+inputs = ["tools/fixtures/inputs/renderexport/markdown-document-links-requests.json"]
+package = "d2renderers/d2scenebuild"
+hooks = ["tools/fixtures/hooks/renderexport-scenebuild-probes/d2rs_scenebuild_probes_test.go"]
+test = "TestD2RSMarkdownDocumentLinks"

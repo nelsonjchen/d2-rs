@@ -1,0 +1,4 @@
+github.com/alecthomas/chroma/v2 v2.27.0 h1:FodwmyOBgJULFYmDqibcp9pvfDLWdtPRh9v/r5BXYZs=
+github.com/alecthomas/chroma/v2 v2.27.0/go.mod h1:NjJ3ciIgrqBNeIkWZ4e46nseoLDslxU1LmfCoL+wcY8=
+github.com/dlclark/regexp2/v2 v2.6.0 h1:KugbSrpXcRpziHIcqqFEXwKwi09LbPkTzvLRItf2mo8=
+github.com/dlclark/regexp2/v2 v2.6.0/go.mod h1:avUrQvPaLz2DrFNHJF0taWAFFX2C1GMSSoeiqFjcBmU=

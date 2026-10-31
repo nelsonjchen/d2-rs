@@ -1,0 +1,144 @@
+# Public TALA API oracle fixtures for crates/d2-rs-lib: serialized graphs
+# through d2graph.DeserializeGraph, then d2talalayout.Layout or RouteEdges
+# (optionally pre-cancelled), then d2graph.SerializeGraph.
+#
+# scripts/check-lib-tala-public-api.py builds tools/tala-public-api-oracle
+# against the patched upstream checkout and replays one request family from
+# scripts/tala_public_api_cases.py (the 2026-10-09 v0.9.0 expanders, kept
+# verbatim; families chain off each other's first graph and prefixes, so a
+# change to the case module re-keys every family). Logical paths keep their
+# historical *-source-v090.json names; the content is captured at the pin.
+#
+# Regenerate:  uv run --no-project python scripts/regen-fixtures.py --only 'lib-tala-*'
+# Test:        cargo test -p d2-rs-lib --features oracle-fixtures
+
+[defaults]
+kind = "command"
+upstream = true
+timeout = 1800
+
+[defaults.key_deps]
+files = [
+  "scripts/fixture_recipe.py",
+  "scripts/check-lib-tala-public-api.py",
+  "scripts/tala_public_api_cases.py",
+  "tools/tala-public-api-oracle",
+  "tools/fixtures/seeds/lib-tala-public-api/legacy-graphs.json",
+]
+go_toolchain = true
+# The package closure of tools/tala-public-api-oracle inside the D2 module
+# (`go list -deps`): the TALA adapter and engine, graph serde, the compiler
+# front end d2graph links, themes, fonts and text measurement. About a third
+# of the tree; unrelated renderers, CLI, other layout engines and tests are out.
+upstream_paths = [
+  "go.mod",
+  "go.sum",
+  "d2ast",
+  "d2format",
+  "d2graph",
+  "d2parser",
+  "d2target",
+  "d2themes",
+  "d2layouts/d2sequence",
+  "d2layouts/d2talalayout",
+  "d2renderers/d2fonts",
+  "d2renderers/d2latex",
+  "d2renderers/d2scene",
+  "d2renderers/internal",
+  "lib/color",
+  "lib/font",
+  "lib/geo",
+  "lib/label",
+  "lib/shape",
+  "lib/svg",
+  "lib/syncmap",
+  "lib/textmeasure",
+]
+
+[[recipe]]
+name = "lib-tala-wire-geometry"
+description = "Wire box/route bounds, missing positions and source-arrow reversal"
+outputs = ["crates/d2-rs-lib/tests/fixtures/wire-geometry-source-v090.json"]
+argv = ["{python}", "scripts/check-lib-tala-public-api.py", "wire-geometry"]
+
+[[recipe]]
+name = "lib-tala-input-attributes"
+description = "Style, label-dimension, position, percentage and authored-size attribute matrices"
+outputs = ["crates/d2-rs-lib/tests/fixtures/input-attributes-source-v090.json"]
+argv = ["{python}", "scripts/check-lib-tala-public-api.py", "input-attributes"]
+
+[[recipe]]
+name = "lib-tala-input-tables"
+description = "SQL table payloads, column indices, header fonts and shape spellings"
+outputs = ["crates/d2-rs-lib/tests/fixtures/input-tables-source-v090.json"]
+argv = ["{python}", "scripts/check-lib-tala-public-api.py", "input-tables"]
+
+[[recipe]]
+name = "lib-tala-missing-geometry"
+description = "Absent, null and partial boxes and routes"
+outputs = ["crates/d2-rs-lib/tests/fixtures/missing-geometry-source-v090.json"]
+argv = ["{python}", "scripts/check-lib-tala-public-api.py", "missing-geometry"]
+
+[[recipe]]
+name = "lib-tala-geometry-conversion"
+description = "Geometry JSON type conversion, case-folded keys and table ports"
+outputs = ["crates/d2-rs-lib/tests/fixtures/geometry-conversion-source-v090.json"]
+argv = ["{python}", "scripts/check-lib-tala-public-api.py", "geometry-conversion"]
+
+[[recipe]]
+name = "lib-tala-public-records"
+description = "Every serialized object/edge record field, aliases and unknown fields"
+outputs = ["crates/d2-rs-lib/tests/fixtures/public-records-source-v090.json"]
+argv = ["{python}", "scripts/check-lib-tala-public-api.py", "public-records"]
+
+[[recipe]]
+name = "lib-tala-near-keys"
+description = "near_key AST paths resolved against canonical d2format key spellings"
+outputs = ["crates/d2-rs-lib/tests/fixtures/near-keys-source-v090.json"]
+argv = ["{python}", "scripts/check-lib-tala-public-api.py", "near-keys"]
+
+[[recipe]]
+name = "lib-tala-raw-graph"
+description = "Raw graph JSON: top-level aliases, duplicate keys, numbers and tala-seeds data"
+outputs = ["crates/d2-rs-lib/tests/fixtures/raw-graph-source-v090.json"]
+argv = ["{python}", "scripts/check-lib-tala-public-api.py", "raw-graph"]
+
+[[recipe]]
+name = "lib-tala-json-syntax"
+description = "Go encoding/json syntax errors, escapes, surrogates, depth and invalid UTF-8"
+outputs = ["crates/d2-rs-lib/tests/fixtures/json-syntax-source-v090.json"]
+argv = ["{python}", "scripts/check-lib-tala-public-api.py", "json-syntax"]
+
+[[recipe]]
+name = "lib-tala-graph-identity"
+description = "Root/local/absolute identities, tree shapes, legacy unit-test graphs and edge-label restore"
+outputs = ["crates/d2-rs-lib/tests/fixtures/graph-identity-source-v090.json"]
+argv = ["{python}", "scripts/check-lib-tala-public-api.py", "graph-identity"]
+
+# Original d2lib and lib/urlenc test-call observations
+# (scripts/cli_go_api_fixtures.py), the scoreboard captures run through a go
+# -overlay against the patched upstream tree.
+
+[[recipe]]
+name = "lib-library-config"
+description = "d2lib applyConfigs/applyDefaults calls from the original configuration tests"
+outputs = ["crates/d2-rs-lib/tests/fixtures/library-config-api.json"]
+argv = ["{python}", "scripts/cli_go_api_fixtures.py", "library-config"]
+key_deps.files = ["scripts/fixture_recipe.py", "scripts/cli_go_api_fixtures.py", "scripts/upstream_overlay.py", "scripts/references.py", "scripts/*-scoreboard.py", "tools/library-api-scoreboard"]
+key_deps.upstream_paths = ["."]
+
+[[recipe]]
+name = "lib-library-source"
+description = "d2lib Parse/Compile source-boundary calls (cancellation, expansion limits, nil FS)"
+outputs = ["crates/d2-rs-lib/tests/fixtures/library-source-api.json"]
+argv = ["{python}", "scripts/cli_go_api_fixtures.py", "library-source"]
+key_deps.files = ["scripts/fixture_recipe.py", "scripts/cli_go_api_fixtures.py", "scripts/upstream_overlay.py", "scripts/references.py", "scripts/*-scoreboard.py", "tools/library-source-scoreboard"]
+key_deps.upstream_paths = ["."]
+
+[[recipe]]
+name = "lib-master-urlenc"
+description = "lib/urlenc oversized-script encode/decode calls from TestDecodeRejectsOversizedScript"
+outputs = ["crates/d2-rs-lib/tests/fixtures/master-urlenc.json"]
+argv = ["{python}", "scripts/cli_go_api_fixtures.py", "master-urlenc"]
+key_deps.files = ["scripts/fixture_recipe.py", "scripts/cli_go_api_fixtures.py", "scripts/upstream_overlay.py", "scripts/references.py", "scripts/*-scoreboard.py", "tools/language-master-scoreboard"]
+key_deps.upstream_paths = ["."]

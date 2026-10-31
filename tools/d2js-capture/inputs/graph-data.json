@@ -1,0 +1,17 @@
+[
+{"name": "dagre/data-quoted", "source": "vars: {d2-config: {data: {items: [\"hello world\"; \"one\"; 'two words'; |md abc|; null]}}}\na\n", "options": {"layout": "dagre"}},
+{"name": "dagre/seed-empty", "source": "vars: {d2-config: {data: {tala-seeds: []}}}\na\n", "options": {"layout": "dagre"}},
+{"name": "dagre/seed-map", "source": "vars: {d2-config: {data: {tala-seeds: {}}}}\na\n", "options": {"layout": "dagre"}},
+{"name": "dagre/seed-quoted", "source": "vars: {d2-config: {data: {tala-seeds: [\"9\"]}}}\na\n", "options": {"layout": "dagre"}},
+{"name": "dagre/nested-quoted-board", "source": "layers: {\"a.b\": {scenarios: {\"x.y\": {b}}}}\n", "options": {"layout": "dagre"}},
+{"name": "elk/data-quoted", "source": "vars: {d2-config: {data: {items: [\"hello world\"; \"one\"; 'two words'; |md abc|; null]}}}\na\n", "options": {"layout": "elk"}},
+{"name": "elk/seed-empty", "source": "vars: {d2-config: {data: {tala-seeds: []}}}\na\n", "options": {"layout": "elk"}},
+{"name": "elk/seed-map", "source": "vars: {d2-config: {data: {tala-seeds: {}}}}\na\n", "options": {"layout": "elk"}},
+{"name": "elk/seed-quoted", "source": "vars: {d2-config: {data: {tala-seeds: [\"9\"]}}}\na\n", "options": {"layout": "elk"}},
+{"name": "elk/nested-quoted-board", "source": "layers: {\"a.b\": {scenarios: {\"x.y\": {b}}}}\n", "options": {"layout": "elk"}},
+{"name": "tala/data-quoted", "source": "vars: {d2-config: {data: {items: [\"hello world\"; \"one\"; 'two words'; |md abc|; null]}}}\na\n", "options": {"layout": "tala"}},
+{"name": "tala/seed-empty", "source": "vars: {d2-config: {data: {tala-seeds: []}}}\na\n", "options": {"layout": "tala"}},
+{"name": "tala/seed-map", "source": "vars: {d2-config: {data: {tala-seeds: {}}}}\na\n", "options": {"layout": "tala"}},
+{"name": "tala/seed-quoted", "source": "vars: {d2-config: {data: {tala-seeds: [\"9\"]}}}\na\n", "options": {"layout": "tala"}},
+{"name": "tala/nested-quoted-board", "source": "layers: {\"a.b\": {scenarios: {\"x.y\": {b}}}}\n", "options": {"layout": "tala"}}
+]

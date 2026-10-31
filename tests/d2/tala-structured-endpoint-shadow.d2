@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: MPL-2.0
+# A root ordinary child must not shadow a nearer SQL table column.
+table: {id}
+outer: {
+  table: {
+    shape: sql_table
+    id: int
+  }
+  sink
+  table.id -> sink: local
+}

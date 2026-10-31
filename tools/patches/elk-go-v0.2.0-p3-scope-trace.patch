@@ -1,0 +1,351 @@
+diff --git a/internal/layered/p3order/layer_sweep_crossing_minimizer.go b/internal/layered/p3order/layer_sweep_crossing_minimizer.go
+--- a/internal/layered/p3order/layer_sweep_crossing_minimizer.go
++++ b/internal/layered/p3order/layer_sweep_crossing_minimizer.go
+@@ -84,11 +84,15 @@
+ 	if emptyGraph || singleNode && !hierarchical {
+ 		return nil
+ 	}
++	traceP3Configuration(basegraph.Get(&graph.Properties, layered.Thoroughness), int(minimizer.Type))
++	traceP3Phase("begin")
+ 	graphsToSweepOn, err := minimizer.initialize(arena, graphID)
+ 	if err != nil {
++		traceP3Phase("end")
+ 		return err
+ 	}
+ 	if len(graphsToSweepOn) == 0 {
++		traceP3Phase("end")
+ 		return nil
+ 	}
+ 	methodHolder := minimizer.graphInfoHolders[graphsToSweepOn[0]]
+@@ -110,6 +114,10 @@
+ 		}
+ 	}
+ 	minimizer.transferNodeAndPortOrdersToGraph(arena)
++	traceP3Phase("end")
++	for index, holder := range minimizer.graphInfoHolders {
++		traceGraphScope(arena, index, holder)
++	}
+ 	return nil
+ }
+ 
+@@ -166,6 +171,7 @@
+ 		if err != nil {
+ 			return nil, err
+ 		}
++		traceGraphScope(arena, index, holder)
+ 		graphs = append(graphs, holder.ChildGraphs...)
+ 		minimizer.graphInfoHolders = append(minimizer.graphInfoHolders, holder)
+ 		if holder.DontSweepInto() {
+@@ -199,9 +205,11 @@
+ 				bestCrossings = crossings
+ 				minimizer.saveAllNodeOrdersOfChangedGraphs()
+ 				if bestCrossings == 0 {
++					traceP3Trial(try, crossings, bestCrossings, basegraph.Get(&graph.Properties, layered.Thoroughness))
+ 					break
+ 				}
+ 			}
++			traceP3Trial(try, crossings, bestCrossings, basegraph.Get(&graph.Properties, layered.Thoroughness))
+ 		}
+ 		return
+ 	}
+@@ -216,9 +224,11 @@
+ 			bestCrossings = crossings
+ 			minimizer.saveAllNodeOrdersOfChangedGraphs()
+ 			if bestCrossings == 0 {
++				traceP3Trial(try, crossings, bestCrossings, basegraph.Get(&graph.Properties, layered.Thoroughness))
+ 				break
+ 			}
+ 		}
++		traceP3Trial(try, crossings, bestCrossings, basegraph.Get(&graph.Properties, layered.Thoroughness))
+ 	}
+ }
+ 
+@@ -257,6 +267,7 @@
+ 	}
+ 
+ 	crossingsInGraph := minimizer.countCurrentNumberOfCrossings(arena, graphIndex)
++	traceP3CrossingCount("first_sweep", crossingsInGraph)
+ 	oldCrossings := crossingsInGraph
+ 	for {
+ 		minimizer.setCurrentlyBestNodeOrders(arena)
+@@ -267,6 +278,7 @@
+ 		oldCrossings = crossingsInGraph
+ 		minimizer.sweepReducingCrossings(arena, graphIndex, forward, false)
+ 		crossingsInGraph = minimizer.countCurrentNumberOfCrossings(arena, graphIndex)
++		traceP3CrossingCount("reversed_sweep", crossingsInGraph)
+ 		if oldCrossings <= crossingsInGraph {
+ 			return oldCrossings
+ 		}
+diff --git a/internal/layered/p3order/barycenter_heuristic.go b/internal/layered/p3order/barycenter_heuristic.go
+--- a/internal/layered/p3order/barycenter_heuristic.go
++++ b/internal/layered/p3order/barycenter_heuristic.go
+@@ -37,6 +37,7 @@
+ 	layer *[]layered.LNodeID,
+ 	preordered, randomize, forward bool,
+ ) {
++	traceP3LayerStart(heuristic.Arena, *layer, preordered, randomize, forward)
+ 	if randomize {
+ 		heuristic.randomizeBarycenters(*layer)
+ 	} else {
+@@ -45,17 +46,20 @@
+ 	}
+ 	traceBarycenterCandidates(heuristic.Arena, heuristic.Resolver, *layer, preordered, randomize, forward)
+ 	if len(*layer) <= 1 {
++		traceP3LayerOrder(heuristic.Arena, *layer)
+ 		return
+ 	}
+ 	if heuristic.ModelOrder != nil {
+ 		heuristic.ModelOrder.sort(heuristic, *layer)
+ 		if heuristic.ModelOrder.ForceNodeModelOrder {
++			traceP3LayerOrder(heuristic.Arena, *layer)
+ 			return
+ 		}
+ 	} else {
+ 		javacompat.GWTStableSort(*layer, heuristic.compareBarycenters)
+ 	}
+ 	heuristic.Resolver.ProcessConstraints(heuristic.Arena, layer)
++	traceP3LayerOrder(heuristic.Arena, *layer)
+ }
+ 
+ func (heuristic *BarycenterHeuristic) MinimizeCrossings(
+diff --git a/internal/layered/p3order/diagnostic_trace.go b/internal/layered/p3order/diagnostic_trace.go
+--- a/internal/layered/p3order/diagnostic_trace.go
++++ b/internal/layered/p3order/diagnostic_trace.go
+@@ -18,6 +18,91 @@
+ 	"github.com/d2lang/elk-go/internal/layered"
+ )
+ 
++func traceP3Phase(phase string) {
++	if os.Getenv("D2_ELK_TRACE") == "" {
++		return
++	}
++	encoded, err := json.Marshal(struct {
++		Stage string `json:"stage"`
++		Phase string `json:"phase"`
++	}{"p3-phase", phase})
++	if err != nil {
++		fmt.Fprintln(os.Stderr, "elk trace encoding failed:", err)
++		return
++	}
++	fmt.Fprintln(os.Stderr, string(encoded))
++}
++
++func traceP3Configuration(thoroughness, crossMinType int) {
++	if os.Getenv("D2_ELK_TRACE") == "" {
++		return
++	}
++	encoded, err := json.Marshal(struct {
++		Stage        string `json:"stage"`
++		Thoroughness int    `json:"thoroughness"`
++		CrossMinType int    `json:"cross_min_type"`
++	}{"p3-config", thoroughness, crossMinType})
++	if err != nil {
++		fmt.Fprintln(os.Stderr, "elk trace encoding failed:", err)
++		return
++	}
++	fmt.Fprintln(os.Stderr, string(encoded))
++}
++
++func traceP3Trial(trial int, crossings, bestCrossings any, limit int) {
++	if os.Getenv("D2_ELK_TRACE") == "" {
++		return
++	}
++	encoded, err := json.Marshal(struct {
++		Stage         string `json:"stage"`
++		Trial         int    `json:"trial"`
++		Crossings     any    `json:"crossings"`
++		BestCrossings any    `json:"best_crossings"`
++		Limit         int    `json:"limit"`
++	}{"p3-trial", trial, crossings, bestCrossings, limit})
++	if err != nil {
++		fmt.Fprintln(os.Stderr, "elk trace encoding failed:", err)
++		return
++	}
++	fmt.Fprintln(os.Stderr, string(encoded))
++}
++
++func traceP3CrossingCount(sweep string, crossings int) {
++	if os.Getenv("D2_ELK_TRACE") == "" {
++		return
++	}
++	encoded, err := json.Marshal(struct {
++		Stage     string `json:"stage"`
++		Sweep     string `json:"sweep"`
++		Crossings int    `json:"crossings"`
++	}{"p3-crossing-count", sweep, crossings})
++	if err != nil {
++		fmt.Fprintln(os.Stderr, "elk trace encoding failed:", err)
++		return
++	}
++	fmt.Fprintln(os.Stderr, string(encoded))
++}
++
++func traceP3LayerOrder(arena *layered.LGraphArena, nodes []layered.LNodeID) {
++	if os.Getenv("D2_ELK_TRACE") == "" || len(nodes) == 0 {
++		return
++	}
++	ids := make([]int, len(nodes))
++	for index, nodeID := range nodes {
++		ids[index] = int(nodeID)
++	}
++	encoded, err := json.Marshal(struct {
++		Stage string `json:"stage"`
++		Layer int    `json:"layer"`
++		Nodes []int  `json:"nodes"`
++	}{"p3-layer-order", arena.Layer(*arena.Node(nodes[0]).Layer).ID, ids})
++	if err != nil {
++		fmt.Fprintln(os.Stderr, "elk trace encoding failed:", err)
++		return
++	}
++	fmt.Fprintln(os.Stderr, string(encoded))
++}
++
+ type tracedBarycenter struct {
+ 	Name        string   `json:"name"`
+ 	Type        int      `json:"type"`
+@@ -102,3 +187,77 @@
+ 	}
+ 	fmt.Fprintln(os.Stderr, string(encoded))
+ }
++
++func traceGraphScope(arena *layered.LGraphArena, graphIndex int, holder *GraphInfoHolder) {
++	if os.Getenv("D2_ELK_TRACE") == "" {
++		return
++	}
++	graph := arena.Graph(holder.LGraph)
++	type tracedLayer struct {
++		Index int   `json:"index"`
++		Nodes []int `json:"nodes"`
++		Ports [][]int `json:"ports"`
++	}
++	layers := make([]tracedLayer, 0, len(holder.CurrentNodeOrder))
++	for index, nodes := range holder.CurrentNodeOrder {
++		ids := make([]int, len(nodes))
++		portsByNode := make([][]int, len(nodes))
++		for nodeIndex, nodeID := range nodes {
++			ids[nodeIndex] = int(nodeID)
++			ports := arena.Node(nodeID).Ports
++			portIDs := make([]int, len(ports))
++			for index, portID := range ports {
++				portIDs[index] = int(portID)
++			}
++			portsByNode[nodeIndex] = portIDs
++		}
++		layers = append(layers, tracedLayer{Index: index, Nodes: ids, Ports: portsByNode})
++	}
++	children := make([]int, len(holder.ChildGraphs))
++	for index, child := range holder.ChildGraphs {
++		children[index] = int(child)
++	}
++	parentGraph := -1
++	if holder.HasParent {
++		parentGraph = int(arena.Graph(arena.Node(*holder.Parent).Graph).ID)
++	}
++	encoded, err := json.Marshal(struct {
++		Stage         string        `json:"stage"`
++		GraphIndex    int           `json:"graph_index"`
++		ArenaGraph    int           `json:"arena_graph"`
++		ParentGraph   int           `json:"parent_graph"`
++		DontSweepInto bool          `json:"dont_sweep_into"`
++		Layers        []tracedLayer `json:"layers"`
++		Children      []int         `json:"children"`
++	}{"p3-graph-scope", graph.ID, int(holder.LGraph), parentGraph, holder.DontSweepInto(), layers, children})
++	if err != nil {
++		fmt.Fprintln(os.Stderr, "elk trace encoding failed:", err)
++		return
++	}
++	fmt.Fprintln(os.Stderr, string(encoded))
++}
++
++func traceP3LayerStart(arena *layered.LGraphArena, nodes []layered.LNodeID, preordered, randomized, forward bool) {
++	if os.Getenv("D2_ELK_TRACE") == "" || len(nodes) == 0 {
++		return
++	}
++	node := arena.Node(nodes[0])
++	ids := make([]int, len(nodes))
++	for index, nodeID := range nodes {
++		ids[index] = int(nodeID)
++	}
++	encoded, err := json.Marshal(struct {
++		Stage      string `json:"stage"`
++		GraphIndex int    `json:"graph_index"`
++		Layer      int    `json:"layer"`
++		Preordered bool   `json:"preordered"`
++		Randomized bool   `json:"randomized"`
++		Forward    bool   `json:"forward"`
++		Nodes      []int  `json:"nodes"`
++	}{"p3-layer-start", arena.Graph(node.Graph).ID, arena.Layer(*node.Layer).ID, preordered, randomized, forward, ids})
++	if err != nil {
++		fmt.Fprintln(os.Stderr, "elk trace encoding failed:", err)
++		return
++	}
++	fmt.Fprintln(os.Stderr, string(encoded))
++}
+diff --git a/internal/layered/p3order/diagnostic_trace_off.go b/internal/layered/p3order/diagnostic_trace_off.go
+--- a/internal/layered/p3order/diagnostic_trace_off.go
++++ b/internal/layered/p3order/diagnostic_trace_off.go
+@@ -13,4 +13,11 @@
+ import "github.com/d2lang/elk-go/internal/layered"
+ 
+ func traceBarycenterCandidates(*layered.LGraphArena, *ForsterConstraintResolver, []layered.LNodeID, bool, bool, bool) {}
++func traceP3Phase(string) {}
++func traceP3Configuration(int, int) {}
++func traceP3Trial(int, any, any, int) {}
++func traceP3CrossingCount(string, int) {}
++func traceP3LayerOrder(*layered.LGraphArena, []layered.LNodeID) {}
+ func traceFixedPortRank(*layered.LGraphArena, layered.LNodeID, layered.LPortID, float32, PortDistributorKind, bool) {}
++func traceGraphScope(*layered.LGraphArena, int, *GraphInfoHolder) {}
++func traceP3LayerStart(*layered.LGraphArena, []layered.LNodeID, bool, bool, bool) {}
+
+diff --git a/internal/layered/p3order/greedy_switch_heuristic.go b/internal/layered/p3order/greedy_switch_heuristic.go
+--- a/internal/layered/p3order/greedy_switch_heuristic.go
++++ b/internal/layered/p3order/greedy_switch_heuristic.go
+@@ -102,6 +102,8 @@
+ 	for upper := 0; upper+1 < len(order[layerIndex]); upper++ {
+ 		lower := upper + 1
+-		if !decider.DoesSwitchReduceCrossings(heuristic.Arena, upper, lower) {
++		accepted := decider.DoesSwitchReduceCrossings(heuristic.Arena, upper, lower)
++		traceGreedySwitchDecision(heuristic.Arena, layerIndex, order[layerIndex][upper], order[layerIndex][lower], accepted)
++		if !accepted {
+ 			continue
+ 		}
+ 		decider.NotifyOfSwitch(heuristic.Arena, order[layerIndex][upper], order[layerIndex][lower])
+diff --git a/internal/layered/p3order/diagnostic_trace.go b/internal/layered/p3order/diagnostic_trace.go
+--- a/internal/layered/p3order/diagnostic_trace.go
++++ b/internal/layered/p3order/diagnostic_trace.go
+@@ -18,5 +18,25 @@
+ 	"github.com/d2lang/elk-go/internal/layered"
+ )
+ 
++func traceGreedySwitchDecision(arena *layered.LGraphArena, layerIndex int, upper, lower layered.LNodeID, accepted bool) {
++	if os.Getenv("D2_ELK_TRACE") == "" {
++		return
++	}
++	encoded, err := json.Marshal(struct {
++		Stage string `json:"stage"`
++		Layer int `json:"layer"`
++		Upper int `json:"upper"`
++		Lower int `json:"lower"`
++		UpperType int `json:"upper_type"`
++		LowerType int `json:"lower_type"`
++		Accepted bool `json:"accepted"`
++	}{"p3-greedy-switch", layerIndex, int(upper), int(lower), int(arena.Node(upper).Type), int(arena.Node(lower).Type), accepted})
++	if err != nil {
++		fmt.Fprintln(os.Stderr, "elk trace encoding failed:", err)
++		return
++	}
++	fmt.Fprintln(os.Stderr, string(encoded))
++}
++
+ func traceP3Phase(phase string) {
+ 	if os.Getenv("D2_ELK_TRACE") == "" {
+diff --git a/internal/layered/p3order/diagnostic_trace_off.go b/internal/layered/p3order/diagnostic_trace_off.go
+--- a/internal/layered/p3order/diagnostic_trace_off.go
++++ b/internal/layered/p3order/diagnostic_trace_off.go
+@@ -13,6 +13,7 @@
+ import "github.com/d2lang/elk-go/internal/layered"
+ 
+ func traceBarycenterCandidates(*layered.LGraphArena, *ForsterConstraintResolver, []layered.LNodeID, bool, bool, bool) {}
++func traceGreedySwitchDecision(*layered.LGraphArena, int, layered.LNodeID, layered.LNodeID, bool) {}
+ func traceP3Phase(string) {}
+ func traceP3Configuration(int, int) {}

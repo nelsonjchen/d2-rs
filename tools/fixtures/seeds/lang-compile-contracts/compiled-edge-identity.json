@@ -1,0 +1,162 @@
+[
+ {
+  "name": "different-pairs",
+  "source": "a -> b\nb -> c\n"
+ },
+ {
+  "name": "same-pair",
+  "source": "a -> b: one\na -> b: two\n"
+ },
+ {
+  "name": "reversed-pair",
+  "source": "a -> b\nb <- a\n"
+ },
+ {
+  "name": "interleaved",
+  "source": "a -> b\nb -> c\na -> b\n"
+ },
+ {
+  "name": "compile-before-sort",
+  "source": "a -> b: first\nx: {_.a -> _.b: second}\n"
+ },
+ {
+  "name": "table-before-sort",
+  "source": "a: {shape: sql_table; id: int; name: text}\nb: {shape: sql_table; id: int}\na.name -> b.id: first\nx: {_.a.id -> _.b.id: second}\n"
+ },
+ {
+  "name": "sequence",
+  "source": "shape: sequence_diagram\na; b; c\na -> b\nb -> c\n"
+ },
+ {
+  "name": "aliases",
+  "source": "vars: {group: {a -> b}}\nx: ${group}\ny: ${group}\n"
+ },
+ {
+  "name": "sql_table-self-0",
+  "source": "t -> t: outside\nt: {shape: sql_table; x: int; y: int; x -> y: inside}\n"
+ },
+ {
+  "name": "sql_table-self-1",
+  "source": "t: {shape: sql_table; x: int; y: int; x -> y: inside}\nt -> t: outside\n"
+ },
+ {
+  "name": "class-self-0",
+  "source": "t -> t: outside\nt: {shape: class; x: int; y: int; x -> y: inside}\n"
+ },
+ {
+  "name": "class-self-1",
+  "source": "t: {shape: class; x: int; y: int; x -> y: inside}\nt -> t: outside\n"
+ },
+ {
+  "name": "arrows------",
+  "source": "a -- b\nb -- a\na -- b\n"
+ },
+ {
+  "name": "arrows----->",
+  "source": "a -- b\nb -> a\na -- b\n"
+ },
+ {
+  "name": "arrows----<-",
+  "source": "a -- b\nb <- a\na -- b\n"
+ },
+ {
+  "name": "arrows----<->",
+  "source": "a -- b\nb <-> a\na -- b\n"
+ },
+ {
+  "name": "arrows-->---",
+  "source": "a -> b\nb -- a\na -> b\n"
+ },
+ {
+  "name": "arrows-->-->",
+  "source": "a -> b\nb -> a\na -> b\n"
+ },
+ {
+  "name": "arrows-->-<-",
+  "source": "a -> b\nb <- a\na -> b\n"
+ },
+ {
+  "name": "arrows-->-<->",
+  "source": "a -> b\nb <-> a\na -> b\n"
+ },
+ {
+  "name": "arrows-<----",
+  "source": "a <- b\nb -- a\na <- b\n"
+ },
+ {
+  "name": "arrows-<--->",
+  "source": "a <- b\nb -> a\na <- b\n"
+ },
+ {
+  "name": "arrows-<--<-",
+  "source": "a <- b\nb <- a\na <- b\n"
+ },
+ {
+  "name": "arrows-<--<->",
+  "source": "a <- b\nb <-> a\na <- b\n"
+ },
+ {
+  "name": "arrows-<->---",
+  "source": "a <-> b\nb -- a\na <-> b\n"
+ },
+ {
+  "name": "arrows-<->-->",
+  "source": "a <-> b\nb -> a\na <-> b\n"
+ },
+ {
+  "name": "arrows-<->-<-",
+  "source": "a <-> b\nb <- a\na <-> b\n"
+ },
+ {
+  "name": "arrows-<->-<->",
+  "source": "a <-> b\nb <-> a\na <-> b\n"
+ },
+ {
+  "name": "scoped",
+  "source": "x: {a -> b; b -> c; a -> b}\n"
+ },
+ {
+  "name": "quoted",
+  "source": "\"x.y\": {\"a.b\" -> \"c.d\"; \"c.d\" <- \"a.b\"}\n"
+ },
+ {
+  "name": "unicode",
+  "source": "K -> B\nK -> b\nB <- k\n"
+ },
+ {
+  "name": "self",
+  "source": "a -> a\na <- a\na -- a\na <-> a\n"
+ },
+ {
+  "name": "glob",
+  "source": "x: {a; b; c; * -> z}\n"
+ },
+ {
+  "name": "glob-duplicate",
+  "source": "x: {a; b; c; * -> z; * -> z}\n"
+ },
+ {
+  "name": "empty",
+  "source": ""
+ },
+ {
+  "name": "no-edges",
+  "source": "a; b"
+ },
+ {
+  "name": "nested-sequence",
+  "source": "q: {shape: sequence_diagram; a; b; c; group: {a -> b; b -> c}; a -> b}\n"
+ },
+ {
+  "name": "cross-scope",
+  "source": "x.a -> y.b\nx.a -> y.c\ny.b <- x.a\n"
+ },
+ {
+  "name": "member-order",
+  "source": "a -> b: first\na: {shape: sql_table; id: int; id -> _.b.id: second}\nb: {shape: sql_table; id: int}\n"
+ },
+ {
+  "name": "alias-table",
+  "source": "vars: {table: {shape: sql_table; x: int; y: int; x -> y}}\na: ${table}\nb: ${table}\na -> a\nb -> b\n"
+ }
+]

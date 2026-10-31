@@ -1,0 +1,34 @@
+diff --git a/e2etests/e2e_test.go b/e2etests/e2e_test.go
+index ead35ea93..6649d8f88 100644
+--- a/e2etests/e2e_test.go
++++ b/e2etests/e2e_test.go
+@@ -1,6 +1,7 @@
+ package e2etests
+ 
+ import (
++	"encoding/json"
+ 	"context"
+ 	"encoding/xml"
+ 	"fmt"
+@@ -285,6 +286,21 @@ func serde(t *testing.T, tc testCase, ruler *textmeasure.Ruler) {
+ }
+ 
+ func run(t *testing.T, tc testCase) {
++	if dumpDir := os.Getenv("D2RS_E2E_DUMP"); dumpDir != "" {
++		// d2-rs instrumentation: record the case inputs and skip layout.
++		rec := map[string]interface{}{
++			"name": strings.TrimPrefix(t.Name(), "TestE2E/"), "script": tc.script,
++			"justDagre": tc.justDagre, "hasMtexts": tc.mtexts != nil, "themeID": tc.themeID,
++			"expErr": tc.expErr, "talaLayoutError": tc.talaLayoutError,
++			"dagreFeatureError": tc.dagreFeatureError, "elkFeatureError": tc.elkFeatureError,
++			"testSerialization": tc.testSerialization, "hasAssertions": tc.assertions != nil,
++		}
++		b, err := json.Marshal(rec)
++		trequire.Nil(t, err)
++		fn := strings.NewReplacer("/", "__").Replace(strings.TrimPrefix(t.Name(), "TestE2E/")) + ".json"
++		trequire.Nil(t, os.WriteFile(filepath.Join(dumpDir, fn), b, 0644))
++		return
++	}
+ 	ctx := context.Background()
+ 	ctx = log.With(ctx, testlog.New(t))
+ 	ctx = log.Leveled(ctx, slog.LevelDebug)

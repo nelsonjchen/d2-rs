@@ -1,0 +1,24 @@
+--- a/d2layouts/d2talalayout/internal/routing/slingshot.go
++++ b/d2layouts/d2talalayout/internal/routing/slingshot.go
+@@ -603,7 +603,9 @@
+ 				return false, err
+ 			}
+ 			overlappingEdges = append(overlappingEdges, route.GEdge)
+-			if gEdge.IsDirected() && route.isOpposingColinear(from, to) {
++			opposing := gEdge.IsDirected() && route.isOpposingColinear(from, to)
++			router.traceSlingshotOccupiedRoute(gEdge, route, from, to, opposing)
++			if opposing {
+ 				return true, nil
+ 			}
+ 		}
+--- a/d2layouts/d2talalayout/internal/routing/ovg_edge_router.go
++++ b/d2layouts/d2talalayout/internal/routing/ovg_edge_router.go
+@@ -2040,3 +2040,8 @@
+  fmt.Fprintln(os.Stderr,string(data))
+  }
+ }
++
++func (router *ovgEdgeRouter) traceSlingshotOccupiedRoute(edge *layoutgraph.Edge, route *Route, from,to *OVGNode, opposing bool) {
++ if os.Getenv("D2_TRACE_SLINGSHOT_CHECK_EDGE") != fmt.Sprint(edge.ID) { return }
++ data,_:=json.Marshal(map[string]any{"event":"slingshot-occupied-route","scope_nodes":len(router.graph.Nodes),"scope_edges":len(router.graph.Edges),"edge":edge.ID,"flavor":fmt.Sprint(router.flavor),"other":route.GEdge.ID,"nodes":len(route.OVGNodes),"opposing":opposing,"from":[]string{fmt.Sprintf("%016x",math.Float64bits(from.X)),fmt.Sprintf("%016x",math.Float64bits(from.Y))},"to":[]string{fmt.Sprintf("%016x",math.Float64bits(to.X)),fmt.Sprintf("%016x",math.Float64bits(to.Y))},"work":router.work.used});fmt.Fprintln(os.Stderr,string(data))
++}

@@ -1,0 +1,97 @@
+// SPDX-License-Identifier: MPL-2.0
+
+// Recipe hook template (tools/fixtures/langlibelk-elk-adapter.toml,
+// elk-adapter-margin-shrink). scripts/check-elk-adapter.py replaces the
+// D2RS-UPSTREAM-MARGIN-BLOCK line with the margin-shrinking block copied
+// verbatim from the pinned d2layouts/d2elklayout/layout.go (it is inline in
+// Layout, not a function of its own) and overlays the result into the
+// package. Inert unless D2RS_RECIPE_OUTPUT is set.
+package d2elklayout
+
+import (
+	"encoding/json"
+	"os"
+	"testing"
+
+	"github.com/d2lang/d2/d2graph"
+	"github.com/d2lang/d2/lib/geo"
+)
+
+func d2rsUpstreamMarginBlock(g *d2graph.Graph, adjustments map[*d2graph.Object]geo.Spacing) {
+	// D2RS-UPSTREAM-MARGIN-BLOCK
+}
+
+type d2rsMarginNode struct {
+	X, Y, W, H float64
+	Parent     *int
+	Margin     geo.Spacing
+}
+type d2rsMarginEdge struct {
+	Source, Target int
+	Route          []*geo.Point
+}
+type d2rsMarginCase struct {
+	Name           string
+	Nodes          []d2rsMarginNode
+	Edges          []d2rsMarginEdge
+	Order          []int
+	ExpectedBoxes  [][4]float64
+	ExpectedRoutes [][]*geo.Point
+}
+
+func TestD2RSMarginShrink(t *testing.T) {
+	out := os.Getenv("D2RS_RECIPE_OUTPUT")
+	if out == "" {
+		t.Skip("run via scripts/regen-fixtures.py")
+	}
+	raw, err := os.ReadFile(os.Getenv("D2RS_RECIPE_INPUT"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rows []d2rsMarginCase
+	if err = json.Unmarshal(raw, &rows); err != nil {
+		t.Fatal(err)
+	}
+	for ri := range rows {
+		c := &rows[ri]
+		g := &d2graph.Graph{Root: &d2graph.Object{Box: geo.NewBox(geo.NewPoint(0, 0), 0, 0)}}
+		objects := make([]*d2graph.Object, len(c.Nodes))
+		adjustments := map[*d2graph.Object]geo.Spacing{}
+		for i, n := range c.Nodes {
+			objects[i] = &d2graph.Object{Box: geo.NewBox(geo.NewPoint(n.X, n.Y), n.W, n.H)}
+		}
+		for i, n := range c.Nodes {
+			parent := g.Root
+			if n.Parent != nil {
+				parent = objects[*n.Parent]
+			}
+			objects[i].Parent = parent
+			parent.ChildrenArray = append(parent.ChildrenArray, objects[i])
+			adjustments[objects[i]] = n.Margin
+		}
+		for _, i := range c.Order {
+			g.Objects = append(g.Objects, objects[i])
+		}
+		for _, e := range c.Edges {
+			route := make([]*geo.Point, len(e.Route))
+			for i, p := range e.Route {
+				route[i] = p.Copy()
+			}
+			g.Edges = append(g.Edges, &d2graph.Edge{Src: objects[e.Source], Dst: objects[e.Target], Route: route})
+		}
+		d2rsUpstreamMarginBlock(g, adjustments)
+		for _, o := range objects {
+			c.ExpectedBoxes = append(c.ExpectedBoxes, [4]float64{o.TopLeft.X, o.TopLeft.Y, o.Width, o.Height})
+		}
+		for _, e := range g.Edges {
+			c.ExpectedRoutes = append(c.ExpectedRoutes, e.Route)
+		}
+	}
+	raw, err = json.MarshalIndent(rows, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(out, append(raw, '\n'), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}

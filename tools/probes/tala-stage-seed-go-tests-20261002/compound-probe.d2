@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: MPL-2.0
+# Optional post-selection proposal trace seed provenance probe.
+direction: right
+one: {a -> b}
+two: {a -> b -> c}
+three: {a -> b -> c -> d}
+one.b -> two.a
+one.b -> three.a
+two.c -> three.d

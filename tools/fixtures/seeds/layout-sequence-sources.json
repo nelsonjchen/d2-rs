@@ -1,0 +1,23 @@
+{
+  "group-label-adjustment": {
+    "child_scope": "shape: sequence_diagram\na -> b\nphase: { west: { a -> b }; east: { a -> b } }\n",
+    "no_child": "shape: sequence_diagram\na -> b\nphase: { _.a -> _.b }\n",
+    "parent_scope": "shape: sequence_diagram\na -> b\nphase: { a.x -> b.y }\n"
+  },
+  "note-source-order": {
+    "note-between": "shape: sequence_diagram\na -> b\na: {note: Notice}\nphase: {_.a -> _.b}\n"
+  },
+  "lifeline-source-order": {
+    "explicit_after_glob": "shape: sequence_diagram\na; b\na -> *\na -> b: explicit\na: {note: Notice}\n",
+    "self_before_glob": "shape: sequence_diagram\na; b\na -> *\na -> a: self\na: {note: Notice}\n",
+    "multiple_globs": "shape: sequence_diagram\na; b; c\na -> *\na -> b: explicit\nc -> *\na: {note: Notice}\n",
+    "same_line": "shape: sequence_diagram; a; b; a -> *; a -> b: explicit; a: {note: Notice}\n",
+    "many_equal_lines": "shape: sequence_diagram\na; b; c\na -> *\na -> *\na -> *\na -> *\na -> *\na -> *\na -> *\na -> *\na -> *\na -> *\na -> *\na -> *\na -> *\na -> *\na -> *\na -> *\n",
+    "large_equal_lines": "shape: sequence_diagram\na; b00; b01; b02; b03; b04; b05; b06; b07; b08; b09; b10; b11; b12; b13; b14; b15\na -> *\n"
+  },
+  "invalid-positions": {
+    "outward-object-scope-theme0": "shape: sequence_diagram\na -> b\nphase: {_.a.label: A}\n",
+    "nested-outward-object-scope-theme0": "outer: {\nshape: sequence_diagram\na -> b\nphase: {_.a.label: A}\n}\n",
+    "empty-child": "shape: sequence_diagram\na -> b\nphase: { west: { a -> b }; note }\n"
+  }
+}

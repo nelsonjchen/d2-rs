@@ -1,0 +1,50 @@
+[
+ {
+  "name": "edge",
+  "source": "a -> b: message"
+ },
+ {
+  "name": "container",
+  "source": "box: {a -> b}; box -> outside"
+ },
+ {
+  "name": "class",
+  "source": "A: {shape: class; +field: int; method(): string}"
+ },
+ {
+  "name": "table",
+  "source": "T: {shape: sql_table; id: int {constraint: primary_key}; value: string}"
+ },
+ {
+  "name": "markdown",
+  "source": "a: |md\n # Heading\n - item\n|\na -> b"
+ },
+ {
+  "name": "equation",
+  "source": "formula: {\n  equation: |latex\n    \\begin{equation} \\label{eq1}\n    \\begin{split}\n    A & = \\frac{\\\\pi r^2}{2} \\\\\n     & = \\frac{1}{2} \\pi r^2\n    \\end{split}\n    \\end{equation}\n  |\n}\n\n"
+ },
+ {
+  "name": "sequence",
+  "source": "shape: sequence_diagram\na -> b: message\nb -> a: reply"
+ },
+ {
+  "name": "boards",
+  "source": "a -> b\nlayers: {alt: {c -> d}}"
+ },
+ {
+  "name": "empty",
+  "source": ""
+ },
+ {
+  "name": "literal",
+  "source": "a: \"☁ ╭ ┌ ▶ ` é🙂\""
+ },
+ {
+  "name": "document",
+  "source": "a: Document {shape: document}\na -> b"
+ },
+ {
+  "name": "configured",
+  "source": "vars: {d2-config: {layout-engine: dagre}}\na -> b: configured"
+ }
+]

@@ -1,0 +1,424 @@
+# D2 d2renderers/d2latex Render/Measure rows (mathjax-go behind D2's input
+# limits) for the d2-rs-math TeX contract tests. See docs/FIXTURES.md.
+#
+# Every recipe runs the same hook, tools/fixtures/hooks/mathtext-latex/
+# d2rs_latex_test.go, over a committed expression list in
+# tools/fixtures/inputs/mathtext-latex/<name>.json (extracted from the former
+# v0.9.0 captures). The env selects the row layout the reader expects:
+# D2RS_LATEX_ERRORS (always | omitempty), D2RS_LATEX_JSON (indent | compact,
+# optional -escape) and D2RS_LATEX_HEADER=1 for the {upstream_commit,
+# mathjax_go, licenses, cases} wrapper.
+#
+# Regenerate:  uv run --no-project python scripts/regen-fixtures.py --only 'mathtext-latex-*'
+# Test:        cargo test -p d2-rs-math --features oracle-fixtures
+
+[defaults]
+kind = "go-test-hook"
+package = "d2renderers/d2latex"
+hooks = ["tools/fixtures/hooks/mathtext-latex/d2rs_latex_test.go"]
+test = "TestD2RSCaptureLatex"
+timeout = 1800
+
+[defaults.key_deps]
+upstream_paths = ["d2renderers/d2latex", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "mathtext-latex-aboxed"
+outputs = ["crates/d2-rs-math/tests/fixtures/aboxed-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/aboxed.json"]
+env = { D2RS_LATEX_ERRORS = "always", D2RS_LATEX_JSON = "indent" }
+
+[[recipe]]
+name = "mathtext-latex-adjustlimits"
+outputs = ["crates/d2-rs-math/tests/fixtures/adjustlimits-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/adjustlimits.json"]
+env = { D2RS_LATEX_ERRORS = "always", D2RS_LATEX_JSON = "indent" }
+
+[[recipe]]
+name = "mathtext-latex-aligned"
+outputs = ["crates/d2-rs-math/tests/fixtures/aligned-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/aligned.json"]
+env = { D2RS_LATEX_ERRORS = "omitempty", D2RS_LATEX_JSON = "compact-escape" }
+
+[[recipe]]
+name = "mathtext-latex-alignment-marks"
+outputs = ["crates/d2-rs-math/tests/fixtures/alignment-marks-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/alignment-marks.json"]
+env = { D2RS_LATEX_ERRORS = "always", D2RS_LATEX_JSON = "indent" }
+
+[[recipe]]
+name = "mathtext-latex-ams"
+outputs = ["crates/d2-rs-math/tests/fixtures/ams-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/ams.json"]
+env = { D2RS_LATEX_ERRORS = "omitempty", D2RS_LATEX_JSON = "indent" }
+
+[[recipe]]
+name = "mathtext-latex-brackets"
+outputs = ["crates/d2-rs-math/tests/fixtures/brackets-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/brackets.json"]
+env = { D2RS_LATEX_ERRORS = "always", D2RS_LATEX_JSON = "indent" }
+
+[[recipe]]
+name = "mathtext-latex-braket"
+outputs = ["crates/d2-rs-math/tests/fixtures/braket-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/braket.json"]
+env = { D2RS_LATEX_ERRORS = "omitempty", D2RS_LATEX_JSON = "compact-escape" }
+
+[[recipe]]
+name = "mathtext-latex-cfrac"
+outputs = ["crates/d2-rs-math/tests/fixtures/cfrac-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/cfrac.json"]
+env = { D2RS_LATEX_ERRORS = "always", D2RS_LATEX_JSON = "indent" }
+
+[[recipe]]
+name = "mathtext-latex-classes"
+outputs = ["crates/d2-rs-math/tests/fixtures/classes-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/classes.json"]
+env = { D2RS_LATEX_ERRORS = "omitempty", D2RS_LATEX_JSON = "indent-escape" }
+
+[[recipe]]
+name = "mathtext-latex-compound-font"
+outputs = ["crates/d2-rs-math/tests/fixtures/compound-font-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/compound-font.json"]
+env = { D2RS_LATEX_ERRORS = "omitempty", D2RS_LATEX_JSON = "indent" }
+
+[[recipe]]
+name = "mathtext-latex-enclose"
+outputs = ["crates/d2-rs-math/tests/fixtures/enclose-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/enclose.json"]
+env = { D2RS_LATEX_ERRORS = "omitempty", D2RS_LATEX_JSON = "indent" }
+
+[[recipe]]
+name = "mathtext-latex-environment-arguments"
+outputs = ["crates/d2-rs-math/tests/fixtures/environment-arguments-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/environment-arguments.json"]
+env = { D2RS_LATEX_ERRORS = "always", D2RS_LATEX_JSON = "indent" }
+
+[[recipe]]
+name = "mathtext-latex-equation-split-nested"
+outputs = ["crates/d2-rs-math/tests/fixtures/equation-split-nested-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/equation-split-nested.json"]
+env = { D2RS_LATEX_ERRORS = "always", D2RS_LATEX_JSON = "indent", D2RS_LATEX_HEADER = "1" }
+
+[[recipe]]
+name = "mathtext-latex-fixed-accents"
+outputs = ["crates/d2-rs-math/tests/fixtures/fixed-accents-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/fixed-accents.json"]
+env = { D2RS_LATEX_ERRORS = "always", D2RS_LATEX_JSON = "indent" }
+
+[[recipe]]
+name = "mathtext-latex-font-declarations"
+outputs = ["crates/d2-rs-math/tests/fixtures/font-declarations-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/font-declarations.json"]
+env = { D2RS_LATEX_ERRORS = "always", D2RS_LATEX_JSON = "indent" }
+
+[[recipe]]
+name = "mathtext-latex-font-wrappers"
+outputs = ["crates/d2-rs-math/tests/fixtures/font-wrappers-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/font-wrappers.json"]
+env = { D2RS_LATEX_ERRORS = "always", D2RS_LATEX_JSON = "indent" }
+
+[[recipe]]
+name = "mathtext-latex-fraction-frame"
+outputs = ["crates/d2-rs-math/tests/fixtures/fraction-frame-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/fraction-frame.json"]
+env = { D2RS_LATEX_ERRORS = "omitempty", D2RS_LATEX_JSON = "indent-escape" }
+
+[[recipe]]
+name = "mathtext-latex-general-fraction"
+outputs = ["crates/d2-rs-math/tests/fixtures/general-fraction-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/general-fraction.json"]
+env = { D2RS_LATEX_ERRORS = "always", D2RS_LATEX_JSON = "indent" }
+
+[[recipe]]
+name = "mathtext-latex-host-primitives"
+outputs = ["crates/d2-rs-math/tests/fixtures/host-primitives-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/host-primitives.json"]
+env = { D2RS_LATEX_ERRORS = "omitempty", D2RS_LATEX_JSON = "indent-escape" }
+
+[[recipe]]
+name = "mathtext-latex-line-accents"
+outputs = ["crates/d2-rs-math/tests/fixtures/line-accents-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/line-accents.json"]
+env = { D2RS_LATEX_ERRORS = "always", D2RS_LATEX_JSON = "indent" }
+
+[[recipe]]
+name = "mathtext-latex-literal-font"
+outputs = ["crates/d2-rs-math/tests/fixtures/literal-font-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/literal-font.json"]
+env = { D2RS_LATEX_ERRORS = "omitempty", D2RS_LATEX_JSON = "indent" }
+
+[[recipe]]
+name = "mathtext-latex-matrix-table"
+outputs = ["crates/d2-rs-math/tests/fixtures/matrix-table-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/matrix-table.json"]
+env = { D2RS_LATEX_ERRORS = "omitempty", D2RS_LATEX_JSON = "indent-escape" }
+
+[[recipe]]
+name = "mathtext-latex-mhchem-host"
+outputs = ["crates/d2-rs-math/tests/fixtures/mhchem-host-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/mhchem-host.json"]
+env = { D2RS_LATEX_ERRORS = "omitempty", D2RS_LATEX_JSON = "indent" }
+
+[[recipe]]
+name = "mathtext-latex-multline-options-relations"
+outputs = ["crates/d2-rs-math/tests/fixtures/multline-options-relations-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/multline-options-relations.json"]
+env = { D2RS_LATEX_ERRORS = "always", D2RS_LATEX_JSON = "indent" }
+
+[[recipe]]
+name = "mathtext-latex-operator-context"
+outputs = ["crates/d2-rs-math/tests/fixtures/operator-context-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/operator-context.json"]
+env = { D2RS_LATEX_ERRORS = "omitempty", D2RS_LATEX_JSON = "indent-escape" }
+
+[[recipe]]
+name = "mathtext-latex-paired-delimiters"
+outputs = ["crates/d2-rs-math/tests/fixtures/paired-delimiters-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/paired-delimiters.json"]
+env = { D2RS_LATEX_ERRORS = "always", D2RS_LATEX_JSON = "indent" }
+
+[[recipe]]
+name = "mathtext-latex-percentage-table"
+outputs = ["crates/d2-rs-math/tests/fixtures/percentage-table-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/percentage-table.json"]
+env = { D2RS_LATEX_ERRORS = "always", D2RS_LATEX_JSON = "indent" }
+
+[[recipe]]
+name = "mathtext-latex-physics"
+outputs = ["crates/d2-rs-math/tests/fixtures/physics-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/physics.json"]
+env = { D2RS_LATEX_ERRORS = "omitempty", D2RS_LATEX_JSON = "indent" }
+
+[[recipe]]
+name = "mathtext-latex-prescript"
+outputs = ["crates/d2-rs-math/tests/fixtures/prescript-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/prescript.json"]
+env = { D2RS_LATEX_ERRORS = "always", D2RS_LATEX_JSON = "indent" }
+
+[[recipe]]
+name = "mathtext-latex-prime-script"
+outputs = ["crates/d2-rs-math/tests/fixtures/prime-script-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/prime-script.json"]
+env = { D2RS_LATEX_ERRORS = "omitempty", D2RS_LATEX_JSON = "indent" }
+
+[[recipe]]
+name = "mathtext-latex-raw-operator"
+outputs = ["crates/d2-rs-math/tests/fixtures/raw-operator-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/raw-operator.json"]
+env = { D2RS_LATEX_ERRORS = "omitempty", D2RS_LATEX_JSON = "indent-escape" }
+
+[[recipe]]
+name = "mathtext-latex-set-macros"
+outputs = ["crates/d2-rs-math/tests/fixtures/set-macros-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/set-macros.json"]
+env = { D2RS_LATEX_ERRORS = "always", D2RS_LATEX_JSON = "indent" }
+
+[[recipe]]
+name = "mathtext-latex-sideset"
+outputs = ["crates/d2-rs-math/tests/fixtures/sideset-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/sideset.json"]
+env = { D2RS_LATEX_ERRORS = "always", D2RS_LATEX_JSON = "indent" }
+
+[[recipe]]
+name = "mathtext-latex-size"
+outputs = ["crates/d2-rs-math/tests/fixtures/size-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/size.json"]
+env = { D2RS_LATEX_ERRORS = "omitempty", D2RS_LATEX_JSON = "indent" }
+
+[[recipe]]
+name = "mathtext-latex-splitfrac"
+outputs = ["crates/d2-rs-math/tests/fixtures/splitfrac-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/splitfrac.json"]
+env = { D2RS_LATEX_ERRORS = "always", D2RS_LATEX_JSON = "indent" }
+
+[[recipe]]
+name = "mathtext-latex-spreadlines-flalign"
+outputs = ["crates/d2-rs-math/tests/fixtures/spreadlines-flalign-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/spreadlines-flalign.json"]
+env = { D2RS_LATEX_ERRORS = "always", D2RS_LATEX_JSON = "indent" }
+
+[[recipe]]
+name = "mathtext-latex-stacks"
+outputs = ["crates/d2-rs-math/tests/fixtures/stacks-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/stacks.json"]
+env = { D2RS_LATEX_ERRORS = "omitempty", D2RS_LATEX_JSON = "indent" }
+
+[[recipe]]
+name = "mathtext-latex-styles"
+outputs = ["crates/d2-rs-math/tests/fixtures/styles-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/styles.json"]
+env = { D2RS_LATEX_ERRORS = "omitempty", D2RS_LATEX_JSON = "indent" }
+
+[[recipe]]
+name = "mathtext-latex-table-prime"
+outputs = ["crates/d2-rs-math/tests/fixtures/table-prime-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/table-prime.json"]
+env = { D2RS_LATEX_ERRORS = "omitempty", D2RS_LATEX_JSON = "indent-escape" }
+
+[[recipe]]
+name = "mathtext-latex-tag-container"
+outputs = ["crates/d2-rs-math/tests/fixtures/tag-container-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/tag-container.json"]
+env = { D2RS_LATEX_ERRORS = "omitempty", D2RS_LATEX_JSON = "compact" }
+
+[[recipe]]
+name = "mathtext-latex-undefined-commands"
+outputs = ["crates/d2-rs-math/tests/fixtures/undefined-commands-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/undefined-commands.json"]
+env = { D2RS_LATEX_ERRORS = "omitempty", D2RS_LATEX_JSON = "indent" }
+
+[[recipe]]
+name = "mathtext-latex-under-over"
+outputs = ["crates/d2-rs-math/tests/fixtures/under-over-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/under-over.json"]
+env = { D2RS_LATEX_ERRORS = "always", D2RS_LATEX_JSON = "indent" }
+
+[[recipe]]
+name = "mathtext-latex-under-over-marks"
+outputs = ["crates/d2-rs-math/tests/fixtures/under-over-marks-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/under-over-marks.json"]
+env = { D2RS_LATEX_ERRORS = "always", D2RS_LATEX_JSON = "indent" }
+
+[[recipe]]
+name = "mathtext-latex-xarrows"
+outputs = ["crates/d2-rs-math/tests/fixtures/xarrows-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/xarrows.json"]
+env = { D2RS_LATEX_ERRORS = "omitempty", D2RS_LATEX_JSON = "indent-escape" }
+
+# d2svgimport ImportNode over MathJax SVG (crates/d2-rs-math/src/scene.rs).
+[[recipe]]
+name = "mathtext-latex-mathjax-scene"
+description = "Frozen MathJax roots, unit groups and text fallbacks: rendered and hand-edited SVGs"
+package = "d2renderers/d2svgimport"
+hooks = ["tools/fixtures/hooks/mathtext-latex-scene/d2rs_latex_scene_test.go"]
+test = "TestD2RSMathScene"
+outputs = ["crates/d2-rs-math/tests/fixtures/mathjax-scene-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex-scene/mathjax-scene.json"]
+key_deps.upstream_paths = ["d2renderers/d2svgimport", "d2renderers/d2scene", "internal/rasterimage", "lib/svg"]
+
+[[recipe]]
+name = "mathtext-latex-literal-font-scene"
+description = "ImportNode of the literal-font letter renders (literal, normal, script, fraction, named-command origins)"
+package = "d2renderers/d2svgimport"
+hooks = ["tools/fixtures/hooks/mathtext-latex-scene/d2rs_latex_scene_test.go"]
+test = "TestD2RSLiteralFontScene"
+after = ["mathtext-latex-literal-font"]
+outputs = ["crates/d2-rs-math/tests/fixtures/literal-font-scene-source-v090.json"]
+key_deps.upstream_paths = ["d2renderers/d2svgimport", "d2renderers/d2scene", "internal/rasterimage", "lib/svg"]
+
+
+# Second pass: the remaining d2latex row captures under 256 KB.
+
+[[recipe]]
+name = "mathtext-latex-amscd"
+outputs = ["crates/d2-rs-math/tests/fixtures/amscd-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/amscd.json"]
+env = { D2RS_LATEX_ERRORS = "omitempty", D2RS_LATEX_JSON = "indent-escape" }
+
+[[recipe]]
+name = "mathtext-latex-backslash"
+outputs = ["crates/d2-rs-math/tests/fixtures/backslash-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/backslash.json"]
+env = { D2RS_LATEX_ERRORS = "omitempty", D2RS_LATEX_JSON = "indent" }
+
+[[recipe]]
+name = "mathtext-latex-cancel-color"
+outputs = ["crates/d2-rs-math/tests/fixtures/cancel-color-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/cancel-color.json"]
+env = { D2RS_LATEX_ERRORS = "omitempty", D2RS_LATEX_JSON = "indent" }
+
+[[recipe]]
+name = "mathtext-latex-cd-capture"
+outputs = ["crates/d2-rs-math/tests/fixtures/cd-capture-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/cd-capture.json"]
+env = { D2RS_LATEX_ERRORS = "omitempty", D2RS_LATEX_JSON = "indent-escape" }
+
+[[recipe]]
+name = "mathtext-latex-cd-paint"
+outputs = ["crates/d2-rs-math/tests/fixtures/cd-paint-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/cd-paint.json"]
+env = { D2RS_LATEX_ERRORS = "omitempty", D2RS_LATEX_JSON = "indent-escape" }
+
+[[recipe]]
+name = "mathtext-latex-environment-dispatch"
+outputs = ["crates/d2-rs-math/tests/fixtures/environment-dispatch-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/environment-dispatch.json"]
+env = { D2RS_LATEX_ERRORS = "always", D2RS_LATEX_JSON = "indent" }
+
+[[recipe]]
+name = "mathtext-latex-explicit-spacing"
+outputs = ["crates/d2-rs-math/tests/fixtures/explicit-spacing-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/explicit-spacing.json"]
+env = { D2RS_LATEX_ERRORS = "omitempty", D2RS_LATEX_JSON = "indent-escape" }
+
+[[recipe]]
+name = "mathtext-latex-fractions"
+outputs = ["crates/d2-rs-math/tests/fixtures/fractions-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/fractions.json"]
+env = { D2RS_LATEX_ERRORS = "omitempty", D2RS_LATEX_JSON = "indent" }
+
+[[recipe]]
+name = "mathtext-latex-general-former-witness"
+outputs = ["crates/d2-rs-math/tests/fixtures/general-former-witness-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/general-former-witness.json"]
+env = { D2RS_LATEX_ERRORS = "omitempty", D2RS_LATEX_JSON = "indent" }
+
+[[recipe]]
+name = "mathtext-latex-gensymb"
+outputs = ["crates/d2-rs-math/tests/fixtures/gensymb-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/gensymb.json"]
+env = { D2RS_LATEX_ERRORS = "omitempty", D2RS_LATEX_JSON = "indent-escape" }
+
+[[recipe]]
+name = "mathtext-latex-length"
+outputs = ["crates/d2-rs-math/tests/fixtures/length-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/length.json"]
+env = { D2RS_LATEX_ERRORS = "omitempty", D2RS_LATEX_JSON = "indent-escape" }
+
+[[recipe]]
+name = "mathtext-latex-numeric"
+outputs = ["crates/d2-rs-math/tests/fixtures/numeric-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/numeric.json"]
+env = { D2RS_LATEX_ERRORS = "omitempty", D2RS_LATEX_JSON = "indent-escape" }
+
+[[recipe]]
+name = "mathtext-latex-prime-token-origin"
+outputs = ["crates/d2-rs-math/tests/fixtures/prime-token-origin-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/prime-token-origin.json"]
+env = { D2RS_LATEX_ERRORS = "always", D2RS_LATEX_JSON = "indent", D2RS_LATEX_HEADER = "1" }
+
+[[recipe]]
+name = "mathtext-latex-radicals"
+outputs = ["crates/d2-rs-math/tests/fixtures/radicals-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/radicals.json"]
+env = { D2RS_LATEX_ERRORS = "omitempty", D2RS_LATEX_JSON = "indent" }
+
+[[recipe]]
+name = "mathtext-latex-texatom-scope"
+outputs = ["crates/d2-rs-math/tests/fixtures/texatom-scope-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/texatom-scope.json"]
+env = { D2RS_LATEX_ERRORS = "omitempty", D2RS_LATEX_JSON = "indent-escape" }
+
+[[recipe]]
+name = "mathtext-latex-word-sum"
+outputs = ["crates/d2-rs-math/tests/fixtures/word-sum-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/word-sum.json"]
+env = { D2RS_LATEX_ERRORS = "omitempty", D2RS_LATEX_JSON = "indent-escape" }
+
+# padded.rs reads the root <svg> width/height/viewBox/style of each render.
+[[recipe]]
+name = "mathtext-latex-padded"
+outputs = ["crates/d2-rs-math/tests/fixtures/padded-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/padded.json"]
+env = { D2RS_LATEX_ERRORS = "omitempty", D2RS_LATEX_JSON = "indent" }
+
+# Default command recognition: every static internal/tex command-name
+# candidate of the required mathjax-go, rendered as "\\<name>".
+[[recipe]]
+name = "mathtext-latex-commands"
+outputs = ["crates/d2-rs-math/tests/fixtures/commands-source-v090.json"]
+inputs = [{ path = "commands.json", generate = ["{python}", "scripts/fixture-gen-math-commands.py"] }]
+env = { D2RS_LATEX_ERRORS = "omitempty", D2RS_LATEX_JSON = "compact" }
+key_deps.files = ["scripts/fixture_recipe.py", "scripts/mathtext_gen.py", "scripts/generate-math-command-registry.py"]
+key_deps.go_modules = ["github.com/d2lang/mathjax-go"]

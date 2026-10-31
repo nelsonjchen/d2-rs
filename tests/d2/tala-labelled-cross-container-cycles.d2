@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: MPL-2.0
+# Production witness for cross-container herd creation and normalization.
+west: {
+  a: ingest {width: 88; height: 66}
+  b: process {width: 117; height: 66}
+  c: output {width: 105; height: 66}
+  a -> b: clean
+  b -> c: check
+  c -> a: retry
+}
+east: {
+  x: work queue {shape: queue; width: 143; height: 66}
+  y: worker {width: 98; height: 66}
+  z: storage {shape: cylinder; width: 84; height: 118}
+  x -> y: dispatch
+  y -> z: write
+  z -> x: requeue
+}
+west.a -> east.x: publish
+west.b -> east.y: sync
+east.z -> west.c: audit
+west <-> east: control plane

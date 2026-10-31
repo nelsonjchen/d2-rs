@@ -1,0 +1,12 @@
+--- a/d2layouts/d2talalayout/internal/routing/ovg_edge_router.go
++++ b/d2layouts/d2talalayout/internal/routing/ovg_edge_router.go
+@@ -2007,7 +2007,8 @@
+    ports := make([][]string, 0, len(ovg.Ports[node]))
+    for _, port := range ovg.Ports[node] { ports = append(ports, []string{fmt.Sprintf("%016x",math.Float64bits(port.Point.X)),fmt.Sprintf("%016x",math.Float64bits(port.Point.Y))}) }
+    parent := int64(0); if node.Container != nil { parent = int64(node.Container.ID) }
+-   inventory = append(inventory,map[string]any{"node":node.ID,"parent":parent,"fixed":node.FixedTopLeft != nil,"rect":[]string{fmt.Sprintf("%016x",math.Float64bits(node.TopLeft.X)),fmt.Sprintf("%016x",math.Float64bits(node.TopLeft.Y)),fmt.Sprintf("%016x",math.Float64bits(node.Width)),fmt.Sprintf("%016x",math.Float64bits(node.Height))},"ports":ports})
++   _, hasTree := g.NodeToTree[node]
++   inventory = append(inventory,map[string]any{"cluster":node.Cluster != nil,"tree":hasTree,"node":node.ID,"parent":parent,"fixed":node.FixedTopLeft != nil,"rect":[]string{fmt.Sprintf("%016x",math.Float64bits(node.TopLeft.X)),fmt.Sprintf("%016x",math.Float64bits(node.TopLeft.Y)),fmt.Sprintf("%016x",math.Float64bits(node.Width)),fmt.Sprintf("%016x",math.Float64bits(node.Height))},"ports":ports})
+   }
+   data,_:=json.Marshal(map[string]any{"event":"ovg-port-inventory","scope_nodes":len(g.Nodes),"scope_edges":len(g.Edges),"nodes":inventory});fmt.Fprintln(os.Stderr,string(data))
+  }

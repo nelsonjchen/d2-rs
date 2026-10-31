@@ -1,0 +1,21 @@
+direction: down
+
+source: {
+  top: 180
+  left: 240
+
+  a -> b
+  b -> c
+  c -> d
+  d -> a
+  b -> a
+  a -> c
+}
+
+source -> outside_a
+source -> outside_b
+source -> outside_c
+
+outside_a.shape: circle
+outside_b.shape: cloud
+outside_c.shape: diamond

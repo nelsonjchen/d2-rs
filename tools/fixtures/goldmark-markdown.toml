@@ -1,0 +1,99 @@
+# Goldmark (github.com/yuin/goldmark, third-party) oracle fixtures for
+# crates/d2-rs-text. Reference recipe family: see docs/FIXTURES.md.
+#
+# Each generator (scripts/check-markdown-*.py) builds its harness under
+# tools/markdown-*-oracle against the Goldmark version pinned in
+# reference-manifest.json `dependencies`, feeds it Python-generated requests
+# and writes {"requests", "results"} to the staged output. The D2 pin does
+# not matter here, so these recipes do not use the upstream checkout.
+#
+# Regenerate:  uv run --no-project python scripts/regen-fixtures.py --only 'goldmark-*'
+# Test:        cargo test -p d2-rs-text --features oracle-fixtures
+
+[defaults]
+kind = "command"
+timeout = 1800
+
+[defaults.key_deps]
+files = [
+  "scripts/fixture_recipe.py",
+  "scripts/goldmark_oracle.py",
+  "tools/oracle/go.mod",
+  "tools/oracle/go.sum",
+]
+go_modules = ["github.com/yuin/goldmark"]
+go_toolchain = true
+
+[[recipe]]
+name = "goldmark-aliases"
+description = "Shared-source aliases across segments, reader and block-reader lines"
+outputs = ["crates/d2-rs-text/tests/fixtures/aliases.json"]
+argv = ["{python}", "scripts/check-markdown-aliases.py"]
+key_deps.files = ["tools/markdown-alias-oracle"]
+
+[[recipe]]
+name = "goldmark-arena"
+description = "BaseNode child mutation sequences"
+outputs = ["crates/d2-rs-text/tests/fixtures/arena.json"]
+argv = ["{python}", "scripts/check-markdown-arena.py"]
+key_deps.files = ["tools/markdown-arena-oracle"]
+
+[[recipe]]
+name = "goldmark-block-reader"
+description = "Block reader operation sequences, closure search and code spans"
+outputs = ["crates/d2-rs-text/tests/fixtures/block-reader.json"]
+argv = ["{python}", "scripts/check-markdown-block-readers.py"]
+key_deps.files = ["tools/markdown-reader-oracle", "scripts/markdown_closure_cases.py"]
+
+[[recipe]]
+name = "goldmark-context"
+description = "Delimiter push/remove/clear/process against AST identities"
+outputs = ["crates/d2-rs-text/tests/fixtures/context.json"]
+argv = ["{python}", "scripts/check-markdown-context.py"]
+key_deps.files = ["tools/markdown-context-oracle"]
+
+[[recipe]]
+name = "goldmark-delimiter"
+description = "ScanDelimiter classification and delimiter consumption"
+outputs = [
+  "crates/d2-rs-text/tests/fixtures/delimiter.json",
+  "crates/d2-rs-text/tests/fixtures/delimiter-consumption.json",
+]
+argv = ["{python}", "scripts/check-markdown-delimiters.py"]
+# The generator also verifies the committed Unicode table against the oracle.
+key_deps.files = ["tools/markdown-delimiter-oracle", "crates/d2-rs-text/src/markdown/delimiter/unicode.rs"]
+
+[[recipe]]
+name = "goldmark-inline-delimiter"
+description = "Emphasis/strikethrough inline parser entry points"
+outputs = ["crates/d2-rs-text/tests/fixtures/inline-delimiter.json"]
+argv = ["{python}", "scripts/check-markdown-inline-delimiters.py"]
+key_deps.files = ["tools/markdown-inline-delimiter-oracle"]
+
+[[recipe]]
+name = "goldmark-link"
+description = "Link values, reference definitions, block openers and tables"
+outputs = ["crates/d2-rs-text/tests/fixtures/link.json"]
+argv = ["{python}", "scripts/check-markdown-links.py"]
+key_deps.files = ["tools/markdown-link-oracle"]
+
+[[recipe]]
+name = "goldmark-reader"
+description = "Contiguous reader operation sequences, closure search and code spans"
+outputs = ["crates/d2-rs-text/tests/fixtures/reader.json"]
+argv = ["{python}", "scripts/check-markdown-readers.py"]
+key_deps.files = ["tools/markdown-reader-oracle", "scripts/markdown_closure_cases.py"]
+
+[[recipe]]
+name = "goldmark-segments"
+description = "Segment value, trim, padding and range methods"
+outputs = ["crates/d2-rs-text/tests/fixtures/segments.json"]
+argv = ["{python}", "scripts/check-markdown-segments.py"]
+key_deps.files = ["tools/markdown-segment-oracle"]
+
+[[recipe]]
+name = "goldmark-text-merge"
+description = "Text.Merge and MergeOr{Append,Replace}TextSegment"
+outputs = ["crates/d2-rs-text/tests/fixtures/text-merge.json"]
+argv = ["{python}", "scripts/check-markdown-text.py"]
+key_deps.files = ["tools/markdown-text-oracle"]

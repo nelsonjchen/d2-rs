@@ -1,0 +1,234 @@
+--- a/layout.go
++++ b/layout.go
+@@ -50,21 +50,29 @@
+ 	runAcyclic(g)
+ 	runNestingGraph(g)
+ 	rank(asNonCompoundGraph(g))
++	traceDagroGraph(g, "rank", "DAGRO_TRACE_RANKS")
+ 	injectEdgeLabelProxies(g)
+ 	removeEmptyRanks(g)
++	traceDagroGraph(g, "remove-empty-ranks", "DAGRO_TRACE_RANKS")
+ 	cleanupNestingGraph(g)
+ 	normalizeRanks(g)
++	traceDagroGraph(g, "normalize-ranks", "DAGRO_TRACE_RANKS")
+ 	assignRankMinMax(g)
+ 	removeEdgeLabelProxies(g)
+ 	runNormalize(g)
+ 	parentDummyChains(g)
++	traceDagroGraph(g, "parent-dummy-chains", "DAGRO_TRACE_RANKS")
+ 	addBorderSegments(g)
++	traceDagroGraph(g, "border-segments", "DAGRO_TRACE_ORDER")
+ 	order(g)
++	traceDagroGraph(g, "order", "DAGRO_TRACE_ORDER")
+ 	insertSelfEdges(g)
+ 	adjustCoordinateSystem(g)
+ 	position(g)
++	traceDagroGraph(g, "position", "DAGRO_TRACE_POS")
+ 	positionSelfEdges(g)
+ 	removeBorderNodes(g)
++	traceDagroGraph(g, "remove-border-nodes", "DAGRO_TRACE_POS")
+ 	undoNormalize(g)
+ 	fixupEdgeLabelCoords(g)
+ 	undoCoordinateSystem(g)
+--- a/order.go
++++ b/order.go
+@@ -44,6 +44,8 @@
+ 
+ 	layering := initOrderNodes(g, nodes)
+ 	assignOrder(g, layering)
++	traceDagroLayers("init", -1, layering)
++	traceDagroOrderLayers("init", -1, nil, layering)
+ 
+ 	bestCC := math.Inf(1)
+ 	var best [][]string
+@@ -56,6 +57,8 @@
+ 
+ 		layering = orderBuildLayerMatrixNodes(g, nodes, maxRank)
+ 		cc := crossCount(g, layering)
++		traceDagroLayers("sweep", i, layering)
++		traceDagroOrderLayers("sweep", i, &cc, layering)
+ 		if cc < bestCC {
+ 			lastBest = 0
+ 			best = cloneLayering(layering)
+@@ -68,6 +70,8 @@
+ 	}
+ 
+ 	assignOrder(g, best)
++	traceDagroLayers("best", -1, best)
++	traceDagroOrderLayers("best", -1, &bestCC, best)
+ }
+ 
+ func buildLayerGraphs(g *Graph, ranks []int, relationship string) []*Graph {
+--- a/position_bk.go
++++ b/position_bk.go
+@@ -259,20 +259,23 @@ func buildBlockGraph(g *Graph, layering [][]string, root map[string]string, reverseSep bool) *Graph {
+-	for _, layer := range layering {
++	for layerIndex, layer := range layering {
+ 		u := ""
+-		for _, v := range layer {
++		for pairIndex, v := range layer {
+ 			vRoot := root[v]
+ 			blockGraph.SetNode(vRoot)
+ 			// This is intentionally a string truthiness check, matching `if (u)`.
+ 			if u != "" {
+ 				uRoot := root[u]
+ 				previous := float64(0)
+ 				if value := blockGraph.EdgeByArgs(uRoot, vRoot); value != nil {
+ 					previous = number(value)
+ 					if !jsTruthyNumber(previous) {
+ 						previous = 0
+ 					}
+ 				}
+-				blockGraph.SetEdge(uRoot, vRoot, mathMaxJS(positionSep(g, v, u, nodeSep, edgeSep, reverseSep), previous))
++				separation := positionSep(g, v, u, nodeSep, edgeSep, reverseSep)
++				blockDistance := mathMaxJS(separation, previous)
++				blockGraph.SetEdge(uRoot, vRoot, blockDistance)
++				traceDagroPositionSeparation(g, layerIndex, pairIndex, v, u, vRoot, uRoot, reverseSep, separation, blockDistance)
+ 			}
+ 			u = v
+ 		}
+ 	}
+@@ -344,8 +344,9 @@
+ func positionX(g *Graph) map[string]float64 {
+ 	layering := buildLayerMatrix(g)
+-	conflicts := shallowMergePositionConflicts(
+-		findType1Conflicts(g, layering),
+-		findType2Conflicts(g, layering),
+-	)
++	type1Conflicts := findType1Conflicts(g, layering)
++	type2Conflicts := findType2Conflicts(g, layering)
++	traceDagroBKConflicts(g, "type1", type1Conflicts)
++	traceDagroBKConflicts(g, "type2", type2Conflicts)
++	conflicts := shallowMergePositionConflicts(type1Conflicts, type2Conflicts)
+ 
+ 	xss := positionAlignments{}
+@@ -373,6 +373,8 @@
+ 				}
+ 			}
+ 			xss[vert+horiz] = xs
++			traceDagroPosition(g, vert+horiz, xs)
++			traceDagroBKRoots(g, vert+horiz, alignment.root)
+ 		}
+ 	}
+ 
+--- /dev/null
++++ b/diagnostic_trace.go
+@@ -0,0 +1,94 @@
++// Diagnostic-only additions for d2-rs; upstream algorithms are unchanged.
++package dagro
++
++import (
++	"encoding/json"
++	"fmt"
++	"math"
++	"os"
++)
++
++func traceDagroGraph(g *Graph, phase, flag string) {
++	if os.Getenv(flag) == "" {
++		return
++	}
++	fmt.Fprintf(os.Stderr, "GO_DAGRO_PHASE %s\n", phase)
++	for index, v := range g.Nodes() {
++		a := asAttrs(g.Node(v))
++		parent, hasParent := g.Parent(v)
++		fmt.Fprintf(os.Stderr, "GO_DAGRO_NODE index=%d id=%q parent=%q hasParent=%v children=%q rank=%v minRank=%v maxRank=%v order=%v dummy=%v borderType=%v\n", index, v, parent, hasParent, g.Children(v), a["rank"], a["minRank"], a["maxRank"], a["order"], a["dummy"], a["borderType"])
++		for _, key := range []string{"x", "y", "width", "height"} {
++			if value, ok := a[key].(float64); ok {
++				fmt.Fprintf(os.Stderr, "GO_DAGRO_VALUE id=%q field=%s value=%.17g bits=%016x\n", v, key, value, math.Float64bits(value))
++			}
++		}
++	}
++	for _, e := range g.Edges() {
++		a := asAttrs(g.Edge(e))
++		fmt.Fprintf(os.Stderr, "GO_DAGRO_EDGE from=%q to=%q name=%q minlen=%v weight=%v\n", e.V, e.W, e.Name, a["minlen"], a["weight"])
++	}
++}
++
++func traceDagroBKRoots(g *Graph, alignment string, roots map[string]string) {
++	if os.Getenv("DAGRO_TRACE_POS") == "" {
++		return
++	}
++	for _, node := range g.Nodes() {
++		root, ok := roots[node]
++		if ok {
++			fmt.Fprintf(os.Stderr, "GO_BK_ROOT alignment=%s id=%q root=%q\n", alignment, node, root)
++		}
++	}
++}
++
++func traceDagroBKConflicts(g *Graph, kind string, conflicts positionConflicts) {
++	if os.Getenv("DAGRO_TRACE_POS") == "" {
++		return
++	}
++	nodes := g.Nodes()
++	count := 0
++	for firstIndex, first := range nodes {
++		for _, second := range nodes[firstIndex+1:] {
++			if hasConflict(conflicts, first, second) {
++				fmt.Fprintf(os.Stderr, "GO_BK_CONFLICT kind=%s first=%q second=%q\n", kind, first, second)
++				count++
++			}
++		}
++	}
++	fmt.Fprintf(os.Stderr, "GO_BK_CONFLICT_END kind=%s count=%d\n", kind, count)
++}
++
++func traceDagroLayers(phase string, iteration int, layers [][]string) {
++	if os.Getenv("DAGRO_TRACE_ORDER") == "" {
++		return
++	}
++	fmt.Fprintf(os.Stderr, "GO_DAGRO_LAYERS phase=%s iteration=%d layers=%v\n", phase, iteration, layers)
++}
++
++func traceDagroOrderLayers(phase string, iteration int, crossings *float64, layers [][]string) {
++	if os.Getenv("DAGRO_TRACE_ORDER") == "" {
++		return
++	}
++	crossingBits := "none"
++	if crossings != nil {
++		crossingBits = fmt.Sprintf("%016x", math.Float64bits(*crossings))
++	}
++	encoded, err := json.Marshal(layers)
++	if err != nil {
++		fmt.Fprintf(os.Stderr, "GO_DAGRE_ORDER_ERROR phase=%s iteration=%d error=%q\n", phase, iteration, err)
++		return
++	}
++	fmt.Fprintf(os.Stderr, "GO_DAGRE_ORDER phase=%s iteration=%d crossings_bits=%s layers=%s\n", phase, iteration, crossingBits, encoded)
++}
++
++func traceDagroPosition(g *Graph, alignment string, xs map[string]float64) {
++	if os.Getenv("DAGRO_TRACE_POS") == "" {
++		return
++	}
++	// Enumerate graph nodes without imposing an order on algorithm maps.
++	for _, v := range g.Nodes() {
++		if x, ok := xs[v]; ok {
++			fmt.Fprintf(os.Stderr, "GO_POS alignment=%s id=%q x=%.17g x_bits=%016x\n", alignment, v, x, math.Float64bits(x))
++		}
++	}
++}
+--- /dev/null
++++ b/position_sep_trace.go
+@@ -0,0 +1,21 @@
++// Diagnostic-only measurements of the constraints used during BK compaction.
++package dagro
++
++import (
++	"fmt"
++	"math"
++	"os"
++)
++
++func traceDagroPositionSeparation(g *Graph, layerIndex, pairIndex int, v, w, vRoot, wRoot string, reverseSep bool, separation, blockDistance float64) {
++	if os.Getenv("DAGRO_TRACE_POS") == "" {
++		return
++	}
++	vAttrs := asAttrs(g.Node(v))
++	wAttrs := asAttrs(g.Node(w))
++	fmt.Fprintf(os.Stderr, "GO_BK_SEP layer=%d pair=%d v=%q w=%q vRoot=%q wRoot=%q vWidthBits=%016x vDummy=%v vLabelpos=%v wWidthBits=%016x wDummy=%v wLabelpos=%v reverseSep=%t separationBits=%016x blockDistanceBits=%016x\n",
++		layerIndex, pairIndex, v, w, vRoot, wRoot,
++		math.Float64bits(num(vAttrs, "width")), positionTruthy(vAttrs["dummy"]), vAttrs["labelpos"],
++		math.Float64bits(num(wAttrs, "width")), positionTruthy(wAttrs["dummy"]), wAttrs["labelpos"],
++		reverseSep, math.Float64bits(separation), math.Float64bits(blockDistance))
++}

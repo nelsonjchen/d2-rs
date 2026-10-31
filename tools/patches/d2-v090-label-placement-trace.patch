@@ -1,0 +1,74 @@
+diff --git a/d2layouts/d2talalayout/internal/labeling/placement.go b/d2layouts/d2talalayout/internal/labeling/placement.go
+index 633160724..f8176efad 100644
+--- a/d2layouts/d2talalayout/internal/labeling/placement.go
++++ b/d2layouts/d2talalayout/internal/labeling/placement.go
+@@ -4,6 +4,8 @@ import (
+ 	"context"
+ 	"fmt"
+ 	"math"
++	"os"
++	"strings"
+ 
+ 	"github.com/d2lang/d2/lib/geo"
+ 	"github.com/d2lang/d2/lib/label"
+@@ -30,6 +32,7 @@ func place(ctx context.Context, g *layoutgraph.Graph, workLimit int64) (err erro
+ 	if err := layoutgraph.ValidatePositionedGraphSelection(ctx, location, g, nil); err != nil {
+ 		return err
+ 	}
++	traceLabelPlacementInput(g)
+ 	snapshot := captureLabelPlacement(g, nil)
+ 	defer func() {
+ 		if recovered := recover(); recovered != nil {
+@@ -295,6 +298,12 @@ func place(ctx context.Context, g *layoutgraph.Graph, workLimit int64) (err erro
+ 					return err
+ 				}
+ 				score := scoreNodeLabelOverlaps(siblingOverlaps+ancestorOverlaps, edgeOverlaps, labelOverlaps)
++				if os.Getenv("WEFTAN_TRACE_LABEL_CANDIDATES") != "" {
++					fmt.Fprintf(os.Stderr, "LABEL_SCORE_GO id=%s pos=%s score=%g components=(node:%d partial:%d edge:%d label:%d) fake=(%.3f,%.3f %.3fx%.3f) siblings=%d ancestors=%d placed=%d\n",
++						node.DebugID(), labelPosition, score, siblingOverlaps, ancestorOverlaps, edgeOverlaps, labelOverlaps,
++						fakeLabelNode.TopLeft.X, fakeLabelNode.TopLeft.Y, fakeLabelNode.Width, fakeLabelNode.Height,
++						len(siblingsAndChildren), len(ancestors), len(placedFakeNodes))
++				}
+ 				if score < bestScore {
+ 					bestLabelPosition = labelPosition
+ 					bestFakeNode = fakeLabelNode
+@@ -372,6 +381,9 @@ func place(ctx context.Context, g *layoutgraph.Graph, workLimit int64) (err erro
+ 		placedFakeNodes = append(placedFakeNodes, bestFakeNode)
+ 
+ 		node.Label.Position = bestLabelPosition
++		if os.Getenv("WEFTAN_TRACE_LABEL_CANDIDATES") != "" {
++			fmt.Fprintf(os.Stderr, "LABEL_RESULT_GO id=%s pos=%s\n", node.DebugID(), bestLabelPosition)
++		}
+ 	}
+ 
+ 	// we want to find the best edge label position, avoiding overlapping with other nodes, edges, labels and shared edge segments
+@@ -898,6 +910,10 @@ func findBestEdgeLabelPosition(edge *layoutgraph.Edge, g *layoutgraph.Graph, pla
+ 			sharedSegmentOverlap,
+ 		)
+ 
++        traceEdge := os.Getenv("D2_TRACE_LABEL_CANDIDATE_EDGE")
++        if traceEdge != "" && (traceEdge == "*" || strings.Contains(","+traceEdge+",", ","+fmt.Sprint(edge.ID)+",")) {
++            fmt.Fprintf(os.Stderr, "LABEL_CANDIDATE edge=%d position=%s percentage=%016x rect=%016x,%016x,%016x,%016x node_area=%016x node_count=%d edge_count=%d exact=%d almost=%d shared=%d area=%016x score=%016x\n", edge.ID, labelPosition.String(), math.Float64bits(edge.LabelPercentage), math.Float64bits(fakeLabelNode.TopLeft.X), math.Float64bits(fakeLabelNode.TopLeft.Y), math.Float64bits(fakeLabelNode.Width), math.Float64bits(fakeLabelNode.Height), math.Float64bits(ancestorPartialOverlapArea+nonAncestorOverlapArea), ancestorCount+nonAncestorCount, edgeOverlaps, labelOverlaps, almostLabelOverlaps, sharedSegmentOverlap, math.Float64bits(fakeLabelNode.Area()), math.Float64bits(score))
++        }
+ 		if score < bestScore {
+ 			bestLabelPosition = labelPosition
+ 			bestLabelFakeNode = fakeLabelNode
+@@ -1263,3 +1279,18 @@ func isClusterPathSharedChecked(e *layoutgraph.Edge, checkWork func() error) (bo
+ 
+ 	return false, nil
+ }
++
++// Development observer: edge state before icons/node/edge label placement.
++func traceLabelPlacementInput(g *layoutgraph.Graph) {
++    if os.Getenv("D2_TRACE_LABEL_PLACEMENT") != "1" { return }
++    var snapshot strings.Builder
++    fmt.Fprintf(&snapshot, "LABEL_PLACEMENT begin nodes=%d edges=%d\n", len(g.Nodes), len(g.Edges))
++    for _, edge := range g.Edges {
++        if edge.Label == nil { continue }
++        points := make([]string, 0, len(edge.Points))
++        for _, p := range edge.Points { points = append(points, fmt.Sprintf("%016x,%016x", math.Float64bits(p.X), math.Float64bits(p.Y))) }
++        fmt.Fprintf(&snapshot, "LABEL_PLACEMENT edge=%d from=%d to=%d position=%s percentage=%016x fixed=%t points=%s\n", edge.ID, edge.From.IDValue(), edge.To.IDValue(), edge.Label.Position.String(), math.Float64bits(edge.LabelPercentage), edge.Label.PositionFixed(), strings.Join(points, ";"))
++    }
++    fmt.Fprintln(&snapshot, "LABEL_PLACEMENT end")
++    fmt.Fprint(os.Stderr, snapshot.String())
++}

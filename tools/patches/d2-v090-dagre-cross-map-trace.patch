@@ -1,0 +1,18 @@
+--- a/d2layouts/d2dagrelayout/layout.go
++++ b/d2layouts/d2dagrelayout/layout.go
+@@ -1014,8 +1014,15 @@
+ 
+ 	processQueue()
+ 
++	traceCrossMap := os.Getenv("DAGRE_TRACE_CROSS_MAP") != ""
++	if traceCrossMap {
++		fmt.Fprintf(os.Stderr, "GO_CROSS_MAP_BEGIN root=%q start_bits=%016x distance_bits=%016x horizontal=%t margin=%t count=%d\n", obj.AbsID(), math.Float64bits(start), math.Float64bits(distance), isHorizontal, isMargin, len(seen))
++	}
+ 	grown := make(map[*d2graph.Object]struct{})
+ 	for o := range seen {
++		if traceCrossMap {
++			fmt.Fprintf(os.Stderr, "GO_CROSS_MAP_SEEN object=%q\n", o.AbsID())
++		}
+ 		if o.Parent == g.Root {
+ 			continue
+ 		}

@@ -1,0 +1,106 @@
+--- a/d2layouts/d2dagrelayout/layout.go
++++ b/d2layouts/d2dagrelayout/layout.go
+@@ -2,8 +2,10 @@
+ 
+ import (
+ 	"context"
++	"encoding/json"
+ 	"fmt"
+ 	"math"
++	"os"
+ 	"sort"
+ 	"strings"
+ 
+@@ -173,6 +175,15 @@
+ 		)
+ 	}
+ 
++	if os.Getenv("DAGRE_TRACE_OBJECTS") != "" {
++		for _, obj := range g.Objects {
++			objectID := obj.AbsID()
++			if g.TraceScope != "" {
++				objectID = g.TraceScope + "." + objectID
++			}
++			fmt.Fprintf(os.Stderr, "GO_MAP id=%q object=%q\n", mapper.ToID(obj), objectID)
++		}
++	}
+ 	if err := dagro.Layout(dagreGraph); err != nil {
+ 		return err
+ 	}
+@@ -269,9 +276,13 @@
+ 		edge.Route = points
+ 	}
+ 
++	traceDagreObjects("dagro", g)
+ 	adjustRankSpacing(g, float64(rootAttrs.ranksep), isHorizontal)
++	traceDagreObjects("rank-spacing", g)
+ 	adjustCrossRankSpacing(g, float64(rootAttrs.ranksep), !isHorizontal)
++	traceDagreObjects("cross-spacing", g)
+ 	fitContainerPadding(g, float64(rootAttrs.ranksep), isHorizontal)
++	traceDagreObjects("fit", g)
+ 
+ 	for _, edge := range g.Edges {
+ 		points := edge.Route
+@@ -342,6 +353,14 @@
+ 
+ 		startIndex, endIndex = edge.TraceToShape(points, startIndex, endIndex)
+ 		points = points[startIndex : endIndex+1]
++		if os.Getenv("DAGRE_TRACE_OBJECTS") != "" {
++			pointBits := make([]string, len(points))
++			for i, point := range points {
++				pointBits[i] = fmt.Sprintf("%016x,%016x", math.Float64bits(point.X), math.Float64bits(point.Y))
++			}
++			fmt.Fprintf(os.Stderr, "GO_FINAL_ROUTE source=%q target=%q point_count=%d bits=%s\n",
++				edge.Src.AbsID(), edge.Dst.AbsID(), len(points), strings.Join(pointBits, ";"))
++		}
+ 
+ 		// build a curved path from the dagre route
+ 		vectors := make([]geo.Vector, 0, len(points)-1)
+@@ -381,6 +392,8 @@
+ 			edge.Dst.TopLeft.Y = originalDstTL.Y
+ 		}
+ 	}
++
++	traceDagreObjects("final", g)
+ 
+ 	return nil
+ }
+@@ -1843,3 +1861,38 @@
+ 		}
+ 	}
+ }
++
++// Diagnostic-only object and route observation; no coordinates are changed.
++func traceDagreObjects(phase string, g *d2graph.Graph) {
++	if os.Getenv("DAGRE_TRACE_OBJECTS") == "" {
++		return
++	}
++	fmt.Fprintf(os.Stderr, "GO_PHASE %s\n", phase)
++	for _, obj := range g.Objects {
++		parent := "<root>"
++		if obj.Parent != nil {
++			parent = obj.Parent.AbsID()
++		}
++		if obj.Box == nil || obj.TopLeft == nil {
++			fmt.Fprintf(os.Stderr, "GO_OBJ %q <no-box> parent=%q\n", obj.AbsID(), parent)
++			continue
++		}
++		fmt.Fprintf(os.Stderr, "GO_OBJ %q %.17g %.17g %.17g %.17g parent=%q bits=%016x,%016x,%016x,%016x\n", obj.AbsID(), obj.TopLeft.X, obj.TopLeft.Y, obj.Width, obj.Height, parent, math.Float64bits(obj.TopLeft.X), math.Float64bits(obj.TopLeft.Y), math.Float64bits(obj.Width), math.Float64bits(obj.Height))
++	}
++	fmt.Fprintf(os.Stderr, "GO_EDGESET count=%d\n", len(g.Edges))
++	type edgePair struct {
++		src, dst string
++	}
++	ordinals := make(map[edgePair]int)
++	for _, edge := range g.Edges {
++		pair := edgePair{src: edge.Src.AbsID(), dst: edge.Dst.AbsID()}
++		identity := fmt.Sprintf("%d:%s -> %d:%s #%d", len(pair.src), pair.src, len(pair.dst), pair.dst, ordinals[pair])
++		ordinals[pair]++
++		quotedIdentity, _ := json.Marshal(identity)
++		pointBits := make([]string, len(edge.Route))
++		for i, point := range edge.Route {
++			pointBits[i] = fmt.Sprintf("%016x,%016x", math.Float64bits(point.X), math.Float64bits(point.Y))
++		}
++		fmt.Fprintf(os.Stderr, "GO_EDGE %s point_count=%d bits=%s\n", quotedIdentity, len(edge.Route), strings.Join(pointBits, ";"))
++	}
++}

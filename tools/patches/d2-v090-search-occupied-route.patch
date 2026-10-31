@@ -1,0 +1,23 @@
+--- a/d2layouts/d2talalayout/internal/routing/ovg_edge_router.go
++++ b/d2layouts/d2talalayout/internal/routing/ovg_edge_router.go
+@@ -1214,7 +1214,9 @@
+ 							return nil, 0, err
+ 						}
+ 						overlappingEdges = append(overlappingEdges, route.GEdge)
+-						if gEdge.IsDirected() && route.isOpposingColinear(leastDistanceNode, adjacentNode) {
++						opposing := gEdge.IsDirected() && route.isOpposingColinear(leastDistanceNode, adjacentNode)
++						router.traceSearchOccupiedRoute(gEdge, route, leastDistanceNode, adjacentNode, opposing)
++						if opposing {
+ 							isProhibitedSharing = true
+ 							break
+ 						}
+@@ -2045,3 +2047,9 @@
+  if os.Getenv("D2_TRACE_SLINGSHOT_CHECK_EDGE") != fmt.Sprint(edge.ID) { return }
+  data,_:=json.Marshal(map[string]any{"event":"slingshot-occupied-route","scope_nodes":len(router.graph.Nodes),"scope_edges":len(router.graph.Edges),"edge":edge.ID,"flavor":fmt.Sprint(router.flavor),"other":route.GEdge.ID,"nodes":len(route.OVGNodes),"opposing":opposing,"from":[]string{fmt.Sprintf("%016x",math.Float64bits(from.X)),fmt.Sprintf("%016x",math.Float64bits(from.Y))},"to":[]string{fmt.Sprintf("%016x",math.Float64bits(to.X)),fmt.Sprintf("%016x",math.Float64bits(to.Y))},"work":router.work.used});fmt.Fprintln(os.Stderr,string(data))
+ }
++
++func (router *ovgEdgeRouter) traceSearchOccupiedRoute(edge *layoutgraph.Edge, route *Route, from,to *OVGNode, opposing bool) {
++ if os.Getenv("D2_TRACE_SEARCH_OCCUPIED_EDGE") != fmt.Sprint(edge.ID) { return }
++ points:=make([][]string,0,len(route.OVGNodes));for _,n:=range route.OVGNodes {points=append(points,[]string{fmt.Sprintf("%016x",math.Float64bits(n.X)),fmt.Sprintf("%016x",math.Float64bits(n.Y))})}
++ data,_:=json.Marshal(map[string]any{"event":"search-occupied-route","scope_nodes":len(router.graph.Nodes),"scope_edges":len(router.graph.Edges),"edge":edge.ID,"flavor":fmt.Sprint(router.flavor),"other":route.GEdge.ID,"nodes":len(route.OVGNodes),"points":points,"opposing":opposing,"from":[]string{fmt.Sprintf("%016x",math.Float64bits(from.X)),fmt.Sprintf("%016x",math.Float64bits(from.Y))},"to":[]string{fmt.Sprintf("%016x",math.Float64bits(to.X)),fmt.Sprintf("%016x",math.Float64bits(to.Y))},"work":router.work.used});fmt.Fprintln(os.Stderr,string(data))
++}

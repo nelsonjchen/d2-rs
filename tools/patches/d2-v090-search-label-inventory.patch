@@ -1,0 +1,20 @@
+--- a/d2layouts/d2talalayout/internal/routing/ovg_edge_router.go
++++ b/d2layouts/d2talalayout/internal/routing/ovg_edge_router.go
+@@ -689,6 +689,17 @@
+ 		}
+ 	}
+ 
++
++ if os.Getenv("D2_TRACE_SEARCH_LABELS") == "1" {
++  inventory := make([]map[string]any,0,len(originalGraph.Nodes))
++  for _, n := range originalGraph.Nodes {
++   row := map[string]any{"node":n.ID,"endpoint":n==gSource || n==gTarget,"present":n.Label != nil}
++   if n.Label != nil { row["text"] = n.Label.Text; point:=n.LabelTopLeft(n.Label.Position,n.Label.Width,n.Label.Height); row["rect"]=[]string{fmt.Sprintf("%016x",math.Float64bits(point.X)),fmt.Sprintf("%016x",math.Float64bits(point.Y)),fmt.Sprintf("%016x",math.Float64bits(n.Label.Width)),fmt.Sprintf("%016x",math.Float64bits(n.Label.Height))} }
++   inventory=append(inventory,row)
++  }
++  data,_:=json.Marshal(map[string]any{"event":"search-label-inventory","edge":gEdge.ID,"flavor":fmt.Sprint(router.flavor),"scope_nodes":len(originalGraph.Nodes),"scope_edges":len(originalGraph.Edges),"labels":inventory});fmt.Fprintln(os.Stderr,string(data))
++ }
++
+ 	router.traceGenerationWork(gEdge,"search-labels-done")
+ 
+ 	overlap := false

@@ -1,0 +1,13 @@
+[
+"\\begin{CD}A\\\\[2em]@VVV\\\\B\\end{CD}",
+"\\begin{CD}A\\\\[0]@VVV\\\\[4pt]B\\end{CD}",
+"\\begin{CD}A\\\\ [2em]@VVV\\\\B\\end{CD}",
+"\\begin{CD}A\\\\[2em@VVV\\\\B\\end{CD}",
+"\\begin{CD}{\\begin{CD}A@>>>B\\end{CD}}@>>>C\\end{CD}",
+"\\begin{CD}A@>>>B\\end { CD }",
+"\\begin{CD}A@>>>B",
+"\\begin{CD}A\\end{CD}",
+"\\begin{CD}A@>>>B\\end{matrix}",
+"\\begin{matrix}\\begin{matrix}a&b\\end{matrix}&c\\end{matrix}",
+"\\begin{CD}A\\\\[\\text{x}]@VVV\\\\B\\end{CD}"
+]

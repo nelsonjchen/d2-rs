@@ -1,0 +1,28 @@
+--- a/d2layouts/d2talalayout/internal/placement/sizeless_optimizer.go
++++ b/d2layouts/d2talalayout/internal/placement/sizeless_optimizer.go
+@@ -1,6 +1,7 @@
+ package placement
+ 
+ import (
++	"slices"
+ 	"context"
+ 	"encoding/json"
+ 	"fmt"
+@@ -71,6 +72,17 @@
+ 		if err != nil {
+ 			return nil, err
+ 		}
++		if os.Getenv("TALA_TRACE_SIZELESS_MEMBERS") != "" {
++            nears := make([]string,0,len(node.Nears))
++            for near := range node.Nears { nears=append(nears,near.DebugID()) }
++            slices.Sort(nears)
++            edges := make([]map[string]interface{},0,len(node.Edges))
++            for _, edge := range node.Edges { edges=append(edges,map[string]interface{}{"from":edge.From.DebugID(),"to":edge.To.DebugID(),"from_positioned":edge.From.TopLeft!=nil,"to_positioned":edge.To.TopLeft!=nil}) }
++            _, inTree := g.NodeToTree[node]
++            row := map[string]interface{}{"event":"sizeless-member","node_id":node.DebugID(),"container":node.Container.DebugID(),"selected":canOptimize,"edges":edges,"nears":nears,"in_tree":inTree}
++            encoded, _ := json.Marshal(row)
++            fmt.Fprintln(os.Stderr,string(encoded))
++        }
+ 		if canOptimize {
+ 			optim.nodes = append(optim.nodes, node)
+ 		}

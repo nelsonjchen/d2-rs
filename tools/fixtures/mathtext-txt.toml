@@ -1,0 +1,423 @@
+# Text-side oracle fixtures of the mathtext area (docs/FIXTURES.md):
+# Chroma, uniseg, go-text/typesetting Unicode and mathjax-go mhchem
+# (third-party; keyed on module version + Go toolchain via each oracle's own
+# go.mod/go.sum, not the D2 pin), plus D2 lib/textmeasure and d2oracle
+# captures (keyed on the upstream paths they read).
+#
+# Regenerate:  uv run --no-project python scripts/regen-fixtures.py --only 'mathtext-txt-*'
+# Test:        cargo test -p d2-rs-text -p d2-rs-editor -p d2-rs-math -p rustybuzz \
+#                --features d2-rs-text/oracle-fixtures,d2-rs-editor/oracle-fixtures,d2-rs-math/oracle-fixtures,rustybuzz/oracle-fixtures
+
+[defaults]
+timeout = 1800
+
+[defaults.key_deps]
+files = ["scripts/fixture_recipe.py", "scripts/mathtext_gen.py"]
+
+# ---- Chroma (github.com/alecthomas/chroma/v2) ------------------------------
+
+[[recipe]]
+name = "mathtext-txt-chroma-javascript-json"
+kind = "go-program"
+description = "Chroma JavaScript/JSON token streams and github/catppuccin-mocha token styles"
+outputs = ["crates/d2-rs-text/tests/fixtures/javascript-json-tokens-v227.json"]
+inputs = [{ path = "javascript-json.json", generate = ["{python}", "scripts/fixture-gen-chroma.py", "crates/d2-rs-text/tests/fixtures/javascript-json-tokens-v227.json"] }]
+program = "tools/mathtext-chroma-oracle"
+module = "tools/mathtext-chroma-oracle"
+args = ["tokens", "{input}"]
+env = { D2RS_CHROMA_JSON = "indent" }
+stdout = "crates/d2-rs-text/tests/fixtures/javascript-json-tokens-v227.json"
+key_deps.files = ["tools/fixtures/inputs/mathtext-txt/chroma-tokens.json"]
+
+[[recipe]]
+name = "mathtext-txt-chroma-markdown-yaml"
+kind = "go-program"
+description = "Chroma Markdown/YAML token streams and both theme styles"
+outputs = ["crates/d2-rs-text/tests/fixtures/markdown-yaml-tokens-v227.json"]
+inputs = [{ path = "markdown-yaml.json", generate = ["{python}", "scripts/fixture-gen-chroma.py", "crates/d2-rs-text/tests/fixtures/markdown-yaml-tokens-v227.json"] }]
+program = "tools/mathtext-chroma-oracle"
+module = "tools/mathtext-chroma-oracle"
+args = ["tokens", "{input}"]
+stdout = "crates/d2-rs-text/tests/fixtures/markdown-yaml-tokens-v227.json"
+key_deps.files = ["tools/fixtures/inputs/mathtext-txt/chroma-tokens.json"]
+
+[[recipe]]
+name = "mathtext-txt-chroma-python"
+kind = "go-program"
+description = "Chroma Python token streams and both theme styles"
+outputs = ["crates/d2-rs-text/tests/fixtures/python-tokens-v227.json"]
+inputs = [{ path = "python.json", generate = ["{python}", "scripts/fixture-gen-chroma.py", "crates/d2-rs-text/tests/fixtures/python-tokens-v227.json"] }]
+program = "tools/mathtext-chroma-oracle"
+module = "tools/mathtext-chroma-oracle"
+args = ["tokens", "{input}"]
+stdout = "crates/d2-rs-text/tests/fixtures/python-tokens-v227.json"
+key_deps.files = ["tools/fixtures/inputs/mathtext-txt/chroma-tokens.json"]
+
+[[recipe]]
+name = "mathtext-txt-chroma-registry"
+kind = "go-program"
+description = "lexers.Get name resolution for every registered name, alias and filename glob"
+outputs = ["crates/d2-rs-text/tests/fixtures/code-registry-get-v227.json"]
+inputs = ["tools/fixtures/inputs/mathtext-txt/chroma-registry-extra.json"]
+program = "tools/mathtext-chroma-oracle"
+module = "tools/mathtext-chroma-oracle"
+args = ["registry", "{input}"]
+env = { D2RS_CHROMA_JSON = "indent" }
+stdout = "crates/d2-rs-text/tests/fixtures/code-registry-get-v227.json"
+
+# ---- uniseg (github.com/rivo/uniseg) ---------------------------------------
+
+[[recipe]]
+name = "mathtext-txt-uniseg"
+kind = "go-program"
+description = "uniseg line segments, grapheme boundaries and string widths"
+outputs = ["crates/d2-rs-text/tests/fixtures/uniseg-boundaries-source-v090.json"]
+inputs = [{ path = "uniseg.json", generate = ["{python}", "scripts/fixture-gen-uniseg.py"] }]
+program = "tools/mathtext-uniseg-oracle"
+module = "tools/mathtext-uniseg-oracle"
+args = ["{input}"]
+stdout = "crates/d2-rs-text/tests/fixtures/uniseg-boundaries-source-v090.json"
+
+# ---- go-text/typesetting Unicode tables -------------------------------------
+
+[[recipe]]
+name = "mathtext-txt-go-unicode"
+kind = "command"
+description = "typesetting script/category/combining/mirror lookups over all scalars, decomposition and composition"
+outputs = ["vendor/rustybuzz-go-v090/tests/fixtures/go-unicode-v090.json"]
+argv = ["{python}", "scripts/fixture-gen-go-unicode.py"]
+key_deps.files = ["tools/mathtext-unicode-oracle", "tools/fixtures/hooks/mathtext-txt-go-unicode"]
+key_deps.go_toolchain = true
+
+# ---- mathjax-go internal/mhchem ---------------------------------------------
+
+[[recipe]]
+name = "mathtext-txt-mhchem-pattern"
+kind = "go-program"
+description = "mhchem matchPattern hits, remainders and errors for every pattern x input"
+outputs = ["crates/d2-rs-math/tests/fixtures/mhchem-pattern-source-v090.json"]
+inputs = [{ path = "pattern.json", generate = ["{python}", "scripts/fixture-gen-mhchem.py", "pattern"] }]
+program = "tools/mathtext-mhchem-oracle"
+module = "tools/mathtext-mhchem-oracle"
+args = ["pattern", "{input}"]
+stdout = "crates/d2-rs-math/tests/fixtures/mhchem-pattern-source-v090.json"
+key_deps.files = ["tools/fixtures/inputs/mathtext-txt/mhchem-inputs.json"]
+
+[[recipe]]
+name = "mathtext-txt-mhchem-regexp"
+kind = "go-program"
+description = "mhchem JavaScript-regexp translation: first match and groups for every regex x input"
+outputs = ["crates/d2-rs-math/tests/fixtures/mhchem-regexp-source-v090.json"]
+inputs = [{ path = "regexp.json", generate = ["{python}", "scripts/fixture-gen-mhchem.py", "regexp"] }]
+program = "tools/mathtext-mhchem-oracle"
+module = "tools/mathtext-mhchem-oracle"
+args = ["regexp", "{input}"]
+stdout = "crates/d2-rs-math/tests/fixtures/mhchem-regexp-source-v090.json"
+key_deps.files = ["tools/fixtures/inputs/mathtext-txt/mhchem-inputs.json"]
+
+[[recipe]]
+name = "mathtext-txt-mhchem-texifier"
+kind = "go-program"
+description = "mhchem texify output and errors for every buffer type"
+outputs = ["crates/d2-rs-math/tests/fixtures/mhchem-texifier-source-v090.json"]
+inputs = [{ path = "texify.json", generate = ["{python}", "scripts/fixture-gen-mhchem.py", "texify"] }]
+program = "tools/mathtext-mhchem-oracle"
+module = "tools/mathtext-mhchem-oracle"
+args = ["texify", "{input}"]
+stdout = "crates/d2-rs-math/tests/fixtures/mhchem-texifier-source-v090.json"
+
+[[recipe]]
+name = "mathtext-txt-mhchem-expansion"
+kind = "go-program"
+description = "mhchem ToTeX expansion and errors: upstream mhchem_test.go cases, retained controls, pattern inputs x modes, invalid modes"
+outputs = ["crates/d2-rs-math/tests/fixtures/mhchem-expansion-source-v090.json"]
+inputs = [{ path = "expand.json", generate = ["{python}", "scripts/fixture-gen-mhchem.py", "expand"] }]
+program = "tools/mathtext-mhchem-oracle"
+module = "tools/mathtext-mhchem-oracle"
+args = ["expand", "{input}"]
+stdout = "crates/d2-rs-math/tests/fixtures/mhchem-expansion-source-v090.json"
+key_deps.files = ["tools/fixtures/inputs/mathtext-txt/mhchem-inputs.json"]
+
+# ---- D2 lib/textmeasure ----------------------------------------------------
+
+[[recipe]]
+name = "mathtext-txt-code-bounds"
+kind = "go-test-hook"
+description = "Ruler.MeasurePrecise code bounds for every family, style, size and line-height factor"
+outputs = ["crates/d2-rs-text/tests/fixtures/markdown-code-bounds-source-v090.json"]
+package = "lib/textmeasure"
+hooks = ["tools/fixtures/hooks/mathtext-txt-code-bounds/d2rs_code_bounds_test.go"]
+test = "TestD2RSCaptureCodeBounds"
+key_deps.upstream_paths = ["lib/textmeasure", "d2renderers/d2fonts", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "mathtext-txt-markdown-substitutions"
+kind = "command"
+upstream = true
+description = "Every ReplaceSubstitutionsMarkdownBounded call of the upstream substitution tests"
+outputs = ["crates/d2-rs-text/tests/fixtures/master-markdown-substitutions.json"]
+argv = ["{python}", "scripts/fixture-gen-markdown-substitutions.py"]
+key_deps.files = ["tools/language-master-scoreboard/markdown_hook_test.go"]
+key_deps.upstream_paths = ["lib/textmeasure", "go.mod", "go.sum"]
+key_deps.go_toolchain = true
+
+# ---- D2 d2oracle -----------------------------------------------------------
+
+[[recipe]]
+name = "mathtext-txt-editor-graphs"
+kind = "command"
+upstream = true
+description = "Live d2oracle edit-test requests with their upstream graph goldens"
+outputs = ["crates/d2-rs-editor/tests/fixtures/editor-graphs-v090.json"]
+argv = ["{python}", "scripts/fixture-gen-editor-graphs.py"]
+timeout = 2400
+key_deps.upstream_paths = ["d2oracle", "testdata/d2oracle"]
+key_deps.go_toolchain = true
+
+# ---- Second pass: the remaining text captures under 256 KB ----------------
+
+[[recipe]]
+name = "mathtext-txt-chroma-go-template"
+kind = "go-program"
+description = "Chroma Go/Go-template token streams and both theme styles"
+outputs = ["crates/d2-rs-text/tests/fixtures/chroma-go-template-tokens.json"]
+inputs = [{ path = "go-template.json", generate = ["{python}", "scripts/fixture-gen-chroma.py", "crates/d2-rs-text/tests/fixtures/chroma-go-template-tokens.json"] }]
+program = "tools/mathtext-chroma-oracle"
+module = "tools/mathtext-chroma-oracle"
+args = ["tokens", "{input}"]
+env = { D2RS_CHROMA_JSON = "indent" }
+stdout = "crates/d2-rs-text/tests/fixtures/chroma-go-template-tokens.json"
+key_deps.files = ["tools/fixtures/inputs/mathtext-txt/chroma-tokens.json"]
+
+[[recipe]]
+name = "mathtext-txt-chroma-registry-tokens"
+kind = "go-program"
+description = "Chroma token streams and theme styles for registry names, aliases and file names"
+outputs = ["crates/d2-rs-text/tests/fixtures/code-registry-tokens-v227.json"]
+inputs = [{ path = "registry-tokens.json", generate = ["{python}", "scripts/fixture-gen-chroma.py", "crates/d2-rs-text/tests/fixtures/code-registry-tokens-v227.json"] }]
+program = "tools/mathtext-chroma-oracle"
+module = "tools/mathtext-chroma-oracle"
+args = ["tokens", "{input}"]
+env = { D2RS_CHROMA_JSON = "indent" }
+stdout = "crates/d2-rs-text/tests/fixtures/code-registry-tokens-v227.json"
+key_deps.files = ["tools/fixtures/inputs/mathtext-txt/chroma-tokens.json"]
+
+[[recipe]]
+name = "mathtext-txt-chroma-plaintext"
+kind = "go-program"
+description = "Chroma plaintext token streams for the txt/plaintext/text/plain/no-highlight names"
+outputs = ["crates/d2-rs-text/tests/fixtures/chroma-plaintext-extension-source-v090.json"]
+inputs = [{ path = "plaintext.json", generate = ["{python}", "scripts/fixture-gen-chroma.py", "crates/d2-rs-text/tests/fixtures/chroma-plaintext-extension-source-v090.json"] }]
+program = "tools/mathtext-chroma-oracle"
+module = "tools/mathtext-chroma-oracle"
+args = ["tokens", "{input}"]
+env = { D2RS_CHROMA_JSON = "indent" }
+stdout = "crates/d2-rs-text/tests/fixtures/chroma-plaintext-extension-source-v090.json"
+key_deps.files = ["tools/fixtures/inputs/mathtext-txt/chroma-tokens.json"]
+
+[[recipe]]
+name = "mathtext-txt-chroma-bash-styles"
+kind = "go-program"
+description = "Chroma Bash token streams, lexer names and d2svg style maps (tools/chroma-code-oracle)"
+outputs = ["crates/d2-rs-text/tests/fixtures/chroma-bash-styles-v227.json"]
+inputs = [{ path = "bash-cases.json", generate = ["sh", "-c", "\"$1\" tools/chroma-code-oracle/cases.py > \"$D2RS_RECIPE_OUTPUT\"", "sh", "{python}"] }]
+program = "tools/chroma-code-oracle"
+module = "tools/chroma-code-oracle"
+stdin = "{input}"
+stdout = "crates/d2-rs-text/tests/fixtures/chroma-bash-styles-v227.json"
+key_deps.files = ["tools/chroma-code-oracle/cases.py"]
+
+[[recipe]]
+name = "mathtext-txt-chroma-code-measurements"
+kind = "go-test-hook"
+description = "Ruler.MeasureMono code-block bounds over Source Code Pro sizes x sources"
+outputs = ["crates/d2-rs-text/tests/fixtures/chroma-code-measurements.json"]
+package = "lib/textmeasure"
+hooks = ["tools/fixtures/hooks/mathtext-txt-textmeasure/d2rs_code_measurements_test.go"]
+test = "TestD2RSChromaCodeMeasurements"
+key_deps.upstream_paths = ["lib/textmeasure", "d2renderers/d2fonts", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "mathtext-txt-bounds-dot"
+kind = "go-test-hook"
+description = "Ruler.MeasurePrecise with dot bounds per family x style x size x text"
+outputs = ["crates/d2-rs-text/tests/fixtures/bounds-dot-source-v090.json"]
+package = "lib/textmeasure"
+hooks = ["tools/fixtures/hooks/mathtext-txt-textmeasure/d2rs_bounds_dot_test.go"]
+test = "TestD2RSBoundsDot"
+key_deps.upstream_paths = ["lib/textmeasure", "d2renderers/d2fonts", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "mathtext-txt-markdown-legacy"
+kind = "go-test-hook"
+description = "Markdown-mode raw and scaleUnicodeLegacy widths per family x style x size x text"
+outputs = ["crates/d2-rs-text/tests/markdown-legacy-source-v090.json"]
+package = "lib/textmeasure"
+hooks = ["tools/fixtures/hooks/mathtext-txt-textmeasure/d2rs_markdown_legacy_test.go"]
+test = "TestD2RSMarkdownLegacyMeasure"
+key_deps.upstream_paths = ["lib/textmeasure", "d2renderers/d2fonts", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "mathtext-txt-ordinary-width"
+kind = "go-test-hook"
+description = "Ordinary label raw and scaleUnicode widths per family x style x size x text"
+outputs = ["crates/d2-rs-text/tests/ordinary-width-source-v090.json"]
+package = "lib/textmeasure"
+hooks = ["tools/fixtures/hooks/mathtext-txt-textmeasure/d2rs_ordinary_width_test.go"]
+test = "TestD2RSOrdinaryWidthControls"
+key_deps.upstream_paths = ["lib/textmeasure", "d2renderers/d2fonts", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "mathtext-txt-markdown-writer"
+kind = "go-test-hook"
+description = "RenderMarkdown HTML writer output over the seed Markdown requests"
+outputs = ["crates/d2-rs-text/tests/fixtures/markdown-writer-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-txt/markdown-writer.json"]
+package = "lib/textmeasure"
+hooks = ["tools/fixtures/hooks/mathtext-txt-textmeasure/d2rs_markdown_html_test.go"]
+test = "TestD2RSMarkdownWriter"
+key_deps.upstream_paths = ["lib/textmeasure", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "mathtext-txt-markdown-list-grammar"
+kind = "go-test-hook"
+description = "Goldmark block tree (kind, parent, tightness, offsets) and RenderMarkdown HTML for list sources"
+outputs = ["crates/d2-rs-text/tests/fixtures/markdown-list-grammar-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-txt/markdown-list-grammar.json"]
+package = "lib/textmeasure"
+hooks = ["tools/fixtures/hooks/mathtext-txt-textmeasure/d2rs_markdown_html_test.go"]
+test = "TestD2RSMarkdownListGrammar"
+key_deps.upstream_paths = ["lib/textmeasure", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "mathtext-txt-markdown-bytes"
+kind = "go-test-hook"
+description = "RenderMarkdown over invalid-UTF-8/control byte sources and encoding/xml errors over raw documents"
+outputs = ["crates/d2-rs-text/tests/fixtures/markdown-byte-html-xml-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-txt/markdown-bytes.json"]
+package = "lib/textmeasure"
+hooks = ["tools/fixtures/hooks/mathtext-txt-textmeasure/d2rs_markdown_html_test.go"]
+test = "TestD2RSMarkdownBytes"
+key_deps.upstream_paths = ["lib/textmeasure", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "mathtext-txt-markdown-links"
+kind = "go-test-hook"
+description = "RenderMarkdown link sanitization and XML validation over raw <a href> sources"
+outputs = ["crates/d2-rs-text/tests/fixtures/markdown-link-sanitization-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-txt/markdown-links.json"]
+package = "lib/textmeasure"
+hooks = ["tools/fixtures/hooks/mathtext-txt-textmeasure/d2rs_markdown_html_test.go"]
+test = "TestD2RSMarkdownLinks"
+key_deps.upstream_paths = ["lib/textmeasure", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "mathtext-txt-compiler-markdown-xml"
+kind = "go-test-hook"
+description = "D2 compiler Markdown/HTML XML validation messages over raw and Markdown sources"
+outputs = ["crates/d2-rs-text/tests/fixtures/compiler-markdown-xml-source-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-txt/compiler-markdown-xml.json"]
+package = "lib/textmeasure"
+hooks = ["tools/fixtures/hooks/mathtext-txt-textmeasure/d2rs_markdown_html_test.go"]
+test = "TestD2RSCompilerMarkdownXML"
+key_deps.upstream_paths = ["lib/textmeasure", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "mathtext-txt-code-glyph-metrics"
+kind = "go-test-hook"
+description = "Source Code Pro glyph advances (d2scenebuild code glyph admission) x fonts x sizes x texts x context"
+outputs = ["crates/d2-rs-text/tests/fixtures/code-glyph-metrics-v090.json"]
+inputs = [{ path = "glyph.json", generate = ["{python}", "scripts/fixture-gen-code-requests.py", "glyph"] }]
+package = "d2renderers/d2scenebuild"
+hooks = ["tools/fixtures/hooks/mathtext-txt-code-scenebuild/d2rs_code_glyph_test.go"]
+test = "TestD2RSCodeGlyphMetrics"
+key_deps.files = ["scripts/fixture_recipe.py"]
+key_deps.upstream_paths = ["d2renderers/d2scenebuild", "d2renderers/d2fonts", "lib/textmeasure", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "mathtext-txt-code-ruler-unicode"
+kind = "go-test-hook"
+description = "Ruler.MeasureMono with CODE_LINE_HEIGHT over Unicode code samples x sizes"
+outputs = ["crates/d2-rs-text/tests/fixtures/code-ruler-unicode-v090.json"]
+package = "d2renderers/d2scenebuild"
+hooks = ["tools/fixtures/hooks/mathtext-txt-code-scenebuild/d2rs_code_glyph_test.go"]
+test = "TestD2RSCodeRulerUnicode"
+key_deps.upstream_paths = ["d2renderers/d2fonts", "lib/textmeasure", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "mathtext-txt-code-token-budget"
+kind = "go-test-hook"
+description = "Code token expansion under scene node budgets x token sequences x context"
+outputs = ["crates/d2-rs-text/tests/fixtures/code-token-budget-v090.json"]
+inputs = [{ path = "token-budget.json", generate = ["{python}", "scripts/fixture-gen-code-requests.py", "token-budget"] }]
+package = "d2renderers/d2scenebuild"
+hooks = ["tools/fixtures/hooks/mathtext-txt-code-scenebuild/d2rs_code_token_budget_test.go"]
+test = "TestD2RSCodeTokenBudget"
+key_deps.files = ["scripts/fixture_recipe.py"]
+key_deps.upstream_paths = ["d2renderers/d2scenebuild", "d2renderers/d2fonts", "lib/textmeasure", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "mathtext-txt-font-subset"
+kind = "command"
+upstream = true
+description = "Font subset cut/WOFF/data-URI digests per family x style x corpus, and every upstream golden's embedded subset fonts"
+outputs = ["crates/d2-rs-text/tests/fixtures/font_subset/oracle_cases.json", "crates/d2-rs-text/tests/fixtures/font_subset/golden_fonts.json"]
+argv = ["{python}", "scripts/fixture-gen-font-subset.py"]
+key_deps.files = ["tools/font-subset-oracle/main.go", "tools/oracle/go.mod", "tools/oracle/go.sum", "tools/fixtures/inputs/mathtext-txt/font-subset-corpora.json"]
+key_deps.upstream_paths = ["d2renderers/d2fonts", "lib/font", "e2etests/testdata", "go.mod", "go.sum"]
+key_deps.go_toolchain = true
+
+[[recipe]]
+name = "mathtext-txt-editor-update-import"
+kind = "command"
+upstream = true
+description = "Every TestUpdateImport UpdateImport call with its table row (expected text and error)"
+outputs = ["crates/d2-rs-editor/tests/fixtures/update-import-v090.json"]
+argv = ["{python}", "scripts/fixture-gen-editor-graphs.py", "update-import"]
+key_deps.files = ["scripts/fixture_recipe.py"]
+key_deps.upstream_paths = ["d2oracle", "go.mod", "go.sum"]
+key_deps.go_toolchain = true
+
+[[recipe]]
+name = "mathtext-txt-editor-update-import-boundaries"
+kind = "go-test-hook"
+description = "d2oracle.UpdateImport over the directory, prefix, array and parse-error boundary controls"
+outputs = ["crates/d2-rs-editor/tests/fixtures/update-import-boundaries-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-txt/update-import-boundaries.json"]
+package = "d2oracle"
+hooks = ["tools/fixtures/hooks/mathtext-txt-editor-move/d2rs_update_import_test.go"]
+test = "TestD2RSUpdateImportBoundaries"
+key_deps.upstream_paths = ["d2oracle", "d2parser", "d2ast", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "mathtext-txt-editor-move-transplant"
+kind = "go-test-hook"
+description = "d2oracle.Move: every upstream TestMove case with both descendant settings, plus reference/board/import controls"
+outputs = ["crates/d2-rs-editor/tests/fixtures/move-transplant-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-txt/editor-move.json"]
+package = "d2oracle"
+hooks = ["tools/fixtures/hooks/mathtext-txt-editor-move/d2rs_editor_move_test.go"]
+test = "TestD2RSEditorMove"
+env = { D2RS_EDITOR_MOVE = "transplant" }
+
+[[recipe]]
+name = "mathtext-txt-editor-move-boundary"
+kind = "go-test-hook"
+description = "d2oracle.Move boundary and validation-precedence controls"
+outputs = ["crates/d2-rs-editor/tests/fixtures/move-boundary-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-txt/editor-move.json"]
+package = "d2oracle"
+hooks = ["tools/fixtures/hooks/mathtext-txt-editor-move/d2rs_editor_move_test.go"]
+test = "TestD2RSEditorMove"
+env = { D2RS_EDITOR_MOVE = "boundary" }
+
+[[recipe]]
+name = "mathtext-txt-editor-move-edge"
+kind = "go-test-hook"
+description = "d2oracle.Move edge-key controls (arrows, indices, scopes, tables, sequences, boards, imports)"
+outputs = ["crates/d2-rs-editor/tests/fixtures/move-edge-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-txt/editor-move.json"]
+package = "d2oracle"
+hooks = ["tools/fixtures/hooks/mathtext-txt-editor-move/d2rs_editor_move_test.go"]
+test = "TestD2RSEditorMove"
+env = { D2RS_EDITOR_MOVE = "edge" }

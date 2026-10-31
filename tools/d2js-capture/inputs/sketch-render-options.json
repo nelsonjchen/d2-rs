@@ -1,0 +1,7 @@
+[
+{"name": "default", "source": "a\n", "options": {}},
+{"name": "pad", "source": "a\n", "options": {"pad": 0}},
+{"name": "scale", "source": "a\n", "options": {"scale": 2}},
+{"name": "sketch", "source": "a: box\n", "options": {"sketch": true}},
+{"name": "config", "source": "vars: {d2-config: {theme-id: 1; center: true; sketch: true; pad: 7}}\na: box\n", "options": {}}
+]

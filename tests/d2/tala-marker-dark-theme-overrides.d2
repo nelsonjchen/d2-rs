@@ -1,0 +1,106 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+# Symbolic paint is supplied by light/dark CSS; literal red remains explicit.
+
+vars: {
+  d2-config: {
+    theme-id: 0
+    dark-theme-id: 200
+    theme-overrides: { B1: "#236745"; N7: "#F1E2D3" }
+    dark-theme-overrides: { B1: "#FEDCBA"; N7: "#123456" }
+  }
+}
+
+triangle_source: "" {width: 60; height: 40; left: 0; top: 0}
+triangle_target: "" {width: 60; height: 40; left: 200; top: 0}
+triangle_source <-> triangle_target: {
+  source-arrowhead: {
+    shape: triangle
+  }
+  target-arrowhead: {
+    shape: triangle
+  }
+}
+
+circle_source: "" {width: 60; height: 40; left: 0; top: 90}
+circle_target: "" {width: 60; height: 40; left: 200; top: 90}
+circle_source <-> circle_target: {
+  source-arrowhead: {
+    shape: circle
+  }
+  target-arrowhead: {
+    shape: circle
+  }
+}
+
+diamond_source: "" {width: 60; height: 40; left: 0; top: 180}
+diamond_target: "" {width: 60; height: 40; left: 200; top: 180}
+diamond_source <-> diamond_target: {
+  source-arrowhead: {
+    shape: diamond
+  }
+  target-arrowhead: {
+    shape: diamond
+  }
+}
+
+cross_source: "" {width: 60; height: 40; left: 0; top: 270}
+cross_target: "" {width: 60; height: 40; left: 200; top: 270}
+cross_source <-> cross_target: {
+  source-arrowhead: {
+    shape: cross
+  }
+  target-arrowhead: {
+    shape: cross
+  }
+}
+
+cf_many_required_source: "" {width: 60; height: 40; left: 0; top: 360}
+cf_many_required_target: "" {width: 60; height: 40; left: 200; top: 360}
+cf_many_required_source <-> cf_many_required_target: {
+  source-arrowhead: {
+    shape: cf-many-required
+  }
+  target-arrowhead: {
+    shape: cf-many-required
+  }
+}
+
+literal_triangle_source: "" {width: 60; height: 40; left: 0; top: 450}
+literal_triangle_target: "" {width: 60; height: 40; left: 200; top: 450}
+literal_triangle_source <-> literal_triangle_target: {
+  style.stroke: "red"
+  source-arrowhead: {
+    shape: triangle
+  }
+  target-arrowhead: {
+    shape: triangle
+  }
+}
+
+literal_circle_source: "" {width: 60; height: 40; left: 0; top: 540}
+literal_circle_target: "" {width: 60; height: 40; left: 200; top: 540}
+literal_circle_source <-> literal_circle_target: {
+  style.stroke: "red"
+  source-arrowhead: {
+    shape: circle
+  }
+  target-arrowhead: {
+    shape: circle
+  }
+}
+
+literal_cf_one_source: "" {width: 60; height: 40; left: 0; top: 630}
+literal_cf_one_target: "" {width: 60; height: 40; left: 200; top: 630}
+literal_cf_one_source <-> literal_cf_one_target: {
+  style.stroke: "red"
+  source-arrowhead: {
+    shape: cf-one
+  }
+  target-arrowhead: {
+    shape: cf-one
+  }
+}
+

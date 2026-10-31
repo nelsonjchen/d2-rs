@@ -1,0 +1,21 @@
+# mathjax-go mathjax.Render (the call behind D2's d2latex.Render) for the
+# d2-rs-math render_exact contract. See docs/FIXTURES.md.
+#
+# Regenerate:  uv run --no-project python scripts/regen-fixtures.py --only mathtext-latex-mathjax-exact
+# Test:        cargo test -p d2-rs-math --features oracle-fixtures mathjax_exact
+
+# render_exact contract (crates/d2-rs-math/src/mathjax_exact_tests.rs): SHA-256 of
+# mathjax.Render per TeX string, joined with the committed render_exact outcome
+# ledger. tools/mathjax-oracle/go.mod requires the mathjax-go version of the
+# manifest dependencies; bump both together when the pin moves.
+[[recipe]]
+name = "mathtext-latex-mathjax-exact"
+kind = "go-program"
+description = "mathjax.Render SHA-256 per ledger expression with the recorded render_exact outcome"
+outputs = ["crates/d2-rs-math/tests/fixtures/mathjax-exact-v090.json"]
+inputs = ["tools/fixtures/inputs/mathtext-latex/mathjax-exact.json"]
+program = "tools/mathjax-oracle"
+module = "tools/mathjax-oracle"
+args = ["{input}"]
+stdout = "crates/d2-rs-math/tests/fixtures/mathjax-exact-v090.json"
+key_deps = { go_modules = ["github.com/d2lang/mathjax-go"] }

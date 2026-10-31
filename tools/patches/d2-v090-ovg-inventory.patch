@@ -1,0 +1,15 @@
+--- a/d2layouts/d2talalayout/internal/routing/ovg_edge_router.go
++++ b/d2layouts/d2talalayout/internal/routing/ovg_edge_router.go
+@@ -1794,6 +1794,12 @@
+ 		fmt.Fprintln(os.Stderr, string(data))
+ 	}
+ 	tracePublication("begin")
++	if os.Getenv("D2_TRACE_OVG_INVENTORY_EDGE") == fmt.Sprint(route.GEdge.ID) {
++		vertical := make([][]string,0); horizontal := make([][]string,0)
++		for axis, edges := range router.ovg.VerticalEdges { for _, e := range edges { vertical=append(vertical, []string{fmt.Sprintf("%016x",math.Float64bits(axis)),fmt.Sprintf("%016x",math.Float64bits(e.From.X)),fmt.Sprintf("%016x",math.Float64bits(e.From.Y)),fmt.Sprintf("%016x",math.Float64bits(e.To.X)),fmt.Sprintf("%016x",math.Float64bits(e.To.Y))}) } }
++		for axis, edges := range router.ovg.HorizontalEdges { for _, e := range edges { horizontal=append(horizontal, []string{fmt.Sprintf("%016x",math.Float64bits(axis)),fmt.Sprintf("%016x",math.Float64bits(e.From.X)),fmt.Sprintf("%016x",math.Float64bits(e.From.Y)),fmt.Sprintf("%016x",math.Float64bits(e.To.X)),fmt.Sprintf("%016x",math.Float64bits(e.To.Y))}) } }
++		data,_ := json.Marshal(map[string]any{"event":"ovg-inventory","edge":route.GEdge.ID,"flavor":fmt.Sprint(router.flavor),"scope_nodes":len(router.graph.Nodes),"scope_edges":len(router.graph.Edges),"vertical":vertical,"horizontal":horizontal}); fmt.Fprintln(os.Stderr,string(data))
++	}
+ 	dups := make(map[*OVGNode]struct{}, len(route.OVGNodes))
+ 	routeNodes := route.OVGNodes
+ 	if route.GEdge.IsLoop() {

@@ -1,0 +1,589 @@
+diff --git a/internal/layered/p4nodes/bk_node_placer.go b/internal/layered/p4nodes/bk_node_placer.go
+--- a/internal/layered/p4nodes/bk_node_placer.go
++++ b/internal/layered/p4nodes/bk_node_placer.go
+@@ -54,4 +54,5 @@ func PlaceBrandesKoepf(arena *layered.LGraphArena, graphID layered.LGraphID) {
+ 	for _, layout := range layouts {
+ 		compactor.HorizontalCompaction(arena, graphID, info, layout)
+ 	}
++	traceDirectionalLayouts(arena, graphID, layouts)
+ 	var chosen *BKAlignedLayout
+@@ -83,4 +83,5 @@ func PlaceBrandesKoepf(arena *layered.LGraphArena, graphID layered.LGraphID) {
+ 		}
+ 	}
++	traceNodePlacement(arena, graphID, "brandes-koepf")
+ 	info.Cleanup()
+ }
+diff --git a/internal/layered/p3order/barycenter_heuristic.go b/internal/layered/p3order/barycenter_heuristic.go
+--- a/internal/layered/p3order/barycenter_heuristic.go
++++ b/internal/layered/p3order/barycenter_heuristic.go
+@@ -43,6 +43,7 @@ func (heuristic *BarycenterHeuristic) MinimizeLayer(
+ 		heuristic.calculateBarycenters(*layer, forward)
+ 		heuristic.fillUnknownBarycenters(*layer, preordered)
+ 	}
++	traceBarycenterCandidates(heuristic.Arena, heuristic.Resolver, *layer, preordered, randomize, forward)
+ 	if len(*layer) <= 1 {
+ 		return
+ 	}
+@@ -212,6 +212,7 @@ func (heuristic *BarycenterHeuristic) addFixedPort(
+ 		state.SummedWeight += fixedState.SummedWeight
+ 		return
+ 	}
+ 	state.SummedWeight += float64(heuristic.Distributor.PortRanks[heuristic.Arena.Port(fixedPort).ID])
++	traceFixedPortRank(heuristic.Arena, nodeID, fixedPort, heuristic.Distributor.PortRanks[heuristic.Arena.Port(fixedPort).ID], heuristic.Distributor.Kind, forward)
+ 	state.Degree++
+ }
+diff --git a/internal/layered/p3order/diagnostic_trace.go b/internal/layered/p3order/diagnostic_trace.go
+new file mode 100644
+--- /dev/null
++++ b/internal/layered/p3order/diagnostic_trace.go
+@@ -0,0 +1,104 @@
++// Copyright (c) 2015 Kiel University and others.
++//
++// This program and the accompanying materials are made available under the
++// terms of the Eclipse Public License 2.0 which is available at
++// https://www.eclipse.org/legal/epl-2.0/.
++//
++// SPDX-License-Identifier: EPL-2.0
++
++//go:build d2elkdiagnostic
++
++package p3order
++
++import (
++	"encoding/json"
++	"fmt"
++	"os"
++
++	"github.com/d2lang/elk-go/internal/layered"
++)
++
++type tracedBarycenter struct {
++	Name        string   `json:"name"`
++	Type        int      `json:"type"`
++	Position    int      `json:"position"`
++	Barycenter  *float64 `json:"barycenter"`
++	SummedWeight float64 `json:"summed_weight"`
++	Degree int `json:"degree"`
++}
++
++func traceBarycenterCandidates(
++	arena *layered.LGraphArena,
++	resolver *ForsterConstraintResolver,
++	nodes []layered.LNodeID,
++	preordered, randomized, forward bool,
++) {
++	if os.Getenv("D2_ELK_TRACE") == "" || len(nodes) == 0 {
++		return
++	}
++	traced := make([]tracedBarycenter, 0, len(nodes))
++	for position, nodeID := range nodes {
++		node := arena.Node(nodeID)
++		name := fmt.Sprintf("dummy:type=%d", node.Type)
++		if len(node.Labels) > 0 {
++			name = arena.Label(node.Labels[0]).Text
++		}
++		state := resolver.state(arena, nodeID)
++		var barycenter *float64
++		if value := state.Barycenter; value != nil {
++			copy := *value
++			barycenter = &copy
++		}
++		traced = append(traced, tracedBarycenter{Name: name, Type: int(node.Type), Position: position, Barycenter: barycenter, SummedWeight: state.SummedWeight, Degree: state.Degree})
++	}
++	encoded, err := json.Marshal(struct {
++		Stage      string              `json:"stage"`
++		Layer      int                 `json:"layer"`
++		Preordered bool                `json:"preordered"`
++		Randomized bool                `json:"randomized"`
++		Forward    bool                `json:"forward"`
++		Nodes      []tracedBarycenter `json:"nodes"`
++	}{"p3-barycenter", int(arena.Layer(*arena.Node(nodes[0]).Layer).ID), preordered, randomized, forward, traced})
++	if err != nil {
++		fmt.Fprintln(os.Stderr, "elk trace encoding failed:", err)
++		return
++	}
++	fmt.Fprintln(os.Stderr, string(encoded))
++}
++
++func traceFixedPortRank(arena *layered.LGraphArena, freeID layered.LNodeID, portID layered.LPortID, rank float32, kind PortDistributorKind, forward bool) {
++	if os.Getenv("D2_ELK_TRACE") == "" {
++		return
++	}
++	port := arena.Port(portID)
++	fixedID := *port.Node
++	fixedPorts := make([]int, len(arena.Node(fixedID).Ports))
++	for index, fixedPortID := range arena.Node(fixedID).Ports {
++		fixedPorts[index] = int(fixedPortID)
++	}
++	name := func(nodeID layered.LNodeID) string {
++		node := arena.Node(nodeID)
++		if len(node.Labels) > 0 {
++			return arena.Label(node.Labels[0]).Text
++		}
++		return fmt.Sprintf("dummy:type=%d", node.Type)
++	}
++	encoded, err := json.Marshal(struct {
++		Stage string  `json:"stage"`
++		FreeID int    `json:"free_id"`
++		FixedID int   `json:"fixed_id"`
++		Free string  `json:"free"`
++		Fixed string `json:"fixed"`
++		Port int     `json:"port"`
++		FixedPorts []int `json:"fixed_ports"`
++		Side int     `json:"side"`
++		Rank float32 `json:"rank"`
++		Kind int     `json:"kind"`
++		Forward bool `json:"forward"`
++	}{"p3-port-rank", int(freeID), int(fixedID), name(freeID), name(fixedID), int(portID), fixedPorts, int(port.Side), rank, int(kind), forward})
++	if err != nil {
++		fmt.Fprintln(os.Stderr, "elk trace encoding failed:", err)
++		return
++	}
++	fmt.Fprintln(os.Stderr, string(encoded))
++}
+diff --git a/internal/layered/p3order/diagnostic_trace_off.go b/internal/layered/p3order/diagnostic_trace_off.go
+new file mode 100644
+--- /dev/null
++++ b/internal/layered/p3order/diagnostic_trace_off.go
+@@ -0,0 +1,16 @@
++// Copyright (c) 2015 Kiel University and others.
++//
++// This program and the accompanying materials are made available under the
++// terms of the Eclipse Public License 2.0 which is available at
++// https://www.eclipse.org/legal/epl-2.0/.
++//
++// SPDX-License-Identifier: EPL-2.0
++
++//go:build !d2elkdiagnostic
++
++package p3order
++
++import "github.com/d2lang/elk-go/internal/layered"
++
++func traceBarycenterCandidates(*layered.LGraphArena, *ForsterConstraintResolver, []layered.LNodeID, bool, bool, bool) {}
++func traceFixedPortRank(*layered.LGraphArena, layered.LNodeID, layered.LPortID, float32, PortDistributorKind, bool) {}
+diff --git a/internal/javacompat/random.go b/internal/javacompat/random.go
+--- a/internal/javacompat/random.go
++++ b/internal/javacompat/random.go
+@@ -26,4 +26,5 @@ type Random struct {
+ 	seed             uint64
++	drawCount        uint64
+ 	haveNextGaussian bool
+ 	nextGaussian     float64
+ }
+@@ -41,3 +42,5 @@ func (r *Random) SetSeed(seed int64) {
+ 	r.seed = (uint64(seed) ^ randomMultiplier) & randomMask
+ 	r.haveNextGaussian = false
++	r.drawCount = 0
++	traceRandom("set_seed", r.drawCount, r.seed, seed)
+ }
+@@ -52,2 +54,3 @@ func (r *Random) next(bits uint) int32 {
+ 	r.seed = (r.seed*randomMultiplier + randomAddend) & randomMask
++	r.drawCount++
+ 	return int32(r.seed >> (48 - bits))
+@@ -57,2 +60,4 @@ func (r *Random) NextInt() int32 {
+-	return r.next(32)
++	result := r.next(32)
++	traceRandom("next_int", r.drawCount, r.seed, result)
++	return result
+ }
+@@ -83,2 +89,4 @@ func (r *Random) NextLong() int64 {
+-	return (int64(r.next(32)) << 32) + int64(r.next(32))
++	result := (int64(r.next(32)) << 32) + int64(r.next(32))
++	traceRandom("next_long", r.drawCount, r.seed, result)
++	return result
+ }
+@@ -88,2 +96,4 @@ func (r *Random) NextBoolean() bool {
+-	return r.next(1) != 0
++	result := r.next(1) != 0
++	traceRandom("next_boolean", r.drawCount, r.seed, result)
++	return result
+ }
+@@ -93,2 +103,4 @@ func (r *Random) NextFloat() float32 {
+-	return float32(r.next(24)) / float32(1<<24)
++	result := float32(r.next(24)) / float32(1<<24)
++	traceRandom("next_float", r.drawCount, r.seed, result)
++	return result
+ }
+@@ -98,4 +110,6 @@ func (r *Random) NextDouble() float64 {
+ 	high := int64(r.next(26)) << 27
+ 	low := int64(r.next(27))
+-	return float64(high+low) / float64(int64(1)<<53)
++	result := float64(high+low) / float64(int64(1)<<53)
++	traceRandom("next_double", r.drawCount, r.seed, result)
++	return result
+ }
+diff --git a/internal/javacompat/diagnostic_trace.go b/internal/javacompat/diagnostic_trace.go
+new file mode 100644
+--- /dev/null
++++ b/internal/javacompat/diagnostic_trace.go
+@@ -0,0 +1,35 @@
++// Copyright (c) 2015 Kiel University and others.
++//
++// This program and the accompanying materials are made available under the
++// terms of the Eclipse Public License 2.0 which is available at
++// https://www.eclipse.org/legal/epl-2.0/.
++//
++// SPDX-License-Identifier: EPL-2.0
++
++//go:build d2elkdiagnostic
++
++package javacompat
++
++import (
++	"encoding/json"
++	"fmt"
++	"os"
++)
++
++func traceRandom(operation string, drawCount, state uint64, result any) {
++	if os.Getenv("D2_ELK_TRACE") == "" {
++		return
++	}
++	encoded, err := json.Marshal(struct {
++		Stage     string `json:"stage"`
++		Operation string `json:"operation"`
++		DrawCount uint64 `json:"draw_count"`
++		State     uint64 `json:"state"`
++		Result    any    `json:"result"`
++	}{"rng", operation, drawCount, state, result})
++	if err != nil {
++		fmt.Fprintln(os.Stderr, "elk trace encoding failed:", err)
++		return
++	}
++	fmt.Fprintln(os.Stderr, string(encoded))
++}
+diff --git a/internal/javacompat/diagnostic_trace_off.go b/internal/javacompat/diagnostic_trace_off.go
+new file mode 100644
+--- /dev/null
++++ b/internal/javacompat/diagnostic_trace_off.go
+@@ -0,0 +1,13 @@
++// Copyright (c) 2015 Kiel University and others.
++//
++// This program and the accompanying materials are made available under the
++// terms of the Eclipse Public License 2.0 which is available at
++// https://www.eclipse.org/legal/epl-2.0/.
++//
++// SPDX-License-Identifier: EPL-2.0
++
++//go:build !d2elkdiagnostic
++
++package javacompat
++
++func traceRandom(string, uint64, uint64, any) {}
+diff --git a/internal/layered/p4nodes/diagnostic_trace.go b/internal/layered/p4nodes/diagnostic_trace.go
+new file mode 100644
+--- /dev/null
++++ b/internal/layered/p4nodes/diagnostic_trace.go
+@@ -0,0 +1,189 @@
++// Copyright (c) 2015 Kiel University and others.
++//
++// This program and the accompanying materials are made available under the
++// terms of the Eclipse Public License 2.0 which is available at
++// https://www.eclipse.org/legal/epl-2.0/.
++//
++// SPDX-License-Identifier: EPL-2.0
++
++//go:build d2elkdiagnostic
++
++package p4nodes
++
++import (
++	"encoding/json"
++	"fmt"
++	"os"
++
++	basegraph "github.com/d2lang/elk-go/internal/graph"
++	"github.com/d2lang/elk-go/internal/layered"
++)
++
++type tracedNode struct {
++	Index        int          `json:"index"`
++	StableID     string       `json:"stable_id"`
++	Layer        int          `json:"layer"`
++	Type         int          `json:"type"`
++	X            float64      `json:"x"`
++	Y            float64      `json:"y"`
++	Width        float64      `json:"width"`
++	Height       float64      `json:"height"`
++	MarginTop    float64      `json:"margin_top"`
++	MarginBottom float64      `json:"margin_bottom"`
++	Ports        []tracedPort `json:"ports"`
++}
++
++type tracedPort struct {
++	Index   int     `json:"index"`
++	Side    int     `json:"side"`
++	X       float64 `json:"x"`
++	Y       float64 `json:"y"`
++	AnchorX float64 `json:"anchor_x"`
++	AnchorY float64 `json:"anchor_y"`
++}
++
++type tracedCandidateNode struct {
++	Index      int      `json:"index"`
++	Name       string   `json:"name"`
++	StableID   string   `json:"stable_id"`
++	LayerOrder int      `json:"layer_order"`
++	LayerID    int      `json:"layer_id"`
++	Y          *float64 `json:"y"`
++	PlacedY    *float64 `json:"placed_y"`
++	InnerShift *float64 `json:"inner_shift"`
++	BlockSize  *float64 `json:"block_size"`
++	Root       *string  `json:"root"`
++	Align      *string  `json:"align"`
++	RootStableID  *string `json:"root_stable_id"`
++	AlignStableID *string `json:"align_stable_id"`
++}
++
++func tracedNodeName(arena *layered.LGraphArena, nodeID layered.LNodeID) string {
++	node := arena.Node(nodeID)
++	if len(node.Labels) > 0 {
++		return arena.Label(node.Labels[0]).Text
++	}
++	return fmt.Sprintf("dummy:type=%d", node.Type)
++}
++
++func tracedNodeStableID(arena *layered.LGraphArena, nodeID layered.LNodeID) string {
++	node := arena.Node(nodeID)
++	origin, found := basegraph.TryGet(&node.Properties, layered.OriginalElement)
++	if !found {
++		return fmt.Sprintf("lnode:%d", nodeID)
++	}
++	switch origin.Kind {
++	case layered.OriginNode:
++		return fmt.Sprintf("node:%d", origin.Node)
++	case layered.OriginPort:
++		return fmt.Sprintf("port:%d", origin.Port)
++	case layered.OriginEdge:
++		return fmt.Sprintf("edge:%d", origin.Edge)
++	case layered.OriginLabel:
++		return fmt.Sprintf("label:%d", origin.Label)
++	case layered.OriginLEdge:
++		return fmt.Sprintf("edge-segment:%d", origin.LEdge)
++	case layered.OriginLNode:
++		return fmt.Sprintf("lnode:%d", origin.LNode)
++	case layered.OriginLPort:
++		return fmt.Sprintf("lport:%d", origin.LPort)
++	default:
++		return fmt.Sprintf("lnode:%d", nodeID)
++	}
++}
++
++func tracedNodeStableIDPointer(arena *layered.LGraphArena, nodeID *layered.LNodeID) *string {
++	if nodeID == nil {
++		return nil
++	}
++	stableID := tracedNodeStableID(arena, *nodeID)
++	return &stableID
++}
++
++func tracedPlacedY(y, innerShift *float64) *float64 {
++	if y == nil || innerShift == nil {
++		return nil
++	}
++	placed := *y + *innerShift
++	return &placed
++}
++
++func tracedNodeNamePointer(arena *layered.LGraphArena, nodeID *layered.LNodeID) *string {
++	if nodeID == nil {
++		return nil
++	}
++	name := tracedNodeName(arena, *nodeID)
++	return &name
++}
++
++func traceDirectionalLayouts(arena *layered.LGraphArena, graphID layered.LGraphID, layouts []*BKAlignedLayout) {
++	if os.Getenv("D2_ELK_TRACE") == "" {
++		return
++	}
++	for candidateIndex, layout := range layouts {
++		nodes := make([]tracedCandidateNode, 0)
++		for layerOrder, layerID := range arena.Graph(graphID).Layers {
++			for _, nodeID := range arena.Layer(layerID).Nodes {
++				node := arena.Node(nodeID)
++				index := node.ID
++				nodes = append(nodes, tracedCandidateNode{
++					Index: int(nodeID), Name: tracedNodeName(arena, nodeID), StableID: tracedNodeStableID(arena, nodeID), LayerOrder: layerOrder, LayerID: int(layerID),
++					Y: layout.Y[index], PlacedY: tracedPlacedY(layout.Y[index], layout.InnerShift[index]),
++					InnerShift: layout.InnerShift[index], BlockSize: layout.BlockSize[index],
++					Root: tracedNodeNamePointer(arena, layout.Root[index]), Align: tracedNodeNamePointer(arena, layout.Align[index]),
++					RootStableID: tracedNodeStableIDPointer(arena, layout.Root[index]),
++					AlignStableID: tracedNodeStableIDPointer(arena, layout.Align[index]),
++				})
++			}
++		}
++		encoded, err := json.Marshal(struct {
++			Candidate  int                   `json:"candidate"`
++			Vertical   VerticalDirection     `json:"vertical"`
++			Horizontal HorizontalDirection   `json:"horizontal"`
++			Nodes      []tracedCandidateNode `json:"nodes"`
++		}{candidateIndex, layout.VDirection, layout.HDirection, nodes})
++		if err != nil {
++			fmt.Fprintln(os.Stderr, "elk trace encoding failed:", err)
++			continue
++		}
++		fmt.Fprintln(os.Stderr, string(encoded))
++	}
++}
++
++func traceNodePlacement(arena *layered.LGraphArena, graphID layered.LGraphID, stage string) {
++	if os.Getenv("D2_ELK_TRACE") == "" {
++		return
++	}
++	nodes := make([]tracedNode, 0, len(arena.GraphAllNodes(graphID)))
++	for _, nodeID := range arena.GraphAllNodes(graphID) {
++		node := arena.Node(nodeID)
++		layer := -1
++		if node.Layer != nil {
++			layer = int(*node.Layer)
++		}
++		traced := tracedNode{
++			Index: int(nodeID), StableID: tracedNodeStableID(arena, nodeID), Layer: layer, Type: int(node.Type),
++			X: node.Position.X, Y: node.Position.Y,
++			Width: node.Size.X, Height: node.Size.Y,
++			MarginTop: node.Margin.Top, MarginBottom: node.Margin.Bottom,
++			Ports: make([]tracedPort, 0, len(node.Ports)),
++		}
++		for _, portID := range node.Ports {
++			port := arena.Port(portID)
++			traced.Ports = append(traced.Ports, tracedPort{
++				Index: int(portID), Side: int(port.Side), X: port.Position.X, Y: port.Position.Y,
++				AnchorX: port.Anchor.X, AnchorY: port.Anchor.Y,
++			})
++		}
++		nodes = append(nodes, traced)
++	}
++	encoded, err := json.Marshal(struct {
++		Stage string       `json:"stage"`
++		Nodes []tracedNode `json:"nodes"`
++	}{Stage: stage, Nodes: nodes})
++	if err != nil {
++		fmt.Fprintln(os.Stderr, "elk trace encoding failed:", err)
++		return
++	}
++	fmt.Fprintln(os.Stderr, string(encoded))
++}
+diff --git a/internal/layered/p4nodes/bk_aligner.go b/internal/layered/p4nodes/bk_aligner.go
+--- a/internal/layered/p4nodes/bk_aligner.go
++++ b/internal/layered/p4nodes/bk_aligner.go
+@@ -129,4 +129,5 @@ func (aligner *BKAligner) InsideBlockShift(layout *BKAlignedLayout) {
+ 			if layout.HDirection == HorizontalLeft {
+ 				portPositionDifference = target.Position.Y + target.Anchor.Y - source.Position.Y - source.Anchor.Y
+ 			}
++			traceInsideBlockShift(aligner.Arena, current, next, edgeID, *edge.Source, *edge.Target, layout.HDirection, portPositionDifference)
+ 			nextInnerShift := requireFloat(layout.InnerShift[aligner.Arena.Node(current).ID], "inner shift") + portPositionDifference
+diff --git a/internal/layered/p4nodes/diagnostic_bk_trace.go b/internal/layered/p4nodes/diagnostic_bk_trace.go
+new file mode 100644
+--- /dev/null
++++ b/internal/layered/p4nodes/diagnostic_bk_trace.go
+@@ -0,0 +1,67 @@
++// Copyright (c) 2015 Kiel University and others.
++//
++// This program and the accompanying materials are made available under the
++// terms of the Eclipse Public License 2.0 which is available at
++// https://www.eclipse.org/legal/epl-2.0/.
++//
++// SPDX-License-Identifier: EPL-2.0
++
++//go:build d2elkdiagnostic
++
++package p4nodes
++
++import (
++	"encoding/json"
++	"fmt"
++	"math"
++	"os"
++
++	basegraph "github.com/d2lang/elk-go/internal/graph"
++	"github.com/d2lang/elk-go/internal/layered"
++)
++
++func traceInsideBlockShift(arena *layered.LGraphArena, current, next layered.LNodeID, edgeID layered.LEdgeID, sourcePortID, targetPortID layered.LPortID, direction HorizontalDirection, delta float64) {
++	if os.Getenv("D2_ELK_TRACE") == "" {
++		return
++	}
++	source := arena.Port(sourcePortID)
++	target := arena.Port(targetPortID)
++	portStableID := func(portID layered.LPortID) string {
++		port := arena.Port(portID)
++		origin, found := basegraph.TryGet(&port.Properties, layered.OriginalElement)
++		if found && origin.Kind == layered.OriginPort {
++			return fmt.Sprintf("port:%d", origin.Port)
++		}
++		return fmt.Sprintf("lport:%d", portID)
++	}
++	ownerStableID := func(portID layered.LPortID) string {
++		port := arena.Port(portID)
++		if port.Node == nil {
++			return "none"
++		}
++		return tracedNodeStableID(arena, *port.Node)
++	}
++	encoded, err := json.Marshal(struct {
++		Stage string `json:"stage"`
++		Current string `json:"current"`
++		Next string `json:"next"`
++		Edge string `json:"edge"`
++		SourceOwner string `json:"source_owner"`
++		TargetOwner string `json:"target_owner"`
++		SourcePort string `json:"source_port"`
++		TargetPort string `json:"target_port"`
++		SourcePortYBits string `json:"source_port_y_bits"`
++		SourceAnchorYBits string `json:"source_anchor_y_bits"`
++		SourceCenterYBits string `json:"source_center_y_bits"`
++		TargetPortYBits string `json:"target_port_y_bits"`
++		TargetAnchorYBits string `json:"target_anchor_y_bits"`
++		TargetCenterYBits string `json:"target_center_y_bits"`
++		DeltaBits string `json:"delta_bits"`
++		Direction string `json:"direction"`
++	}{"bk-inner-shift", tracedNodeStableID(arena, current), tracedNodeStableID(arena, next), fmt.Sprintf("edge:%d", edgeID), ownerStableID(sourcePortID), ownerStableID(targetPortID), portStableID(sourcePortID), portStableID(targetPortID), fmt.Sprintf("%016x", math.Float64bits(source.Position.Y)), fmt.Sprintf("%016x", math.Float64bits(source.Anchor.Y)), fmt.Sprintf("%016x", math.Float64bits(source.Position.Y+source.Anchor.Y)), fmt.Sprintf("%016x", math.Float64bits(target.Position.Y)), fmt.Sprintf("%016x", math.Float64bits(target.Anchor.Y)), fmt.Sprintf("%016x", math.Float64bits(target.Position.Y+target.Anchor.Y)), fmt.Sprintf("%016x", math.Float64bits(delta)), fmt.Sprintf("%d", direction)})
++	if err != nil {
++		fmt.Fprintln(os.Stderr, "elk trace encoding failed:", err)
++		return
++	}
++	fmt.Fprintln(os.Stderr, string(encoded))
++}
+diff --git a/internal/layered/p4nodes/diagnostic_bk_trace_off.go b/internal/layered/p4nodes/diagnostic_bk_trace_off.go
+new file mode 100644
+--- /dev/null
++++ b/internal/layered/p4nodes/diagnostic_bk_trace_off.go
+@@ -0,0 +1,15 @@
++// Copyright (c) 2015 Kiel University and others.
++//
++// This program and the accompanying materials are made available under the
++// terms of the Eclipse Public License 2.0 which is available at
++// https://www.eclipse.org/legal/epl-2.0/.
++//
++// SPDX-License-Identifier: EPL-2.0
++
++//go:build !d2elkdiagnostic
++
++package p4nodes
++
++import "github.com/d2lang/elk-go/internal/layered"
++
++func traceInsideBlockShift(*layered.LGraphArena, layered.LNodeID, layered.LNodeID, layered.LEdgeID, layered.LPortID, layered.LPortID, HorizontalDirection, float64) {}
+diff --git a/internal/layered/p4nodes/diagnostic_trace_off.go b/internal/layered/p4nodes/diagnostic_trace_off.go
+new file mode 100644
+--- /dev/null
++++ b/internal/layered/p4nodes/diagnostic_trace_off.go
+@@ -0,0 +1,16 @@
++// Copyright (c) 2015 Kiel University and others.
++//
++// This program and the accompanying materials are made available under the
++// terms of the Eclipse Public License 2.0 which is available at
++// https://www.eclipse.org/legal/epl-2.0/.
++//
++// SPDX-License-Identifier: EPL-2.0
++
++//go:build !d2elkdiagnostic
++
++package p4nodes
++
++import "github.com/d2lang/elk-go/internal/layered"
++
++func traceNodePlacement(*layered.LGraphArena, layered.LGraphID, string) {}
++func traceDirectionalLayouts(*layered.LGraphArena, layered.LGraphID, []*BKAlignedLayout) {}

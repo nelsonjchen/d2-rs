@@ -1,0 +1,74 @@
+[
+ {
+  "path": "pinned/d2compiler/compile_test.go#L1178C10-field-text.d2",
+  "text": "memo: |md\n  <a href=\"https://www.google.com/search?q=d2&newwindow=1&amp;bar\">d2</a>\n|\n"
+ },
+ {
+  "path": "pinned/d2compiler/compile_test.go#L1178C10-field-text.d2",
+  "text": "memo: |md\n  <a href=\"https://www.google.com/search?q=d2&newwindow=1&amp;bar\">d2</a>\n|\n",
+  "utf16": true
+ },
+ {
+  "path": "markdown.d2",
+  "text": "memo: |md\n<a href=\"https://x.test/?a=1&b=2\">d2</a>\n|"
+ },
+ {
+  "path": "markdown.d2",
+  "text": "memo: |md\n<a href=\"https://x.test/?a=1&b=2\">d2</a>\n|",
+  "utf16": true
+ },
+ {
+  "path": "markdown.d2",
+  "text": "memo: |md\n<a href=\"x&amp;y\">d2</a>\n|"
+ },
+ {
+  "path": "markdown.d2",
+  "text": "memo: |md\n<a href=\"x&amp;y\">d2</a>\n|",
+  "utf16": true
+ },
+ {
+  "path": "markdown.d2",
+  "text": "memo: |md\n<a href=\"TEMP_AMP\">d2</a>\n|"
+ },
+ {
+  "path": "markdown.d2",
+  "text": "memo: |md\n<a href=\"TEMP_AMP\">d2</a>\n|",
+  "utf16": true
+ },
+ {
+  "path": "markdown.d2",
+  "text": "memo: |md\n<a href='x&y'>d2</a>\n|"
+ },
+ {
+  "path": "markdown.d2",
+  "text": "memo: |md\n<a href='x&y'>d2</a>\n|",
+  "utf16": true
+ },
+ {
+  "path": "markdown.d2",
+  "text": "memo: |md\n<a HREF=\"x&y\">d2</a>\n|"
+ },
+ {
+  "path": "markdown.d2",
+  "text": "memo: |md\n<a HREF=\"x&y\">d2</a>\n|",
+  "utf16": true
+ },
+ {
+  "path": "markdown.d2",
+  "text": "memo: |md\n<a href=\"x&#38;y\">d2</a>\n|"
+ },
+ {
+  "path": "markdown.d2",
+  "text": "memo: |md\n<a href=\"x&#38;y\">d2</a>\n|",
+  "utf16": true
+ },
+ {
+  "path": "markdown.d2",
+  "text": "memo: |md\n<a href=\"x&y\">d2</a> &bad;\n|"
+ },
+ {
+  "path": "markdown.d2",
+  "text": "memo: |md\n<a href=\"x&y\">d2</a> &bad;\n|",
+  "utf16": true
+ }
+]

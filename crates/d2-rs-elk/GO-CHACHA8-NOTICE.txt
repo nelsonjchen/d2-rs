@@ -1,0 +1,6 @@
+Native Go runtime randomness support translates Go 1.27.0
+src/internal/chacha8rand/chacha8.go and chacha8_generic.go,
+and src/math/rand/rand.go Float64/Int63 conversion.
+Copyright 2023 The Go Authors. All rights reserved.
+The BSD-3-Clause terms are reproduced in GO-MATH-LICENSE.txt.
+Source mappings and exact seeded controls: .reference/elk-spore-20261019/.

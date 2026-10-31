@@ -1,0 +1,14 @@
+[
+"\\begin{CD}A@=B\\end{CD}",
+"\\minCDarrowwidth{0}\\begin{CD}A@=B\\end{CD}",
+"\\minCDarrowwidth{0.5em}\\begin{CD}A@=B\\end{CD}",
+"\\minCDarrowwidth{4em}\\begin{CD}A@=B\\end{CD}",
+"\\begin{CD}A@=B\\\\@VVV@VVV\\\\C@=D\\end{CD}",
+"\\frac{\\begin{CD}A@=B\\end{CD}}{x}",
+"\\begin{CD}A\\\\@VgVhV\\\\B\\end{CD}",
+"\\begin{CD}A\\\\@AgAhA\\\\B\\end{CD}",
+"\\begin{CD}A\\\\@V{g_1}V{h^2}V\\\\B\\end{CD}",
+"\\begin{CD}A\\\\@V{x+y}V{z-w}V\\\\B\\end{CD}",
+"\\frac{\\begin{CD}A\\\\@VgVhV\\\\B\\end{CD}}{x}",
+"S^{{\\mathcal{W}}_\\Lambda}"
+]

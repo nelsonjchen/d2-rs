@@ -1,0 +1,110 @@
+[
+ {
+  "name": "node-opacity-0",
+  "source": "a: {style.opacity: \"0\"}\n"
+ },
+ {
+  "name": "node-opacity-1",
+  "source": "a: {style.opacity: \"1\"}\n"
+ },
+ {
+  "name": "node-opacity-2",
+  "source": "a: {style.opacity: \".5\"}\n"
+ },
+ {
+  "name": "node-opacity-3",
+  "source": "a: {style.opacity: \"+0.5\"}\n"
+ },
+ {
+  "name": "node-opacity-4",
+  "source": "a: {style.opacity: \"1e-2\"}\n"
+ },
+ {
+  "name": "node-opacity-5",
+  "source": "a: {style.opacity: \"0x1p-1\"}\n"
+ },
+ {
+  "name": "node-opacity-6",
+  "source": "a: {style.opacity: \"0x_1.0p-1\"}\n"
+ },
+ {
+  "name": "node-opacity-7",
+  "source": "a: {style.opacity: \"0.5_0\"}\n"
+ },
+ {
+  "name": "node-opacity-8",
+  "source": "a: {style.opacity: \"1_0e-1\"}\n"
+ },
+ {
+  "name": "node-opacity-9",
+  "source": "a: {style.opacity: \"-0\"}\n"
+ },
+ {
+  "name": "node-opacity-10",
+  "source": "a: {style.opacity: \"-0.1\"}\n"
+ },
+ {
+  "name": "node-opacity-11",
+  "source": "a: {style.opacity: \"1.01\"}\n"
+ },
+ {
+  "name": "node-opacity-12",
+  "source": "a: {style.opacity: \"NaN\"}\n"
+ },
+ {
+  "name": "node-opacity-13",
+  "source": "a: {style.opacity: \"Inf\"}\n"
+ },
+ {
+  "name": "node-opacity-14",
+  "source": "a: {style.opacity: \"+Infinity\"}\n"
+ },
+ {
+  "name": "node-opacity-15",
+  "source": "a: {style.opacity: \"1e309\"}\n"
+ },
+ {
+  "name": "node-opacity-16",
+  "source": "a: {style.opacity: \"1e-4000\"}\n"
+ },
+ {
+  "name": "node-opacity-17",
+  "source": "a: {style.opacity: \"0x1p-1074\"}\n"
+ },
+ {
+  "name": "node-opacity-18",
+  "source": "a: {style.opacity: \"0x1p1024\"}\n"
+ },
+ {
+  "name": "node-opacity-19",
+  "source": "a: {style.opacity: \" 0.5\"}\n"
+ },
+ {
+  "name": "node-opacity-20",
+  "source": "a: {style.opacity: \"0.5 \"}\n"
+ },
+ {
+  "name": "node-opacity-21",
+  "source": "a: {style.opacity: \"1__0\"}\n"
+ },
+ {
+  "name": "node-opacity-22",
+  "source": "a: {style.opacity: \"0x1\"}\n"
+ },
+ {
+  "name": "node-opacity-23",
+  "source": "a: {style.opacity: \"0x1.p-1\"}\n"
+ },
+ {
+  "name": "node-opacity-24",
+  "source": "a: {style.opacity: \"0x.8p0\"}\n"
+ },
+ {
+  "name": "edge-class",
+  "source": "classes: {bad: {style.opacity: 2}}\na -> b: {class: bad; style.opacity: 1}\n"
+ },
+ {
+  "name": "nested",
+  "source": "box: {a: {style.opacity: NaN}}\n"
+ }
+]

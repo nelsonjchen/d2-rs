@@ -1,0 +1,23 @@
+diff --git a/d2layouts/d2talalayout/patch.go b/d2layouts/d2talalayout/patch.go
+index 1a9c3272b..17d6eeac3 100644
+--- a/d2layouts/d2talalayout/patch.go
++++ b/d2layouts/d2talalayout/patch.go
+@@ -3,6 +3,8 @@ package d2talalayout
+ import (
+ 	"context"
+ 	"fmt"
++	"math"
++	"os"
+ 	"strconv"
+ 
+ 	"github.com/d2lang/d2/d2graph"
+@@ -385,6 +387,9 @@ func buildEdgePatch(ctx context.Context, edge *d2graph.Edge, result *layoutgraph
+ 			position = position.Mirrored()
+ 			percentage = 1 - percentage
+ 		}
++		if os.Getenv("D2_TRACE_LABEL_COMMIT") == "1" {
++			fmt.Fprintf(os.Stderr, "LABEL_COMMIT stage=build edge=%d name=%q dimensions=%t position=%s percentage=%016x\n", result.ID, d2TALAEdgeAbsID(edge), includeLabelDimensions, position.String(), math.Float64bits(percentage))
++		}
+ 		patch.label = &d2EdgeLabelPatch{
+ 			position:   new(position.String()),
+ 			percentage: new(percentage),

@@ -1,0 +1,94 @@
+--- a/d2renderers/d2raster/raster.go
++++ b/d2renderers/d2raster/raster.go
+@@ -1282,6 +1282,7 @@
+ 	if err != nil {
+ 		return nil, fmt.Errorf("d2raster: node %q path: %w", nodeID, err)
+ 	}
++	traceBraketRawPath(nodeID, path, transform, subpaths)
+ 	geometryBounds, err := path.GeometryBounds()
+ 	if err != nil {
+ 		return nil, fmt.Errorf("d2raster: node %q path bounds: %w", nodeID, err)
+@@ -1579,6 +1580,7 @@
+ 			rasterizer := scratch.reset(dst.Bounds())
+ 			origin := setRasterizerReference(rasterizer, dst.Bounds().Min, primitive.referenceBounds.Min, scratch.regionFilters)
+ 			shifted := d2scene.Translate(-float64(origin.X), -float64(origin.Y)).Mul(primitive.transform)
++			traceBraketPaintOrigin(primitive.transform, primitive.referenceBounds, dst.Bounds(), origin)
+ 			for _, path := range primitive.subpaths {
+ 				addFillSubpath(rasterizer, path, shifted)
+ 			}
+@@ -1594,6 +1596,7 @@
+ 				}
+ 				origin := setRasterizerReference(rasterizer, bounds.Min, reference, scratch.regionFilters)
+ 				shifted := d2scene.Translate(-float64(origin.X), -float64(origin.Y)).Mul(primitive.transform)
++				traceBraketPaintOrigin(primitive.transform, primitive.referenceBounds, dst.Bounds(), origin)
+ 				for _, path := range primitive.subpaths {
+ 					addFillSubpath(rasterizer, path, shifted)
+ 				}
+--- /dev/null
++++ b/d2renderers/d2raster/braket_raw_path_trace.go
+@@ -0,0 +1,65 @@
++// Diagnostic-only instrumentation in the permitted trace checkout.
++package d2raster
++
++import (
++	"encoding/json"
++	"github.com/d2lang/d2/d2renderers/d2scene"
++	"image"
++	"os"
++)
++
++func traceBraketRawPath(id string, path d2scene.Path, transform d2scene.Matrix, subpaths []subpath) {
++	filename := os.Getenv("D2_TRACE_BRAKET_RAW_PATH")
++	if filename == "" {
++		return
++	}
++	type points struct {
++		Closed bool
++		Local  []d2scene.Point
++		Mapped []d2scene.Point
++	}
++	rows := make([]points, 0, len(subpaths))
++	for _, sub := range subpaths {
++		mapped := make([]d2scene.Point, len(sub.points))
++		for i, point := range sub.points {
++			mapped[i] = transform.Point(point)
++		}
++		rows = append(rows, points{sub.closed, sub.points, mapped})
++	}
++	output, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
++	if err != nil {
++		panic(err)
++	}
++	defer output.Close()
++	err = json.NewEncoder(output).Encode(struct {
++		ID        string
++		Transform d2scene.Matrix
++		Tolerance float64
++		Commands  []d2scene.PathCommand
++		Subpaths  []points
++	}{id, transform, flattenTolerance(transform), path.Commands, rows})
++	if err != nil {
++		panic(err)
++	}
++}
++
++func traceBraketPaintOrigin(transform d2scene.Matrix, reference, actual image.Rectangle, origin image.Point) {
++	filename := os.Getenv("D2_TRACE_BRAKET_RAW_PATH")
++	if filename == "" {
++		return
++	}
++	output, err := os.OpenFile(filename+".paint", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
++	if err != nil {
++		panic(err)
++	}
++	defer output.Close()
++	err = json.NewEncoder(output).Encode(struct {
++		Transform d2scene.Matrix
++		Reference image.Rectangle
++		Actual    image.Rectangle
++		Origin    image.Point
++	}{transform, reference, actual, origin})
++	if err != nil {
++		panic(err)
++	}
++}

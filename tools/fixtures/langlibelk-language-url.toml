@@ -1,0 +1,19 @@
+# d2-rs-language oracle fixture that depends only on the Go standard library:
+# net/url Parse/ParseRequestURI diagnostics and D2's remote/host predicates.
+# Keyed on the Go toolchain and the generator, not the D2 pin.
+#
+# Regenerate:  uv run --no-project python scripts/regen-fixtures.py --only lang-public-url-validation
+# Test:        cargo test -p d2-rs-language --features oracle-fixtures
+
+[[recipe]]
+name = "lang-public-url-validation"
+kind = "command"
+description = "Go net/url Parse/ParseRequestURI diagnostics and D2 URL predicates (stdlib only)"
+outputs = ["crates/d2-rs-language/tests/fixtures/public-url-validation-v090.json"]
+argv = ["{python}", "scripts/check-url-validation.py"]
+key_deps.files = [
+  "scripts/fixture_recipe.py",
+  "scripts/language_oracle.py",
+  "tools/url-validation-oracle",
+]
+key_deps.go_toolchain = true

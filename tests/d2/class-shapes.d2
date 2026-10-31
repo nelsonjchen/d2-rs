@@ -1,0 +1,15 @@
+# Structured class targets exercise the v0.9.0 header, field, method, and
+# explicit-font sizing paths at the source-to-measured-graph boundary.
+empty: {shape: class}
+fields: {
+  shape: class
+  +name: string
+  -id: int
+  #hidden: bool
+}
+methods: {
+  shape: class
+  +get(): string
+  #set(value): void
+}
+large: {shape: class; style.font-size: 30; +long_member_name: long_type}

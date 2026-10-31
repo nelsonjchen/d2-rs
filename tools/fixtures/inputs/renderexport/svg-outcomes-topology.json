@@ -1,0 +1,194 @@
+[
+ {
+  "name": "valid",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><metadata><rdf:RDF><cc:Work><dc:format>image/svg+xml</dc:format><dc:type rdf:resource=\"http://purl.org/dc/dcmitype/StillImage\"/></cc:Work></rdf:RDF></metadata></svg>"
+ },
+ {
+  "name": "valid-title",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><title>a &amp; b</title></svg>"
+ },
+ {
+  "name": "valid-namedview",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><s:namedview/></svg>"
+ },
+ {
+  "name": "empty-metadata",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><metadata/></svg>"
+ },
+ {
+  "name": "empty-rdf",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><metadata><rdf:RDF/></metadata></svg>"
+ },
+ {
+  "name": "empty-work",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><metadata><rdf:RDF><cc:Work/></rdf:RDF></metadata></svg>"
+ },
+ {
+  "name": "duplicate-rdf",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><metadata><rdf:RDF><cc:Work><dc:format>image/svg+xml</dc:format><dc:type rdf:resource=\"http://purl.org/dc/dcmitype/StillImage\"/></cc:Work></rdf:RDF><rdf:RDF><cc:Work><dc:format>image/svg+xml</dc:format><dc:type rdf:resource=\"http://purl.org/dc/dcmitype/StillImage\"/></cc:Work></rdf:RDF></metadata></svg>"
+ },
+ {
+  "name": "duplicate-work",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><metadata><rdf:RDF><cc:Work><dc:format>image/svg+xml</dc:format><dc:type rdf:resource=\"http://purl.org/dc/dcmitype/StillImage\"/></cc:Work><cc:Work><dc:format>image/svg+xml</dc:format><dc:type rdf:resource=\"http://purl.org/dc/dcmitype/StillImage\"/></cc:Work></rdf:RDF></metadata></svg>"
+ },
+ {
+  "name": "missing-format",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><metadata><rdf:RDF><cc:Work><dc:type/></cc:Work></rdf:RDF></metadata></svg>"
+ },
+ {
+  "name": "duplicate-format",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><metadata><rdf:RDF><cc:Work><dc:format>image/svg+xml</dc:format><dc:format>image/svg+xml</dc:format></cc:Work></rdf:RDF></metadata></svg>"
+ },
+ {
+  "name": "bad-format",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><metadata><rdf:RDF><cc:Work><dc:format>text/plain</dc:format><dc:type rdf:resource=\"http://purl.org/dc/dcmitype/StillImage\"/></cc:Work></rdf:RDF></metadata></svg>"
+ },
+ {
+  "name": "space-format",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><metadata><rdf:RDF><cc:Work><dc:format> \timage/svg+xml\r\n</dc:format><dc:type rdf:resource=\"http://purl.org/dc/dcmitype/StillImage\"/></cc:Work></rdf:RDF></metadata></svg>"
+ },
+ {
+  "name": "entity-format",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><metadata><rdf:RDF><cc:Work><dc:format>image&#47;svg+xml</dc:format><dc:type rdf:resource=\"http://purl.org/dc/dcmitype/StillImage\"/></cc:Work></rdf:RDF></metadata></svg>"
+ },
+ {
+  "name": "cdata-format",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><metadata><rdf:RDF><cc:Work><dc:format><![CDATA[image/svg+xml]]></dc:format><dc:type rdf:resource=\"http://purl.org/dc/dcmitype/StillImage\"/></cc:Work></rdf:RDF></metadata></svg>"
+ },
+ {
+  "name": "text-before",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\">HELLO<rect width=\"1\" height=\"1\"/></svg>"
+ },
+ {
+  "name": "text-in-g",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g>hello</g></svg>"
+ },
+ {
+  "name": "metadata-text",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><metadata>hello<rdf:RDF><cc:Work><dc:format>image/svg+xml</dc:format><dc:type rdf:resource=\"http://purl.org/dc/dcmitype/StillImage\"/></cc:Work></rdf:RDF></metadata></svg>"
+ },
+ {
+  "name": "type-text",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><metadata><rdf:RDF><cc:Work><dc:format>image/svg+xml</dc:format><dc:type rdf:resource=\"http://purl.org/dc/dcmitype/StillImage\">hello</dc:type></cc:Work></rdf:RDF></metadata></svg>"
+ },
+ {
+  "name": "style-comment",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><style><!-- hi --></style></svg>"
+ },
+ {
+  "name": "ordinary-comment",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><!--hi--><g/></svg>"
+ },
+ {
+  "name": "whitespace",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"> \r\n\t<g>\t</g></svg>"
+ },
+ {
+  "name": "nonxml-space",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"> </svg>"
+ },
+ {
+  "name": "cdata-text",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g><![CDATA[bad]]></g></svg>"
+ },
+ {
+  "name": "earlier-text-later-event",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g>bad</g><rect onload=\"x\"/></svg>"
+ },
+ {
+  "name": "earlier-unknownattr-later-text",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g bogus=\"x\"/><g>bad</g></svg>"
+ },
+ {
+  "name": "earlier-metadata-later-event",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><metadata/><g onload=\"x\"/></svg>"
+ },
+ {
+  "name": "metadata-before-attr",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><metadata/><g bogus=\"x\"/></svg>"
+ },
+ {
+  "name": "rightmost-cardinality",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><metadata/><metadata><rdf:RDF><cc:Work><dc:format>image/svg+xml</dc:format></cc:Work></rdf:RDF></metadata></svg>"
+ },
+ {
+  "name": "nested-metadata",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g><metadata><rdf:RDF><cc:Work><dc:format>image/svg+xml</dc:format><dc:type rdf:resource=\"http://purl.org/dc/dcmitype/StillImage\"/></cc:Work></rdf:RDF></metadata></g></svg>"
+ },
+ {
+  "name": "nested-rdf:RDF",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g><rdf:RDF/></g></svg>"
+ },
+ {
+  "name": "nested-cc:Work",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g><cc:Work/></g></svg>"
+ },
+ {
+  "name": "nested-dc:format",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g><dc:format/></g></svg>"
+ },
+ {
+  "name": "nested-dc:type",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g><dc:type/></g></svg>"
+ },
+ {
+  "name": "nested-s:namedview",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g><s:namedview/></g></svg>"
+ },
+ {
+  "name": "child-title",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><title><rect/></title></svg>"
+ },
+ {
+  "name": "child-dc:format",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><metadata><rdf:RDF><cc:Work><dc:format><rect/></dc:format></cc:Work></rdf:RDF></metadata></svg>"
+ },
+ {
+  "name": "child-dc:type",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><metadata><rdf:RDF><cc:Work><dc:type><rect/></dc:type></cc:Work></rdf:RDF></metadata></svg>"
+ },
+ {
+  "name": "child-s:namedview",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><s:namedview><rect/></s:namedview></svg>"
+ },
+ {
+  "name": "wrong-child-metadata",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><metadata><rect/></metadata></svg>"
+ },
+ {
+  "name": "wrong-child-rdf:RDF",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><metadata><rdf:RDF><rect/></rdf:RDF></metadata></svg>"
+ },
+ {
+  "name": "wrong-child-cc:Work",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><metadata><rdf:RDF><cc:Work><rect/></cc:Work></rdf:RDF></metadata></svg>"
+ },
+ {
+  "name": "split-text-cdata",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g>bad<![CDATA[more]]>tail</g></svg>"
+ },
+ {
+  "name": "split-space-cdata",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g> &#32;<![CDATA[bad]]>tail</g></svg>"
+ },
+ {
+  "name": "cdata-entities",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g><![CDATA[&#32;]]></g></svg>"
+ },
+ {
+  "name": "space-entities",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g>&#32;&#x9;&#xD;&#xA;</g></svg>"
+ },
+ {
+  "name": "entity-text",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g>&amp;</g></svg>"
+ },
+ {
+  "name": "split-cdata-space",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g><![CDATA[bad]]> \t</g></svg>"
+ },
+ {
+  "name": "title-cdata",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns:cc=\"http://creativecommons.org/ns#\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:s=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><title>bad<![CDATA[more]]>tail</title></svg>"
+ }
+]

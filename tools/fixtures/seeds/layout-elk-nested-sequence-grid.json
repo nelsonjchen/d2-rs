@@ -1,0 +1,652 @@
+{
+ "source": "sequence: {\n shape: sequence_diagram\n with -> actor\n actor: {\n grid-rows: 1\n  notes: {shape: sequence_diagram; continue -> nesting}\n }\n}\n",
+ "graph_origin": "Unchanged native CLI graph-source lowering; complete source/native public compile and raster comparisons bind and independently check the final geometry. This graph is an adapter input, not asserted original-Go serialized graph bytes.",
+ "graph": {
+  "nodes": [
+   {
+    "external_id": "sequence",
+    "size": {
+     "width": 157.0,
+     "height": 81.0
+    },
+    "declared_size": {
+     "width": 157.0,
+     "height": 81.0
+    },
+    "d2_authored_geometry": {
+     "object_id": [
+      115,
+      101,
+      113,
+      117,
+      101,
+      110,
+      99,
+      101
+     ],
+     "width": null,
+     "height": null,
+     "top": null,
+     "left": null,
+     "attributes": {
+      "shape": [
+       115,
+       101,
+       113,
+       117,
+       101,
+       110,
+       99,
+       101,
+       95,
+       100,
+       105,
+       97,
+       103,
+       114,
+       97,
+       109
+      ],
+      "attributes": {
+       "label_dimensions": [
+        112,
+        36
+       ],
+       "style": {}
+      },
+      "label_position": null,
+      "icon_position": null
+     }
+    },
+    "label_size": {
+     "width": 112.0,
+     "height": 36.0
+    },
+    "font_size": 28,
+    "label_position": "UNSET",
+    "parent": null,
+    "locked_position": null,
+    "constrained_x": null,
+    "constrained_y": null,
+    "near": null,
+    "fixed_width": false,
+    "fixed_height": false,
+    "direction": null,
+    "force_hierarchy": false,
+    "grid_rows": null,
+    "grid_columns": null,
+    "canvas_position": null,
+    "content_insets": {
+     "top": 60.0,
+     "right": 60.0,
+     "bottom": 60.0,
+     "left": 60.0
+    },
+    "layout_margins": {
+     "top": 0.0,
+     "right": 0.0,
+     "bottom": 0.0,
+     "left": 0.0
+    },
+    "external_label": null,
+    "icon_position": null,
+    "has_icon": false,
+    "label_aware_grid": false,
+    "packed_grid": false,
+    "content_alignment": "Padding",
+    "port_spread": 0.0,
+    "person": false,
+    "is_3d": false,
+    "is_multiple": false,
+    "shape": "sequence_diagram"
+   },
+   {
+    "external_id": "sequence.with",
+    "size": {
+     "width": 74.0,
+     "height": 66.0
+    },
+    "declared_size": {
+     "width": 74.0,
+     "height": 66.0
+    },
+    "d2_authored_geometry": {
+     "object_id": [
+      119,
+      105,
+      116,
+      104
+     ],
+     "width": null,
+     "height": null,
+     "top": null,
+     "left": null,
+     "attributes": {
+      "attributes": {
+       "label_dimensions": [
+        29,
+        21
+       ],
+       "style": {}
+      },
+      "label_position": null,
+      "icon_position": null
+     }
+    },
+    "label_size": {
+     "width": 29.0,
+     "height": 21.0
+    },
+    "font_size": 16,
+    "label_position": "UNSET",
+    "parent": 0,
+    "locked_position": null,
+    "constrained_x": null,
+    "constrained_y": null,
+    "near": null,
+    "fixed_width": false,
+    "fixed_height": false,
+    "direction": null,
+    "force_hierarchy": false,
+    "grid_rows": null,
+    "grid_columns": null,
+    "canvas_position": null,
+    "content_insets": {
+     "top": 60.0,
+     "right": 60.0,
+     "bottom": 60.0,
+     "left": 60.0
+    },
+    "layout_margins": {
+     "top": 0.0,
+     "right": 0.0,
+     "bottom": 0.0,
+     "left": 0.0
+    },
+    "external_label": null,
+    "icon_position": null,
+    "has_icon": false,
+    "label_aware_grid": false,
+    "packed_grid": false,
+    "content_alignment": "Padding",
+    "port_spread": 12.0,
+    "person": false,
+    "is_3d": false,
+    "is_multiple": false,
+    "shape": "rectangle"
+   },
+   {
+    "external_id": "sequence.actor",
+    "size": {
+     "width": 81.0,
+     "height": 66.0
+    },
+    "declared_size": {
+     "width": 81.0,
+     "height": 66.0
+    },
+    "d2_authored_geometry": {
+     "object_id": [
+      97,
+      99,
+      116,
+      111,
+      114
+     ],
+     "width": null,
+     "height": null,
+     "top": null,
+     "left": null,
+     "attributes": {
+      "attributes": {
+       "label_dimensions": [
+        36,
+        21
+       ],
+       "style": {}
+      },
+      "label_position": null,
+      "icon_position": null
+     }
+    },
+    "label_size": {
+     "width": 36.0,
+     "height": 21.0
+    },
+    "font_size": 16,
+    "label_position": "UNSET",
+    "parent": 0,
+    "locked_position": null,
+    "constrained_x": null,
+    "constrained_y": null,
+    "near": null,
+    "fixed_width": false,
+    "fixed_height": false,
+    "direction": null,
+    "force_hierarchy": false,
+    "grid_rows": 1,
+    "grid_columns": null,
+    "canvas_position": null,
+    "content_insets": {
+     "top": 60.0,
+     "right": 60.0,
+     "bottom": 60.0,
+     "left": 60.0
+    },
+    "layout_margins": {
+     "top": 0.0,
+     "right": 0.0,
+     "bottom": 0.0,
+     "left": 0.0
+    },
+    "external_label": null,
+    "icon_position": null,
+    "has_icon": false,
+    "label_aware_grid": false,
+    "packed_grid": false,
+    "content_alignment": "Padding",
+    "port_spread": 0.0,
+    "person": false,
+    "is_3d": false,
+    "is_multiple": false,
+    "shape": "rectangle"
+   },
+   {
+    "external_id": "sequence.actor.notes",
+    "size": {
+     "width": 82.0,
+     "height": 66.0
+    },
+    "declared_size": {
+     "width": 82.0,
+     "height": 66.0
+    },
+    "d2_authored_geometry": {
+     "object_id": [
+      110,
+      111,
+      116,
+      101,
+      115
+     ],
+     "width": null,
+     "height": null,
+     "top": null,
+     "left": null,
+     "attributes": {
+      "shape": [
+       115,
+       101,
+       113,
+       117,
+       101,
+       110,
+       99,
+       101,
+       95,
+       100,
+       105,
+       97,
+       103,
+       114,
+       97,
+       109
+      ],
+      "attributes": {
+       "label_dimensions": [
+        37,
+        21
+       ],
+       "style": {}
+      },
+      "label_position": null,
+      "icon_position": null
+     }
+    },
+    "label_size": {
+     "width": 37.0,
+     "height": 21.0
+    },
+    "font_size": 16,
+    "label_position": "UNSET",
+    "parent": 2,
+    "locked_position": null,
+    "constrained_x": null,
+    "constrained_y": null,
+    "near": null,
+    "fixed_width": false,
+    "fixed_height": false,
+    "direction": null,
+    "force_hierarchy": false,
+    "grid_rows": null,
+    "grid_columns": null,
+    "canvas_position": null,
+    "content_insets": {
+     "top": 60.0,
+     "right": 60.0,
+     "bottom": 60.0,
+     "left": 60.0
+    },
+    "layout_margins": {
+     "top": 0.0,
+     "right": 0.0,
+     "bottom": 0.0,
+     "left": 0.0
+    },
+    "external_label": null,
+    "icon_position": null,
+    "has_icon": false,
+    "label_aware_grid": false,
+    "packed_grid": false,
+    "content_alignment": "Padding",
+    "port_spread": 0.0,
+    "person": false,
+    "is_3d": false,
+    "is_multiple": false,
+    "shape": "sequence_diagram"
+   },
+   {
+    "external_id": "sequence.actor.notes.continue",
+    "size": {
+     "width": 105.0,
+     "height": 66.0
+    },
+    "declared_size": {
+     "width": 105.0,
+     "height": 66.0
+    },
+    "d2_authored_geometry": {
+     "object_id": [
+      99,
+      111,
+      110,
+      116,
+      105,
+      110,
+      117,
+      101
+     ],
+     "width": null,
+     "height": null,
+     "top": null,
+     "left": null,
+     "attributes": {
+      "attributes": {
+       "label_dimensions": [
+        60,
+        21
+       ],
+       "style": {}
+      },
+      "label_position": null,
+      "icon_position": null
+     }
+    },
+    "label_size": {
+     "width": 60.0,
+     "height": 21.0
+    },
+    "font_size": 16,
+    "label_position": "UNSET",
+    "parent": 3,
+    "locked_position": null,
+    "constrained_x": null,
+    "constrained_y": null,
+    "near": null,
+    "fixed_width": false,
+    "fixed_height": false,
+    "direction": null,
+    "force_hierarchy": false,
+    "grid_rows": null,
+    "grid_columns": null,
+    "canvas_position": null,
+    "content_insets": {
+     "top": 60.0,
+     "right": 60.0,
+     "bottom": 60.0,
+     "left": 60.0
+    },
+    "layout_margins": {
+     "top": 0.0,
+     "right": 0.0,
+     "bottom": 0.0,
+     "left": 0.0
+    },
+    "external_label": null,
+    "icon_position": null,
+    "has_icon": false,
+    "label_aware_grid": false,
+    "packed_grid": false,
+    "content_alignment": "Padding",
+    "port_spread": 12.0,
+    "person": false,
+    "is_3d": false,
+    "is_multiple": false,
+    "shape": "rectangle"
+   },
+   {
+    "external_id": "sequence.actor.notes.nesting",
+    "size": {
+     "width": 94.0,
+     "height": 66.0
+    },
+    "declared_size": {
+     "width": 94.0,
+     "height": 66.0
+    },
+    "d2_authored_geometry": {
+     "object_id": [
+      110,
+      101,
+      115,
+      116,
+      105,
+      110,
+      103
+     ],
+     "width": null,
+     "height": null,
+     "top": null,
+     "left": null,
+     "attributes": {
+      "attributes": {
+       "label_dimensions": [
+        49,
+        21
+       ],
+       "style": {}
+      },
+      "label_position": null,
+      "icon_position": null
+     }
+    },
+    "label_size": {
+     "width": 49.0,
+     "height": 21.0
+    },
+    "font_size": 16,
+    "label_position": "UNSET",
+    "parent": 3,
+    "locked_position": null,
+    "constrained_x": null,
+    "constrained_y": null,
+    "near": null,
+    "fixed_width": false,
+    "fixed_height": false,
+    "direction": null,
+    "force_hierarchy": false,
+    "grid_rows": null,
+    "grid_columns": null,
+    "canvas_position": null,
+    "content_insets": {
+     "top": 60.0,
+     "right": 60.0,
+     "bottom": 60.0,
+     "left": 60.0
+    },
+    "layout_margins": {
+     "top": 0.0,
+     "right": 0.0,
+     "bottom": 0.0,
+     "left": 0.0
+    },
+    "external_label": null,
+    "icon_position": null,
+    "has_icon": false,
+    "label_aware_grid": false,
+    "packed_grid": false,
+    "content_alignment": "Padding",
+    "port_spread": 12.0,
+    "person": false,
+    "is_3d": false,
+    "is_multiple": false,
+    "shape": "rectangle"
+   }
+  ],
+  "edges": [
+   {
+    "source": 1,
+    "target": 2
+   },
+   {
+    "source": 4,
+    "target": 5
+   }
+  ],
+  "edge_indices": [
+   0,
+   0
+  ],
+  "edge_arrows": [
+   {
+    "source": false,
+    "target": true
+   },
+   {
+    "source": false,
+    "target": true
+   }
+  ],
+  "edge_arrowheads": [
+   {
+    "source": null,
+    "target": null
+   },
+   {
+    "source": null,
+    "target": null
+   }
+  ],
+  "edge_labels": [
+   null,
+   null
+  ],
+  "edge_label_percentage_presence": [
+   null,
+   null
+  ],
+  "edge_arrowhead_labels": [
+   {
+    "source": null,
+    "target": null
+   },
+   {
+    "source": null,
+    "target": null
+   }
+  ],
+  "edge_styles": [
+   {
+    "opacity": null,
+    "stroke": null,
+    "stroke_width": null,
+    "stroke_dash": null,
+    "border_radius": null,
+    "animated": null,
+    "font_color": null,
+    "font": null,
+    "underline": null,
+    "text_transform": null,
+    "fill": null,
+    "filled": null
+   },
+   {
+    "opacity": null,
+    "stroke": null,
+    "stroke_width": null,
+    "stroke_dash": null,
+    "border_radius": null,
+    "animated": null,
+    "font_color": null,
+    "font": null,
+    "underline": null,
+    "text_transform": null,
+    "fill": null,
+    "filled": null
+   }
+  ],
+  "edge_links": [
+   null,
+   null
+  ],
+  "edge_tooltips": [
+   null,
+   null
+  ],
+  "edge_is_curves": [
+   false,
+   false
+  ],
+  "edge_table_columns": [
+   {
+    "source": null,
+    "target": null
+   },
+   {
+    "source": null,
+    "target": null
+   }
+  ],
+  "d2_edge_validation": [
+   {
+    "attributes": {
+     "label_dimensions": [
+      0,
+      0
+     ],
+     "style": {}
+    },
+    "label_position": null,
+    "label_percentage": null,
+    "source_arrowhead": null,
+    "target_arrowhead": null,
+    "endpoints_reversed": false
+   },
+   {
+    "attributes": {
+     "label_dimensions": [
+      0,
+      0
+     ],
+     "style": {}
+    },
+    "label_position": null,
+    "label_percentage": null,
+    "source_arrowhead": null,
+    "target_arrowhead": null,
+    "endpoints_reversed": false
+   }
+  ],
+  "table_column_counts": [
+   null,
+   null,
+   null,
+   null,
+   null,
+   null
+  ],
+  "direction": "down",
+  "explicit_direction": null,
+  "root_hierarchy": false
+ }
+}

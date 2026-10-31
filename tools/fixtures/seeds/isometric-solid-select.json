@@ -1,0 +1,15 @@
+{
+ "TestConnectionCaptionGapRevealsUnderlyingSurface": [
+  2
+ ],
+ "TestNativeSolidsKeepGeometryAcrossPaintStyles": [
+  20
+ ],
+ "TestRouteCaptionKnockoutPreservesProjectedDashesAndAlpha": [
+  1,
+  2
+ ],
+ "TestRouteCaptionKnockoutPreservesTriangleMetadata": [
+  0
+ ]
+}

@@ -1,0 +1,31 @@
+--- a/d2layouts/d2talalayout/internal/routing/ovg_edge_router.go
++++ b/d2layouts/d2talalayout/internal/routing/ovg_edge_router.go
+@@ -1784,6 +1784,12 @@
+ }
+ 
+ func (router *ovgEdgeRouter) addRoute(route *Route) error {
++	tracePublication := func(phase string) {
++		if os.Getenv("D2_TRACE_PUBLICATION_WORK") != "1" { return }
++		data, _ := json.Marshal(map[string]any{"event":"publication-work", "phase":phase, "flavor":fmt.Sprint(router.flavor), "edge":route.GEdge.ID, "nodes":len(route.OVGNodes), "work":router.work.used})
++		fmt.Fprintln(os.Stderr, string(data))
++	}
++	tracePublication("begin")
+ 	dups := make(map[*OVGNode]struct{}, len(route.OVGNodes))
+ 	routeNodes := route.OVGNodes
+ 	if route.GEdge.IsLoop() {
+@@ -1835,6 +1841,7 @@
+ 		}
+ 	}
+ 
++	tracePublication("indexed")
+ 	if !route.GEdge.IsInvisible {
+ 		for i := 1; i < len(route.OVGNodes)-2; i++ {
+ 			if err := router.work.step(); err != nil {
+@@ -1904,6 +1911,7 @@
+ 			}
+ 		}
+ 	}
++	tracePublication("end")
+ 	return router.work.check()
+ }
+ 

@@ -1,0 +1,32 @@
+[package]
+name = "d2-rs-layout"
+description = "D2 layout-engine selection and orchestration"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish = false
+
+[features]
+# Oracle tier: tests that read Go-oracle artifacts regenerated into
+# oracle-cache/fixtures by scripts/regen-fixtures.py (docs/FIXTURES.md).
+oracle-fixtures = []
+default = []
+diagnostic-traces = [
+    "d2-rs-dagre/diagnostic-traces",
+    "d2-rs-elk/diagnostic-traces",
+]
+
+[dependencies]
+d2-rs-core.workspace = true
+d2-rs-dagre.workspace = true
+d2-rs-elk.workspace = true
+d2-tala-rs.workspace = true
+thiserror.workspace = true
+
+serde_json.workspace = true
+
+[dev-dependencies]
+d2-rs-testdata.workspace = true

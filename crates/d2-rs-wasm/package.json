@@ -1,0 +1,46 @@
+{
+  "name": "@d2-rs/wasm",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Browser and Node bindings for d2-rs",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "node": "./src/node.cjs",
+      "browser": "./src/index.js",
+      "import": "./src/index.js"
+    },
+    "./raw": {
+      "node": "./pkg/node/d2_rs_wasm.cjs",
+      "default": "./pkg/web/d2_rs_wasm.js"
+    }
+  },
+  "files": [
+    "src",
+    "pkg",
+    "LICENSE",
+    "README.md",
+    "SOURCE.md",
+    "THIRD_PARTY_NOTICES.md",
+    "DEPENDENCY_NOTICES.md"
+  ],
+  "scripts": {
+    "build": "node ./scripts/build-wasm.mjs",
+    "check": "node --check ./src/index.js && cargo check --release --target wasm32-unknown-unknown -p d2-rs-wasm",
+    "test": "node ./scripts/test-node.mjs",
+    "test:browser": "node ./scripts/test-browser.mjs",
+    "test:types": "tsc --noEmit --strict --module NodeNext --target ES2022 --lib ES2022,DOM tests/target-text-types.mts",
+    "test:target": "node ./scripts/test-target-render.mjs",
+    "test:ascii": "node ./scripts/test-target-ascii.mjs",
+    "test:target-sdk": "node ./scripts/test-target-sdk.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MPL-2.0",
+  "devDependencies": {
+    "playwright-core": "1.64.0",
+    "typescript": "5.9.3"
+  }
+}

@@ -1,0 +1,58 @@
+[
+ {
+  "name": "parent_scope",
+  "source": "shape: sequence_diagram\na -> b\nphase: { a.x -> b.y }\n"
+ },
+ {
+  "name": "child_scope",
+  "source": "shape: sequence_diagram\na -> b\nphase: { west: { a -> b }; east: { a -> b } }\n"
+ },
+ {
+  "name": "no_child",
+  "source": "shape: sequence_diagram\na -> b\nphase: { _.a -> _.b }\n"
+ },
+ {
+  "name": "nested_grid",
+  "source": "shape: sequence_diagram\na -> b\na: { grid-columns: 2; cell: { x -> y }; second: { p -> q } }\n"
+ },
+ {
+  "name": "empty_child",
+  "source": "shape: sequence_diagram\na -> b\nphase: { west: { a -> b }; note }\n"
+ },
+ {
+  "name": "endpoint",
+  "source": "shape: sequence_diagram\na -> phase\nphase: { west: { a -> b } }\n"
+ },
+ {
+  "name": "same_name",
+  "source": "shape: sequence_diagram\na -> b\nphase: {a.a -> b}\n"
+ },
+ {
+  "name": "case_distinct",
+  "source": "shape: sequence_diagram\na -> b\nphase: {A -> b}\n"
+ },
+ {
+  "name": "quoted",
+  "source": "shape: sequence_diagram\n\"a.b\" -> c\nphase: {\"a.b\".x -> c}\n"
+ },
+ {
+  "name": "properties",
+  "source": "shape: sequence_diagram\na: Original {style.fill: red}\na -> b\nphase: {a: Updated {style.stroke: blue}; a.x -> b}\n"
+ },
+ {
+  "name": "forward",
+  "source": "shape: sequence_diagram\nphase: {a -> b}\na -> b\n"
+ },
+ {
+  "name": "nested_sequence",
+  "source": "outer: {shape: sequence_diagram; a -> b; phase: {a.x -> b}}\n"
+ },
+ {
+  "name": "retain_primary",
+  "source": "shape: sequence_diagram\na: Original {style.fill: red}\na -> b\nphase: {a: {style.stroke: blue}; a.x -> b}\n"
+ },
+ {
+  "name": "clear_primary",
+  "source": "shape: sequence_diagram\na: Original {style.fill: red}\na -> b\nphase: {a: \"\"; a.x -> b}\n"
+ }
+]

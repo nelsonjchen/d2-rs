@@ -1,0 +1,34 @@
+[
+  {
+    "name": "map",
+    "source": "vars: {d2-config: {data: {nested: {x: y}}}}\na\n"
+  },
+  {
+    "name": "empty-map",
+    "source": "vars: {d2-config: {data: {nested: {}}}}\na\n"
+  },
+  {
+    "name": "empty-array",
+    "source": "vars: {d2-config: {data: {values: []}}}\na\n"
+  },
+  {
+    "name": "composites",
+    "source": "vars: {d2-config: {data: {values: [{x: y}; [three]]}}}\na\n"
+  },
+  {
+    "name": "mixed",
+    "source": "vars: {d2-config: {data: {values: [one; two; {ignored: value}; [three]]}}}\na\n"
+  },
+  {
+    "name": "scalar-types",
+    "source": "vars: {d2-config: {data: {values: [17; true; false; null; 1.25]}}}\na\n"
+  },
+  {
+    "name": "quoted",
+    "source": "vars: {d2-config: {data: {values: [\"two words\"; 'a;b'; `raw`]}}}\na\n"
+  },
+  {
+    "name": "primary-composite",
+    "source": "vars: {d2-config: {data: {nested: scalar {x: y}}}}\na\n"
+  }
+]

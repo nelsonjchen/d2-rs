@@ -1,0 +1,132 @@
+# d2-rs-language compiler contract fixtures, captured at the manifest pin by
+# scripts/check-language-compile-contracts.py: constructed D2 inputs from
+# tools/fixtures/seeds/lang-compile-contracts/ (or the hand-written request
+# files the legend and config-data tests read) replayed through
+# tools/public-compiler-oracle (compile/inspect/measure) and, for style-colors,
+# the lib/color hook in tools/language-master-scoreboard. Only Go output is
+# regenerated; logical paths keep their historical names.
+#
+# Regenerate:  uv run --no-project python scripts/regen-fixtures.py --only 'lang-contract-*'
+# Test:        cargo test -p d2-rs-language --features oracle-fixtures
+
+[defaults]
+kind = "command"
+upstream = true
+timeout = 1800
+
+[defaults.key_deps]
+files = [
+  "scripts/fixture_recipe.py",
+  "scripts/language_oracle.py",
+  "scripts/check-public-compiler.py",
+  "scripts/public_compiler_cases.py",
+  "scripts/check-language-compile-contracts.py",
+  "tools/public-compiler-oracle",
+  "tools/language-master-scoreboard/style_color_hook_test.go",
+  "tools/fixtures/seeds/lang-compile-contracts",
+  "crates/d2-rs-language/tests/fixtures/legend-validation-inputs-v090.json",
+  "crates/d2-rs-language/tests/fixtures/config-data-inputs-v090.json",
+]
+go_toolchain = true
+
+[[recipe]]
+name = "lang-contract-style-color-diagnostics"
+description = "Applied color values and diagnostic order"
+outputs = ["crates/d2-rs-language/tests/fixtures/style-color-diagnostics-go-master.json"]
+argv = ["{python}", "scripts/check-language-compile-contracts.py", "style-color-diagnostics"]
+
+[[recipe]]
+name = "lang-contract-style-color-scope"
+description = "Color validation scope: classes, icons, legends and boards"
+outputs = ["crates/d2-rs-language/tests/fixtures/style-color-scope-go-v090.json"]
+argv = ["{python}", "scripts/check-language-compile-contracts.py", "style-color-scope"]
+
+[[recipe]]
+name = "lang-contract-style-enumerations"
+description = "Style enumeration diagnostics"
+outputs = ["crates/d2-rs-language/tests/fixtures/style-enumerations-go-v090.json"]
+argv = ["{python}", "scripts/check-language-compile-contracts.py", "style-enumerations"]
+
+[[recipe]]
+name = "lang-contract-style-opacity"
+description = "Opacity syntax, ranges and locations"
+outputs = ["crates/d2-rs-language/tests/fixtures/style-opacity-go-v090.json"]
+argv = ["{python}", "scripts/check-language-compile-contracts.py", "style-opacity"]
+
+[[recipe]]
+name = "lang-contract-style-colors"
+description = "lib/color ValidColor over the retained color corpus"
+outputs = ["crates/d2-rs-language/tests/fixtures/style-color-go-master.json"]
+argv = ["{python}", "scripts/check-language-compile-contracts.py", "style-colors"]
+
+[[recipe]]
+name = "lang-contract-position-validation"
+description = "Label/icon/tooltip position-holder diagnostics"
+outputs = ["crates/d2-rs-language/tests/fixtures/position-validation-source-v090.json"]
+argv = ["{python}", "scripts/check-language-compile-contracts.py", "position-validation"]
+
+[[recipe]]
+name = "lang-contract-markdown-compiler"
+description = "Markdown XML validation diagnostics"
+outputs = ["crates/d2-rs-language/tests/fixtures/markdown-compiler-source-v090.json"]
+argv = ["{python}", "scripts/check-language-compile-contracts.py", "markdown-compiler"]
+
+[[recipe]]
+name = "lang-contract-legend-validation"
+description = "Legend compilation without board late validation"
+outputs = ["crates/d2-rs-language/tests/fixtures/legend-validation-source-v090.json"]
+argv = ["{python}", "scripts/check-language-compile-contracts.py", "legend-validation"]
+
+[[recipe]]
+name = "lang-contract-config-data"
+description = "d2-config data values"
+outputs = ["crates/d2-rs-language/tests/fixtures/config-data-source-v090.json"]
+argv = ["{python}", "scripts/check-language-compile-contracts.py", "config-data"]
+
+[[recipe]]
+name = "lang-contract-tooltip-handoff"
+description = "Tooltips and positions on objects and d2exporter shapes"
+outputs = ["crates/d2-rs-language/tests/fixtures/tooltip-handoff-source-v090.json"]
+argv = ["{python}", "scripts/check-language-compile-contracts.py", "tooltip-handoff"]
+
+[[recipe]]
+name = "lang-contract-raw-label-bytes"
+description = "Raw block-string label bytes before and after SetDimensions"
+outputs = ["crates/d2-rs-language/tests/fixtures/raw-label-bytes-source-v090.json"]
+argv = ["{python}", "scripts/check-language-compile-contracts.py", "raw-label-bytes"]
+
+[[recipe]]
+name = "lang-contract-sequence-canonical-identity"
+description = "Sequence diagram object identity, parents, styles and edge scopes"
+outputs = ["crates/d2-rs-language/tests/fixtures/sequence-canonical-identity-source-v090.json"]
+argv = ["{python}", "scripts/check-language-compile-contracts.py", "sequence-canonical-identity"]
+
+[[recipe]]
+name = "lang-contract-sequence-declaration-lines"
+description = "Sequence earliest declaration lines of objects and edges"
+outputs = ["crates/d2-rs-language/tests/fixtures/sequence-declaration-lines-source-v090.json"]
+argv = ["{python}", "scripts/check-language-compile-contracts.py", "sequence-declaration-lines"]
+
+[[recipe]]
+name = "lang-contract-compiled-edge-identity"
+description = "Compiled edge endpoints, arrows, index and AbsID"
+outputs = ["crates/d2-rs-language/tests/fixtures/compiled-edge-identity-v090.json"]
+argv = ["{python}", "scripts/check-language-compile-contracts.py", "compiled-edge-identity"]
+
+[[recipe]]
+name = "lang-contract-authored-shape-sizing"
+description = "Authored shape sizes after SetDimensions"
+outputs = ["crates/d2-rs-language/tests/fixtures/authored-shape-sizing-v090.json"]
+argv = ["{python}", "scripts/check-language-compile-contracts.py", "authored-shape-sizing"]
+
+[[recipe]]
+name = "lang-contract-sequence-default-shapes"
+description = "Sequence default shapes and measured label sizes"
+outputs = ["crates/d2-rs-language/tests/fixtures/sequence-default-shapes-v090.json"]
+argv = ["{python}", "scripts/check-language-compile-contracts.py", "sequence-default-shapes"]
+
+[[recipe]]
+name = "lang-contract-connection-label-language"
+description = "Connection code-label text, language and measured size"
+outputs = ["crates/d2-rs-language/tests/fixtures/connection-label-language-v090.json"]
+argv = ["{python}", "scripts/check-language-compile-contracts.py", "connection-label-language"]

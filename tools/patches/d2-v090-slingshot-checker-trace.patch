@@ -1,0 +1,49 @@
+--- a/d2layouts/d2talalayout/internal/routing/slingshot.go
++++ b/d2layouts/d2talalayout/internal/routing/slingshot.go
+@@ -448,6 +448,7 @@
+ type RouteChecker struct {
+ 	mem     map[*OVGNode]map[*OVGNode]bool
+ 	compute func(from, to *OVGNode) (bool, error)
++ trace func(from, to *OVGNode, hit, result bool)
+ }
+ 
+ func newFallibleRouteChecker(compute func(from, to *OVGNode) (bool, error)) *RouteChecker {
+@@ -466,6 +467,7 @@
+ }
+ func (checker RouteChecker) check(from, to *OVGNode) (isShared bool, err error) {
+ 	if is, ok := checker.cacheCheck(from, to); ok {
++        if checker.trace != nil { checker.trace(from,to,true,is) }
+ 		return is, nil
+ 	}
+ 	if _, ok := checker.mem[from]; !ok {
+@@ -475,6 +477,7 @@
+ 	if err != nil {
+ 		return false, err
+ 	}
++    if checker.trace != nil { checker.trace(from,to,false,checker.mem[from][to]) }
+ 	return checker.mem[from][to], nil
+ }
+ 
+@@ -615,6 +618,8 @@
+ 		return router.edgeSet.intersectsWithGuarded(NewOVGEdge(from, to), router.work)
+ 	})
+ 
++    router.attachSlingshotCheckerTrace(gEdge,"occupied",occupiedRouteChecker)
++    router.attachSlingshotCheckerTrace(gEdge,"crossed",crossedRouteChecker)
+ 	var shortestPath []*OVGNode
+ 	var shortestFlight float64
+ 
+--- a/d2layouts/d2talalayout/internal/routing/ovg_edge_router.go
++++ b/d2layouts/d2talalayout/internal/routing/ovg_edge_router.go
+@@ -1993,3 +1993,11 @@
+  if os.Getenv("D2_TRACE_OVG_STAGE_SCOPE")!=fmt.Sprintf("%d:%d",len(g.Nodes),len(g.Edges)) {return}
+  data,_:=json.Marshal(map[string]any{"event":"ovg-construction-counts","stage":stage,"scope_nodes":len(g.Nodes),"scope_edges":len(g.Edges),"nodes":len(ovg.Nodes),"edges":len(ovg.Edges)}); fmt.Fprintln(os.Stderr,string(data))
+ }
++
++func (router *ovgEdgeRouter) attachSlingshotCheckerTrace(edge *layoutgraph.Edge, kind string, checker *RouteChecker) {
++ if os.Getenv("D2_TRACE_SLINGSHOT_CHECK_EDGE") != fmt.Sprint(edge.ID) { return }
++ checker.trace = func(from,to *OVGNode,hit,result bool) {
++ data,_ := json.Marshal(map[string]any{"event":"slingshot-check","scope_nodes":len(router.graph.Nodes),"scope_edges":len(router.graph.Edges),"edge":edge.ID,"flavor":fmt.Sprint(router.flavor),"kind":kind,"from":[]string{fmt.Sprintf("%016x",math.Float64bits(from.X)),fmt.Sprintf("%016x",math.Float64bits(from.Y))},"to":[]string{fmt.Sprintf("%016x",math.Float64bits(to.X)),fmt.Sprintf("%016x",math.Float64bits(to.Y))},"from_index":from.Index,"to_index":to.Index,"hit":hit,"result":result,"work":router.work.used})
++ fmt.Fprintln(os.Stderr,string(data))
++ }
++}

@@ -1,0 +1,72 @@
+--- a/d2layouts/d2dagrelayout/layout.go
++++ b/d2layouts/d2dagrelayout/layout.go
+@@ -229,7 +229,15 @@
+ 			return fmt.Errorf("dagro returned edge %q without points", dagreEdges[i].Name)
+ 		}
+ 		if os.Getenv("DAGRE_TRACE_RAW_POINTS") != "" {
+-			fmt.Fprintf(os.Stderr, "GO_DAGRE_RAW edge=%s points=%v\n", edge.AbsID(), dagrePoints)
++			identity := edge.AbsID()
++			if g.TraceScope != "" {
++				identity = g.TraceScope + "." + identity
++			}
++			pointBits := make([]string, len(dagrePoints))
++			for index, point := range dagrePoints {
++				pointBits[index] = fmt.Sprintf("%016x,%016x", math.Float64bits(point.X), math.Float64bits(point.Y))
++			}
++			fmt.Fprintf(os.Stderr, "GO_DAGRE_RAW edge=%q point_count=%d bits=%s\n", identity, len(dagrePoints), strings.Join(pointBits, ";"))
+ 		}
+ 
+ 		points := make([]*geo.Point, len(dagrePoints))
+@@ -365,8 +373,13 @@
+ 			for i, point := range points {
+ 				pointBits[i] = fmt.Sprintf("%016x,%016x", math.Float64bits(point.X), math.Float64bits(point.Y))
+ 			}
++			sourceID, targetID := edge.Src.AbsID(), edge.Dst.AbsID()
++			if g.TraceScope != "" {
++				sourceID = g.TraceScope + "." + sourceID
++				targetID = g.TraceScope + "." + targetID
++			}
+ 			fmt.Fprintf(os.Stderr, "GO_FINAL_ROUTE source=%q target=%q point_count=%d bits=%s\n",
+-				edge.Src.AbsID(), edge.Dst.AbsID(), len(points), strings.Join(pointBits, ";"))
++				sourceID, targetID, len(points), strings.Join(pointBits, ";"))
+ 		}
+ 
+ 		// build a curved path from the dagre route
+@@ -1883,18 +1896,25 @@
+ func traceDagreObjects(phase string, g *d2graph.Graph) {
+ 	if os.Getenv("DAGRE_TRACE_OBJECTS") == "" {
+ 		return
++	}
++	scopedID := func(id string) string {
++		if g.TraceScope == "" {
++			return id
++		}
++		return g.TraceScope + "." + id
+ 	}
+ 	fmt.Fprintf(os.Stderr, "GO_PHASE %s\n", phase)
+ 	for _, obj := range g.Objects {
+ 		parent := "<root>"
+ 		if obj.Parent != nil {
+-			parent = obj.Parent.AbsID()
++			parent = scopedID(obj.Parent.AbsID())
+ 		}
++		objectID := scopedID(obj.AbsID())
+ 		if obj.Box == nil || obj.TopLeft == nil {
+-			fmt.Fprintf(os.Stderr, "GO_OBJ %q <no-box> parent=%q\n", obj.AbsID(), parent)
++			fmt.Fprintf(os.Stderr, "GO_OBJ %q <no-box> parent=%q\n", objectID, parent)
+ 			continue
+ 		}
+-		fmt.Fprintf(os.Stderr, "GO_OBJ %q %.17g %.17g %.17g %.17g parent=%q bits=%016x,%016x,%016x,%016x\n", obj.AbsID(), obj.TopLeft.X, obj.TopLeft.Y, obj.Width, obj.Height, parent, math.Float64bits(obj.TopLeft.X), math.Float64bits(obj.TopLeft.Y), math.Float64bits(obj.Width), math.Float64bits(obj.Height))
++		fmt.Fprintf(os.Stderr, "GO_OBJ %q %.17g %.17g %.17g %.17g parent=%q bits=%016x,%016x,%016x,%016x\n", objectID, obj.TopLeft.X, obj.TopLeft.Y, obj.Width, obj.Height, parent, math.Float64bits(obj.TopLeft.X), math.Float64bits(obj.TopLeft.Y), math.Float64bits(obj.Width), math.Float64bits(obj.Height))
+ 	}
+ 	fmt.Fprintf(os.Stderr, "GO_EDGESET count=%d\n", len(g.Edges))
+ 	type edgePair struct {
+@@ -1902,7 +1922,7 @@
+ 	}
+ 	ordinals := make(map[edgePair]int)
+ 	for _, edge := range g.Edges {
+-		pair := edgePair{src: edge.Src.AbsID(), dst: edge.Dst.AbsID()}
++		pair := edgePair{src: scopedID(edge.Src.AbsID()), dst: scopedID(edge.Dst.AbsID())}
+ 		identity := fmt.Sprintf("%d:%s -> %d:%s #%d", len(pair.src), pair.src, len(pair.dst), pair.dst, ordinals[pair])
+ 		ordinals[pair]++
+ 		quotedIdentity, _ := json.Marshal(identity)

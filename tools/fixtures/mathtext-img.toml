@@ -1,0 +1,142 @@
+# Embedded raster/SVG image admission (d2renderers/d2svgimport image.go and
+# viewport.go, d2renderers/d2scenebuild assets.go, internal/rasterimage) for
+# crates/d2-rs-math/src/svg_{image,image_static,image_config,import,viewport,
+# asset_cache,document_import}.rs and crates/d2-rs-core/src/raster_orientation.rs.
+# Go stdlib image/jpeg recipes are in mathtext-img-stdlib.toml. See
+# docs/FIXTURES.md.
+#
+# Hooks live in tools/fixtures/hooks/mathtext-img-*/ (adapted from the v0.9.0
+# probes). Byte and document inputs come from scripts/fixture-gen-*.py; the
+# admission, import-result and viewport sweeps are enumerated in their hooks.
+#
+# Regenerate:  uv run --no-project python scripts/regen-fixtures.py --only 'mathtext-img-*'
+# Test:        cargo test -p d2-rs-math --features oracle-fixtures svg_
+#              cargo test -p d2-rs-core --features oracle-fixtures raster_orientation
+
+[defaults]
+kind = "go-test-hook"
+package = "d2renderers/d2svgimport"
+timeout = 1800
+
+[defaults.key_deps]
+files = ["scripts/fixture_recipe.py"]
+
+[[recipe]]
+name = "mathtext-img-svg-image-static"
+description = "inspectStaticEmbeddedRaster over PNG/JPEG/GIF/WebP skeleton prefixes and byte mutations x context"
+outputs = ["crates/d2-rs-math/tests/fixtures/svg-image-static-v090.json"]
+inputs = [{ path = "image-static.json", generate = ["{python}", "scripts/fixture-gen-image-static.py"] }]
+hooks = ["tools/fixtures/hooks/mathtext-img-svgimport/d2rs_img_helpers_test.go", "tools/fixtures/hooks/mathtext-img-svgimport/d2rs_img_static_test.go"]
+test = "TestD2RSImageStatic"
+key_deps.upstream_paths = ["d2renderers/d2svgimport", "d2renderers/d2scene", "internal/rasterimage", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "mathtext-img-jpeg-config"
+description = "Embedded JPEG admission: static inspection, rasterimage.Config, decoded charge x context"
+outputs = ["crates/d2-rs-math/tests/fixtures/jpeg-config-v090.json"]
+inputs = [{ path = "jpeg-config.json", generate = ["{python}", "scripts/fixture-gen-jpeg-config.py"] }]
+hooks = ["tools/fixtures/hooks/mathtext-img-svgimport/d2rs_img_helpers_test.go", "tools/fixtures/hooks/mathtext-img-svgimport/d2rs_img_static_test.go"]
+test = "TestD2RSRasterConfig"
+env = { D2RS_IMG_FORMAT = "jpeg" }
+key_deps.upstream_paths = ["d2renderers/d2svgimport", "d2renderers/d2scene", "internal/rasterimage", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "mathtext-img-png-config"
+description = "Embedded PNG admission: static inspection, rasterimage.Config, decoded charge x context"
+outputs = ["crates/d2-rs-math/tests/fixtures/png-config-v090.json"]
+inputs = [{ path = "png-config.json", generate = ["{python}", "scripts/fixture-gen-png-config.py"] }]
+hooks = ["tools/fixtures/hooks/mathtext-img-svgimport/d2rs_img_helpers_test.go", "tools/fixtures/hooks/mathtext-img-svgimport/d2rs_img_static_test.go"]
+test = "TestD2RSRasterConfig"
+env = { D2RS_IMG_FORMAT = "png" }
+key_deps.upstream_paths = ["d2renderers/d2svgimport", "d2renderers/d2scene", "internal/rasterimage", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "mathtext-img-webp-config"
+description = "Embedded WebP admission: static inspection, rasterimage.Config, decoded charge x context"
+outputs = ["crates/d2-rs-math/tests/fixtures/webp-config-v090.json"]
+inputs = [{ path = "webp-config.json", generate = ["{python}", "scripts/fixture-gen-webp-config.py"] }]
+hooks = ["tools/fixtures/hooks/mathtext-img-svgimport/d2rs_img_helpers_test.go", "tools/fixtures/hooks/mathtext-img-svgimport/d2rs_img_static_test.go"]
+test = "TestD2RSRasterConfig"
+env = { D2RS_IMG_FORMAT = "webp" }
+key_deps.upstream_paths = ["d2renderers/d2svgimport", "d2renderers/d2scene", "internal/rasterimage", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "mathtext-img-svg-image-admission"
+description = "<image> attributes, data: URI and canonical base64 admission up to the content ID"
+outputs = ["crates/d2-rs-math/tests/fixtures/svg-image-admission-v090.json"]
+hooks = ["tools/fixtures/hooks/mathtext-img-svgimport/d2rs_img_helpers_test.go", "tools/fixtures/hooks/mathtext-img-svgimport/d2rs_img_admission_test.go"]
+test = "TestD2RSImageAdmission"
+key_deps.upstream_paths = ["d2renderers/d2svgimport", "d2renderers/d2scene", "internal/rasterimage", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "mathtext-img-svg-image-assets"
+description = "compileEmbeddedImage twice against seeded raster asset caches x limits x context"
+outputs = ["crates/d2-rs-math/tests/fixtures/svg-image-assets-v090.json"]
+inputs = [{ path = "image-hrefs.json", generate = ["{python}", "scripts/fixture-gen-svg-image-inputs.py", "assets"] }]
+hooks = ["tools/fixtures/hooks/mathtext-img-svgimport/d2rs_img_helpers_test.go", "tools/fixtures/hooks/mathtext-img-svgimport/d2rs_img_import_test.go"]
+test = "TestD2RSImageAssets"
+key_deps.upstream_paths = ["d2renderers/d2svgimport", "d2renderers/d2scene", "internal/rasterimage", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "mathtext-img-svg-image-import"
+description = "ImportNodeWithOptions on documents embedding images x limit profiles x currentColor x context"
+outputs = ["crates/d2-rs-math/tests/fixtures/svg-image-import-v090.json"]
+inputs = [{ path = "image-documents.json", generate = ["{python}", "scripts/fixture-gen-svg-image-inputs.py", "import"] }]
+hooks = ["tools/fixtures/hooks/mathtext-img-svgimport/d2rs_img_helpers_test.go", "tools/fixtures/hooks/mathtext-img-svgimport/d2rs_img_import_test.go"]
+test = "TestD2RSImageImport"
+key_deps.upstream_paths = ["d2renderers/d2svgimport", "d2renderers/d2scene", "internal/rasterimage", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "mathtext-img-svg-import-result"
+description = "ImportNodeWithOptions results for small vector documents x limit profiles x currentColor x context"
+outputs = ["crates/d2-rs-math/tests/fixtures/svg-import-result-v090.json"]
+hooks = ["tools/fixtures/hooks/mathtext-img-svgimport/d2rs_img_helpers_test.go", "tools/fixtures/hooks/mathtext-img-svgimport/d2rs_img_import_test.go"]
+test = "TestD2RSImportResult"
+key_deps.upstream_paths = ["d2renderers/d2svgimport", "d2renderers/d2scene", "internal/rasterimage", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "mathtext-img-svg-viewport"
+description = "Root/nested <svg> viewport admission and AspectRatioMatrix bits"
+outputs = ["crates/d2-rs-math/tests/fixtures/svg-viewport-master.json"]
+hooks = ["tools/fixtures/hooks/mathtext-img-svgimport/d2rs_img_helpers_test.go", "tools/fixtures/hooks/mathtext-img-svgimport/d2rs_img_viewport_test.go"]
+test = "TestD2RSViewport"
+key_deps.upstream_paths = ["d2renderers/d2svgimport", "d2renderers/d2scene"]
+
+[[recipe]]
+name = "mathtext-img-svg-asset-cache"
+description = "d2scenebuild resolved-SVG cache: base64/percent aliases x document budget profiles x context"
+outputs = ["crates/d2-rs-math/tests/fixtures/svg-asset-cache-v090.json"]
+inputs = [{ path = "asset-cache.json", generate = ["{python}", "scripts/fixture-gen-svg-image-inputs.py", "asset-cache"] }]
+package = "d2renderers/d2scenebuild"
+hooks = ["tools/fixtures/hooks/mathtext-img-scenebuild/d2rs_img_scenebuild_test.go"]
+test = "TestD2RSAssetCache"
+key_deps.upstream_paths = ["d2renderers/d2scenebuild", "d2renderers/d2svgimport", "d2renderers/d2scene", "internal/rasterimage", "lib/imageasset", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "mathtext-img-svg-document-import"
+description = "d2scenebuild cumulative SVG import budget, reservation and asset merge x seeds x context"
+outputs = ["crates/d2-rs-math/tests/fixtures/svg-document-import-v090.json"]
+inputs = [{ path = "document-import.json", generate = ["{python}", "scripts/fixture-gen-svg-image-inputs.py", "document-import"] }]
+package = "d2renderers/d2scenebuild"
+hooks = ["tools/fixtures/hooks/mathtext-img-scenebuild/d2rs_img_scenebuild_test.go"]
+test = "TestD2RSDocumentImport"
+key_deps.upstream_paths = ["d2renderers/d2scenebuild", "d2renderers/d2svgimport", "d2renderers/d2scene", "internal/rasterimage", "lib/imageasset", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "mathtext-img-jpeg-orientation"
+description = "jpegEXIFOrientation and orientedConfig over Exif APP1 prefixes x context"
+outputs = ["crates/d2-rs-core/tests/fixtures/jpeg-orientation-v090.json"]
+inputs = [{ path = "jpeg-orientation.json", generate = ["{python}", "scripts/fixture-gen-jpeg-orientation.py"] }]
+package = "internal/rasterimage"
+hooks = ["tools/fixtures/hooks/mathtext-img-rasterimage/d2rs_img_orientation_test.go"]
+test = "TestD2RSJPEGOrientation"
+key_deps.upstream_paths = ["internal/rasterimage", "go.mod"]
+
+[[recipe]]
+name = "mathtext-img-gif-config"
+description = "Embedded GIF admission: static inspection, rasterimage.Config, decoded charge x context"
+outputs = ["crates/d2-rs-math/tests/fixtures/gif-config-v090.json"]
+inputs = [{ path = "gif-config.json", generate = ["{python}", "scripts/fixture-gen-svg-requests.py", "gif-config"] }]
+hooks = ["tools/fixtures/hooks/mathtext-img-svgimport/d2rs_gif_config_test.go"]
+test = "TestD2RSGIFConfig"
+key_deps.upstream_paths = ["d2renderers/d2svgimport", "d2renderers/d2scene", "internal/rasterimage", "go.mod", "go.sum"]

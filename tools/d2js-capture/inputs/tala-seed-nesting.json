@@ -1,0 +1,7 @@
+[
+{"name": "plain", "source": "vars: {d2-config: {layout-engine: tala; data: {tala-seeds: [7]}}}\na -> b -> c\na -> d -> e\nb -> e\nd -> c\nf -> e\ng -> b\n"},
+{"name": "grid-cell", "source": "vars: {d2-config: {layout-engine: tala; data: {tala-seeds: [7]}}}\ngrid: {grid-columns: 1\ncell: {\na -> b -> c\na -> d -> e\nb -> e\nd -> c\nf -> e\ng -> b\n}\n}\n"},
+{"name": "batched-grids", "source": "vars: {d2-config: {layout-engine: tala; data: {tala-seeds: [7]}}}\ngrid1: {grid-columns: 1\ncell: {\na -> b -> c\na -> d -> e\nb -> e\nd -> c\nf -> e\ng -> b\n}\n}\ngrid2: {grid-columns: 1\ncell: {\na -> b -> c\na -> d -> e\nb -> e\nd -> c\nf -> e\ng -> b\n}\n}\n"},
+{"name": "constant-near", "source": "vars: {d2-config: {layout-engine: tala; data: {tala-seeds: [7]}}}\nmain\nlegend: {near: top-left\na -> b -> c\na -> d -> e\nb -> e\nd -> c\nf -> e\ng -> b\n}\n"},
+{"name": "boards", "source": "vars: {d2-config: {layout-engine: tala; data: {tala-seeds: [7]}}}\na -> b -> c\na -> d -> e\nb -> e\nd -> c\nf -> e\ng -> b\nlayers: {alternate: {a -> b -> c\na -> d -> e\nb -> e\nd -> c\nf -> e\ng -> b\n}}\nscenarios: {recolor: {a.style.fill: red}}\nsteps: {fade: {a.style.opacity: 0.5}}\n"}
+]

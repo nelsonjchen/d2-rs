@@ -1,0 +1,497 @@
+[
+  {
+    "name": "plain",
+    "extension": ".d2MimeCase0",
+    "mime": "image/png",
+    "accepted": false,
+    "queries": {
+      ".D2MIMECASE0": "",
+      ".d2MimeCase0": ""
+    }
+  },
+  {
+    "name": "text-default",
+    "extension": ".d2MimeCase1",
+    "mime": "text/X-Custom",
+    "accepted": false,
+    "queries": {
+      ".D2MIMECASE1": "",
+      ".d2MimeCase1": ""
+    }
+  },
+  {
+    "name": "upper-prefix",
+    "extension": ".d2MimeCase2",
+    "mime": "TEXT/X-Custom",
+    "accepted": false,
+    "queries": {
+      ".D2MIMECASE2": "",
+      ".d2MimeCase2": ""
+    }
+  },
+  {
+    "name": "blank-charset",
+    "extension": ".d2MimeCase3",
+    "mime": "text/plain;charset=\"\"",
+    "accepted": false,
+    "queries": {
+      ".D2MIMECASE3": "",
+      ".d2MimeCase3": ""
+    }
+  },
+  {
+    "name": "explicit-charset",
+    "extension": ".d2MimeCase4",
+    "mime": "text/plain; charset=ASCII",
+    "accepted": false,
+    "queries": {
+      ".D2MIMECASE4": "",
+      ".d2MimeCase4": ""
+    }
+  },
+  {
+    "name": "same-duplicate",
+    "extension": ".d2MimeCase5",
+    "mime": "text/plain;charset=a;charset=a",
+    "accepted": false,
+    "queries": {
+      ".D2MIMECASE5": "",
+      ".d2MimeCase5": ""
+    }
+  },
+  {
+    "name": "bad-duplicate",
+    "extension": ".d2MimeCase6",
+    "mime": "text/plain;charset=a;charset=b",
+    "accepted": false,
+    "queries": {
+      ".D2MIMECASE6": "",
+      ".d2MimeCase6": ""
+    }
+  },
+  {
+    "name": "trailing",
+    "extension": ".d2MimeCase7",
+    "mime": "text/plain; ",
+    "accepted": false,
+    "queries": {
+      ".D2MIMECASE7": "",
+      ".d2MimeCase7": ""
+    }
+  },
+  {
+    "name": "sorted",
+    "extension": ".d2MimeCase8",
+    "mime": "text/plain;z=last;a=first",
+    "accepted": false,
+    "queries": {
+      ".D2MIMECASE8": "",
+      ".d2MimeCase8": ""
+    }
+  },
+  {
+    "name": "quoted",
+    "extension": ".d2MimeCase9",
+    "mime": "text/plain;name=\"a;b\"",
+    "accepted": false,
+    "queries": {
+      ".D2MIMECASE9": "",
+      ".d2MimeCase9": ""
+    }
+  },
+  {
+    "name": "escaped",
+    "extension": ".d2MimeCase10",
+    "mime": "text/plain;name=\"a\\\"b\"",
+    "accepted": false,
+    "queries": {
+      ".D2MIMECASE10": "",
+      ".d2MimeCase10": ""
+    }
+  },
+  {
+    "name": "backslash",
+    "extension": ".d2MimeCase11",
+    "mime": "text/plain;name=\"C:\\dev\\go\"",
+    "accepted": false,
+    "queries": {
+      ".D2MIMECASE11": "",
+      ".d2MimeCase11": ""
+    }
+  },
+  {
+    "name": "extended",
+    "extension": ".d2MimeCase12",
+    "mime": "text/plain;name*=utf-8''caf%C3%A9",
+    "accepted": false,
+    "queries": {
+      ".D2MIMECASE12": "",
+      ".d2MimeCase12": ""
+    }
+  },
+  {
+    "name": "encoded-charset",
+    "extension": ".d2MimeCase13",
+    "mime": "text/plain;charset*=utf-8''UTF-8",
+    "accepted": false,
+    "queries": {
+      ".D2MIMECASE13": "",
+      ".d2MimeCase13": ""
+    }
+  },
+  {
+    "name": "invalid-encoded",
+    "extension": ".d2MimeCase14",
+    "mime": "text/plain;name*=utf-8''bad%XZ",
+    "accepted": false,
+    "queries": {
+      ".D2MIMECASE14": "",
+      ".d2MimeCase14": ""
+    }
+  },
+  {
+    "name": "unsupported-encoded",
+    "extension": ".d2MimeCase15",
+    "mime": "text/plain;name*=latin-1''caf%E9",
+    "accepted": false,
+    "queries": {
+      ".D2MIMECASE15": "",
+      ".d2MimeCase15": ""
+    }
+  },
+  {
+    "name": "continuation",
+    "extension": ".d2MimeCase16",
+    "mime": "text/plain;name*0=foo;name*1=bar",
+    "accepted": false,
+    "queries": {
+      ".D2MIMECASE16": "",
+      ".d2MimeCase16": ""
+    }
+  },
+  {
+    "name": "mixed-continuation",
+    "extension": ".d2MimeCase17",
+    "mime": "text/plain;name*0*=utf-8''caf%C3;name*1*=%A9",
+    "accepted": false,
+    "queries": {
+      ".D2MIMECASE17": "",
+      ".d2MimeCase17": ""
+    }
+  },
+  {
+    "name": "gapped-continuation",
+    "extension": ".d2MimeCase18",
+    "mime": "text/plain;name*0=foo;name*2=bar",
+    "accepted": false,
+    "queries": {
+      ".D2MIMECASE18": "",
+      ".d2MimeCase18": ""
+    }
+  },
+  {
+    "name": "empty-continuation",
+    "extension": ".d2MimeCase19",
+    "mime": "text/plain;name*0=\"\";name*1=\"\"",
+    "accepted": false,
+    "queries": {
+      ".D2MIMECASE19": "",
+      ".d2MimeCase19": ""
+    }
+  },
+  {
+    "name": "bad-continuation",
+    "extension": ".d2MimeCase20",
+    "mime": "text/plain;name*0=foo;name*0=bar",
+    "accepted": false,
+    "queries": {
+      ".D2MIMECASE20": "",
+      ".d2MimeCase20": ""
+    }
+  },
+  {
+    "name": "single-precedence",
+    "extension": ".d2MimeCase21",
+    "mime": "text/plain;name*=utf-8''one;name*0=two",
+    "accepted": false,
+    "queries": {
+      ".D2MIMECASE21": "",
+      ".d2MimeCase21": ""
+    }
+  },
+  {
+    "name": "unicode-quote",
+    "extension": ".d2MimeCase22",
+    "mime": "text/plain;name=\"café\"",
+    "accepted": false,
+    "queries": {
+      ".D2MIMECASE22": "",
+      ".d2MimeCase22": ""
+    }
+  },
+  {
+    "name": "nul-quote",
+    "extension": ".d2MimeCase23",
+    "mime": "text/plain;name=\"a\u0000b\"",
+    "accepted": false,
+    "queries": {
+      ".D2MIMECASE23": "",
+      ".d2MimeCase23": ""
+    }
+  },
+  {
+    "name": "tab-quote",
+    "extension": ".d2MimeCase24",
+    "mime": "text/plain;name=\"a\tb\"",
+    "accepted": false,
+    "queries": {
+      ".D2MIMECASE24": "",
+      ".d2MimeCase24": ""
+    }
+  },
+  {
+    "name": "cr-quote",
+    "extension": ".d2MimeCase25",
+    "mime": "text/plain;name=\"a\rb\"",
+    "accepted": false,
+    "queries": {
+      ".D2MIMECASE25": "",
+      ".d2MimeCase25": ""
+    }
+  },
+  {
+    "name": "lf-quote",
+    "extension": ".d2MimeCase26",
+    "mime": "text/plain;name=\"a\nb\"",
+    "accepted": false,
+    "queries": {
+      ".D2MIMECASE26": "",
+      ".d2MimeCase26": ""
+    }
+  },
+  {
+    "name": "leading-space",
+    "extension": ".d2MimeCase27",
+    "mime": " text/plain",
+    "accepted": false,
+    "queries": {
+      ".D2MIMECASE27": "",
+      ".d2MimeCase27": ""
+    }
+  },
+  {
+    "name": "single-type",
+    "extension": ".d2MimeCase28",
+    "mime": "example",
+    "accepted": false,
+    "queries": {
+      ".D2MIMECASE28": "",
+      ".d2MimeCase28": ""
+    }
+  },
+  {
+    "name": "multi-slash",
+    "extension": ".d2MimeCase29",
+    "mime": "a/b/c",
+    "accepted": false,
+    "queries": {
+      ".D2MIMECASE29": "",
+      ".d2MimeCase29": ""
+    }
+  },
+  {
+    "name": "no-type",
+    "extension": ".d2MimeCase30",
+    "mime": "",
+    "accepted": false,
+    "queries": {
+      ".D2MIMECASE30": "",
+      ".d2MimeCase30": ""
+    }
+  },
+  {
+    "name": "no-subtype",
+    "extension": ".d2MimeCase31",
+    "mime": "text/",
+    "accepted": false,
+    "queries": {
+      ".D2MIMECASE31": "",
+      ".d2MimeCase31": ""
+    }
+  },
+  {
+    "name": "space-type",
+    "extension": ".d2MimeCase32",
+    "mime": "text /plain",
+    "accepted": false,
+    "queries": {
+      ".D2MIMECASE32": "",
+      ".d2MimeCase32": ""
+    }
+  },
+  {
+    "name": "unicode-type",
+    "extension": ".d2MimeCase33",
+    "mime": "text/é",
+    "accepted": false,
+    "queries": {
+      ".D2MIMECASE33": "",
+      ".d2MimeCase33": ""
+    }
+  },
+  {
+    "name": "bad-token",
+    "extension": ".d2MimeCase34",
+    "mime": "text/plain;a=é",
+    "accepted": false,
+    "queries": {
+      ".D2MIMECASE34": "",
+      ".d2MimeCase34": ""
+    }
+  },
+  {
+    "name": "empty-param",
+    "extension": ".d2MimeCase35",
+    "mime": "text/plain; a=",
+    "accepted": false,
+    "queries": {
+      ".D2MIMECASE35": "",
+      ".d2MimeCase35": ""
+    }
+  },
+  {
+    "name": "no-equal",
+    "extension": ".d2MimeCase36",
+    "mime": "text/plain; a",
+    "accepted": false,
+    "queries": {
+      ".D2MIMECASE36": "",
+      ".d2MimeCase36": ""
+    }
+  },
+  {
+    "name": "star-empty",
+    "extension": ".d2MimeCase37",
+    "mime": "text/plain;*=\"\"",
+    "accepted": false,
+    "queries": {
+      ".D2MIMECASE37": "",
+      ".d2MimeCase37": ""
+    }
+  },
+  {
+    "name": "empty-key",
+    "extension": ".d2MimeCase38",
+    "mime": "text/plain;=a",
+    "accepted": false,
+    "queries": {
+      ".D2MIMECASE38": "",
+      ".d2MimeCase38": ""
+    }
+  },
+  {
+    "name": "extra-tail",
+    "extension": ".d2MimeCase39",
+    "mime": "text/plain;a=b unexpected",
+    "accepted": false,
+    "queries": {
+      ".D2MIMECASE39": "",
+      ".d2MimeCase39": ""
+    }
+  },
+  {
+    "name": "extra-semicolons",
+    "extension": ".d2MimeCase40",
+    "mime": "text/plain;;",
+    "accepted": false,
+    "queries": {
+      ".D2MIMECASE40": "",
+      ".d2MimeCase40": ""
+    }
+  },
+  {
+    "name": "empty-quoted",
+    "extension": ".d2MimeCase41",
+    "mime": "text/plain;name=\"\"",
+    "accepted": false,
+    "queries": {
+      ".D2MIMECASE41": "",
+      ".d2MimeCase41": ""
+    }
+  },
+  {
+    "name": "text-control",
+    "extension": ".d2MimeCase42",
+    "mime": "text/plain;name=\"\u0001\"",
+    "accepted": false,
+    "queries": {
+      ".D2MIMECASE42": "",
+      ".d2MimeCase42": ""
+    }
+  },
+  {
+    "name": "case-first",
+    "extension": ".d2MixedCase",
+    "mime": "application/first",
+    "accepted": false,
+    "queries": {
+      ".D2MIXEDCASE": "",
+      ".d2MixedCase": ""
+    }
+  },
+  {
+    "name": "case-second",
+    "extension": ".d2mixedcase",
+    "mime": "application/second",
+    "accepted": false,
+    "queries": {
+      ".D2MIXEDCASE": "",
+      ".d2MixedCase": "",
+      ".d2mixedcase": ""
+    }
+  },
+  {
+    "name": "unicode-dotted-i",
+    "extension": ".d2İ",
+    "mime": "application/dotted",
+    "accepted": false,
+    "queries": {
+      ".D2I": "",
+      ".d2i": "",
+      ".d2İ": ""
+    }
+  },
+  {
+    "name": "unicode-dotted-i-collision",
+    "extension": ".d2i",
+    "mime": "application/plain-i",
+    "accepted": false,
+    "queries": {
+      ".D2İ": "",
+      ".d2i": "",
+      ".d2İ": ""
+    }
+  },
+  {
+    "name": "unicode-sigma",
+    "extension": ".d2ΟΣ",
+    "mime": "application/sigma",
+    "accepted": false,
+    "queries": {
+      ".d2ΟΣ": "",
+      ".d2ος": "",
+      ".d2οσ": ""
+    }
+  },
+  {
+    "name": "unicode-kelvin",
+    "extension": ".d2K",
+    "mime": "application/kelvin",
+    "accepted": false,
+    "queries": {
+      ".D2K": "",
+      ".d2k": "",
+      ".d2K": ""
+    }
+  }
+]

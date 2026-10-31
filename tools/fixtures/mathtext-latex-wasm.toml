@@ -1,0 +1,20 @@
+# Malformed-math D2 sources through a native mirror of d2js d2wasm.Compile,
+# read by crates/d2-rs-math/src/source_nil_child_tests.rs and
+# crates/d2-rs-wasm/src/math_nil_child_tests.rs. See docs/FIXTURES.md.
+#
+# d2wasm builds only for js/wasm, so the hook (an external d2lib_test file)
+# repeats Compile's d2lib configuration and wrapWASMCall's panic recovery.
+#
+# Regenerate:  uv run --no-project python scripts/regen-fixtures.py --only mathtext-latex-source-nil-child
+# Test:        cargo test -p d2-rs-math -p d2-rs-wasm --features d2-rs-math/oracle-fixtures,d2-rs-wasm/oracle-fixtures nil_child
+
+[[recipe]]
+name = "mathtext-latex-source-nil-child"
+kind = "go-test-hook"
+description = "Alignment-mark nil-child sweep and error-precedence probes compiled as d2wasm.Compile does"
+outputs = ["crates/d2-rs-math/tests/fixtures/source-nil-child-v090.json"]
+inputs = [{ path = "source-nil-child.json", generate = ["{python}", "scripts/fixture-gen-nil-child.py"] }]
+package = "d2lib"
+hooks = ["tools/fixtures/hooks/mathtext-latex-wasm/d2rs_nil_child_test.go"]
+test = "TestD2RSCaptureNilChild"
+key_deps = { files = ["scripts/fixture_recipe.py", "reference-manifest.json"] }

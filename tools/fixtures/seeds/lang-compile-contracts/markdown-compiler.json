@@ -1,0 +1,154 @@
+[
+ {
+  "name": "primary",
+  "source": "a: |md\n  <StRoNg>x</sTrOnG>\n|"
+ },
+ {
+  "name": "label",
+  "source": "a.label: |md\n  <StRoNg>x</sTrOnG>\n|"
+ },
+ {
+  "name": "markdown-tag",
+  "source": "a: |markdown\n  <StRoNg>x</sTrOnG>\n|"
+ },
+ {
+  "name": "uppercase-tag",
+  "source": "a: |MD\n  <StRoNg>x</sTrOnG>\n|"
+ },
+ {
+  "name": "untagged",
+  "source": "a: |\n  <StRoNg>x</sTrOnG>\n|"
+ },
+ {
+  "name": "code-tag",
+  "source": "a: |go\n  <StRoNg>x</sTrOnG>\n|"
+ },
+ {
+  "name": "valid",
+  "source": "a: |md\n  <STRONG>x</STRONG>\n|"
+ },
+ {
+  "name": "regular-label",
+  "source": "a: \"<StRoNg>x</sTrOnG>\""
+ },
+ {
+  "name": "tooltip",
+  "source": "a.tooltip: \"<StRoNg>x</sTrOnG>\""
+ },
+ {
+  "name": "tooltip-block",
+  "source": "a.tooltip: |md\n  <StRoNg>x</sTrOnG>\n|"
+ },
+ {
+  "name": "tooltip-code-block",
+  "source": "a.tooltip: |go\n  <StRoNg>x</sTrOnG>\n|"
+ },
+ {
+  "name": "edge-label",
+  "source": "a -> b: |md\n  <StRoNg>x</sTrOnG>\n|"
+ },
+ {
+  "name": "edge-explicit-label",
+  "source": "a -> b: {label: |md\n  <StRoNg>x</sTrOnG>\n|}"
+ },
+ {
+  "name": "arrowhead-label",
+  "source": "a -> b: {target-arrowhead.label: |md\n  <StRoNg>x</sTrOnG>\n|}"
+ },
+ {
+  "name": "class-unused",
+  "source": "classes: {c.label: |md\n  <StRoNg>x</sTrOnG>\n|}\na"
+ },
+ {
+  "name": "class-used",
+  "source": "classes: {c.label: |md\n  <StRoNg>x</sTrOnG>\n|}\na.class: c"
+ },
+ {
+  "name": "class-used-twice",
+  "source": "classes: {c.label: |md\n  <StRoNg>x</sTrOnG>\n|}\na.class: c\nb.class: c"
+ },
+ {
+  "name": "vars-unused",
+  "source": "vars: {unused: |md\n  <StRoNg>x</sTrOnG>\n|}\na"
+ },
+ {
+  "name": "layer",
+  "source": "a\nlayers: {child: {b: |md\n  <StRoNg>x</sTrOnG>\n|}}"
+ },
+ {
+  "name": "scenario",
+  "source": "a\nscenarios: {child: {b: |md\n  <StRoNg>x</sTrOnG>\n|}}"
+ },
+ {
+  "name": "step",
+  "source": "a\nsteps: {child: {b: |md\n  <StRoNg>x</sTrOnG>\n|}}"
+ },
+ {
+  "name": "legend",
+  "source": "vars: {d2-legend: {legend.label: |md\n  <StRoNg>x</sTrOnG>\n|}}\na"
+ },
+ {
+  "name": "transform",
+  "source": "a: |md\n  <STRONG>x</STRONG>\n| {style.text-transform: uppercase}"
+ },
+ {
+  "name": "theme",
+  "source": "vars: {d2-config.theme-id: 300}\na: |md\n  <STRONG>x</STRONG>\n|"
+ },
+ {
+  "name": "empty-md",
+  "source": "a: |md\n   \n|"
+ },
+ {
+  "name": "empty-go",
+  "source": "a: |go\n   \n|"
+ },
+ {
+  "name": "empty-tooltip",
+  "source": "a.tooltip: |md\n   \n|"
+ },
+ {
+  "name": "entity",
+  "source": "a: |md\n<a>&bogus;</a>\n|"
+ },
+ {
+  "name": "br",
+  "source": "a: |md\n<br>\n|"
+ },
+ {
+  "name": "namespace",
+  "source": "a: |md\n<x:a>x</y:a>\n|"
+ },
+ {
+  "name": "unicode-key",
+  "source": "😀: |md\n  <StRoNg>x</sTrOnG>\n|"
+ },
+ {
+  "name": "multiple",
+  "source": "a: |md\n  <StRoNg>x</sTrOnG>\n|\nb: |md\n  <EM>x</em>\n|"
+ },
+ {
+  "name": "ordering",
+  "source": "a: |md\n  <StRoNg>x</sTrOnG>\n| {width: invalid}"
+ },
+ {
+  "name": "ordering-reverse",
+  "source": "a: {width: invalid; label: |md\n  <StRoNg>x</sTrOnG>\n|}"
+ },
+ {
+  "name": "style-before-label",
+  "source": "a: {style.invalid: 1; label: |md\n  <StRoNg>x</sTrOnG>\n|}"
+ },
+ {
+  "name": "label-before-style",
+  "source": "a: {label: |md\n  <StRoNg>x</sTrOnG>\n|; style.invalid: 1}"
+ },
+ {
+  "name": "tooltip-position",
+  "source": "a: {tooltip: \"<B>x</b>\" {near: bad}}"
+ },
+ {
+  "name": "tooltip-valid",
+  "source": "a.tooltip: \"<STRONG>x</STRONG>\""
+ }
+]

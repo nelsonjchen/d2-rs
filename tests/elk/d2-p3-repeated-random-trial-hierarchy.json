@@ -1,0 +1,28 @@
+{
+  "id":"root",
+  "layoutOptions":{
+    "elk.algorithm":"layered",
+    "elk.direction":"RIGHT",
+    "elk.hierarchyHandling":"INCLUDE_CHILDREN",
+    "elk.layered.considerModelOrder.strategy":"NONE",
+    "elk.randomSeed":1,
+    "elk.layered.thoroughness":8
+  },
+  "children":[
+    {"id":"n0","x":0,"y":0,"width":30,"height":30},
+    {"id":"n1","x":0,"y":0,"width":30,"height":30},
+    {"id":"n2","x":0,"y":0,"width":30,"height":30},
+    {"id":"n3","x":0,"y":0,"width":30,"height":30},
+    {"id":"n4","x":0,"y":0,"width":30,"height":30},
+    {"id":"n5","x":0,"y":0,"width":30,"height":30},
+    {"id":"n6","x":0,"y":0,"width":30,"height":30},
+    {"id":"n7","x":0,"y":0,"width":30,"height":30}
+  ],
+  "edges":[
+    {"id":"e0","sources":["n0"],"targets":["n4"]},
+    {"id":"e1","sources":["n0"],"targets":["n5"]},
+    {"id":"e2","sources":["n2"],"targets":["n6"]},
+    {"id":"e3","sources":["n2"],"targets":["n7"]},
+    {"id":"e4","sources":["n3"],"targets":["n5"]}
+  ]
+}

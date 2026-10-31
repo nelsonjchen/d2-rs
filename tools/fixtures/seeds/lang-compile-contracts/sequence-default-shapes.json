@@ -1,0 +1,242 @@
+[
+ {
+  "input": "note: |md\n## Note\n\n**bold** text\n|\n",
+  "id": "note"
+ },
+ {
+  "input": "note: |md\n## Note\n\n**bold** text\n|\nnote.shape: text\n",
+  "id": "note"
+ },
+ {
+  "input": "note: |md\n## Note\n\n**bold** text\n|\nnote.shape: code\n",
+  "id": "note"
+ },
+ {
+  "input": "note: |md\n## Note\n\n**bold** text\n|\nnote.shape: rectangle\n",
+  "id": "note"
+ },
+ {
+  "input": "note: |latex\n\\frac{a}{b}\n|\n",
+  "id": "note"
+ },
+ {
+  "input": "note: |latex\n\\frac{a}{b}\n|\nnote.shape: text\n",
+  "id": "note"
+ },
+ {
+  "input": "note: |latex\n\\frac{a}{b}\n|\nnote.shape: code\n",
+  "id": "note"
+ },
+ {
+  "input": "note: |latex\n\\frac{a}{b}\n|\nnote.shape: rectangle\n",
+  "id": "note"
+ },
+ {
+  "input": "note: |python\n1 + 1 = 2\n|\n",
+  "id": "note"
+ },
+ {
+  "input": "note: |python\n1 + 1 = 2\n|\nnote.shape: text\n",
+  "id": "note"
+ },
+ {
+  "input": "note: |python\n1 + 1 = 2\n|\nnote.shape: code\n",
+  "id": "note"
+ },
+ {
+  "input": "note: |python\n1 + 1 = 2\n|\nnote.shape: rectangle\n",
+  "id": "note"
+ },
+ {
+  "input": "shape: sequence_diagram\nnote: |md\n## Note\n\n**bold** text\n|\n",
+  "id": "note"
+ },
+ {
+  "input": "shape: sequence_diagram\nnote: |md\n## Note\n\n**bold** text\n|\nnote.shape: text\n",
+  "id": "note"
+ },
+ {
+  "input": "shape: sequence_diagram\nnote: |md\n## Note\n\n**bold** text\n|\nnote.shape: code\n",
+  "id": "note"
+ },
+ {
+  "input": "shape: sequence_diagram\nnote: |md\n## Note\n\n**bold** text\n|\nnote.shape: rectangle\n",
+  "id": "note"
+ },
+ {
+  "input": "shape: sequence_diagram\nnote: |latex\n\\frac{a}{b}\n|\n",
+  "id": "note"
+ },
+ {
+  "input": "shape: sequence_diagram\nnote: |latex\n\\frac{a}{b}\n|\nnote.shape: text\n",
+  "id": "note"
+ },
+ {
+  "input": "shape: sequence_diagram\nnote: |latex\n\\frac{a}{b}\n|\nnote.shape: code\n",
+  "id": "note"
+ },
+ {
+  "input": "shape: sequence_diagram\nnote: |latex\n\\frac{a}{b}\n|\nnote.shape: rectangle\n",
+  "id": "note"
+ },
+ {
+  "input": "shape: sequence_diagram\nnote: |python\n1 + 1 = 2\n|\n",
+  "id": "note"
+ },
+ {
+  "input": "shape: sequence_diagram\nnote: |python\n1 + 1 = 2\n|\nnote.shape: text\n",
+  "id": "note"
+ },
+ {
+  "input": "shape: sequence_diagram\nnote: |python\n1 + 1 = 2\n|\nnote.shape: code\n",
+  "id": "note"
+ },
+ {
+  "input": "shape: sequence_diagram\nnote: |python\n1 + 1 = 2\n|\nnote.shape: rectangle\n",
+  "id": "note"
+ },
+ {
+  "input": "s: {\nshape: sequence_diagram\nnote: |md\n## Note\n\n**bold** text\n|\n}\n",
+  "id": "s.note"
+ },
+ {
+  "input": "s: {\nshape: sequence_diagram\nnote: |md\n## Note\n\n**bold** text\n|\nnote.shape: text\n}\n",
+  "id": "s.note"
+ },
+ {
+  "input": "s: {\nshape: sequence_diagram\nnote: |md\n## Note\n\n**bold** text\n|\nnote.shape: code\n}\n",
+  "id": "s.note"
+ },
+ {
+  "input": "s: {\nshape: sequence_diagram\nnote: |md\n## Note\n\n**bold** text\n|\nnote.shape: rectangle\n}\n",
+  "id": "s.note"
+ },
+ {
+  "input": "s: {\nshape: sequence_diagram\nnote: |latex\n\\frac{a}{b}\n|\n}\n",
+  "id": "s.note"
+ },
+ {
+  "input": "s: {\nshape: sequence_diagram\nnote: |latex\n\\frac{a}{b}\n|\nnote.shape: text\n}\n",
+  "id": "s.note"
+ },
+ {
+  "input": "s: {\nshape: sequence_diagram\nnote: |latex\n\\frac{a}{b}\n|\nnote.shape: code\n}\n",
+  "id": "s.note"
+ },
+ {
+  "input": "s: {\nshape: sequence_diagram\nnote: |latex\n\\frac{a}{b}\n|\nnote.shape: rectangle\n}\n",
+  "id": "s.note"
+ },
+ {
+  "input": "s: {\nshape: sequence_diagram\nnote: |python\n1 + 1 = 2\n|\n}\n",
+  "id": "s.note"
+ },
+ {
+  "input": "s: {\nshape: sequence_diagram\nnote: |python\n1 + 1 = 2\n|\nnote.shape: text\n}\n",
+  "id": "s.note"
+ },
+ {
+  "input": "s: {\nshape: sequence_diagram\nnote: |python\n1 + 1 = 2\n|\nnote.shape: code\n}\n",
+  "id": "s.note"
+ },
+ {
+  "input": "s: {\nshape: sequence_diagram\nnote: |python\n1 + 1 = 2\n|\nnote.shape: rectangle\n}\n",
+  "id": "s.note"
+ },
+ {
+  "input": "s: {\nshape: Sequence_Diagram\nnote: |md\n## Note\n\n**bold** text\n|\n}\n",
+  "id": "s.note"
+ },
+ {
+  "input": "s: {\nshape: Sequence_Diagram\nnote: |md\n## Note\n\n**bold** text\n|\nnote.shape: text\n}\n",
+  "id": "s.note"
+ },
+ {
+  "input": "s: {\nshape: Sequence_Diagram\nnote: |md\n## Note\n\n**bold** text\n|\nnote.shape: code\n}\n",
+  "id": "s.note"
+ },
+ {
+  "input": "s: {\nshape: Sequence_Diagram\nnote: |md\n## Note\n\n**bold** text\n|\nnote.shape: rectangle\n}\n",
+  "id": "s.note"
+ },
+ {
+  "input": "s: {\nshape: Sequence_Diagram\nnote: |latex\n\\frac{a}{b}\n|\n}\n",
+  "id": "s.note"
+ },
+ {
+  "input": "s: {\nshape: Sequence_Diagram\nnote: |latex\n\\frac{a}{b}\n|\nnote.shape: text\n}\n",
+  "id": "s.note"
+ },
+ {
+  "input": "s: {\nshape: Sequence_Diagram\nnote: |latex\n\\frac{a}{b}\n|\nnote.shape: code\n}\n",
+  "id": "s.note"
+ },
+ {
+  "input": "s: {\nshape: Sequence_Diagram\nnote: |latex\n\\frac{a}{b}\n|\nnote.shape: rectangle\n}\n",
+  "id": "s.note"
+ },
+ {
+  "input": "s: {\nshape: Sequence_Diagram\nnote: |python\n1 + 1 = 2\n|\n}\n",
+  "id": "s.note"
+ },
+ {
+  "input": "s: {\nshape: Sequence_Diagram\nnote: |python\n1 + 1 = 2\n|\nnote.shape: text\n}\n",
+  "id": "s.note"
+ },
+ {
+  "input": "s: {\nshape: Sequence_Diagram\nnote: |python\n1 + 1 = 2\n|\nnote.shape: code\n}\n",
+  "id": "s.note"
+ },
+ {
+  "input": "s: {\nshape: Sequence_Diagram\nnote: |python\n1 + 1 = 2\n|\nnote.shape: rectangle\n}\n",
+  "id": "s.note"
+ },
+ {
+  "input": "note: {\nshape: code\nlabel: |md\n## Reserved note\n\n**bold** text\n|\n}\n",
+  "id": "note"
+ },
+ {
+  "input": "note: {\nshape: code\nlabel: |latex\n\\frac{x}{y}\n|\n}\n",
+  "id": "note"
+ },
+ {
+  "input": "note: {\nshape: code\nlabel: |python\n2 + 2 = 4\n|\n}\n",
+  "id": "note"
+ },
+ {
+  "input": "shape: sequence_diagram\nnote: {\nshape: code\nlabel: |md\n## Reserved note\n\n**bold** text\n|\n}\n",
+  "id": "note"
+ },
+ {
+  "input": "shape: sequence_diagram\nnote: {\nshape: code\nlabel: |latex\n\\frac{x}{y}\n|\n}\n",
+  "id": "note"
+ },
+ {
+  "input": "shape: sequence_diagram\nnote: {\nshape: code\nlabel: |python\n2 + 2 = 4\n|\n}\n",
+  "id": "note"
+ },
+ {
+  "input": "s: {\nshape: sequence_diagram\nnote: {\nshape: code\nlabel: |md\n## Reserved note\n\n**bold** text\n|\n}\n}\n",
+  "id": "s.note"
+ },
+ {
+  "input": "s: {\nshape: sequence_diagram\nnote: {\nshape: code\nlabel: |latex\n\\frac{x}{y}\n|\n}\n}\n",
+  "id": "s.note"
+ },
+ {
+  "input": "s: {\nshape: sequence_diagram\nnote: {\nshape: code\nlabel: |python\n2 + 2 = 4\n|\n}\n}\n",
+  "id": "s.note"
+ },
+ {
+  "input": "shape: Sequence_Diagram\nnote: {\nlabel: |md\n## Reserved note\n\n**bold** text\n|\n}\n",
+  "id": "note"
+ },
+ {
+  "input": "shape: Sequence_Diagram\nnote: {\nlabel: |latex\n\\frac{x}{y}\n|\n}\n",
+  "id": "note"
+ },
+ {
+  "input": "shape: Sequence_Diagram\nnote: {\nlabel: |python\n2 + 2 = 4\n|\n}\n",
+  "id": "note"
+ }
+]

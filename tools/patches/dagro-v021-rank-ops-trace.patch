@@ -1,0 +1,235 @@
+--- a/diagnostic_trace.go
++++ b/diagnostic_trace.go
+@@ -6,8 +6,200 @@
+ 	"fmt"
+ 	"math"
+ 	"os"
++	"strings"
+ )
+ 
++type rankOpNode struct {
++	ID       string  `json:"id"`
++	RankBits *string `json:"rank_bits"`
++	Parent   *string `json:"parent"`
++	LowBits  *string `json:"low_bits"`
++	LimBits  *string `json:"lim_bits"`
++}
++
++type rankOpEdge struct {
++	Source     string  `json:"source"`
++	Target     string  `json:"target"`
++	MinlenBits string  `json:"minlen_bits"`
++	WeightBits string  `json:"weight_bits"`
++	CutBits    *string `json:"cut_bits"`
++}
++
++type rankOpPair struct {
++	Source string `json:"source"`
++	Target string `json:"target"`
++}
++
++type rankOpCandidate struct {
++	Source    string `json:"source"`
++	Target    string `json:"target"`
++	Eligible  bool   `json:"eligible"`
++	SlackBits string `json:"slack_bits"`
++}
++
++type rankOpEvent struct {
++	Phase       string            `json:"phase"`
++	Iteration   int               `json:"iteration"`
++	Nodes       []rankOpNode      `json:"nodes"`
++	Constraints []rankOpEdge      `json:"constraints"`
++	Tree        []rankOpEdge      `json:"tree"`
++	Candidates  []rankOpCandidate `json:"candidates"`
++	Leave       *rankOpPair       `json:"leave"`
++	Enter       *rankOpPair       `json:"enter"`
++}
++
++func rankTraceEnabled() bool { return os.Getenv("DAGRO_TRACE_RANK_OPS") != "" }
++
++func rankTraceAliases(g *Graph) map[string]string {
++	aliases := make(map[string]string, g.NodeCount())
++	graphAttrs := asAttrs(g.Graph())
++	root := stringValue(graphAttrs, "nestingRoot")
++	borderIndex := 0
++	for _, id := range g.Nodes() {
++		switch {
++		case id == root && root != "":
++			aliases[id] = "nesting-root"
++		case strings.HasPrefix(id, "_bt"), strings.HasPrefix(id, "_bb"):
++			aliases[id] = fmt.Sprintf("border:%d", borderIndex)
++			borderIndex++
++		default:
++			attrs := asAttrs(g.Node(id))
++			objectID := stringValue(attrs, "id")
++			if objectID == "" {
++				objectID = id
++			}
++			aliases[id] = "object:" + objectID
++		}
++	}
++	return aliases
++}
++
++func rankTraceBits(attrs Attrs, key string) *string {
++	value, ok := attrs[key].(float64)
++	if !ok {
++		return nil
++	}
++	bits := fmt.Sprintf("%016x", math.Float64bits(value))
++	return &bits
++}
++
++func rankTracePair(edge Edge, aliases map[string]string) *rankOpPair {
++	if edge.V == "" && edge.W == "" {
++		return nil
++	}
++	return &rankOpPair{Source: aliases[edge.V], Target: aliases[edge.W]}
++}
++
++func traceRankOperation(g, tree *Graph, phase string, iteration int, leave, enter *Edge) {
++	if !rankTraceEnabled() {
++		return
++	}
++	aliases := rankTraceAliases(g)
++	treeEdgeCount := 0
++	if tree != nil {
++		treeEdgeCount = tree.EdgeCount()
++	}
++	event := rankOpEvent{
++		Phase: phase, Iteration: iteration,
++		Nodes:       make([]rankOpNode, 0, g.NodeCount()),
++		Constraints: make([]rankOpEdge, 0, g.EdgeCount()),
++		Tree:        make([]rankOpEdge, 0, treeEdgeCount),
++		Candidates:  make([]rankOpCandidate, 0),
++		Leave:       rankTraceLeave(leave, aliases),
++		Enter:       rankTracePairOrNil(enter, aliases),
++	}
++	for _, id := range g.Nodes() {
++		attrs := asAttrs(g.Node(id))
++		parent := stringValue(rankTraceNodeAttrs(tree, id), "parent")
++		hasParent := parent != ""
++		var parentID *string
++		if hasParent {
++			alias := aliases[parent]
++			parentID = &alias
++		}
++		event.Nodes = append(event.Nodes, rankOpNode{
++			ID: aliases[id], RankBits: rankTraceBits(attrs, "rank"), Parent: parentID,
++			LowBits: rankTraceBits(rankTraceNodeAttrs(tree, id), "low"),
++			LimBits: rankTraceBits(rankTraceNodeAttrs(tree, id), "lim"),
++		})
++	}
++	for _, edge := range g.Edges() {
++		attrs := asAttrs(g.Edge(edge))
++		event.Constraints = append(event.Constraints, rankOpEdge{
++			Source: aliases[edge.V], Target: aliases[edge.W],
++			MinlenBits: fmt.Sprintf("%016x", math.Float64bits(num(attrs, "minlen"))),
++			WeightBits: fmt.Sprintf("%016x", math.Float64bits(num(attrs, "weight"))),
++		})
++	}
++	if tree != nil {
++		for _, edge := range tree.Edges() {
++			attrs := asAttrs(tree.Edge(edge))
++			cut := rankTraceBits(attrs, "cutvalue")
++			from, to := aliases[edge.V], aliases[edge.W]
++			if to < from {
++				from, to = to, from
++			}
++			event.Tree = append(event.Tree, rankOpEdge{Source: from, Target: to, CutBits: cut})
++		}
++	}
++	if leave != nil {
++		v, w := leave.V, leave.W
++		if !g.HasEdge(v, w) {
++			v, w = w, v
++		}
++		vLabel, wLabel := asAttrs(tree.Node(v)), asAttrs(tree.Node(w))
++		tail := vLabel
++		flip := false
++		if num(vLabel, "lim") > num(wLabel, "lim") {
++			tail, flip = wLabel, true
++		}
++		bestSlack := 0.0
++		found := false
++		for _, candidate := range g.Edges() {
++			vDesc := isDescendant(asAttrs(tree.Node(candidate.V)), tail)
++			wDesc := isDescendant(asAttrs(tree.Node(candidate.W)), tail)
++			eligible := flip == vDesc && flip != wDesc
++			slackValue := slack(g, candidate)
++			event.Candidates = append(event.Candidates, rankOpCandidate{
++				Source: aliases[candidate.V], Target: aliases[candidate.W],
++				Eligible:  eligible,
++				SlackBits: fmt.Sprintf("%016x", math.Float64bits(slackValue)),
++			})
++			if eligible && (!found || slackValue < bestSlack) {
++				bestSlack, found = slackValue, true
++			}
++		}
++	}
++	encoded, err := json.Marshal(event)
++	if err != nil {
++		fmt.Fprintf(os.Stderr, "GO_RANK_OP_ERROR phase=%s error=%q\n", phase, err)
++		return
++	}
++	fmt.Fprintf(os.Stderr, "GO_RANK_OP %s\n", encoded)
++}
++
++func rankTraceNodeAttrs(tree *Graph, id string) Attrs {
++	if tree == nil {
++		return nil
++	}
++	return asAttrs(tree.Node(id))
++}
++
++func rankTracePairOrNil(edge *Edge, aliases map[string]string) *rankOpPair {
++	if edge == nil {
++		return nil
++	}
++	return rankTracePair(*edge, aliases)
++}
++
++func rankTraceLeave(edge *Edge, aliases map[string]string) *rankOpPair {
++	pair := rankTracePairOrNil(edge, aliases)
++	if pair != nil && pair.Target < pair.Source {
++		pair.Source, pair.Target = pair.Target, pair.Source
++	}
++	return pair
++}
++
+ func traceDagroGraph(g *Graph, phase, flag string) {
+ 	if os.Getenv(flag) == "" {
+ 		return
+--- a/network_simplex.go
++++ b/network_simplex.go
+@@ -5,22 +5,29 @@
+ // lib/rank/network-simplex.ts from Dagre 3.1.1.
+ func networkSimplex(input *Graph) {
+ 	g := simplify(input)
++	traceRankOperation(g, nil, "input", -1, nil, nil)
+ 	longestPath(g)
++	traceRankOperation(g, nil, "longest-path", -1, nil, nil)
+ 	t := feasibleTree(g)
++	traceRankOperation(g, t, "feasible-tree", -1, nil, nil)
+ 	order := newRankTreeOrder(t)
+ 	order.assignLowLim(t)
+ 	assignCutValues(t, g, order.post)
+ 
++	iteration := 0
+ 	for {
+ 		e, ok := leaveEdge(t)
+ 		if !ok {
++			traceRankOperation(g, t, "complete", iteration, nil, nil)
+ 			break
+ 		}
+ 		f, ok := enterEdge(t, g, e)
+ 		if !ok {
+ 			panic("dagro: networkSimplex could not find an entering edge")
+ 		}
++		traceRankOperation(g, t, "selection", iteration, &e, &f)
+ 		exchangeEdges(t, g, e, f, order)
++		iteration++
+ 	}
+ }
+ 

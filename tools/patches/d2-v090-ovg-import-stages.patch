@@ -1,0 +1,31 @@
+--- a/d2layouts/d2talalayout/internal/routing/ovg_edge_router.go
++++ b/d2layouts/d2talalayout/internal/routing/ovg_edge_router.go
+@@ -1981,3 +1981,10 @@
+  data, _ := json.Marshal(map[string]any{"event":"generation-work","scope_nodes":len(router.graph.Nodes),"scope_edges":len(router.graph.Edges),"edge":edge.ID,"flavor":fmt.Sprint(router.flavor),"phase":phase,"work":router.work.used})
+  fmt.Fprintln(os.Stderr,string(data))
+ }
++
++func traceOVGImportStage(g *layoutgraph.Graph, ovg *OVG, stage string) {
++ if os.Getenv("D2_TRACE_OVG_STAGE_SCOPE") != fmt.Sprintf("%d:%d",len(g.Nodes),len(g.Edges)) { return }
++ edges:=make([][]string,0,len(ovg.Edges))
++ for _,e:=range ovg.Edges { kind:="other"; if e.isVertical() {kind="vertical"} else if e.isHorizontal() {kind="horizontal"}; edges=append(edges,[]string{kind,fmt.Sprintf("%016x",math.Float64bits(e.From.X)),fmt.Sprintf("%016x",math.Float64bits(e.From.Y)),fmt.Sprintf("%016x",math.Float64bits(e.To.X)),fmt.Sprintf("%016x",math.Float64bits(e.To.Y))}) }
++ data,_:=json.Marshal(map[string]any{"event":"ovg-import-stage","stage":stage,"scope_nodes":len(g.Nodes),"scope_edges":len(g.Edges),"edges":edges}); fmt.Fprintln(os.Stderr,string(data))
++}
+--- a/d2layouts/d2talalayout/internal/routing/coordinator.go
++++ b/d2layouts/d2talalayout/internal/routing/coordinator.go
+@@ -579,6 +579,7 @@
+ 		return ovg, err
+ 	}
+ 	guard := ovg.buildGuard
++	traceOVGImportStage(g,ovg,"base")
+ 
+ 	existingRoutes := make([]*Route, 0)
+ 	for _, e := range g.Edges {
+@@ -649,6 +650,7 @@
+ 		}
+ 	}
+ 
++	traceOVGImportStage(g,ovg,"imported")
+ 	// cache these ahead of time
+ 	g.CrossingCost()
+ 	g.TurnCost()

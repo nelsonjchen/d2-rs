@@ -1,0 +1,12 @@
+[
+{"name": "plain", "input": "a -> b", "compile_options": {"layout": "dagre"}, "options": {"pad": 20, "animateInterval": 500}},
+{"name": "children-ignored", "input": "a -> b\nlayers: {large: {x: {width: 800; height: 600}}}", "compile_options": {"layout": "dagre"}, "options": {"pad": 20, "animateInterval": 500}},
+{"name": "child", "input": "a -> b\nlayers: {large: {x -> y; layers: {nested: {z: {width: 800}}}}}", "compile_options": {"layout": "dagre"}, "options": {"pad": 20, "animateInterval": 500, "target": "layers.large"}},
+{"name": "root-border", "input": "style: {stroke-width: 12; double-border: true}\na -> b", "compile_options": {"layout": "dagre"}, "options": {"pad": 20, "animateInterval": 500}},
+{"name": "shadow", "input": "a: {style.shadow: true}\na -> b", "compile_options": {"layout": "dagre"}, "options": {"pad": 20, "animateInterval": 500}},
+{"name": "markdown", "input": "a: |md\n  # Heading\n  - first\n  - second\n|\na -> b", "compile_options": {"layout": "dagre"}, "options": {"pad": 20, "animateInterval": 500}},
+{"name": "equation", "input": "formula: {\n  equation: |latex\n    \\begin{equation} \\label{eq1}\n    \\begin{split}\n    A & = \\frac{\\\\pi r^2}{2} \\\\\n     & = \\frac{1}{2} \\pi r^2\n    \\end{split}\n    \\end{equation}\n  |\n}\n\n", "compile_options": {"layout": "dagre"}, "options": {"pad": 20, "animateInterval": 500}},
+{"name": "sketch", "input": "a -> b: message", "compile_options": {"layout": "dagre", "sketch": true}, "options": {"pad": 20, "animateInterval": 500, "sketch": true}},
+{"name": "empty", "input": "", "compile_options": {"layout": "dagre"}, "options": {"pad": 20, "animateInterval": 500}},
+{"name": "folder", "input": "layers: {child: {a -> b}}", "compile_options": {"layout": "dagre"}, "options": {"pad": 20, "animateInterval": 500}}
+]
