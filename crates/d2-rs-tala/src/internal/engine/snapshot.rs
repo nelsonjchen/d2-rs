@@ -3400,7 +3400,13 @@ mod race_seed_tests {
                     br.x.to_bits(),
                     br.y.to_bits()
                 ],
-                [0x7ff8_0000_0000_0000; 4]
+                // Invalid operations give the negative default NaN on x86-64
+                // and the positive one on arm64, as in Go on each.
+                [if cfg!(target_arch = "x86_64") {
+                    0xfff8_0000_0000_0000
+                } else {
+                    0x7ff8_0000_0000_0000
+                }; 4]
             );
             assert!(
                 pipeline.check_stage_dimensions("PlaceLabels").is_ok(),

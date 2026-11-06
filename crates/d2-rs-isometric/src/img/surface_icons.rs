@@ -682,6 +682,7 @@ mod tests {
 #[path = "surface_icons_api_tests.rs"]
 pub(crate) mod api_tests;
 
-#[cfg(test)]
+// The replay installs files under the Unix-only rooted image policy.
+#[cfg(all(test, unix))]
 #[path = "artwork_api_tests.rs"]
 mod artwork_api_tests;

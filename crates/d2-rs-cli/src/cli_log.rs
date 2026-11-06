@@ -58,6 +58,8 @@ fn timestamp(seconds: i64, utc: bool) -> String {
             );
         }
     }
+    #[cfg(not(unix))]
+    let _ = utc;
     // UTC fallback on hosts without a native timezone interface. Gregorian
     // civil date conversion, also used for the explicit UTC clock on Unix.
     let days = seconds.div_euclid(86400) + 719468;

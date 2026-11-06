@@ -2,6 +2,8 @@
 //! D2 master 6a7b48378 lib/localfile/localfile.go and open_unix.go.
 //! Explicit local-file policy for imageasset sessions. Root traversal uses
 //! retained descriptors, never a canonicalize-then-open security check.
+// Rooted policies need descriptor-relative opens and exist only on Unix.
+#![cfg_attr(not(unix), allow(dead_code, unused_imports))]
 use super::{ImageFileReader, UnrestrictedImageFiles, clean, context, error, limit, quote};
 use crate::ImageResolveError;
 use d2_rs_core::CancellationToken;

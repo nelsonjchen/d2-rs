@@ -970,7 +970,7 @@ fn open_preview(url: &str, browser: Option<&str>) {
         #[cfg(target_os = "linux")]
         let command = Command::new("xdg-open");
         #[cfg(target_os = "windows")]
-        let mut command = {
+        let command = {
             let mut command = Command::new("cmd");
             command.args(["/C", "start", ""]);
             command

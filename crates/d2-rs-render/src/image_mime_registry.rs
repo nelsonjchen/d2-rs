@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 // Native Go 1.27 mime/type.go and type_unix.go registration/lookup boundary.
 // Media parameter handling follows mime/mediatype.go. See THIRD_PARTY_NOTICES.md.
+// Go's Windows table comes from the registry, which is not ported, so the
+// system-table parser is reached only on Unix and in tests.
+#![cfg_attr(not(unix), allow(dead_code, unused_mut))]
 use std::collections::BTreeMap;
 use std::sync::OnceLock;
 

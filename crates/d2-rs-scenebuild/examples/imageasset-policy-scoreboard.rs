@@ -1,14 +1,29 @@
 // SPDX-License-Identifier: MPL-2.0
 //! Replay captured imageasset policy calls against real files. Requests contain
 //! only source operations; no expected resource, error or cache decision.
+// The replay drives the rooted local-file policy, which is Unix-only.
+#[cfg(not(unix))]
+fn main() {
+    eprintln!("imageasset-policy-scoreboard needs a Unix host");
+    std::process::exit(2);
+}
+
+#[cfg(unix)]
 use base64::Engine as _;
+#[cfg(unix)]
 use d2_rs_scenebuild::{ImageKind, ImageLocalFiles, ImageMemoryCache, RasterImageResolver};
+#[cfg(unix)]
 use serde_json::{Value, json};
+#[cfg(unix)]
 use std::collections::HashMap;
+#[cfg(unix)]
 use std::io::Write;
+#[cfg(unix)]
 use std::path::{Component, Path, PathBuf};
+#[cfg(unix)]
 use std::sync::Arc;
 
+#[cfg(unix)]
 fn replay(case: &Value, fixture_root: &Path) -> Value {
     let mut sessions = HashMap::new();
     let mut caches = HashMap::<u64, Arc<ImageMemoryCache>>::new();
@@ -127,6 +142,7 @@ fn replay(case: &Value, fixture_root: &Path) -> Value {
     json!(observations)
 }
 
+#[cfg(unix)]
 fn main() {
     let request: Value =
         serde_json::from_slice(&std::fs::read(std::env::args().nth(1).unwrap()).unwrap()).unwrap();

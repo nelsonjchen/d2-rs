@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0
+// ImageLocalFiles::rooted is Unix-only, like the descriptor-relative opens it needs.
+#![cfg(unix)]
 use d2_rs_scenebuild::{ImageAssetLimits, ImageLocalFiles, RasterImageResolver};
 use std::path::Path;
 use std::sync::Arc;

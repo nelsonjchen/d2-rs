@@ -1,28 +1,46 @@
 // SPDX-License-Identifier: MPL-2.0
 //! Real socket/filesystem replay. No expected bytes or decisions enter requests.
+// The replay drives the rooted local-file policy, which is Unix-only.
+#[cfg(not(unix))]
+fn main() {
+    eprintln!("asset-policy-scoreboard needs a Unix host");
+    std::process::exit(2);
+}
+
+#[cfg(unix)]
 use base64::Engine as _;
+#[cfg(unix)]
 use d2_rs_scenebuild::{ImageLocalFiles, LocalFileError};
+#[cfg(unix)]
 use serde_json::{Value, json};
+#[cfg(unix)]
 use std::collections::HashMap;
+#[cfg(unix)]
 use std::io::{Read, Write};
+#[cfg(unix)]
 use std::path::{Component, Path, PathBuf};
+#[cfg(unix)]
 use std::sync::{
     Arc,
     atomic::{AtomicBool, AtomicUsize, Ordering},
 };
+#[cfg(unix)]
 use std::time::{Duration, Instant};
 
+#[cfg(unix)]
 fn body(value: &Value) -> Vec<u8> {
     base64::engine::general_purpose::STANDARD
         .decode(value.as_str().unwrap())
         .unwrap()
 }
+#[cfg(unix)]
 fn denied_error<T>(result: &Result<T, LocalFileError>) -> Value {
     match result {
         Ok(_) => json!({"error":"", "denied":false}),
         Err(e) => json!({"error":e.message, "denied":e.denied}),
     }
 }
+#[cfg(unix)]
 fn close_file(file: std::fs::File) -> String {
     use std::os::fd::IntoRawFd;
     // SAFETY: one owned descriptor is consumed exactly once.
@@ -32,6 +50,7 @@ fn close_file(file: std::fs::File) -> String {
         std::io::Error::last_os_error().to_string()
     }
 }
+#[cfg(unix)]
 fn localfile(case: &Value, fixture_root: &Path) -> Value {
     let mut policies = HashMap::from([(0, ImageLocalFiles::default())]);
     let mut files = HashMap::new();
@@ -184,6 +203,7 @@ fn localfile(case: &Value, fixture_root: &Path) -> Value {
     }
     json!({"observations":observations,"raw_cache_keys":keys})
 }
+#[cfg(unix)]
 fn network(cases: &[Value]) -> Vec<Value> {
     let first = &cases[0]["request"];
     let source = first["source"].as_str().unwrap();
@@ -241,6 +261,7 @@ fn network(cases: &[Value]) -> Vec<Value> {
     server.join().unwrap();
     out
 }
+#[cfg(unix)]
 fn main() {
     let request: Value =
         serde_json::from_slice(&std::fs::read(std::env::args().nth(1).unwrap()).unwrap()).unwrap();

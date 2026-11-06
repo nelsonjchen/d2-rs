@@ -558,6 +558,8 @@ impl Root {
                         // destination, then retries rename under the journal.
                         #[cfg(windows)]
                         {
+                            // The retry reports its own error instead.
+                            drop(first_error);
                             self.handle.remove(rel, false)?;
                             applied = true;
                             self.handle.install(&temporary, rel, true)?;

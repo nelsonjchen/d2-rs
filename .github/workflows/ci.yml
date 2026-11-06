@@ -11,7 +11,7 @@ jobs:
         with:
           python-version: "3.12"
           enable-cache: false
-      - run: uv run --no-project python -B -m unittest discover -s scripts -p "test_render_*.py" -v
+      - run: uv run --no-project --with pillow python -B -m unittest discover -s scripts -p "test_render_*.py" -v
       - run: uv run --no-project python -B -m unittest discover -s scripts -p "test_e2e_png_scoreboard.py" -v
       - run: uv run --no-project python -B -m unittest discover -s scripts -p "test_regen_fixtures.py" -v
       - run: uv run --no-project python -B -m unittest discover -s scripts -p "test_perf_bench.py" -v
@@ -37,8 +37,10 @@ jobs:
         with:
           components: clippy,rustfmt
       - run: cargo fmt --all --check
+      # The oracle tier (--all-features) reads regenerated Go output from
+      # oracle-cache/ and runs on the arm64 and x86-64 qualification hosts
+      # (docs/FIXTURES.md). Clippy still compiles it here.
       - run: cargo test --workspace --locked
-      - run: cargo test --workspace --all-features --locked
       - run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
   checked-cells:
     runs-on: ubuntu-latest
@@ -76,22 +78,7 @@ jobs:
           echo "$GITHUB_WORKSPACE/.reference/wasm-bindgen-cli/bin" >> "$GITHUB_PATH"
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
-      - run: pnpm test
+      # test-node.mjs and the browser contracts read oracle fixtures and run
+      # on the qualification hosts; runtime recovery is self-contained.
+      - run: node ./scripts/test-runtime-recovery.mjs
       - run: pnpm test:types
-      - name: Install pinned Chromium and Linux dependencies
-        if: runner.os == 'Linux'
-        run: pnpm exec playwright-core install --with-deps chromium
-      - name: Install pinned Chromium on macOS
-        if: runner.os == 'macOS'
-        run: pnpm exec playwright-core install chromium
-      - name: Run real browser worker contracts
-        run: pnpm test:browser
-        env:
-          D2_RS_BROWSER_CHANNEL: chromium
-          D2_RS_BROWSER_OUTPUT: ${{ github.workspace }}/.reference/ci-browser-result.json
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: wasm-browser-${{ matrix.os }}
-          path: .reference/ci-browser-result.json
-          retention-days: 3
