@@ -42,7 +42,9 @@ pass, and every retained golden that the pinned Go still reproduces (51 of
 x86-64 (Linux), each against Go built for that architecture, since Go's float
 output differs slightly between them
 ([details](docs/FIXTURES.md#host-architecture)). Benchmarks were measured on
-arm64 and in Node.
+arm64 and in Node. Windows builds and passes clippy in CI, but it is not
+qualified: its tests have known path and layout differences
+([STATUS](docs/STATUS.md#beyond-the-upstream-corpus)).
 
 **Differential runs:** the pinned Go CLI and d2-rs render the same upstream
 inputs and mutations of them under the same options; all 5,024 original jobs

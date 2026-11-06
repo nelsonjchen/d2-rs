@@ -1668,6 +1668,8 @@ impl LayeredArena {
             let stream = format!("elk-graph-{index}");
             #[cfg(not(feature = "diagnostic-traces"))]
             let stream = "elk-graph";
+            // The traced stream name is a String; the untraced one is a &str.
+            #[cfg_attr(not(feature = "diagnostic-traces"), allow(clippy::needless_borrow))]
             self.graph_randoms
                 .push(JavaRandom::with_stream(seed, &stream));
         }
@@ -1696,6 +1698,8 @@ impl LayeredArena {
             let stream = format!("elk-graph-{index}");
             #[cfg(not(feature = "diagnostic-traces"))]
             let stream = "elk-graph";
+            // The traced stream name is a String; the untraced one is a &str.
+            #[cfg_attr(not(feature = "diagnostic-traces"), allow(clippy::needless_borrow))]
             self.graph_randoms
                 .push(JavaRandom::with_stream(seed, &stream));
         }
@@ -11729,6 +11733,8 @@ fn order_hierarchical_layers_by_barycenter(
         #[cfg(not(feature = "diagnostic-traces"))]
         let stream = "elk-graph";
         let child_seed = arena.graphs[graph_id as usize].random_seed;
+        // The traced stream name is a String; the untraced one is a &str.
+        #[cfg_attr(not(feature = "diagnostic-traces"), allow(clippy::needless_borrow))]
         let mut random = arena.ordering_random(graph_id, child_seed, &stream);
         let node_relative_port_ranks = random.next_boolean();
         context

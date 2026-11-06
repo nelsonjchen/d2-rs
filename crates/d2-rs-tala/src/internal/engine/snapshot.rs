@@ -3393,20 +3393,11 @@ mod race_seed_tests {
                     color: None,
                 });
             let (tl, br) = pipeline.stage_graph_bounds().expect("placed nodes");
+            // The default quiet NaN's sign differs between x86-64 and arm64,
+            // and constant folding can change it, so only the payload is fixed.
             assert_eq!(
-                [
-                    tl.x.to_bits(),
-                    tl.y.to_bits(),
-                    br.x.to_bits(),
-                    br.y.to_bits()
-                ],
-                // Invalid operations give the negative default NaN on x86-64
-                // and the positive one on arm64, as in Go on each.
-                [if cfg!(target_arch = "x86_64") {
-                    0xfff8_0000_0000_0000
-                } else {
-                    0x7ff8_0000_0000_0000
-                }; 4]
+                [tl.x, tl.y, br.x, br.y].map(|value| value.to_bits() & !(1 << 63)),
+                [0x7ff8_0000_0000_0000; 4]
             );
             assert!(
                 pipeline.check_stage_dimensions("PlaceLabels").is_ok(),

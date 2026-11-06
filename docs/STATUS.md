@@ -101,6 +101,11 @@ Open, with witnesses from the sweeps:
   error at about 1.4x Go wall. Shadows, opacity, 3D, nested fills and dark theme stay under Go
   but their ratios grow with size. The corpus itself has no row over Go.
 - **Not yet measured:** WASM performance against Go, and long fuzz runs.
+- **Windows:** the workspace builds and passes clippy, but nothing is
+  qualified against Go on Windows. CLI tests show imports across drives
+  resolving against the working directory, `\` in diagnostic paths and a
+  TALA layout hash that differs from Linux and macOS. CI compiles the
+  Windows tests without running them.
 
 Go progress messages that differ only under concurrent load (identical output
 hashes, not reproducible when Go runs alone) are harness noise, not drift.

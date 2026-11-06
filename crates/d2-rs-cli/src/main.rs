@@ -8482,7 +8482,10 @@ layers: {
         let suffix = format!(
             "{}-{}",
             std::process::id(),
-            std::thread::current().name().unwrap_or("test")
+            std::thread::current()
+                .name()
+                .unwrap_or("test")
+                .replace("::", "-")
         );
         let input_path = std::env::temp_dir().join(format!("d2-rs-format-{suffix}.d2"));
         let output_path = std::env::temp_dir().join(format!("d2-rs-format-{suffix}.png"));
@@ -8610,7 +8613,10 @@ layers: {
         let suffix = format!(
             "{}-{}",
             std::process::id(),
-            std::thread::current().name().unwrap_or("test")
+            std::thread::current()
+                .name()
+                .unwrap_or("test")
+                .replace("::", "-")
         );
         let directory = std::env::temp_dir().join(format!("d2-rs-index-{suffix}"));
         let source_dir = directory.join("life");
@@ -8656,7 +8662,10 @@ layers: {
         let suffix = format!(
             "{}-{}",
             std::process::id(),
-            std::thread::current().name().unwrap_or("test")
+            std::thread::current()
+                .name()
+                .unwrap_or("test")
+                .replace("::", "-")
         );
         let input_path = std::env::temp_dir().join(format!("d2-rs-boards-{suffix}.d2"));
         let output_path = std::env::temp_dir().join(format!("d2-rs-boards-{suffix}.svg"));
@@ -8767,7 +8776,10 @@ layers: {
         let suffix = format!(
             "{}-{}",
             std::process::id(),
-            std::thread::current().name().unwrap_or("test")
+            std::thread::current()
+                .name()
+                .unwrap_or("test")
+                .replace("::", "-")
         );
         let input_path = std::env::temp_dir().join(format!("d2-rs-nested-folder-{suffix}.d2"));
         let output_path = std::env::temp_dir().join(format!("d2-rs-nested-folder-{suffix}.svg"));
@@ -8796,7 +8808,10 @@ layers: {
         let suffix = format!(
             "{}-{}",
             std::process::id(),
-            std::thread::current().name().unwrap_or("test")
+            std::thread::current()
+                .name()
+                .unwrap_or("test")
+                .replace("::", "-")
         );
         let input_path = std::env::temp_dir().join(format!("d2-rs-pdf-{suffix}.d2"));
         let output_path = std::env::temp_dir().join(format!("d2-rs-pdf-{suffix}.pdf"));
@@ -8861,7 +8876,10 @@ layers: {
         let suffix = format!(
             "{}-{}",
             std::process::id(),
-            std::thread::current().name().unwrap_or("test")
+            std::thread::current()
+                .name()
+                .unwrap_or("test")
+                .replace("::", "-")
         );
         let input_path = std::env::temp_dir().join(format!("d2-rs-pdf-title-{suffix}.d2"));
         std::fs::write(&input_path, b"label: \"D2 PDF\"\na -> b\n").unwrap();
@@ -8914,7 +8932,10 @@ layers: {
         let suffix = format!(
             "{}-{}",
             std::process::id(),
-            std::thread::current().name().unwrap_or("test")
+            std::thread::current()
+                .name()
+                .unwrap_or("test")
+                .replace("::", "-")
         );
         let input_path = std::env::temp_dir().join(format!("d2-rs-pdf-links-{suffix}.d2"));
         let output_path = std::env::temp_dir().join(format!("d2-rs-pdf-links-{suffix}.pdf"));
@@ -8964,7 +8985,10 @@ layers: {
         let suffix = format!(
             "{}-{}",
             std::process::id(),
-            std::thread::current().name().unwrap_or("test")
+            std::thread::current()
+                .name()
+                .unwrap_or("test")
+                .replace("::", "-")
         );
         let input_path = std::env::temp_dir().join(format!("d2-rs-gif-{suffix}.d2"));
         let output_path = std::env::temp_dir().join(format!("d2-rs-gif-{suffix}.gif"));
@@ -9114,7 +9138,10 @@ layers: {
         let suffix = format!(
             "{}-{}",
             std::process::id(),
-            std::thread::current().name().unwrap_or("test")
+            std::thread::current()
+                .name()
+                .unwrap_or("test")
+                .replace("::", "-")
         );
         let input_path = std::env::temp_dir().join(format!("d2-rs-svg-animation-{suffix}.d2"));
         let output_path = std::env::temp_dir().join(format!("d2-rs-svg-animation-{suffix}.svg"));
@@ -9151,7 +9178,10 @@ layers: {
         let suffix = format!(
             "{}-{}",
             std::process::id(),
-            std::thread::current().name().unwrap_or("test")
+            std::thread::current()
+                .name()
+                .unwrap_or("test")
+                .replace("::", "-")
         );
         let input_path = std::env::temp_dir().join(format!("d2-rs-svg-hash-{suffix}.d2"));
         let output_path = std::env::temp_dir().join(format!("d2-rs-svg-hash-{suffix}.svg"));
@@ -9175,7 +9205,10 @@ layers: {
         let suffix = format!(
             "{}-{}",
             std::process::id(),
-            std::thread::current().name().unwrap_or("test")
+            std::thread::current()
+                .name()
+                .unwrap_or("test")
+                .replace("::", "-")
         );
         let input_path = std::env::temp_dir().join(format!("d2-rs-tala-svg-hash-{suffix}.d2"));
         let output_path = std::env::temp_dir().join(format!("d2-rs-tala-svg-hash-{suffix}.svg"));
@@ -9199,7 +9232,10 @@ layers: {
         let suffix = format!(
             "{}-{}",
             std::process::id(),
-            std::thread::current().name().unwrap_or("test")
+            std::thread::current()
+                .name()
+                .unwrap_or("test")
+                .replace("::", "-")
         );
         let input_path = std::env::temp_dir().join(format!("d2-rs-single-svg-{suffix}.d2"));
         std::fs::write(&input_path, b"a -> b\n").unwrap();
@@ -9223,7 +9259,10 @@ layers: {
         let suffix = format!(
             "{}-{}",
             std::process::id(),
-            std::thread::current().name().unwrap_or("test")
+            std::thread::current()
+                .name()
+                .unwrap_or("test")
+                .replace("::", "-")
         );
         let input_path = std::env::temp_dir().join(format!("d2-rs-animated-boards-{suffix}.d2"));
         let output_path = std::env::temp_dir().join(format!("d2-rs-animated-boards-{suffix}.gif"));

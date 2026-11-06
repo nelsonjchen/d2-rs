@@ -1710,6 +1710,11 @@ fn reorder_duplicates_inner(
     edges: &super::owner_pointer_slices::SharedEdgeSlice,
     context: &dyn super::limits::Context,
 ) -> Result<(), super::limits::Error> {
+    // Traces report the index.
+    #[cfg_attr(
+        not(feature = "diagnostic-traces"),
+        allow(clippy::unused_enumerate_index)
+    )]
     for (_edge_order, edge_index) in edges.iter_slots().enumerate() {
         reorder_check(context)?;
         let edge_index = reorder_nil(edge_index).0 as usize;

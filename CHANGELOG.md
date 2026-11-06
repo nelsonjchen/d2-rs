@@ -36,5 +36,7 @@ Each release names the upstream Go D2 commit it matches, from
   LaTeX inputs and one Markdown case; TALA's time and memory on large
   boards.
 - The native CLI binary is about 1.2× the size of Go's.
+- Windows builds but is not qualified against Go: imports across drives,
+  path separators in diagnostics and one TALA layout differ in tests.
 
 [Unreleased]: https://github.com/nelsonjchen/d2-rs

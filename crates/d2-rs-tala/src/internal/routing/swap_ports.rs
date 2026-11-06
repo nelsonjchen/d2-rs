@@ -475,6 +475,11 @@ fn tunnel_ranges(
             (obstacle.origin.x, obstacle.right())
         };
         let mut next = Vec::new();
+        // Traces report the index.
+        #[cfg_attr(
+            not(feature = "diagnostic-traces"),
+            allow(clippy::unused_enumerate_index)
+        )]
         for (_range_index, (start, end)) in ranges.into_iter().enumerate() {
             // tunnelRangesBetweenChecked charges once for each range visited.
             reserve_swap_work(budget, 1)?;
@@ -670,6 +675,11 @@ fn make_straight_line(
         })
     );
     let (ranges, horizontal) = tunnel_ranges(graph, from, to, false, budget)?;
+    // Traces report the index.
+    #[cfg_attr(
+        not(feature = "diagnostic-traces"),
+        allow(clippy::unused_enumerate_index)
+    )]
     for (_range_index, (start, end)) in ranges.into_iter().enumerate() {
         // makeStraightLineGuarded charges before visiting each range.
         reserve_swap_work(budget, 1)?;

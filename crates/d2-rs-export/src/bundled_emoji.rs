@@ -165,6 +165,8 @@ fn data() -> Result<Arc<SharedFace>, String> {
 
 #[derive(Default)]
 pub(super) struct Resolver {
+    // WASM builds bundle no emoji face, so nothing is ever loaded.
+    #[cfg(not(target_arch = "wasm32"))]
     id: Option<ID>,
     pub(super) error: Option<String>,
 }

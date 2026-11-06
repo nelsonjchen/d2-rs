@@ -173,7 +173,7 @@ no recovery wrapper.
 
 | | Go `d2js` | `@d2-rs/wasm` |
 |---|---:|---:|
-| Module size, raw / gzip -9 | 60.0 / 15.3 MB | 27.2 / 9.2 MB |
+| Module size, raw / gzip -9 (at `3a9e691d`) | 60.0 / 15.3 MB | 31.3 / 10.1 MB |
 | Startup (instantiate + init) | ~405 ms | ~43 ms |
 
 These numbers were measured in Node 22 only, not in browsers, with both

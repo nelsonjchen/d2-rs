@@ -4,7 +4,8 @@ permissions:
   contents: read
 jobs:
   parity-harness:
-    runs-on: ubuntu-latest
+    # The fixture generator's defaults target arm64, the reference platform.
+    runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
@@ -41,6 +42,11 @@ jobs:
       # oracle-cache/ and runs on the arm64 and x86-64 qualification hosts
       # (docs/FIXTURES.md). Clippy still compiles it here.
       - run: cargo test --workspace --locked
+        if: runner.os != 'Windows'
+      # Windows builds, but its paths and output are not qualified against Go
+      # yet (docs/STATUS.md), so its tests only compile.
+      - run: cargo test --workspace --locked --no-run
+        if: runner.os == 'Windows'
       - run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
   checked-cells:
     runs-on: ubuntu-latest
