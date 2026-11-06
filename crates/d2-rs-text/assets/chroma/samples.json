@@ -1,0 +1,2210 @@
+[
+  {
+    "language": "abap",
+    "lexer": "ABAP",
+    "source": "*&---------------------------------------------------------------------*\n*& Report  /WUE/AUFGABE_PRIMZAHL\n*&\n*&---------------------------------------------------------------------*\n*& Anmerkung: um bei einer Zahl entscheiden zu können, ob diese eine Primzahl ist,\n*&            genügt es die Primzahlen zu prüfen die kleiner gleich der Würzel der Zahl sind\n*&\n*&---------------------------------------------------------------------*\nREPORT /wue/aufgabe_primzahl.\n\n\nPARAMETERS p_range TYPE i.\n\n\"Tabelle in der alle gefundenen Primzahlen gespeichert werden, die kleiner gleich\n\"der Würzel der eingegebenen Zahl sind\nDATA gt_prim_num TYPE TABLE OF i.\n\n\"Diese Variable dient dazu, alle Zahlen <= der eingegebenen Zahl und >= 2 aufzustellen\nDATA g_number    TYPE i VALUE 1.\n",
+    "origin": "Chroma v2.27.0 lexers/testdata/abap.actual (first 20 lines)"
+  },
+  {
+    "language": "abnf",
+    "lexer": "ABNF",
+    "source": "rule = 1*DIGIT / \"hello\"\n; comment\nDIGIT = %x30-39",
+    "origin": "handwritten"
+  },
+  {
+    "language": "as",
+    "lexer": "ActionScript",
+    "source": "package example {\n // comment\n var answer:Number = 42;\n trace(\"hello\");\n}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "as3",
+    "lexer": "ActionScript 3",
+    "source": "package example {\n // comment\n public var answer:int = 42;\n trace(\"hello\");\n}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "ada",
+    "lexer": "Ada",
+    "source": "with Ada.Text_IO;\nprocedure Hello is\n -- comment\n N : Integer := 42;\nbegin\n Put_Line(\"hello\");\nend Hello;",
+    "origin": "handwritten"
+  },
+  {
+    "language": "agda",
+    "lexer": "Agda",
+    "source": "module hello-world where\n\nopen import Agda.Builtin.IO using (IO)\nopen import Agda.Builtin.Unit using (⊤)\nopen import Agda.Builtin.String using (String)\n\npostulate putStrLn : String → IO ⊤\n{-# FOREIGN GHC import qualified Data.Text as T #-}\n{-# COMPILE GHC putStrLn = putStrLn . T.unpack #-}\n\nmain : IO ⊤\nmain = putStrLn \"Hello world!\"",
+    "origin": "Chroma v2.27.0 lexers/testdata/agda.actual (first 20 lines)"
+  },
+  {
+    "language": "al",
+    "lexer": "AL",
+    "source": "/// <summary>\n/// Manage Loyalty Benefits\n/// </summary>\ncodeunit 50100 \"Loyalty Benefits Management\"\n{\n    var\n        Vendor: record Vendor;\n\n    trigger OnRun()\n    begin\n    end;\n\n    /// <summary>\n    /// Adjust a Sales Order with loyalty level\n    /// </summary>\n    /// <param name=\"SalesHeader\">Sales Header to adjust based on Customer Loyalty</param>\n    procedure AdjustForLoyalty(var SalesHeader: record \"Sales Header\"): Integer;\n    var\n        Customer: record Customer;\n        LoyaltyBenefits: interface ILoyaltyBenefits;",
+    "origin": "Chroma v2.27.0 lexers/testdata/al.actual (first 20 lines)"
+  },
+  {
+    "language": "alloy",
+    "lexer": "Alloy",
+    "source": "sig Node {\n  edges: set Node\n}\n\nfact \"Connected graph\" {\n  some n: Node | n.*edges = Node\n}\n\nfact \"No self edges\" {\n  no iden & edges\n}\n\none sig Ball {\n  -- note the var\n  var loc: Node\n}",
+    "origin": "Chroma v2.27.0 lexers/testdata/alloy.actual (first 20 lines)"
+  },
+  {
+    "language": "ampl",
+    "lexer": "AMPL",
+    "source": "## Simple AMPL example for tests\n\n# Sourced from: https://ampl.com/mo-book/notebooks/01/production-planning-advanced.html\n\n# define sets\nset PRODUCTS;\nordered set RESOURCES;\n\n# define parameters\nparam demand {PRODUCTS} >= 0;\nparam price {PRODUCTS} > 0;\nparam available {RESOURCES} >= 0;\nparam cost {RESOURCES} > 0;\nparam need {RESOURCES,PRODUCTS} >= 0;\n\n# define variables\nvar Use {r in RESOURCES} >= 0, <= available[r];\nvar Sell {p in PRODUCTS} >= 0, <= demand[p];\n\n# define objective function",
+    "origin": "Chroma v2.27.0 lexers/testdata/ampl.actual (first 20 lines)"
+  },
+  {
+    "language": "ng2",
+    "lexer": "Angular2",
+    "source": "<!-- comment -->\n<div *ngIf=\"value > 2\">{{ name }}</div>\n<script>let x = 42;</script>",
+    "origin": "handwritten"
+  },
+  {
+    "language": "antlr",
+    "lexer": "ANTLR",
+    "source": "grammar Demo;\n// comment\nvalue: ID | NUMBER;\nID: [a-z]+;\nNUMBER: [0-9]+;",
+    "origin": "handwritten"
+  },
+  {
+    "language": "apacheconf",
+    "lexer": "ApacheConf",
+    "source": "# comment\nListen 80\n<VirtualHost *:80>\n ServerName example.com\n DocumentRoot \"/var/www\"\n</VirtualHost>",
+    "origin": "handwritten"
+  },
+  {
+    "language": "apl",
+    "lexer": "APL",
+    "source": "⍝ comment\nanswer ← 42\nname ← 'hello'\n+/⍳10",
+    "origin": "handwritten"
+  },
+  {
+    "language": "applescript",
+    "lexer": "AppleScript",
+    "source": "-- comment\nset answer to 42\nset greeting to \"hello\"\ndisplay dialog greeting",
+    "origin": "handwritten"
+  },
+  {
+    "language": "aql",
+    "lexer": "ArangoDB AQL",
+    "source": "code//comment\ncode/*comment*/\n/* comment RETURN 42 \"'` *\nmultiline */code\nwhite \tspace",
+    "origin": "Chroma v2.27.0 lexers/testdata/aql/comments.actual (first 20 lines)"
+  },
+  {
+    "language": "arduino",
+    "lexer": "Arduino",
+    "source": "#include <Servo.h>\n#include <Adafruit_NeoPixel.h>\n\nServo elbow_servo; \nServo wrist_servo;\nconst int potpin = 0;  // analog pin used to connect the potentiometer\nint val;    // variable to read the value from the analog pin\n\n//// button cycles through controlling each color\n//// in the neopixel.  state 0=stop, 1=red, 2=blue, 3=green, 4=all/white\nconst int button_pin = 4;\nint buttonState;             // the current reading from the input pin\nint lastButtonState = HIGH;   // the previous reading from the input pin\n// the following variables are unsigned longs because the time, measured in\n// milliseconds, will quickly become a bigger number than can be stored in an int.\nunsigned long lastDebounceTime = 0;  // the last time the output pin was toggled\nunsigned long debounceDelay = 50;    // the debounce time; increase if the output flickers\nint led_control_state = 0;\n\nconst int pixel_pin = 6;",
+    "origin": "Chroma v2.27.0 lexers/testdata/arduino.actual (first 20 lines)"
+  },
+  {
+    "language": "armasm",
+    "lexer": "ArmAsm",
+    "source": "@ Hello World in ARM Assembly for Linux system\n\n.global _start\n\n_start:\n    mov  r7, #4          @ Setup service call 4 (write)\n    mov  r0, #1          @ param 1 - File descriptor 1 = stdout\n    ldr  r1, =hello      @ param 2 - address of string to print\n    mov  r2, #13         @ param 3 - length of hello world string\n    svc  0               @ ask linux to write to stdout\n\n    mov  r7, #1          @ Setup service call 1 (exit)\n    mov  r0, #0          @ param 1 - 0 = normal exit\n    svc  0               @ ask linux to terminate us\n\n.data\nhello:    .ascii    \"Hello World!\\n\"",
+    "origin": "Chroma v2.27.0 lexers/testdata/armasm.actual (first 20 lines)"
+  },
+  {
+    "language": "arturo",
+    "lexer": "Arturo",
+    "source": "#! home/.arturo/bin\n\n; this is a comment\n; this is another comment\n\n;---------------------------------\n; VARIABLES & VALUES\n;---------------------------------\n\n; numbers\na1: 2\na2: 3.14\na3: to :complex [1 2.0]     ; 1.0+2.0i\n\n; strings\nc1: \"this is a string\"\nc2: {\n    this is a multiline string\n    that is indentation-agnostic\n}",
+    "origin": "Chroma v2.27.0 lexers/testdata/arturo.actual (first 20 lines)"
+  },
+  {
+    "language": "atl",
+    "lexer": "ATL",
+    "source": "module TypeA2TypeB;\ncreate b : TypeB from a : TypeA;\n\nrule RootA2RootB {\n\tfrom\n\t\trtA : TypeA!RootA\n\tto\n\t\trtB : TypeB!RootB (\n\t\t\tdefs <- rtA.elms->iterate(e; res : Set(TypeA!ElementA) = Set {} |\n\t\t\t\tif (res->collect(f | f.name)->includes(e.name)) then\n\t\t\t\t\tres\n\t\t\t\telse\n\t\t\t\t\tres->including(e)\n\t\t\t\tendif\n\t\t\t\t)-- here we keep only one element of each name value\n\t\t\t\t->collect(e | thisModule.Definition(e)),\n\t\t\t\t-- then we create a DefinitionB from each selected element\n\t\t\telms <- rtA.elms\n\t\t)\n}",
+    "origin": "Chroma v2.27.0 lexers/testdata/atl.actual (first 20 lines)"
+  },
+  {
+    "language": "autohotkey",
+    "lexer": "AutoHotkey",
+    "source": "; comment\nanswer := 42\nMsgBox, hello\nif (answer > 0) {\n return\n}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "autoit",
+    "lexer": "AutoIt",
+    "source": "; comment\nLocal $answer = 42\nIf $answer > 0 Then\n MsgBox(0, \"title\", \"hello\")\nEndIf",
+    "origin": "handwritten"
+  },
+  {
+    "language": "awk",
+    "lexer": "Awk",
+    "source": "# comment\nBEGIN { answer = 42; print \"hello\" }\n/word/ { print $1 + answer }",
+    "origin": "handwritten"
+  },
+  {
+    "language": "ballerina",
+    "lexer": "Ballerina",
+    "source": "import ballerina/http;\n\nendpoint http:Listener listener {\n    port: 9090\n};",
+    "origin": "Chroma v2.27.0 lexers/testdata/ballerina.actual (first 20 lines)"
+  },
+  {
+    "language": "bash",
+    "lexer": "Bash",
+    "source": "# Install fish\n\nbrew install fish\n\n# Add fish to your list of available shells\n\necho \"/usr/local/bin/fish/\" | sudo tee -a /etc/shells\n\n# Make fish the defaul shell\n\nchsh -s /usr/local/bin/fish\n\n# Restart the terminal to load fish shell\n\n\n# Code snippet from https://github.com/gmarik/gist.sh/blob/master/gist.sh\ngist_clone ()\n{\n    if [ \"$_PRIVATE\" = \"1\" ]; then\n        URL=\"git@gist.github.com:$1.git\"",
+    "origin": "Chroma v2.27.0 lexers/testdata/bash.actual (first 20 lines)"
+  },
+  {
+    "language": "bash-session",
+    "lexer": "Bash Session",
+    "source": "$ echo \"Hello, world!\"\nHello, world!\n%\tpwd\n/User/foo\n>  make -j build\n%ls | wc -l\n5\n[user@host]$ whoami\nuser\n[user@host] # id\nuid=1000(user) gid=1000(user) groups=1000(user)\n[super user :D@super host :D] %if [ 1 -eq 1 ]; then uname; fi\nLinux\n[user@host]%echo $((1+1))\n2",
+    "origin": "Chroma v2.27.0 lexers/testdata/bash-session.actual (first 20 lines)"
+  },
+  {
+    "language": "bat",
+    "lexer": "Batchfile",
+    "source": "@echo off\nREM comment\nset answer=42\necho \"hello\"\nif %answer%==42 goto done\n:done",
+    "origin": "handwritten"
+  },
+  {
+    "language": "beef",
+    "lexer": "Beef",
+    "source": "using System;\n\nclass Program\n{\n    public static void Main()\n    {\n        Console.WriteLine(\"Hello, World!\");\n    }\n\n    // Try! propagates file and parsing errors down the call stack\n    static Result<void> Parse(StringView filePath, List<float> outValues)\n    {\n        var fs = scope FileStream();\n        Try!(fs.Open(filePath));\n        for (var lineResult in scope StreamReader(fs).Lines)\n        {\n            for (let elem in Try!(lineResult).Split(','))\n                outValues.Add(Try!(float.Parse(elem)));\n        }\n        return .Ok;",
+    "origin": "Chroma v2.27.0 lexers/testdata/beef.actual (first 20 lines)"
+  },
+  {
+    "language": "bib",
+    "lexer": "BibTeX",
+    "source": "%  a sample bibliography file\n%  \n\n@article{small,\nauthor = {Freely, I.P.},\ntitle = {A small paper},\njournal = {The journal of small papers},\nyear = 1997,\nvolume = {-1},\nnote = {to appear},\n}\n\n@article{big,\nauthor = {Jass, Hugh},\ntitle = {A big paper},\njournal = {The journal of big papers},\nyear = 7991,\nvolume = {MCMXCVII},\n}\n",
+    "origin": "Chroma v2.27.0 lexers/testdata/bib.actual (first 20 lines)"
+  },
+  {
+    "language": "bicep",
+    "lexer": "Bicep",
+    "source": "output nonNullStr string = myObject.isnull1 ?? myObject.string ?? myObject.isnull2",
+    "origin": "Chroma v2.27.0 lexers/testdata/bicep/bicep-coalesce-operator.actual (first 20 lines)"
+  },
+  {
+    "language": "blitzbasic",
+    "lexer": "BlitzBasic",
+    "source": "; comment\nLocal answer = 42\nPrint \"hello\"\nFor i = 1 To 3\n Next",
+    "origin": "handwritten"
+  },
+  {
+    "language": "bnf",
+    "lexer": "BNF",
+    "source": "<start> ::= <number> | \"hello\"\n<number> ::= \"1\" | \"2\"",
+    "origin": "handwritten"
+  },
+  {
+    "language": "bqn",
+    "lexer": "BQN",
+    "source": "#! /usr/bin/env bqn\n\n# From BQN documentation / quick start:\n# https://mlochbaum.github.io/BQN/doc/quick.html\n\n# Case conversion utilities\ncase ← {\n  diff ← -´ \"Aa\"\n  Lower ⇐ -⟜diff\n  Upper ⇐ Lower⁼\n}\n\nhw ← <˘ 2‿∘ ⥊ \"helloworld\"\nhw case.Upper⌾(⊑¨)↩\n•Out hw ↩ ∾ ⥊⍉ [hw, \", \"‿\"!\"]  # Hello, World!\n\n# Split at spaces and repeated characters\nSplit ← {\n  !1==𝕩 ⋄ (!2=•Type)¨𝕩\n  Proc ← {",
+    "origin": "Chroma v2.27.0 lexers/testdata/bqn.actual (first 20 lines)"
+  },
+  {
+    "language": "brainfuck",
+    "lexer": "Brainfuck",
+    "source": "++[>++<-]>.\ncomment\n,.[-]",
+    "origin": "handwritten"
+  },
+  {
+    "language": "csharp",
+    "lexer": "C#",
+    "source": "using System;\n// comment\npublic class Hello {\n    private const int Answer = 42;\n    public static string Greet(string name) => $\"hello {name}\";\n}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "cpp",
+    "lexer": "C++",
+    "source": "#include <iostream>\n// comment\ntemplate<typename T> T twice(T value) { return value * 2; }\nint main() {\n    const char *name = \"hello\";\n    std::cout << name << twice(21);\n}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "c",
+    "lexer": "C",
+    "source": "#include <stdio.h>\n// comment\nint main(void) {\n const char *s = \"hello\";\n return 42;\n}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "c3",
+    "lexer": "C3",
+    "source": "module main;\nimport std::io;\n\nenum Weather : (String name)\n{\n\tRAINY   = \"rainy\",\n\tCOLD    = \"cold\",\n\tHOT     = \"hot\",\n\tSUNNY   = \"sunny\",\n\tTHUNDER = \"stormy\",\n}\n\n<*\n\t@require $defined($Enum.values) &&& $defined($Enum.names) &&& $defined($Enum.values[0].name)\n*>\nmacro void @im_a_macro ($Enum)\n{\n\t$foreach $i, $val : $Enum.values:\n\t\t$switch $i:\n\t\t$case 0:",
+    "origin": "Chroma v2.27.0 lexers/testdata/c3.actual (first 20 lines)"
+  },
+  {
+    "language": "capnp",
+    "lexer": "Cap'n Proto",
+    "source": "@0xabcdefabcdefabcd;\n# comment\nstruct Person {\n name @0 :Text;\n age @1 :UInt32;\n}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "cassandra",
+    "lexer": "Cassandra CQL",
+    "source": "-- basic statements\n// c-style comment\n/* \n\n   multiline comment\n\n*/\nCREATE TABLE cycling.cyclist_name ( id UUID PRIMARY KEY, lastname text, firstname text );\nINSERT INTO cycling.cyclist_name (id, lastname, firstname) VALUES (5b6962dd-3f90-4c93-8f61-eabfa4a803e2, 'VOS','Marianne');\nSELECT * FROM cycling.cyclist_name;\nSELECT lastname, firstname FROM /* a comment */ cycling.cyclist_name WHERE id = 6ab09bec-e68e-48d9-a5f8-97e6fb4c9b47 /* multiline comment \n\n*/ -- comment;\n;\n\nCREATE TABLE cycling.cyclist_category ( category text, points int, id UUID, lastname text, PRIMARY KEY (category, points)) WITH CLUSTERING ORDER BY (points DESC);\nCREATE TABLE cycling.race_winners (race_name text, race_position int, cyclist_name FROZEN<fullname>, PRIMARY KEY (race_name, race_position));\nCREATE TABLE cycling.cyclist_races ( id UUID PRIMARY KEY, lastname text, firstname text, races list<FROZEN <race>> );\nINSERT INTO cycling.cyclist_races (id, lastname, firstname, races) VALUES (5b6962dd-3f90-4c93-8f61-eabfa4a803e2, 'VOS', 'Marianne', [ {race_title:'Rabobank 7-Dorpenomloop Aalburg',race_date:'2015-05-09',race_time:'02:58:33'},{race_title:'Ronde van Gelderland',race_date:'2015-04-19',race_time:'03:22:23'}\n]);",
+    "origin": "Chroma v2.27.0 lexers/testdata/cql.actual (first 20 lines)"
+  },
+  {
+    "language": "ceylon",
+    "lexer": "Ceylon",
+    "source": "// comment\nshared void run() {\n value answer = 42;\n print(\"hello\");\n}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "cfengine3",
+    "lexer": "CFEngine3",
+    "source": "@if minimum_version(3.20)\nbody members foo\n{\n  include => { \"alice\", \"bob\" };\n  exclude => { \"malcom\" };\n}\n@endif\n\n@if minimum_version(3.20)\npromise agent blah\n{\n  path => \"/some/path\";\n}\n@endif\n\nbundle agent __main__\n{\n  groups:\n    \"foo\"\n      policy => \"present\",",
+    "origin": "Chroma v2.27.0 lexers/testdata/cfengine3.actual (first 20 lines)"
+  },
+  {
+    "language": "cfs",
+    "lexer": "cfstatement",
+    "source": "// comment\nvar answer = 42;\nif (answer > 0) { writeOutput(\"hello\"); }",
+    "origin": "handwritten"
+  },
+  {
+    "language": "chai",
+    "lexer": "ChaiScript",
+    "source": "// comment\nvar answer = 42;\ndef greet(name) { print(\"hello \" + name); }",
+    "origin": "handwritten"
+  },
+  {
+    "language": "chapel",
+    "lexer": "Chapel",
+    "source": "config const numMessages = 100;\n\nforall msg in 1..numMessages do\n  writeln(\"Hello, world! (from iteration \", msg, \" of \", numMessages, \")\");\n\n// Oh, and a comment for good measure.",
+    "origin": "Chroma v2.27.0 lexers/testdata/chapel.actual (first 20 lines)"
+  },
+  {
+    "language": "cheetah",
+    "lexer": "Cheetah",
+    "source": "## comment\n#set $answer = 42\n#if $answer\nhello $name\n#end if",
+    "origin": "handwritten"
+  },
+  {
+    "language": "clojure",
+    "lexer": "Clojure",
+    "source": "; comment\n(def answer 42)\n(defn greet [name] (str \"hello \" name))\n(map inc [1 2 3])",
+    "origin": "handwritten"
+  },
+  {
+    "language": "cmake",
+    "lexer": "CMake",
+    "source": "# comment\ncmake_minimum_required(VERSION 3.20)\nset(ANSWER 42)\nmessage(STATUS \"hello ${ANSWER}\")",
+    "origin": "handwritten"
+  },
+  {
+    "language": "cobol",
+    "lexer": "COBOL",
+    "source": "       IDENTIFICATION DIVISION.\n       PROGRAM-ID. HELLO.\n       PROCEDURE DIVISION.\n           DISPLAY \"HELLO\".\n           STOP RUN.",
+    "origin": "handwritten"
+  },
+  {
+    "language": "coffee-script",
+    "lexer": "CoffeeScript",
+    "source": "# comment\nanswer = 42\ngreet = (name) -> \"hello #{name}\"\nconsole.log greet \"world\"",
+    "origin": "handwritten"
+  },
+  {
+    "language": "common-lisp",
+    "lexer": "Common Lisp",
+    "source": "; comment\n(defparameter *answer* 42)\n(defun greet (name) (format t \"hello ~a\" name))",
+    "origin": "handwritten"
+  },
+  {
+    "language": "coq",
+    "lexer": "Coq",
+    "source": "(* comment *)\nDefinition answer : nat := 42.\nTheorem identity : forall n : nat, n = n.\nProof. reflexivity. Qed.",
+    "origin": "handwritten"
+  },
+  {
+    "language": "core",
+    "lexer": "Core",
+    "source": "import collections.{Array, BitSet, BitVec, HashMap, HashSet, List, Queue}\n\n@pub mod annotations;\n\n@pub @internal fun unreachable[T](): T\n\n@pub fun unimplemented(): Unit = fatalError(\"not yet implemented\")\n\nfun isValidUtf8(data: Array[UInt8]): Bool {\n  var i = 0i64\n\n  while i < data.size {\n    let by = data(i).toInt32\n    var codepoint = 0i32\n    var bytes = 0i32\n    var min = 0i32\n    var max = 0i32\n\n    if by & 0x80i32 == 0i32 {\n      bytes = 0",
+    "origin": "Chroma v2.27.0 lexers/testdata/core.actual (first 20 lines)"
+  },
+  {
+    "language": "cr",
+    "lexer": "Crystal",
+    "source": "# comment\nanswer = 42\ndef greet(name : String)\n puts \"hello #{name}\"\nend",
+    "origin": "handwritten"
+  },
+  {
+    "language": "css",
+    "lexer": "CSS",
+    "source": "/* comment */\n:root { --answer: 42px; }\n.greeting:hover {\n    color: #aabbcc;\n    width: var(--answer);\n    content: \"hello\";\n}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "csv",
+    "lexer": "CSV",
+    "source": "hello,\"newline:\nquote: \"\" comma: ,\",1,\"\",\"\"stuff,,1.1",
+    "origin": "Chroma v2.27.0 lexers/testdata/csv.actual (first 20 lines)"
+  },
+  {
+    "language": "cue",
+    "lexer": "CUE",
+    "source": "\"this is a test\"\n5\nfalse\n\n// This is a comment\na: {\n    foo:      string  // foo is a string\n    [=~\"^i\"]: int     // all other fields starting with i are integers\n    [=~\"^b\"]: bool    // all other fields starting with b are booleans\n    [>\"c\"]:   string  // all other fields lexically after c are strings\n\n    ...string         // all other fields must be a string. Note: default constraints are not yet implemented.\n}\n\nx: #\"\"\"\n\n \\#(test)\n\n\"\"\"\n",
+    "origin": "Chroma v2.27.0 lexers/testdata/cue.actual (first 20 lines)"
+  },
+  {
+    "language": "cython",
+    "lexer": "Cython",
+    "source": "# comment\ncdef int answer = 42\ndef greet(str name):\n return \"hello \" + name",
+    "origin": "handwritten"
+  },
+  {
+    "language": "d",
+    "lexer": "D",
+    "source": "module hello;\nimport std.stdio;\n// comment\n/+ nested /+ block +/ comment +/\nvoid main() {\n    immutable int answer = 42;\n    writeln(\"hello\", answer);\n}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "dart",
+    "lexer": "Dart",
+    "source": "import 'dart:async';\nimport 'dart:html';\nimport 'dart:math' show Random;\n\n// We changed 5 lines of code to make this sample nicer on\n// the web (so that the execution waits for animation frame,\n// the number gets updated in the DOM, and the program ends\n// after 500 iterations).\n\nmain() async {\n  print('Compute π using the Monte Carlo method.');\n  var output = querySelector(\"#output\");\n  await for (var estimate in computePi().take(500)) {\n    print('π ≅ $estimate');\n    output.text = estimate.toStringAsFixed(5);\n    await window.animationFrame;\n  }\n}\n\n/// Generates a stream of increasingly accurate estimates of π.",
+    "origin": "Chroma v2.27.0 lexers/testdata/dart.actual (first 20 lines)"
+  },
+  {
+    "language": "dax",
+    "lexer": "Dax",
+    "source": "// comment\nAnswer = SUM(Table[Value]) + 42\nText = \"hello\"",
+    "origin": "handwritten"
+  },
+  {
+    "language": "desktop",
+    "lexer": "Desktop file",
+    "source": "# Created with jdDesktopEntryEdit 1.3\n[Desktop Entry]\nType=Application\nName=Chroma\nComment= A general purpose syntax highlighter in pure Go\nTryExec=chroma\nExec=chroma\nTerminal=true",
+    "origin": "Chroma v2.27.0 lexers/testdata/desktop_entry.actual (first 20 lines)"
+  },
+  {
+    "language": "devicetree",
+    "lexer": "Devicetree",
+    "source": "// SPDX-License-Identifier: GPL-2.0-or-later OR MIT\n/dts-v1/;\n\n/* Bootloader installs ATF here */\n/memreserve/ 0x80000000 0x200000;\n\n#include <dt-bindings/leds/common.h>\n#include <dt-bindings/gpio/gpio.h>\n#include <dt-bindings/input/input.h>\n#include \"en7523.dtsi\"\n\n/ {\n\tmodel = \"TP-Link xx230v\";\n\tcompatible = \"tplink,xx230v\", \"airoha,en7523\";\n\n\tchosen {\n\t\tbootargs = \"console=ttyS0,115200 earlycon\";\n\t\tstdout-path = \"serial0:115200n8\";\n\t};\n",
+    "origin": "Chroma v2.27.0 lexers/testdata/devicetree.actual (first 20 lines)"
+  },
+  {
+    "language": "diff",
+    "lexer": "Diff",
+    "source": "1,2d0\n< A\n< A\n4c2\n< C\n---\n> F\n5a4\n> E",
+    "origin": "Chroma v2.27.0 lexers/testdata/diff/default.actual (first 20 lines)"
+  },
+  {
+    "language": "django",
+    "lexer": "Django/Jinja",
+    "source": "{# comment #}\n{% set answer = 42 %}\n{% if answer %}hello {{ name|upper }}{% endif %}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "zone",
+    "lexer": "dns",
+    "source": "; /etc/bind/zones/example.org\n$TTL 3h;\n@\tIN\tSOA\tns.example.org. example.org. (\n\t1 ; serial\n\t3h; refresh timeout\n\t1h; retry timeout\n\t1w; expire timeout\n\t1h; negative caching TTL\n)\n@\tIN\tNS\t\tns.example.org.  ; name server\n@\tIN\tMX\t10\texample.org.     ; mail exchange server\n\nns\tIN\tA\t\t1.2.3.4\n@\tIN\tA\t\t1.2.3.4\n\nns\tIN\tAAAA\tef::1\n@\tIN\tAAAA\tef::1\n\nwww\tIN\tCNAME\texample.org.",
+    "origin": "Chroma v2.27.0 lexers/testdata/dns.actual (first 20 lines)"
+  },
+  {
+    "language": "docker",
+    "lexer": "Docker",
+    "source": "# comment\nFROM alpine:3.20\nENV ANSWER=42\nRUN echo \"hello\"\nCMD [\"sh\", \"-c\", \"echo $ANSWER\"]",
+    "origin": "handwritten"
+  },
+  {
+    "language": "dtd",
+    "lexer": "DTD",
+    "source": "<!-- comment -->\n<!ELEMENT greeting (#PCDATA)>\n<!ATTLIST greeting id ID #REQUIRED>",
+    "origin": "handwritten"
+  },
+  {
+    "language": "dylan",
+    "lexer": "Dylan",
+    "source": "Module: mod\n\ndefine constant $pi = 3.1415927d0;\n\ndefine macro moo\n  { moo(?:name, ?e:expression) } => { let ?name = ?e; }\nend;\n\n// abc\ndefine method foo-bar (n :: <integer>, #rest a, #key k, #all-keys) => (m :: <float>, b :: <boolean>)\n  let x = n + 2.0 + #b10 + #o2 + #x02;\n  format-out(\"dog // cat\\n\");\n  local method pi () $pi end;\n  pi()\nend method foo-bar;\n\n/*\n cow\n */\nfoo-bar(2, k: k, a-b: c);",
+    "origin": "Chroma v2.27.0 lexers/testdata/dylan.actual (first 20 lines)"
+  },
+  {
+    "language": "ebnf",
+    "lexer": "EBNF",
+    "source": "(* comment *)\nvalue = number | \"hello\" ;\nnumber = digit, { digit } ;",
+    "origin": "handwritten"
+  },
+  {
+    "language": "elixir",
+    "lexer": "Elixir",
+    "source": "# comment\ndefmodule Hello do\n  @answer 42\n  def greet(name \\\"world\") do\n    \"hello #{name} #{@answer}\"\n  end\n  def values, do: %{one: 1, two: 2}\nend",
+    "origin": "handwritten"
+  },
+  {
+    "language": "elm",
+    "lexer": "Elm",
+    "source": "-- comment\nmodule Main exposing (..)\nanswer = 42\ngreet name = \"hello \" ++ name",
+    "origin": "handwritten"
+  },
+  {
+    "language": "emacs",
+    "lexer": "EmacsLisp",
+    "source": "; comment\n(defvar answer 42)\n(defun greet (name) (message \"hello %s\" name))",
+    "origin": "handwritten"
+  },
+  {
+    "language": "ERB",
+    "lexer": "ERB",
+    "source": "<!-- comment -->\n<h1><%= \"hello\" %></h1>\n<% answer = 42 %>\n<%= answer %>",
+    "origin": "handwritten"
+  },
+  {
+    "language": "erlang",
+    "lexer": "Erlang",
+    "source": "-module(repl).\n\n-export([run/0]).\n\nrun() ->\n    read_eval_process().\n\nread_eval_process() ->\n    Line = io:get_line(\"> \"),\n    Out = process_line(Line),\n    io:format(\"< ~s~n~n\", [Out]),\n    read_eval_process().\n\nprocess_line(Line) ->\n    string:uppercase(Line).",
+    "origin": "Chroma v2.27.0 lexers/testdata/erlang.actual (first 20 lines)"
+  },
+  {
+    "language": "factor",
+    "lexer": "Factor",
+    "source": "! comment\nUSING: io math ;\n: answer ( -- n ) 42 ;\n\"hello\" print",
+    "origin": "handwritten"
+  },
+  {
+    "language": "fennel",
+    "lexer": "Fennel",
+    "source": ";; An example of some possible linters using Fennel's --plugin option.\n\n;; The first two linters here can only function on static module\n;; use. For instance, this code can be checked because they use static\n;; field access on a local directly bound to a require call:\n\n;; (local m (require :mymodule))\n;; (print m.field) ; fails if mymodule lacks a :field field\n;; (print (m.function 1 2 3)) ; fails unless mymodule.function takes 3 args\n\n;; However, these cannot:\n\n;; (local m (do (require :mymodule)) ; m is not directly bound\n;; (print (. m field)) ; not a static field reference\n;; (let [f m.function]\n;;   (print (f 1 2 3)) ; intermediate local, not a static field call on m\n\n;; Still, pretty neat, huh?\n\n;; This file is provided as an example and is not part of Fennel's public API.",
+    "origin": "Chroma v2.27.0 lexers/testdata/fennel.actual (first 20 lines)"
+  },
+  {
+    "language": "fish",
+    "lexer": "Fish",
+    "source": "#!/usr/bin/env fish\n\necho hello > output.txt\n\nalias something=echo\n\nsudo systemctl start postgresql\n\n# Outputs 'image.png'.\necho (basename image.jpg .jpg).png\n\necho some text for testing\n\n# Convert all JPEG files in the current directory to the\n# PNG format using the 'convert' program.\nfor i in *.jpg; convert $i (basename $i .jpg).png; end\n\n# Set the ``data`` variable to the contents of 'data.txt'\n# without splitting it into a list.\nbegin; set -l IFS; set data (cat data.txt); end",
+    "origin": "Chroma v2.27.0 lexers/testdata/fish.actual (first 20 lines)"
+  },
+  {
+    "language": "forth",
+    "lexer": "Forth",
+    "source": "\\ comment\n: square ( n -- n ) dup * ;\n42 square .\n.\" hello\"",
+    "origin": "handwritten"
+  },
+  {
+    "language": "fortran",
+    "lexer": "Fortran",
+    "source": "program hello\n! comment\ninteger :: answer = 42\nprint *, \"hello\", answer\nend program hello",
+    "origin": "handwritten"
+  },
+  {
+    "language": "fortranfixed",
+    "lexer": "FortranFixed",
+    "source": "      PROGRAM HELLO\nC comment\n      INTEGER ANSWER\n      ANSWER = 42\n      PRINT *, \"hello\", ANSWER\n      END",
+    "origin": "handwritten"
+  },
+  {
+    "language": "fsharp",
+    "lexer": "FSharp",
+    "source": "(**\n# First-level heading\nSome more documentation using `Markdown`.\n*)\nmodule SampleCode.SimpleTypes\n\n(**\nThis comments was making the whole file render as a comment.\n**)\n\n// Compiler directives\n\n#if true\n#elif false\n#elseif false\n#endif\n#light \"on\"\n#nowarn\n#nowarn \"9\" \"40\"\n",
+    "origin": "Chroma v2.27.0 lexers/testdata/fsharp/fsharp.actual (first 20 lines)"
+  },
+  {
+    "language": "gas",
+    "lexer": "GAS",
+    "source": "# Returns bit 5 of a number.\n.globl _start\n.section .text\n_start:\n    mov $0, %rdi            # zero rdi\n    mov $0b00100011, %rcx   // input value\n    test $0b00010000, %rcx  /* bit mask, set zero flag */\n    jz final                ! if zero jump out\n    mov $1, %rdi            @ else, the test wasn't zero, set output to 1\n\nfinal:\n    mov $60, %rax           | set exit syscall\n    syscall                 # make syscall",
+    "origin": "Chroma v2.27.0 lexers/testdata/gas.actual (first 20 lines)"
+  },
+  {
+    "language": "gdscript",
+    "lexer": "GDScript",
+    "source": "# Everything after \"#\" is a comment.\n# A file is a class!\n\n# (optional) icon to show in the editor dialogs:\n@icon(\"res://path/to/optional/icon.svg\")\n\n# (optional) class definition:\nclass_name MyClass\n\n# Inheritance:\nextends BaseClass\n\n\n# Member variables.\nvar a = 5\nvar s = \"Hello\"\nvar arr = [1, 2, 3]\nvar dict = {\"key\": \"value\", 2: 3}\nvar other_dict = {key = \"value\", other_key = 2}\nvar typed_var: int",
+    "origin": "Chroma v2.27.0 lexers/testdata/gdscript.actual (first 20 lines)"
+  },
+  {
+    "language": "gdscript3",
+    "lexer": "GDScript3",
+    "source": "# a file is a class!\n\n# inheritance\n\nextends BaseClass\n\n# member variables\n\nvar a = 5\nvar s = \"Hello\"\nvar arr = [1, 2, 3]\nvar dict = {\"key\": \"value\", 2:3}\n\n# constants\n\nconst answer = 42\nconst thename = \"Charly\"\n\n# enums\n",
+    "origin": "Chroma v2.27.0 lexers/testdata/gdscript3.actual (first 20 lines)"
+  },
+  {
+    "language": "gemfile-lock",
+    "lexer": "Gemfile.lock",
+    "source": "GEM\n  remote: https://rubygems.org/\n  specs:\n    actionpack (7.0.4)\n      rack (~> 2.0, >= 2.2.0)\n\nGIT\n  remote: https://github.com/foo/bar.git\n  revision: abc123def4567890abc123def4567890abc12345\n  ref: main\n\nDEPENDENCIES\n  rails (~> 7.0)\n  some-gem!\n\nCHECKSUMS\n  rack (2.2.0) sha256=deadbeefcafebabe1234567890abcdef1234567890abcdef1234567890abcdef\n\nRUBY VERSION\n   ruby 3.2.0p0",
+    "origin": "Chroma v2.27.0 lexers/testdata/gemfile-lock.actual (first 20 lines)"
+  },
+  {
+    "language": "pot",
+    "lexer": "Gettext",
+    "source": "# comment\nmsgid \"hello\"\nmsgstr \"bonjour\"\n\nmsgid \"answer\"\nmsgstr \"42\"",
+    "origin": "handwritten"
+  },
+  {
+    "language": "cucumber",
+    "lexer": "Gherkin",
+    "source": "@foo34 @bar # some comment\nFeature: proof of concept\n\n  In order to read Cucumber features faster and eaiser on Github \n  As a Cucumber user\n  I want to have syntax highlighting for Gherkin\n  This is part of the narrative, even if I have the # symbol, it is still the narrative- not a comment\n\n  Background: this is multi-line description\n    do you like it?\n    Given cheese is good\n\n  Scenario Outline: this is a test \n                    this the second line of the desctiption\n    Given I have a <var1> and some \"string\"\n    And the following table and some 'string'\n      | header 1  | header 2  | # here is a comment after a step table header\n      | cell 1-1  | cell 1-2  | # here is a comment after a step table row\n      | cell 2-1  | \"cell 2-2\" |\n",
+    "origin": "Chroma v2.27.0 lexers/testdata/gherkin.actual (first 20 lines)"
+  },
+  {
+    "language": "gleam",
+    "lexer": "Gleam",
+    "source": "import gleam/io\n\n@external(erlang, \"lists\", \"reverse\")\npub fn reverse_list(items: List(e)) -> List(e) {\n  tail_recursive_reverse(items, [])\n}\n\n/// Tail recursion!\nfn tail_recursive_reverse(items: List(e), reversed: List(e)) -> List(e) {\n  case items {\n    [] -> reversed\n    [first, ..rest] -> tail_recursive_reverse(rest, [first, ..reversed])\n  }\n}\n\npub fn main() {\n\tlet _thing = <<\"Hello, Joe!\":utf8>>\n  io.debug(reverse_list([1, 2, 3, 4, 5]))\n  io.debug(reverse_list([\"a\", \"b\", \"c\", \"d\", \"e\"]))\n}",
+    "origin": "Chroma v2.27.0 lexers/testdata/gleam.actual (first 20 lines)"
+  },
+  {
+    "language": "glsl",
+    "lexer": "GLSL",
+    "source": "#version 330\n// comment\nuniform float answer;\nvoid main() { gl_Position = vec4(1.0, 0.0, 0.0, 1.0); }",
+    "origin": "handwritten"
+  },
+  {
+    "language": "gnuplot",
+    "lexer": "Gnuplot",
+    "source": "# comment\nanswer = 42\nset title \"hello\"\nplot sin(x) with lines",
+    "origin": "handwritten"
+  },
+  {
+    "language": "go-template",
+    "lexer": "Go Template",
+    "source": "{{/* comment */}}\n{{if .Ready}}hello {{.Name}}{{end}}\n{{printf \"%d\" 42}}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "graphql",
+    "lexer": "GraphQL",
+    "source": "query Hero($episode: Episode, $withFriends: Boolean!) {\n  hero(episode: $episode) {\n    name\n    friends @include(if: $withFriends) {\n      name\n      ...frag\n\n      ... {\n        inlineFrag\n      }\n    }\n  }\n}\n\nfragment frag on User {\n  id\n  name\n  profilePic(size: 50)\n}\n",
+    "origin": "Chroma v2.27.0 lexers/testdata/graphql.actual (first 20 lines)"
+  },
+  {
+    "language": "groff",
+    "lexer": "Groff",
+    "source": ".\\\" comment\n.TH HELLO 1\n.SH NAME\nhello \\- example\n.B 42",
+    "origin": "handwritten"
+  },
+  {
+    "language": "groovy",
+    "lexer": "Groovy",
+    "source": "// comment\ndef answer = 42\ndef name = \"world\"\nprintln \"hello ${name}\"",
+    "origin": "handwritten"
+  },
+  {
+    "language": "handlebars",
+    "lexer": "Handlebars",
+    "source": "{{! comment }}\n{{#if answer}}\nhello {{name}}\n{{else}}42{{/if}}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "hare",
+    "lexer": "Hare",
+    "source": "// test comment\nuse bufio::*;\nuse fmt, os::exec = exec;\nuse time;\n\ntype foo = struct {\n\tbar: str,\n\tbaz: time::duration,\n};\n\nexport type e = enum u8 {\n\ta, b, c\n};\n\nconst arr: [_]foo= [\n\tfoo { bar = \"This is a \\\"string\\\"!\", baz = 25 * time::MINUTE },\n\tfoo { bar = `This is also a\nstring`, baz = 5 * time::SECOND},\n];\n",
+    "origin": "Chroma v2.27.0 lexers/testdata/hare.actual (first 20 lines)"
+  },
+  {
+    "language": "haskell",
+    "lexer": "Haskell",
+    "source": "module Hello where\n-- comment\nanswer :: Int\nanswer = 42\ngreet name = \"hello \" ++ name\n{- block comment -}\nmain = putStrLn (greet \"world\")",
+    "origin": "handwritten"
+  },
+  {
+    "language": "hcl",
+    "lexer": "HCL",
+    "source": "# comment\nresource \"example\" \"main\" {\n count = 42\n name = \"hello\"\n tags = { enabled = true }\n}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "hexdump",
+    "lexer": "Hexdump",
+    "source": "00000000  68 65 6c 6c 6f 00 2a 0a  |hello.*.|\n00000008",
+    "origin": "handwritten"
+  },
+  {
+    "language": "hlb",
+    "lexer": "HLB",
+    "source": "# Run `npm test` for the node project `left-pad`.\nfs default() {\n\tnpmRun leftPad fs { nodeModules leftPad; } \"test\"\n}\n\nfs leftPad() {\n\tgit \"https://github.com/left-pad/left-pad.git\" \"master\"\n}\n\nfs npmInstall(fs src) {\n\timage \"node:alpine\" with option {\n\t\tresolve\n\t}\n\trun \"npm install\" with option {\n\t\tdir \"/src\"\n\t\tmount src \"/src\"\n\t\t# Name the mounted filesystem as nodeModules\n\t\tmount fs { scratch; } \"/src/node_modules\" as nodeModules\n\t}\n}",
+    "origin": "Chroma v2.27.0 lexers/testdata/hlb.actual (first 20 lines)"
+  },
+  {
+    "language": "hlsl",
+    "lexer": "HLSL",
+    "source": "float4 vertex(float3 position) {\n    return mul(projection, mul(view, mul(model, float4(position, 1.0))));\n}",
+    "origin": "Chroma v2.27.0 lexers/testdata/hlsl.actual (first 20 lines)"
+  },
+  {
+    "language": "holyc",
+    "lexer": "HolyC",
+    "source": "// comment\nU0 Main() {\n I64 answer = 42;\n \"hello %d\\n\", answer;\n}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "html",
+    "lexer": "HTML",
+    "source": "<!DOCTYPE html>\n<!-- comment -->\n<div class=\"greeting\">hello &amp; 42</div>\n<style>div { color: red; }</style>\n<script>let answer = 42;</script>",
+    "origin": "handwritten"
+  },
+  {
+    "language": "hylang",
+    "lexer": "Hy",
+    "source": "; comment\n(setv answer 42)\n(defn greet [name] (+ \"hello \" name))",
+    "origin": "handwritten"
+  },
+  {
+    "language": "idris",
+    "lexer": "Idris",
+    "source": "-- comment\nmodule Main\nanswer : Nat\nanswer = 42\nmain : IO ()\nmain = putStrLn \"hello\"",
+    "origin": "handwritten"
+  },
+  {
+    "language": "igor",
+    "lexer": "Igor",
+    "source": "#pragma rtGlobals=3\n\n#include \"someFile\"\n\nStrConstant myConstString=\"abcd\"\n// some comment\nConstant myConst=123\n\nstatic Structure struct1\n\tstring str\n\tvariable var\nEndStructure\n\nFunction/WAVE myFunction(var)\n\tVariable var\n\n\tMake/N=(var) test\n\n\treturn test\nEnd",
+    "origin": "Chroma v2.27.0 lexers/testdata/igor.actual (first 20 lines)"
+  },
+  {
+    "language": "ini",
+    "lexer": "INI",
+    "source": "; comment\n[section]\nanswer = 42\nname = \"hello\"\nenabled = true",
+    "origin": "handwritten"
+  },
+  {
+    "language": "io",
+    "lexer": "Io",
+    "source": "// comment\nanswer := 42\ngreet := method(name, (\"hello \" .. name) println)",
+    "origin": "handwritten"
+  },
+  {
+    "language": "iscdhcpd",
+    "lexer": "ISCdhcpd",
+    "source": "# dhcpd.conf\n#\n# Sample configuration file for ISC dhcpd\n#\n# Attention: If /etc/ltsp/dhcpd.conf exists, that will be used as\n# configuration file instead of this file.\n#\n\n# option definitions common to all supported networks...\noption domain-name \"example.org\";\noption domain-name-servers ns1.example.org, ns2.example.org;\n\ndefault-lease-time 600;\nmax-lease-time 7200;\n\nddns-update-style none;\n\nauthoritative;\n\nlog-facility local7;",
+    "origin": "Chroma v2.27.0 lexers/testdata/iscdhcpd.actual (first 20 lines)"
+  },
+  {
+    "language": "j",
+    "lexer": "J",
+    "source": "NB. from stdlib.ijs\ntoupper=: 3 : 0`((((65+i.26){a.)(97+i.26)}a.) {~ a. i. ])@.(2 = 3!:0)\nx=. I. 26 > n=. ((97+i.26){a.) i. t=. ,y\n($y) $ ((x{n) { (65+i.26){a.) x}t\n)\n",
+    "origin": "Chroma v2.27.0 lexers/testdata/j.actual (first 20 lines)"
+  },
+  {
+    "language": "janet",
+    "lexer": "Janet",
+    "source": "# A game of life implementation\n\n(def- window\n  (seq [x :range [-1 2]\n         y :range [-1 2]\n         :when (not (and (zero? x) (zero? y)))]\n       [x y]))\n\n(defn- neighbors\n  [[x y]]\n  (map (fn [[x1 y1]] [(+ x x1) (+ y y1)]) window))\n\n(defn tick\n  \"Get the next state in the Game Of Life.\"\n  [state]\n  (def cell-set (frequencies state))\n  (def neighbor-set (frequencies (mapcat neighbors state)))\n  (seq [coord :keys neighbor-set\n         :let [count (get neighbor-set coord)]\n         :when (or (= count 3) (and (get cell-set coord) (= count 2)))]",
+    "origin": "Chroma v2.27.0 lexers/testdata/janet.actual (first 20 lines)"
+  },
+  {
+    "language": "java",
+    "lexer": "Java",
+    "source": "package example;\n// comment\npublic class Hello {\n    private static final int ANSWER = 42;\n    public static void main(String[] args) {\n        System.out.println(\"hello \" + ANSWER);\n    }\n}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "js",
+    "lexer": "JavaScript",
+    "source": "sum = parseInt(num1) + parseInt(num2) // \"+\" means \"add\"\nalert(\"Sum = \" + sum)  // \"+\" means combine into a string\nconst filePath = String.raw`C:\\Development\\profile\\aboutme.html`;\n\nlet n = 0x21 + 1_000;\nlet n2 = 1e3;\n\nusing resource = new Resource();",
+    "origin": "Chroma v2.27.0 lexers/testdata/javascript.actual (first 20 lines)"
+  },
+  {
+    "language": "json",
+    "lexer": "JSON",
+    "source": "{\n\t\"list\": [1, 2, 3],\n\t\"map\": {\n\t\t\"key\": \"value\",\n\t},\n\t// A comment\n\t\"number\": 1.23,\n\t\"string\": \"string\",\n\t\"positive\": true,\n\t\"negative\": false\n}",
+    "origin": "Chroma v2.27.0 lexers/testdata/json.actual (first 20 lines)"
+  },
+  {
+    "language": "jsonata",
+    "lexer": "JSONata",
+    "source": "(\n  $.a.b.c;\n\n  /* Example json input */\n  $jsonInput := {\n    \"firstName\": \"JSONata\",\n    \"lastName\": \"User\",\n    \"age\": 25,\n    \"skills\": [\"programming\", \"cooking\"],\n    \"over 18\": true,\n    \"coordinates\": { \"latitude\": 51.509865, \"longitude\": -0.118092 }\n  };\n  \n  /* Example function definition */\n  $getGreeting := function($firstName, $lastName) {\n    \"Hello, \" & $firstName & \" \" & $lastName\n  };\n\n  $isAdult := $jsonInput.`over 18`;\n  ",
+    "origin": "Chroma v2.27.0 lexers/testdata/jsonata.actual (first 20 lines)"
+  },
+  {
+    "language": "jsonnet",
+    "lexer": "Jsonnet",
+    "source": "local application = 'my-app';\nlocal module = 'uwsgi_module';\nlocal dir = '/var/www';\nlocal permission = 644;\n\n{\n  'uwsgi.ini': std.manifestIni({\n    sections: {\n      uwsgi: {\n        module: module,\n        pythonpath: dir,\n        socket: dir + '/uwsgi.sock',\n        'chmod-socket': permission,\n        callable: application,\n        logto: '/var/log/uwsgi/uwsgi.log',\n      },\n    },\n  }),\n\n  'init.sh': |||",
+    "origin": "Chroma v2.27.0 lexers/testdata/jsonnet.actual (first 20 lines)"
+  },
+  {
+    "language": "julia",
+    "lexer": "Julia",
+    "source": "## Test keywords are identified\n\nmutable struct MutableType end\nstruct ImmutableType end\nabstract type AbstractMyType end\nprimitive type MyPrimitive 32 end\n(abstract, mutable, type) = true, π, missing\n\nabstract    type AbstractMyType end\nprimitive   type MyPrimitive 32 end\nmutable     struct MutableType end\n\n## Test that macros are parsed, including ones which are defined as symbols\n\n@generated function\n@. a + b\n@~ a + b\n@± a + b\n@mymacro(a, b)\n@+¹ᵀ a",
+    "origin": "Chroma v2.27.0 lexers/testdata/julia.actual (first 20 lines)"
+  },
+  {
+    "language": "jungle",
+    "lexer": "Jungle",
+    "source": "project.manifest = manifest.xml\n\n#here is a comment\nbase.barrelPath = barrels\n\nfr235.barrelPath = barrels/IconLibrary.barrel;barrels/GraphLibrary.barrel\nfr645m.barrelPath = barrels/M.barrel;[A/A.jungle;A/B.jungle]\nround-215x215.GraphLibrary.annotations = bar\n\nround.resourcePath = $(base.resourcePath);resource-round\nDigitsPicker = [..\\ScreenPickers\\monkey.jungle]\nbase.barrelPath = $(base.barrelPath);$(DigitsPicker)\nd2bravo.resourcePath = $(d2bravo.resourcePath);resources-round-218x218-ciq_1.x;resources-ciq_1.x-no_hr\nd2bravo_titanium.resourcePath = $(d2bravo_titanium.resourcePath);resources-round-218x218-ciq_1.x;resources-ciq_1.x",
+    "origin": "Chroma v2.27.0 lexers/testdata/jungle.actual (first 20 lines)"
+  },
+  {
+    "language": "kak",
+    "lexer": "Kakoune",
+    "source": "define-command -hidden -params 4 doc-render-regex %{\n    evaluate-commands -draft %{ try %{\n        execute-keys <percent> s %arg{1} <ret>\n        execute-keys -draft s %arg{2} <ret> d\n        execute-keys \"%arg{3}\"\n        evaluate-commands %sh{\n            face=\"$4\"\n            eval \"set -- $kak_quoted_selections_desc\"\n            ranges=\"\"\n            for desc in \"$@\"; do ranges=\"$ranges '$desc|$face'\"; done\n            echo \"update-option buffer doc_render_ranges\"\n            echo \"set-option -add buffer doc_render_ranges $ranges\"\n        }\n    } }\n}",
+    "origin": "Chroma v2.27.0 lexers/testdata/kakoune.actual (first 20 lines)"
+  },
+  {
+    "language": "kdl",
+    "lexer": "KDL",
+    "source": "/- {\n    a\n}\n\na; b; c;\n\ncool /-a=\"thing\" plus=\"something else\" {\n    stuff\n}\n\na 12.42e8\n\n// Nodes can be separated into multiple lines\ntitle \\\n  \"Some title\"\n\n\n// Files must be utf8 encoded!\nsmile 😁\n",
+    "origin": "Chroma v2.27.0 lexers/testdata/kdl.actual (first 20 lines)"
+  },
+  {
+    "language": "kotlin",
+    "lexer": "Kotlin",
+    "source": "package example\n// comment\nclass Hello(val name: String) {\n    val answer: Int = 42\n    fun greet(): String = \"hello ${name}\"\n}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "lateralus",
+    "lexer": "Lateralus",
+    "source": "// examples/fibonacci.ltl  -  Fibonacci demonstration\n\nmodule examples.fibonacci\n\nimport io\n\nfn fib(n: int) -> int {\n    if n <= 0 { return 0 }\n    if n == 1 { return 1 }\n    return fib(n - 1) + fib(n - 2)\n}\n\nfn main() {\n    io.println(\"Fibonacci sequence:\")\n    let mut i = 0\n    while i <= 15 {\n        io.println(\"fib(\" + i as str + \") = \" + fib(i) as str)\n        i += 1\n    }\n}",
+    "origin": "Chroma v2.27.0 lexers/testdata/lateralus.actual (first 20 lines)"
+  },
+  {
+    "language": "lean4",
+    "lexer": "Lean4",
+    "source": "def f(x : Nat) : Nat := x + 1\n\n-- comment\n\ntheorem thm (p q r : Prop) : p ∧ (q ∨ r) → (p ∧ q) ∨ (p ∧ r) := by\n  intro ⟨hp, hqr⟩\n  show (p ∧ q) ∨ (p ∧ r)\n  cases hqr with\n  | inl hq =>\n    have hpq : p ∧ q := And.intro hp hq\n    apply Or.inl\n    exact hpq\n  | inr hr =>\n    have hpr : p ∧ r := And.intro hp hr\n    apply Or.inr\n    exact hpr",
+    "origin": "Chroma v2.27.0 lexers/testdata/lean.actual (first 20 lines)"
+  },
+  {
+    "language": "lighty",
+    "lexer": "Lighttpd configuration file",
+    "source": "# comment\nserver.port = 8080\nserver.document-root = \"/var/www\"\n$HTTP[\"host\"] == \"example.com\" {\n server.name = \"hello\"\n}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "lilypond",
+    "lexer": "LilyPond",
+    "source": "% Chord example\n\n\\new ChordNames {\n  \\chordmode {\n    c1 | f | g:7 | c |\n    c:m | f:dim | g:aug | c:maj7 |\n  }\n}\n\n\\new Staff {\n  \\relative c' {\n    c4 e g c |\n    f, a c f |\n    g, b d f |\n    c e g c |\n  }\n}\na_1\n\\markup_1",
+    "origin": "Chroma v2.27.0 lexers/testdata/lilypond/chords.actual (first 20 lines); handwritten regexp2 category-order suffixes"
+  },
+  {
+    "language": "llvm",
+    "lexer": "LLVM",
+    "source": "; comment\n@msg = constant [6 x i8] c\"hello\\00\"\ndefine i32 @main() {\n ret i32 42\n}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "lox",
+    "lexer": "lox",
+    "source": "// Your first Lox program!\nprint \"Hello, world!\";\n\ntrue;  // Not false.\nfalse; // Not *not* false.\n\n1234;  // An integer.\n12.34; // A decimal number.\n\n\"I am a string\";\n\"\";    // The empty string.\n\"123\"; // This is a string, not a number.\n\nnil;\n\nadd + me;\nsubtract - me;\nmultiply * me;\ndivide / me;\n",
+    "origin": "Chroma v2.27.0 lexers/testdata/lox.actual (first 20 lines)"
+  },
+  {
+    "language": "lua",
+    "lexer": "Lua",
+    "source": "-- comment\nlocal answer = 42\nlocal function greet(name)\n return \"hello \" .. name\nend\nprint(greet(\"world\"))",
+    "origin": "handwritten"
+  },
+  {
+    "language": "luau",
+    "lexer": "Luau",
+    "source": "-- we can define our own structural data types\ntype Point = { x: number, y: number }\n-- and we can annotate variables (and function arguments) with them)\nlocal p: Point = { x = 1, y = 2 }\n\nprint(p.x, p.y)\n\n-- and we can see that accessing an invalid field from a table raises a type error!\nprint(p.z)",
+    "origin": "Chroma v2.27.0 lexers/testdata/luau.actual (first 20 lines)"
+  },
+  {
+    "language": "make",
+    "lexer": "Makefile",
+    "source": "# comment\nANSWER := 42\nall: hello\n\t@echo \"hello $(ANSWER)\"\n.PHONY: all",
+    "origin": "handwritten"
+  },
+  {
+    "language": "mako",
+    "lexer": "Mako",
+    "source": "<%doc>comment</%doc>\n<% answer = 42 %>\n% if answer:\nhello ${name}\n% endif",
+    "origin": "handwritten"
+  },
+  {
+    "language": "mason",
+    "lexer": "Mason",
+    "source": "<%doc>comment</%doc>\n<%args>\n$name => \"hello\"\n</%args>\n<% $name %> 42",
+    "origin": "handwritten"
+  },
+  {
+    "language": "materialize",
+    "lexer": "Materialize SQL dialect",
+    "source": "-- basic statements\n\nCREATE VIEW my_typed_source AS\n  SELECT\n    (data->>'field1')::boolean AS field_1,\n    (data->>'field2')::int AS field_2,\n    (data->>'field3')::float AS field_3\n  FROM my_jsonb_source;\n\nWITH\n  regional_sales (region, total_sales) AS (\n    SELECT region, sum(amount)\n    FROM orders\n    GROUP BY region\n  ),\n  top_regions AS (\n    SELECT region\n    FROM regional_sales\n    ORDER BY total_sales DESC\n    LIMIT 5",
+    "origin": "Chroma v2.27.0 lexers/testdata/materialize.actual (first 20 lines)"
+  },
+  {
+    "language": "mathematica",
+    "lexer": "Mathematica",
+    "source": "(* comment *)\nanswer = 42;\nf[x_] := x^2 + 1\nPrint[\"hello\", f[answer]]",
+    "origin": "handwritten"
+  },
+  {
+    "language": "matlab",
+    "lexer": "Matlab",
+    "source": "% a sum function\nfunction p = vector_sum(x)\np = 0;\nfor k1 = 1:length(x)\n    p = p + x(k1);\nend\nend\n\nz = 1:10;\nsum_from_1_to_10 = vector_sum(z)",
+    "origin": "Chroma v2.27.0 lexers/testdata/matlab.actual (first 20 lines)"
+  },
+  {
+    "language": "mcfunction",
+    "lexer": "MCFunction",
+    "source": "fill 29 4 26 ~ ~ ~ minecraft:air replace minecraft:water\n\n# NBT (JSON-like) value.\nsummon zombie ~ ~ ~ {NoAI:1b}\n\n# Target selector\ngamemode creative @a\n\n# With argument\nkill @e[type=chicken,nested={a0=0,a1=1}]\n\n# Range\nkill @e[y_rotation=0..180]\n\n# Legacy and new style\nplacefeature minecraft:bonus_chest ~ ~ ~\nplace feature minecraft:bonus_chest ~ ~ ~",
+    "origin": "Chroma v2.27.0 lexers/testdata/mcfunction.actual (first 20 lines)"
+  },
+  {
+    "language": "meson",
+    "lexer": "Meson",
+    "source": "project('foo', 'cpp', default_options : ['warning_level=3'])\n\nrequired_modules = ['gnome']\n\nforeach mod in required_modules\n  import(mod)\nendforeach\n\n# Comment\nzlib_dep = dependency('zlib')\nexecutable('''bar''', 'main.cc', dependencies : zlib_dep)",
+    "origin": "Chroma v2.27.0 lexers/testdata/meson.actual (first 20 lines)"
+  },
+  {
+    "language": "metal",
+    "lexer": "Metal",
+    "source": "#include <metal_stdlib>\n\nusing namespace metal;\n\n// Include header shared between C code and .metal files.\n#include \"AAPLShaderTypes.h\"\n\n// Include header shared between all .metal files.\n#include \"AAPLShaderCommon.h\"\n\nstruct VertexOutput\n{\n    float4 position [[position]];\n};\n\n// A depth pre-pass is necessary in forward plus rendering to produce\n// minimum and maximum depth bounds for light culling.\nvertex VertexOutput depth_pre_pass_vertex(Vertex in [[ stage_in ]],\n                                          constant AAPLFrameData & frameData [[ buffer(AAPLBufferIndexFrameData) ]])\n{",
+    "origin": "Chroma v2.27.0 lexers/testdata/metal.actual (first 20 lines)"
+  },
+  {
+    "language": "µcad",
+    "lexer": "microcad",
+    "source": "// comment\nconst answer = 42;\nfn main() {\n let name = \"hello\";\n}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "minizinc",
+    "lexer": "MiniZinc",
+    "source": "% comment\nint: answer = 42;\nvar 1..answer: x;\nconstraint x > 0;\nsolve satisfy;\noutput [\"hello\"];",
+    "origin": "handwritten"
+  },
+  {
+    "language": "mlir",
+    "lexer": "MLIR",
+    "source": "// CHECK-LABEL: func @func_with_ops(%arg0: f32) {\nfunc @func_with_ops(%a : f32) {\n  // CHECK: %0 = \"getTensor\"() : () -> tensor<4x4x?xf32>\n  %t = \"getTensor\"() : () -> tensor<4x4x?xvector<10xf32>>>\n\n  %i6 = muli %i2, %i2 : i32\n  %t2 = \"std.dim\"(%t){index = 2} : (tensor<4x4x?xvector<10xf32>>) -> index\n  %x = \"foo\"(%a, %a) : (f32,f32) -> (memref<1 x i32, (d0) -> (d0), 4>)\n\n  return\n}\n\nfunc @count(%x: tensor<i64) -> (i64, i64)\n  attributes {fruit = \"banana\"} {\n  return %x, %x: i64, i64\n}\n\nfunc @correct_number_of_regions() {\n    // CHECK: test.two_region_op\n    \"test.two_region_op\"()(",
+    "origin": "Chroma v2.27.0 lexers/testdata/mlir.actual (first 20 lines)"
+  },
+  {
+    "language": "modelica",
+    "lexer": "Modelica",
+    "source": "\nwithin TestKeywords;\n\npackage TestKeywords\n  // -----------------------------------------\n  // Basic classes and types\n  // -----------------------------------------\n  record MyRecord\n    parameter Real r = 1.0;       // 'parameter', 'Real'\n    Integer i;                   // 'Integer'\n  end MyRecord;                  // 'record', 'end'\n\n  connector MyConnector\n    flow Real f;                 // 'connector', 'flow', 'Real'\n    stream String s;             // 'stream', 'String'\n    input Real inVar;            // 'input'\n    output Real outVar;          // 'output'\n  end MyConnector;\n\n  type MyType = Real;            // 'type', 'Real'",
+    "origin": "Chroma v2.27.0 lexers/testdata/modelica.actual (first 20 lines)"
+  },
+  {
+    "language": "modula2",
+    "lexer": "Modula-2",
+    "source": "MODULE Hello;\n(* comment *)\nVAR answer: INTEGER;\nBEGIN\n answer := 42;\nEND Hello.",
+    "origin": "handwritten"
+  },
+  {
+    "language": "mojo",
+    "lexer": "Mojo",
+    "source": "from a import B\nfrom a import C as D\n\nalias ModuleInt = Int\n\nfn my_func[T: Int](a: T) -> T:\n    var s = Struct[Int]()\n    var b = s.test(a=a)\n\n    try:\n        a = raising_func(a)\n    except:\n        return a\n    finally:\n        pass\n\n    return a\n\nfn raising_func(a: Int) raises -> Int:\n    if a == 0:",
+    "origin": "Chroma v2.27.0 lexers/testdata/mojo/test_basic.actual (first 20 lines)"
+  },
+  {
+    "language": "monkeyc",
+    "lexer": "MonkeyC",
+    "source": "using Toybox.Application as App;\nusing Toybox.System;\n\nconst PI = 3.14;\n\nclass MyProjectApp extends App.AppBase {\n    protected var y;\n\n    function initialize () {\n        me.y = \"Hello\";\n        self.y = \"World\";\n        var x = add( 3, 4 );\n        var array = new [x];\n\n        // Initialize the sub-arrays\n        for( var i = 0; i < x; i += 1 ) {\n            array[i] = new [5];\n        }\n\n        var dict = { \"a\" => 1, \"b\" => 2 };",
+    "origin": "Chroma v2.27.0 lexers/testdata/monkeyc.actual (first 20 lines)"
+  },
+  {
+    "language": "moonbit",
+    "lexer": "MoonBit",
+    "source": "///|\n/// A point on the screen.\n#valtype\npub(all) struct Point {\n  x : Int\n  y : Int\n} derive(Show, Eq, Compare, Hash, Default)\n\n///|\n/// Shortcut for creating a `Point`.\npub fn Point::new(x : Int, y : Int) -> Point {\n  Point::{ x, y }\n}\n\n///|\n/// Add together two points.\npub impl Add for Point with add(self : Point, other : Point) -> Point {\n  { x: self.x + other.x, y: self.y + other.y }\n}\n",
+    "origin": "Chroma v2.27.0 lexers/testdata/moonbit.actual (first 20 lines)"
+  },
+  {
+    "language": "moonscript",
+    "lexer": "MoonScript",
+    "source": "#!/usr/local/bin/moon\n\n-- a comment\n\n.01\n0.1\n1.5E+3\n.3e-2\n\n2E3\n1e-12\n\n0x\n0xff\n0x56\n\n1024\n\n[[long\nformat",
+    "origin": "Chroma v2.27.0 lexers/testdata/moonscript.actual (first 20 lines)"
+  },
+  {
+    "language": "morrowind",
+    "lexer": "MorrowindScript",
+    "source": "; comment\nbegin example\nshort answer\nset answer to 42\nMessageBox \"hello\"\nend",
+    "origin": "handwritten"
+  },
+  {
+    "language": "myghty",
+    "lexer": "Myghty",
+    "source": "<%doc>comment</%doc>\n<%args>\nname = \"hello\"\n</%args>\n<% name %> 42",
+    "origin": "handwritten"
+  },
+  {
+    "language": "mysql",
+    "lexer": "MySQL",
+    "source": "-- comment\nSELECT name, 42 AS answer FROM users WHERE active = true;\nSET @greeting = \"hello\";",
+    "origin": "handwritten"
+  },
+  {
+    "language": "nasm",
+    "lexer": "NASM",
+    "source": "; comment\nsection .data\nmsg db \"hello\", 0\nsection .text\nmov eax, 42\nret",
+    "origin": "handwritten"
+  },
+  {
+    "language": "natural",
+    "lexer": "Natural",
+    "source": "* Comment\nDEFINE DATA /* Inline comment\nLOCAL\n1 #VAR-NAME-1 (A10) INIT<'Hello'>\n1 #I (I4)\nEND-DEFINE\n\nIF #VAR-NAME-1 = 'Hello'\nIGNORE\nEND-IF\n\nPERFORM MY-SUBROUTINE\n\nWRITE #VAR-NAME-1\n\nDEFINE SUBROUTINE MY-SUBROUTINE\nFOR #I = 1 TO 10\nESCAPE MODULE\nEND-FOR\nEND-SUBROUTINE",
+    "origin": "Chroma v2.27.0 lexers/testdata/natural.actual (first 20 lines)"
+  },
+  {
+    "language": "ndisasm",
+    "lexer": "NDISASM",
+    "source": "00000000  B013              mov al,0x13\n00000002  CD10              int 0x10\n00000004  B9027D            mov cx,0x7d02\n00000007  51                push cx\n00000008  6800A0            push word 0xa000\n0000000B  07                pop es\n0000000C  B00F              mov al,0xf\n0000000E  F3AA              rep stosb\n00000010  59                pop cx\n00000011  B004              mov al,0x4\n00000013  F3AA              rep stosb\n00000015  CD16              int 0x16",
+    "origin": "Chroma v2.27.0 lexers/testdata/ndisasm.actual (first 20 lines)"
+  },
+  {
+    "language": "newspeak",
+    "lexer": "Newspeak",
+    "source": "\"comment\"\nclass Hello = (| answer = 42. |) (\n public greet = (^'hello')\n)",
+    "origin": "handwritten"
+  },
+  {
+    "language": "nginx",
+    "lexer": "Nginx configuration file",
+    "source": "http {\n    upstream app_backend {\n        server 127.0.0.1;\n        server 127.0.0.1:8082;\n        server backend.com;\n        server backend-2.com weight=5;\n        server backend-backup.org backup;\n    }\n\n    map $http_host $site_root {\n        default /var/www/default; # Default root\n        example.com /var/www/example_com;\n        example.org /var/www/example_org;\n    }\n\n    server {\n        listen 80 default_server;\n        server_name _;\n\n        root /var/www/default;",
+    "origin": "Chroma v2.27.0 lexers/testdata/nginx.actual (first 20 lines)"
+  },
+  {
+    "language": "nim",
+    "lexer": "Nim",
+    "source": "# -*- nim -*-\nimport random\nproc randBool(): bool =\n  randomize()\n  result = rand(1).bool\nfor _ in 0..5:\n  echo randBool()",
+    "origin": "Chroma v2.27.0 lexers/testdata/nim.actual (first 20 lines)"
+  },
+  {
+    "language": "nixos",
+    "lexer": "Nix",
+    "source": "# comment\n{ pkgs ? import <nixpkgs> {} }:\nlet answer = 42; in { name = \"hello\"; inherit answer; }",
+    "origin": "handwritten"
+  },
+  {
+    "language": "nsis",
+    "lexer": "NSIS",
+    "source": "!include \"nsDialogs.nsh\"\n!include \"winmessages.nsh\"\n!include \"logiclib.nsh\"\nOutFile \"test.exe\"\n\nPage Custom pre\n\nvar dialog\nvar hwnd\nvar button\n\nFunction pre\n\tnsDialogs::Create 1018\n\tPop $dialog\n\t${NSD_CreateCheckbox} 0 0 50 6 \"Enable button below\"\n\t\tPop $hwnd\n\t\t${NSD_OnClick} $hwnd EnDisableButton\n\n\t${NSD_CreateButton} 25 25 50 50 \"Hello World\"\n\t\tPop $button",
+    "origin": "Chroma v2.27.0 lexers/testdata/nsis.actual (first 20 lines)"
+  },
+  {
+    "language": "nu",
+    "lexer": "Nu",
+    "source": "\"12\" | into int\n\ndate now | date to-timezone \"Europe/London\"\n\n{'name': 'nu', 'stars': 5, 'language': 'Python'} | upsert language 'Rust'\n\n[one two three] | to yaml\n\n[[framework, language]; [Django, Python] [Laravel, PHP]]\n\n[{name: 'Robert' age: 34 position: 'Designer'}\n {name: 'Margaret' age: 30 position: 'Software Developer'}\n {name: 'Natalie' age: 50 position: 'Accountant'}\n] | select name position\n\nlet name = \"Alice\"\n$\"greetings, ($name)!\"\n# => greetings, Alice!\n\nlet string_list = \"one,two,three\" | split row \",\"",
+    "origin": "Chroma v2.27.0 lexers/testdata/nu.actual (first 20 lines)"
+  },
+  {
+    "language": "objective-c",
+    "lexer": "Objective-C",
+    "source": "#import <Foundation/Foundation.h>\n// comment\nint main() {\n NSString *s = @\"hello\";\n return 42;\n}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "objectpascal",
+    "lexer": "ObjectPascal",
+    "source": "﻿{*******************************************************}\n{            a totally senseless test unit              }\n{*******************************************************}\n\nunit UnitLexerTest;\n\ninterface\n\nuses\n  System.Classes,\n  System.SysUtils;\n\n{$SCOPEDENUMS ON}\n\nresourcestring\n  sEIsRunning = 'Cannot perform this operation when test is running.';\n  sENotRunning = 'Test not running.';\n\nconst\n  CUNICODE = '��';",
+    "origin": "Chroma v2.27.0 lexers/testdata/objectpascal.actual (first 20 lines)"
+  },
+  {
+    "language": "ocaml",
+    "lexer": "OCaml",
+    "source": "let create_user =\n    (unit ->. unit)\n    @@ {eos|\n      CREATE TABLE IF NOT EXISTS user (\n        id INTEGER PRIMARY KEY,\n        name TEXT NOT NULL CHECK (LENGTH(name) <= 256),\n        password_hash TEXT NOT NULL,\n        created_unix INTEGER NOT NULL DEFAULT (unixepoch()),\n\n        UNIQUE (name COLLATE NOCASE)\n      ) STRICT\n    |eos}\n\nlet create_group =\n    (unit ->. unit)\n    @@ {|\n      CREATE TABLE IF NOT EXISTS `group` (\n        id INTEGER PRIMARY KEY,\n        name TEXT NOT NULL CHECK (LENGTH(name) <= 256),\n        description TEXT CHECK (description IS NULL OR LENGTH(description) <= 1024),",
+    "origin": "Chroma v2.27.0 lexers/testdata/ocaml.actual (first 20 lines)"
+  },
+  {
+    "language": "octave",
+    "lexer": "Octave",
+    "source": "% comment\nanswer = 42;\nfunction y = square(x)\n y = x.^2;\nendfunction\ndisp(\"hello\");",
+    "origin": "handwritten"
+  },
+  {
+    "language": "odin",
+    "lexer": "Odin",
+    "source": "#+feature dynamic-literals\n#+build windows,!linux\n#+ignore\npackage main\n\nimport \"core:fmt\"\n\n/*\nsome comments in odin can\n /* be nested! */\nand it should still work\n*/\n\nData :: struct {\n\tc: complex64,\n\tq: quaternion256,\n}\n\n/* some other comment */\n",
+    "origin": "Chroma v2.27.0 lexers/testdata/odin.actual (first 20 lines)"
+  },
+  {
+    "language": "ones",
+    "lexer": "OnesEnterprise",
+    "source": "#Область СлужебныйПрограммныйИнтерфейс\n\n&НаСервере\nФункция Создать(ИмяФайла) Экспорт\n\t\n\t//Создает новый архив\n\n\tИнфо = Новый Файл(ИмяФайла);\n\tЕсли Инфо.Существует() Тогда\n\t\tУдалитьФайлы(ИмяФайла);\n\tКонецЕсли;\n\t\n\tАрхив = Новый Структура;\n\tАрхив.Вставить(\"Поток\", ФайловыеПотоки.ОткрытьДляЗаписи(ИмяФайла));\n\tАрхив.Вставить(\"Файлы\", Новый Массив);\n\tАрхив.Вставить(\"РазмерКаталога\", 0);\n\n\tЕсли Архив.РазмерКаталога > 0 Или Архив.Файлы.Количество() <> 0 Тогда\n\t\tВозврат Неопределено;\n\tКонецЕсли;",
+    "origin": "Chroma v2.27.0 lexers/testdata/onesenterprise.actual (first 20 lines)"
+  },
+  {
+    "language": "openedge",
+    "lexer": "OpenEdge ABL",
+    "source": "//Source of this test file: https://github.com/patrickTingen/DataDigger/blob/master/DataDiggerLib.p\n&ANALYZE-SUSPEND _VERSION-NUMBER AB_v10r12\n&ANALYZE-RESUME\n&ANALYZE-SUSPEND _UIB-CODE-BLOCK _CUSTOM _DEFINITIONS Procedure\n/*------------------------------------------------------------------------\n\n  Name: DataDiggerLib.p\n  Desc: Library for DataDigger functions\n\n------------------------------------------------------------------------*/\n/*          This .W file was created with the Progress AppBuilder.       */\n/*----------------------------------------------------------------------*/\nDEFINE VARIABLE gcSaveDatabaseList  AS CHARACTER  NO-UNDO.\nDEFINE VARIABLE giDataserverNr      AS INTEGER    NO-UNDO.  /* [JAG 01-11-2019] */\nDEFINE VARIABLE glDirtyCache        AS LOGICAL    NO-UNDO.\n\n/* Buildnr, temp-tables and forward defs */\n{ DataDigger.i }\n\nPROCEDURE GetUserNameA EXTERNAL \"ADVAPI32.DLL\":",
+    "origin": "Chroma v2.27.0 lexers/testdata/openedgeabl.actual (first 20 lines)"
+  },
+  {
+    "language": "openscad",
+    "lexer": "OpenSCAD",
+    "source": "use <write.scad>\ninclude <../common/base.scad>\n\n/*\n\tMultiline\n\tComment\n*/\n\n//draw a foobar\nmodule foobar(){\n    translate([0,-10,0])\n    difference(){\n    \theight=5+6;\n        cube([height,10.04,2.99e+8]);\n        sphere(r=PI,$fn=100);\n    }\n}\n\nfoobar();\n#cube ([5,5,5]);",
+    "origin": "Chroma v2.27.0 lexers/testdata/openscad.actual (first 20 lines)"
+  },
+  {
+    "language": "org",
+    "lexer": "Org Mode",
+    "source": "# -*- org -*-\n#+title: Single Post with TOML front matter\n#+author:\n#+date: 2017-07-20\n#+options: creator:t toc:2\n\n#+hugo_base_dir: ../../\n#+hugo_categories: cat1 cat2\n#+hugo_menu: :menu \"foo\" :weight 10 :parent main :identifier single-toml\n#+description: Some description for this post.\n\nThis is a single post. You do not need to set the =EXPORT_FILE_NAME=\nproperty in here. But then you also lose the tag and property\ninheritance Org awesomeness.\n\nline one \\\\\nline two\n\n*bold* /italics/ =verbatim= ~code~ +strikethrough+ _underline_\n* First heading in this post",
+    "origin": "Chroma v2.27.0 lexers/testdata/org.actual (first 20 lines)"
+  },
+  {
+    "language": "pacmanconf",
+    "lexer": "PacmanConf",
+    "source": "# comment\n[options]\nArchitecture = auto\nCacheDir = /var/cache/pacman/pkg\n[core]\nInclude = /etc/pacman.d/mirrorlist",
+    "origin": "handwritten"
+  },
+  {
+    "language": "perl",
+    "lexer": "Perl",
+    "source": "# comment\nmy $answer = 42;\nsub greet { my ($name) = @_; return \"hello $name\"; }\nprint greet(\"world\");",
+    "origin": "handwritten"
+  },
+  {
+    "language": "php",
+    "lexer": "PHP",
+    "source": "// comment\n$answer = 42;\nfunction greet(string $name): string {\n    return \"hello $name\";\n}\n/* block comment */\necho greet('world');",
+    "origin": "handwritten"
+  },
+  {
+    "language": "pig",
+    "lexer": "Pig",
+    "source": "-- comment\na = LOAD 'hello' AS (name:chararray, value:int);\nb = FILTER a BY value > 42;\nDUMP b;",
+    "origin": "handwritten"
+  },
+  {
+    "language": "pkgconfig",
+    "lexer": "PkgConfig",
+    "source": "# comment\nprefix=/usr\nName: hello\nVersion: 1.2\nLibs: -L${prefix}/lib -lhello",
+    "origin": "handwritten"
+  },
+  {
+    "language": "plpgsql",
+    "lexer": "PL/pgSQL",
+    "source": "-- comment\nCREATE FUNCTION answer() RETURNS integer AS $$\nBEGIN\n RETURN 42;\nEND;\n$$ LANGUAGE plpgsql;",
+    "origin": "handwritten"
+  },
+  {
+    "language": "text",
+    "lexer": "plaintext",
+    "source": "hello world\nanswer = 42\n# comment",
+    "origin": "handwritten"
+  },
+  {
+    "language": "plutus-core",
+    "lexer": "Plutus Core",
+    "source": "(program 1.0.0\n    [\n        (lam f (all b (type) (fun b b)) [{f (con integer)} (con integer 5)])\n        (abs a (type) (lam x a x))\n    ]\n)",
+    "origin": "Chroma v2.27.0 lexers/testdata/plutus-core.typed.actual (first 20 lines)"
+  },
+  {
+    "language": "pony",
+    "lexer": "Pony",
+    "source": "use \"net\"\nuse \"files\"\n\nclass ClientSide is TCPConnectionNotify\n  let _env: Env\n\n  new iso create(env: Env) =>\n    _env = env\n\n  fun ref connecting(conn: TCPConnection ref, count: U32) =>\n    _env.out.print(\"connecting: \" + count.string())\n\n  fun ref connected(conn: TCPConnection ref) =>\n    try\n      (let host, let service) = conn.remote_address().name()?\n      _env.out.print(\"connected to \" + host + \":\" + service)\n      conn.set_nodelay(true)\n      conn.set_keepalive(10)\n      conn.write(\"client says hi\")\n    end",
+    "origin": "Chroma v2.27.0 lexers/testdata/pony.actual (first 20 lines)"
+  },
+  {
+    "language": "postgresql",
+    "lexer": "PostgreSQL SQL dialect",
+    "source": "-- comment\nSELECT 'hello', 42::integer AS answer;\nCREATE FUNCTION f() RETURNS int AS $$return 42$$ LANGUAGE python;",
+    "origin": "handwritten"
+  },
+  {
+    "language": "postscript",
+    "lexer": "PostScript",
+    "source": "%!PS\n% comment\n/answer 42 def\n/Times-Roman findfont 12 scalefont setfont\n(hello) show",
+    "origin": "handwritten"
+  },
+  {
+    "language": "pov",
+    "lexer": "POVRay",
+    "source": "// comment\n#declare Answer = 42;\nsphere { <0, 1, 0>, 2 texture { pigment { color rgb <1, 0, 0> } } }",
+    "origin": "handwritten"
+  },
+  {
+    "language": "powerquery",
+    "lexer": "PowerQuery",
+    "source": "let\n  GetLabel = (subject as text) as nullable table =>\n    let \n      // Request Ntriples from the LDF Service\n      Options = [Headers = [#\"Accept\"=\"text/csv\"]],\n      FixedSubject = if Text.At(subject,0) <> \"<\" then Text.Combine({\"<\",subject,\">\"}) else subject,\n      Query = Text.Combine({\"SELECT ?label WHERE {\n        SERVICE wikibase:label {\n        bd:serviceParam wikibase:language \"\"en\"\" .\n        \",FixedSubject,\" <http://www.w3.org/2000/01/rdf-schema#label> ?label\n        }\n      }\"}),\n      /* this is a multiline comment, see https://docs.microsoft.com/en-us/powerquery-m/comments\n      */\n      url = Text.Combine({\"https://query.wikidata.org/sparql?\",Uri.BuildQueryString([query=Query])}),\n      data = Csv.Document(Web.Contents(url,Options)),\n      promoted = Table.PromoteHeaders(data, [PromoteAllScalars=true])\n    in \n      promoted \nin",
+    "origin": "Chroma v2.27.0 lexers/testdata/powerquery.actual (first 20 lines)"
+  },
+  {
+    "language": "powershell",
+    "lexer": "PowerShell",
+    "source": "# comment\n$Answer = 42\nfunction Get-Greeting([string] $Name) {\n    Write-Output \"hello $Name\"\n}\n<# block comment #>\nGet-Greeting -Name 'world' ",
+    "origin": "handwritten"
+  },
+  {
+    "language": "prolog",
+    "lexer": "Prolog",
+    "source": "% comment\nanswer(42).\ngreet(Name) :- write('hello '), write(Name).",
+    "origin": "handwritten"
+  },
+  {
+    "language": "promela",
+    "lexer": "Promela",
+    "source": "// reverse polish\n\nmtype = { operator, value }\n\nchan f = [12] of { mtype, int }\n\nproctype calc(chan you)\n{\tint s, lft, rgt\n\tchan me = [0] of { int }\n\n\tif\n\t:: f?operator(s)\n\t\trun calc(me); me?lft\n\t\trun calc(me); me?rgt\n\t\tif\n\t\t:: s == '+' -> you!(lft+rgt)\n\t\tfi\n\t:: f?value(s) -> you!s\n\tfi\n}",
+    "origin": "Chroma v2.27.0 lexers/testdata/promela/calc.actual (first 20 lines)"
+  },
+  {
+    "language": "promql",
+    "lexer": "PromQL",
+    "source": "# A metric with label filtering\ngo_gc_duration_seconds{instance=\"localhost:9090\", job=\"alertmanager\"}\n\n# Aggregation operators\nsum by (app, proc) (\n  instance_memory_limit_bytes - instance_memory_usage_bytes\n) / 1024 / 1024\n\n# Metric with multiple lables and whitespaces\ngo_gc_duration_seconds{ instance=\"localhost:9090\",  job=\"alertmanager\" }\n\n# Expression and comment\ngo_gc_duration_seconds{instance=\"localhost:9090\"} # single comment\n\n# Delta function\ndelta(cpu_temp_celsius{host=\"zeus\"}[2h])\n\n# Sum with arguments\nsum by (app, proc) (instance_memory_usage_bytes)\n",
+    "origin": "Chroma v2.27.0 lexers/testdata/promql.actual (first 20 lines)"
+  },
+  {
+    "language": "java-properties",
+    "lexer": "properties",
+    "source": "# You are reading a comment in \".properties\" file.\n! The exclamation mark can also be used for comments.\n# Lines with \"properties\" contain a key and a value separated by a delimiting character.\n# There are 3 delimiting characters: '=' (equal), ':' (colon) and whitespace (space, \\t and \\f).\nwebsite = https://en.wikipedia.org/\nlanguage : English\n# White space that appears between the key, the value and the delimiter is ignored.\n# This means that the following are equivalent (other than for readability).\nhello=hello\nhello = hello\ntopic .properties files\n# A word on a line will just create a key with no value.\nempty\n# Keys with the same name will be overwritten by the key that is the furthest in a file.\n# For example the final value for \"duplicateKey\" will be \"second\".\nduplicateKey = first\nduplicateKey = second\n# Adding a \\ at the end of a line means that the value continues to the next line.\ntowLines = This line \\\n           continues",
+    "origin": "Chroma v2.27.0 lexers/testdata/properties.actual (first 20 lines)"
+  },
+  {
+    "language": "protobuf",
+    "lexer": "Protocol Buffer",
+    "source": "edition = \"2023\";\n\npackage com.example;\n\nimport \"google/protobuf/descriptor.proto\";\n\noption features.field_presence = EXPLICIT;\n\nmessage MyMessage {\n  string name = 1;\n  int32 value = 2 [features.field_presence = IMPLICIT];\n}\n\nenum MyEnum {\n  option features.enum_type = CLOSED;\n  MY_ENUM_UNSPECIFIED = 0;\n  MY_ENUM_VALUE = 1;\n}",
+    "origin": "Chroma v2.27.0 lexers/testdata/protobuf/editions2023.actual (first 20 lines)"
+  },
+  {
+    "language": "prql",
+    "lexer": "PRQL",
+    "source": "# comment\nfrom employees\nfilter salary > 42\nderive { greeting = \"hello\" }\nselect {name, greeting}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "psl",
+    "lexer": "PSL",
+    "source": "    #PACKAGE custom\n    #ACCEPT Date = 04/03/2021;\n    #OPTION ResultClass ON\n\npublic Number SumMethod() {\n    // this is a comment\n    type public Number x\n    set x = 10.0\n    type String thisIsAString = \"this\"_x_\"conjoined\"\n    type String i = \"\"\n    type Date sysDate = %SystemDate\n    type Boolean publicVar = .PubBoolean\n    for  set i = ^UTBL(\"test\",i).order() quit:i.isNull()  {\n        set x = x + i\n    }\n    set x = x + $$getMore^ProcedureName(\"AAA\")\n    do finishTask(x, \"AAA\")\n\n    quit",
+    "origin": "Chroma v2.27.0 lexers/testdata/psl.actual (first 20 lines)"
+  },
+  {
+    "language": "puppet",
+    "lexer": "Puppet",
+    "source": "# comment\n$answer = 42\nfile { '/tmp/hello':\n ensure => present,\n content => \"hello ${answer}\",\n}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "python",
+    "lexer": "Python",
+    "source": "# From CPython (Lib/asyncio/coroutines.py)\n__all__ = 'coroutine', 'iscoroutinefunction', 'iscoroutine'\n\nimport collections.abc\nimport functools\nimport inspect\nimport os\nimport sys\nimport traceback\nimport types\nimport warnings\n\nfrom . import base_futures\nfrom . import constants\nfrom . import format_helpers\nfrom .log import logger\n\n\ndef _is_debug_mode():\n    # If you set _DEBUG to true, @coroutine will wrap the resulting",
+    "origin": "Chroma v2.27.0 lexers/testdata/python/test_complex_file1.actual (first 20 lines)"
+  },
+  {
+    "language": "python2",
+    "lexer": "Python 2",
+    "source": "class TestClass():\n    @classmethod\n    def hello(cls):\n        pass",
+    "origin": "Chroma v2.27.0 lexers/testdata/python2/test_cls_builtin.actual (first 20 lines)"
+  },
+  {
+    "language": "qbasic",
+    "lexer": "QBasic",
+    "source": "REM comment\nDIM answer AS INTEGER\nanswer = 42\nPRINT \"hello\"; answer\nEND",
+    "origin": "handwritten"
+  },
+  {
+    "language": "qml",
+    "lexer": "QML",
+    "source": "import QtQuick 2.12\nimport QtQuick.Controls 2.15 as QQC2\n\nimport org.kde.kirigami 2.7 as Kirigami\nimport org.kde.kcm 1.2\nimport org.kde.kinfocenter.nic.private 1.0\n\nScrollViewKCM {\n    ConfigModule.quickHelp: i18n(\"Network Information\")\n    clip: true\n    \n    view: TableView {\n        id: tableview\n        clip: true\n        \n        columnWidthProvider: function (column) { \n            return tableview.model ? tableview.width / tableview.model.columnCount() : 0\n        }\n\n        model: NetworkModel {",
+    "origin": "Chroma v2.27.0 lexers/testdata/qml.actual (first 20 lines)"
+  },
+  {
+    "language": "splus",
+    "lexer": "R",
+    "source": "# comment\nanswer <- 42\ngreet <- function(name) {\n  paste(\"hello\", name)\n}\nprint(greet(\"world\"))",
+    "origin": "handwritten"
+  },
+  {
+    "language": "racket",
+    "lexer": "Racket",
+    "source": "#lang racket\n; comment\n(define answer 42)\n(define (greet name) (string-append \"hello \" name))",
+    "origin": "handwritten"
+  },
+  {
+    "language": "ragel",
+    "lexer": "Ragel",
+    "source": "// comment\n%%{\n machine hello;\n main := \"hello\" digit+;\n}%%",
+    "origin": "handwritten"
+  },
+  {
+    "language": "jsx",
+    "lexer": "react",
+    "source": "import React from 'react';\nimport ReactDOM from 'react-dom';\nimport App from './component/App';\nimport './index.css';\nimport 'github-fork-ribbon-css/gh-fork-ribbon.css';\n\nReactDOM.render(\n  <>\n    <React.StrictMode>\n      <App />\n    </React.StrictMode>\n  </>,\n  document.getElementById('root')\n);",
+    "origin": "Chroma v2.27.0 lexers/testdata/jsx.actual (first 20 lines)"
+  },
+  {
+    "language": "reason",
+    "lexer": "ReasonML",
+    "source": "// This is a single line comment.\n/* A multi line comment, in a single line... */\n/* This is a multi line comment\n   Second Line...\n*/\n/* This is a nested comment\n  /* Nested Line... */\n*/\n\nmodule Process_Bind_Without_Do =\n       (W: Monad_Bind with type m('a) = writer(string, 'a)) => {\n  let process = s => W.(up_case(s) >>= (up_str => to_words(up_str)));\n};\n\nlet a = 1 or 2;\nlet b = 1 || 2;\nlet c = 1 && 2;\n\nlet str = \"Hello, Lexer!\";\n",
+    "origin": "Chroma v2.27.0 lexers/testdata/reasonml.actual (first 20 lines)"
+  },
+  {
+    "language": "registry",
+    "lexer": "reg",
+    "source": "Windows Registry Editor Version 5.00\n; comment\n[HKEY_CURRENT_USER\\Software\\Hello]\n\"Answer\"=dword:0000002a\n\"Name\"=\"hello\"",
+    "origin": "handwritten"
+  },
+  {
+    "language": "rego",
+    "lexer": "Rego",
+    "source": "package example\n# comment\nanswer := 42\nallow if { input.name == \"hello\" }",
+    "origin": "handwritten"
+  },
+  {
+    "language": "rexx",
+    "lexer": "Rexx",
+    "source": "/* comment */\nanswer = 42\nsay \"hello\" answer\nif answer > 0 then say \"ok\"",
+    "origin": "handwritten"
+  },
+  {
+    "language": "rgbasm",
+    "lexer": "RGBDS Assembly",
+    "source": ";\n; Integer functions.\n;\nHIGH(n)\nLOW(n)\nBITWIDTH(n)\nTZCOUNT(n)\n\n;\n; Fixed-point functions.\n;\nDIV(x, y)\nMUL(x, y)\nFMOD(x, y)\nPOW(x, y)\nLOG(x, y)\nROUND(x)\nCEIL(x)\nFLOOR(x)\nSIN(x)",
+    "origin": "Chroma v2.27.0 lexers/testdata/rgbasm/functions.actual (first 20 lines)"
+  },
+  {
+    "language": "ring",
+    "lexer": "Ring",
+    "source": "# This is a single comment\n// This is also a single comment\n/*\n    This is a multi-line comment\n*/\n\n\"\n    Multi-line strings can also be used as comments.\n\"\n\nsee \"Hello World\"\nSEE \"Hello World\"\nSee \"Hello World\"\nSee \"\n        Hello\n        Welcome to the Ring programming language\n        How are you?\n\n    \"\nSee \"Hello\" + nl + \"Welcome to the Ring programming language\" +",
+    "origin": "Chroma v2.27.0 lexers/testdata/ring.actual (first 20 lines)"
+  },
+  {
+    "language": "SQLRPGLE",
+    "lexer": "RPGLE",
+    "source": "**free\n// comment\ndcl-s answer int(10) inz(42);\ndsply 'hello';\n*inlr = *on;",
+    "origin": "handwritten"
+  },
+  {
+    "language": "spec",
+    "lexer": "RPMSpec",
+    "source": "# comment\nName: hello\nVersion: 1.0\nRelease: 42\nSummary: example\n%description\nhello world\n%prep\n%setup -q",
+    "origin": "handwritten"
+  },
+  {
+    "language": "rb",
+    "lexer": "Ruby",
+    "source": "# comment\nclass Hello\n  ANSWER = 42\n  def greet(name)\n    puts \"hello #{name}\"\n    /hello+/i.match(name)\n  end\nend",
+    "origin": "handwritten"
+  },
+  {
+    "language": "rust",
+    "lexer": "Rust",
+    "source": "// comment\nconst ANSWER: u32 = 0x2a;\nfn greet(name: &str) -> String {\n    let text = format!(\"hello {}\", name);\n    /* outer /* nested */ comment */\n    text\n}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "sas",
+    "lexer": "SAS",
+    "source": "ods listing close;\nproc reg data=work.funda edf outest=work.params;\n  /* industry-year regression */\n  by fyear sic2;\n  /* id is necessary for later matching Jackknifed coefficients to firm-year */\n  id key;\n  /* Jones Model */\n  Jones: model tac = inv_at_l drev ppe / noint influence i;\n  /* Kothari Model with ROA */\n  Kothari: model tac = inv_at_l drevadj ppe roa / noint influence i;\n  ods output OutputStatistics=work.outstats InvXPX=work.xpxinv;\nrun;\nods listing;",
+    "origin": "Chroma v2.27.0 lexers/testdata/sas.actual (first 20 lines)"
+  },
+  {
+    "language": "sass",
+    "lexer": "Sass",
+    "source": "// comment\n$answer: 42px\n.greeting\n color: red\n width: $answer\n content: \"hello\"",
+    "origin": "handwritten"
+  },
+  {
+    "language": "scala",
+    "lexer": "Scala",
+    "source": "package example\n// comment\nobject Hello {\n    val answer: Int = 42\n    def greet(name: String): String = s\"hello ${name}\"\n    /* block comment */\n}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "scdoc",
+    "lexer": "scdoc",
+    "source": "; Comment at the top\nMYPROGRAM(1) \"User Manual\"\n\n# NAME\n\nmyprogram - does something useful\n\n## SYNOPSIS\n\n*myprogram* [_options_] _file_\n\n# DESCRIPTION\n\nThis has *bold text* and _underlined text_.\n\nNote that in_the_middle_of underscores are ignored.\n\nLine breaks work++\nlike this.\n",
+    "origin": "Chroma v2.27.0 lexers/testdata/scdoc.actual (first 20 lines)"
+  },
+  {
+    "language": "scheme",
+    "lexer": "Scheme",
+    "source": "; comment\n(define answer 42)\n(define (greet name) (string-append \"hello \" name))",
+    "origin": "handwritten"
+  },
+  {
+    "language": "scilab",
+    "lexer": "Scilab",
+    "source": "// comment\nanswer = 42;\nfunction y = square(x)\n y = x^2;\nendfunction\ndisp(\"hello\");",
+    "origin": "handwritten"
+  },
+  {
+    "language": "scss",
+    "lexer": "SCSS",
+    "source": "@use \"src/corners\" as c;\n@use \"src/corners\" as *;\n\n/* private vars */\n$-radius: 3px;\n$_radius: 3px;\n\n$black: #000 !default;\n\n@use 'library' with (\n     $black: #222,\n     $config: (\n         important: true,\n         utility: (\n             leading-trim: trim,\n             properties: (leading-trim),\n             variants: (\n                 both: both\n             )\n         )",
+    "origin": "Chroma v2.27.0 lexers/testdata/scss.actual (first 20 lines)"
+  },
+  {
+    "language": "sed",
+    "lexer": "Sed",
+    "source": "# comment\ns/hello/world/g\n1,42d\n/answer/p",
+    "origin": "handwritten"
+  },
+  {
+    "language": "sieve",
+    "lexer": "Sieve",
+    "source": "# comment\nrequire [\"fileinto\"];\nif header :contains \"Subject\" \"hello\" {\n fileinto \"Inbox\";\n}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "smali",
+    "lexer": "Smali",
+    "source": ".class LExample;\n.super Ljava/lang/Object;\n.source \"Example.java\"\n\n\n# instance fields\n.field protected count:I\n\n.field private label:Ljava/lang/String;\n\n\n# direct methods\n.method constructor <init>()V\n    .registers 1\n\n    .line 1\n    invoke-direct {p0}, Ljava/lang/Object;-><init>()V\n\n    return-void\n.end method",
+    "origin": "Chroma v2.27.0 lexers/testdata/smali.actual (first 20 lines)"
+  },
+  {
+    "language": "smalltalk",
+    "lexer": "Smalltalk",
+    "source": "\"comment\"\nanswer := 42.\nTranscript show: 'hello'; cr.\n#(1 2 3) collect: [:x | x + answer].",
+    "origin": "handwritten"
+  },
+  {
+    "language": "smarty",
+    "lexer": "Smarty",
+    "source": "{* comment *}\n{assign var=\"answer\" value=42}\n{if $answer}hello {$name}{/if}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "snbt",
+    "lexer": "SNBT",
+    "source": "{\n    Byte: 40b,\n    Boolean: true,\n    Short: 40s,\n    Int: 40,\n    Long: 40l,\n    Float: 40.0f,\n    Double: 40.0,\n    String: \"foo\"\n}\n{List: [10, 20, 30]}\n{TypedArrays: {Byte: [B; 1b, 2b, 3b], Int: [I; 1, 2, 3], Long: [L; 1l, 2l, 3l]}}\n{\"foo bar\": \"baz\"}",
+    "origin": "Chroma v2.27.0 lexers/testdata/snbt.actual (first 20 lines)"
+  },
+  {
+    "language": "snobol",
+    "lexer": "Snobol",
+    "source": "* comment\n        ANSWER = 42\n        OUTPUT = 'hello'\nEND",
+    "origin": "handwritten"
+  },
+  {
+    "language": "sol",
+    "lexer": "Solidity",
+    "source": "pragma solidity ^0.4.11;\n\ncontract ReactExample {\n    address private owner;\n    string public you_awesome;\n    \n    function ReactExample() public {\n        owner = msg.sender;\n        you_awesome = \"You're awesome\";\n    }\n    \n    function AssemblyExample() public {\n        assembly {\n            let o := sload(0)\n            call(gas(), o, 5, 0, 0, 0, 0)\n        }\n        require(success, \"Failed to send ETH\");\n    }\n    \n    function kill() public {",
+    "origin": "Chroma v2.27.0 lexers/testdata/solidity.actual (first 20 lines)"
+  },
+  {
+    "language": "sp",
+    "lexer": "SourcePawn",
+    "source": "// comment\npublic void main() {\n int answer = 42;\n PrintToServer(\"hello\");\n}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "spade",
+    "lexer": "Spade",
+    "source": "// Somewhat exhaustive Spade syntax example\n/* block comment */\n/// doc comment\n//! inside doc comment\n\nfn a() {}\nentity b() {}\npipeline(5) c() {}\n\nentity calls() {\n\ta();\n\tinst b();\n\tinst(5) c();\n}\n\npipeline(5) pipeline_constructs() {\n\treg;\n\tstage(+1).something;\n\tstage(absolute)\n\t'absolute",
+    "origin": "Chroma v2.27.0 lexers/testdata/spade.actual (first 20 lines)"
+  },
+  {
+    "language": "sparql",
+    "lexer": "SPARQL",
+    "source": "# comment\nPREFIX ex: <http://example.com/>\nSELECT ?name WHERE { ?x ex:name ?name . FILTER(?x > 42) }",
+    "origin": "handwritten"
+  },
+  {
+    "language": "sql",
+    "lexer": "SQL",
+    "source": "-- comment\nSELECT name, 42 AS answer FROM users WHERE name = 'hello';\n/* block */\nCREATE TABLE t (id INTEGER PRIMARY KEY);",
+    "origin": "handwritten"
+  },
+  {
+    "language": "squidconf",
+    "lexer": "SquidConf",
+    "source": "# comment\nhttp_port 3128\nacl localnet src 10.0.0.0/8\nhttp_access allow localnet",
+    "origin": "handwritten"
+  },
+  {
+    "language": "sml",
+    "lexer": "Standard ML",
+    "source": "signature S = sig\n    datatype t = Hoge | Fuga\nend\n\nstructur A = struct\n  structure B = struct\n    structure C = struct\n      type t = int * real * string * bool ref\n    end\n  end\nend\n\nfunctor F(X:sig type t; val compare: t * t -> order): S = struct\n  datatype t = Hoge | Fuga\nend\n\nstructure Main = struct\n  local\n      structure M = F(Int)\n      open M",
+    "origin": "Chroma v2.27.0 lexers/testdata/sml.actual (first 20 lines)"
+  },
+  {
+    "language": "stas",
+    "lexer": "stas",
+    "source": "include 'std.stas'\n\nreserve debug_symbols  1\nreserve verbose_mode   1\nauto    backend_type   1\n\nconst StasBackend.fasm { 1 }\nconst StasBackend.nasm { 2 }\n\n; (StasBackend -- str len)\nfn StasBackend.to_str 1 2 {\n\tdup StasBackend.fasm = if {\n\t\t\"fasm\"\n\t} elif dup StasBackend.nasm = {\n\t\t\"nasm\"\n\t} else {\n\t\t0 0 0 assert -> 'unreachable'\n\t}\n\trot rot drop\n}",
+    "origin": "Chroma v2.27.0 lexers/testdata/stas.actual (first 20 lines)"
+  },
+  {
+    "language": "stylus",
+    "lexer": "Stylus",
+    "source": "$white ?= #fff\nbody {\n  color: $white;\n}",
+    "origin": "Chroma v2.27.0 lexers/testdata/stylus.actual (first 20 lines)"
+  },
+  {
+    "language": "swift",
+    "lexer": "Swift",
+    "source": "// comment\nlet answer: Int = 42\nfunc greet(_ name: String) -> String {\n return \"hello \\(name)\"\n}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "systemd",
+    "lexer": "SYSTEMD",
+    "source": "[Section A]\nKeyOne=value 1\nKeyTwo=value 2\n\n# a comment\n\n[Section B]\nSetting=\"something\" \"some thing\" \"…\"\nKeyTwo=value 2 \\\n       value 2 continued\n",
+    "origin": "Chroma v2.27.0 lexers/testdata/systemd.actual (first 20 lines)"
+  },
+  {
+    "language": "systemverilog",
+    "lexer": "systemverilog",
+    "source": "// Comment\n\nprogram top;\n\n  import \"DPI-C\" hello=task hello();\n\n  initial begin\n    hello();\n  end\n\nendprogram : top",
+    "origin": "Chroma v2.27.0 lexers/testdata/systemverilog.actual (first 20 lines)"
+  },
+  {
+    "language": "tablegen",
+    "lexer": "TableGen",
+    "source": "#include \"main\"\n\n#ifndef SHOULD_DEF\n#define SHOULD_DEF\ndef ConstantOp : Toy_Op<\"constant\", [NoSideEffect]> {\n  // Provide a summary and description for this operation. This can be used to\n  // auto-generate documenatation of the operations within our dialect.\n  let summary = \"constant operation\";\n  let description = [{\n    Constant operation turns a literal into an SSA value. The data is attached\n    to the operation as an attribute. For example:\n\n      %0 = \"toy.constant\"()\n         { value = dense<[[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]> : tensor<2x3xf64> }\n        : () -> tensor<2x3xf64>\n  }];\n\n  // The constant operation takes an attribute as the only input.\n  // `F64ElementsAttr` corresponds to a 64-bit floating-point ElementsAttr.\n  let arguments = (ins F64ElementsAttr:$value);",
+    "origin": "Chroma v2.27.0 lexers/testdata/tablegen.actual (first 20 lines)"
+  },
+  {
+    "language": "tal",
+    "lexer": "Tal",
+    "source": "( Piano:\n\tPlay notes with the keyboard or the controller )\n\n|00 @System &vector $2 &wst $1 &rst $1 &pad $4 &r $2 &g $2 &b $2 &debug $1 &halt $1\n|10 @Console &vector $2 &read $1 &pad $5 &write $1 &error $1\n|20 @Screen &vector $2 &width $2 &height $2 &auto $1 &pad $1 &x $2 &y $2 &addr $2 &pixel $1 &sprite $1\n|30 @Audio0 &vector $2 &position $2 &output $1 &pad $3 &adsr $2 &length $2 &addr $2 &volume $1 &pitch $1\n|40 @Audio1 &vector $2 &position $2 &output $1 &pad $3 &adsr $2 &length $2 &addr $2 &volume $1 &pitch $1\n|80 @Controller &vector $2 &button $1 &key $1\n|90 @Mouse &vector $2 &x $2 &y $2 &state $1 &pad $3 &modx $2 &mody $2\n\n%HALT { #010f DEO }\n\n|0000\n\n\t@octave $1\n\t@center &x $2 &y $2\n\t@adsr-view &x1 $2 &y1 $2 &x2 $2 &y2 $2\n\t@wave-view &x1 $2 &y1 $2 &x2 $2 &y2 $2\n\t@octave-view &x1 $2 &y1 $2 &x2 $2 &y2 $2",
+    "origin": "Chroma v2.27.0 lexers/testdata/tal.actual (first 20 lines)"
+  },
+  {
+    "language": "tasm",
+    "lexer": "TASM",
+    "source": "; comment\n.model small\n.data\nmsg db \"hello\", 0\n.code\nmov ax, 42\nret",
+    "origin": "handwritten"
+  },
+  {
+    "language": "tcl",
+    "lexer": "Tcl",
+    "source": "# comment\nset answer 42\nproc greet {name} {\n puts \"hello $name\"\n}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "tcsh",
+    "lexer": "Tcsh",
+    "source": "#!/bin/tcsh\n# comment\nset answer = 42\necho \"hello $answer\"\nif ($answer > 0) echo yes",
+    "origin": "handwritten"
+  },
+  {
+    "language": "templ",
+    "lexer": "Templ",
+    "source": "package views\n\nimport \"fmt\"\n\nvar enabled = true\n\ncss primaryClassName(color string) {\n\tbackground-color: #ffffff;\n\tcolor: { color };\n}\n\nscript withParameters(a string, b string, c int) {\n\tconsole.log(a, b, c);\n}\n\ntempl UserCard(name string, count int, attrs templ.Attributes, contents templ.Component) {\n\t{{ first := name }}\n\t<section class={ \"card\", primaryClassName(\"red\") } data-count={ count } noshade?={ enabled } @click={ handleClick } .active={ enabled } [data-kind]=\"card\" #ref if enabled { disabled } for _, attr := range extraAttrs { { attr } } { \"data-\" + first }=\"paragraph\" { attrs... }>\n\t\tif enabled {\n\t\t\taria-label=\"enabled\"",
+    "origin": "Chroma v2.27.0 lexers/testdata/templ.actual (first 20 lines)"
+  },
+  {
+    "language": "termcap",
+    "lexer": "Termcap",
+    "source": "# comment\nvt100|example terminal:\\\n :co#80:li#24:cl=\\E[H\\E[J:",
+    "origin": "handwritten"
+  },
+  {
+    "language": "terminfo",
+    "lexer": "Terminfo",
+    "source": "# comment\nvt100|example terminal,\n cols#80, lines#24,\n clear=\\E[H\\E[J,",
+    "origin": "handwritten"
+  },
+  {
+    "language": "terraform",
+    "lexer": "Terraform",
+    "source": "variable \"some_var\" {\n    default = 12\n}\n\nresource \"something\" \"nice\" {\n  name        = \"hello\"\n  value       = var.some_var\n  x           = var.some_var > 5 ? var.some_var : 10\n  cidr_blocks = [\n    for num in [1,2,3]:\n    cidrhost(\"10.0.0.0/24\", num)\n  ]\n\n  str = <<-EOT\n    hello\n    world\n  EOT\n\n  /*\n    Multiline comment",
+    "origin": "Chroma v2.27.0 lexers/testdata/terraform.actual (first 20 lines)"
+  },
+  {
+    "language": "TeX",
+    "lexer": "TeX",
+    "source": "\\documentclass[12pt]{article}\n\\usepackage{lingmacros}\n\\usepackage{tree-dvips}\n\\begin{document}\n\n\\section*{Notes for My Paper}\n\nDon't forget to include examples of topicalization.\nThey look like this:\n\n{\\small\n\\enumsentence{Topicalization from sentential subject:\\\\ \n\\shortex{7}{a John$_i$ [a & kltukl & [el & \n  {\\bf l-}oltoir & er & ngii$_i$ & a Mary]]}\n{ & {\\bf R-}clear & {\\sc comp} & \n  {\\bf IR}.{\\sc 3s}-love   & P & him & }\n{John, (it's) clear that Mary loves (him).}}\n}\n\n\\subsection*{How to handle topicalization}",
+    "origin": "Chroma v2.27.0 lexers/testdata/tex.actual (first 20 lines)"
+  },
+  {
+    "language": "thrift",
+    "lexer": "Thrift",
+    "source": "// comment\nnamespace java example\nstruct Person {\n 1: string name = \"hello\",\n 2: i32 answer = 42\n}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "toml",
+    "lexer": "TOML",
+    "source": "# comment\n[example]\nanswer = 42\nname = \"hello\"\nenabled = true\nvalues = [1, 2, 3]",
+    "origin": "handwritten"
+  },
+  {
+    "language": "tradingview",
+    "lexer": "TradingView",
+    "source": "//@version=3\nstudy(title=\"Chroma example script\", overlay=true, precision=3)\n\nemaLen = input(title=\"EMA Length\", type=integer, defval=10)\nemaVal = ema(close, emaLen)\n\nplot(series=emaVal, style=circles, offset=2, linewidth=3)\n\n// Colour background\nbgcolor(color=close > open ? orange :\n     close != high[1] ? purple :\n     na, transp=80)\n\n// Comment as last line should be recognised properly",
+    "origin": "Chroma v2.27.0 lexers/testdata/tradingview.actual (first 20 lines)"
+  },
+  {
+    "language": "tsql",
+    "lexer": "Transact-SQL",
+    "source": "-- comment\nDECLARE @answer INT = 42;\nSELECT 'hello', @answer FROM users WHERE id > 0;",
+    "origin": "handwritten"
+  },
+  {
+    "language": "turing",
+    "lexer": "Turing",
+    "source": "var x : int := 10\n\nfcn testFunction(a, b, c)\n    result (a + b) * c\nend testFunction\n\nput testFunction(x, 2 * x, 3)",
+    "origin": "Chroma v2.27.0 lexers/testdata/turing.actual (first 20 lines)"
+  },
+  {
+    "language": "turtle",
+    "lexer": "Turtle",
+    "source": "@prefix ex: <http://example.com/> .\n# comment\nex:item ex:name \"hello\" ; ex:value 42 .",
+    "origin": "handwritten"
+  },
+  {
+    "language": "twig",
+    "lexer": "Twig",
+    "source": "{# comment #}\n{% set answer = 42 %}\n{% if answer %}hello {{ name|upper }}{% endif %}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "txtpb",
+    "lexer": "Protocol Buffer Text Format",
+    "source": "# proto-file: example/test.proto\n# proto-message: TestMessage\n\n# Basic field assignments\nname: \"John Smith\"\nage: 42\nemail: 'user@example.com'\n\n# Numeric literals\ndecimal_value: 12345\noctal_value: 0755\nhex_value: 0xDEADBEEF\nzero: 0\n\n# Negative numbers (- is a separate token)\nnegative_int: -42\nnegative_float: -3.14159\nnegative_with_space: - 100\nnegative_scientific: -54.32E+1f\n",
+    "origin": "Chroma v2.27.0 lexers/testdata/txtpb.actual (first 20 lines)"
+  },
+  {
+    "language": "ts",
+    "lexer": "TypeScript",
+    "source": "// comment\ninterface Person { name: string; age: number; }\nconst answer: number = 42;\nfunction greet(person: Person): string {\n    return `hello ${person.name}`;\n}\nconst pattern = /hello+/gi;",
+    "origin": "handwritten"
+  },
+  {
+    "language": "typoscript",
+    "lexer": "TypoScript",
+    "source": "# comment\npage = PAGE\npage.10 = TEXT\npage.10.value = hello\npage.20 = 42",
+    "origin": "handwritten"
+  },
+  {
+    "language": "typoscriptcssdata",
+    "lexer": "TypoScriptCssData",
+    "source": ".greeting {\n /* comment */\n color: red;\n width: 42px;\n content: \"hello\";\n}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "typoscripthtmldata",
+    "lexer": "TypoScriptHtmlData",
+    "source": "<!-- comment -->\n<div class=\"greeting\">hello &amp; 42</div>",
+    "origin": "handwritten"
+  },
+  {
+    "language": "typst",
+    "lexer": "Typst",
+    "source": "#let song(\n  title: none,\n  title_index: none,\n  singer: none,\n  singer_index: none,\n  references: (),\n  line_color: rgb(0xd0, 0xd0, 0xd0),\n  header_display: (number, title, singer) => grid(\n    columns: (auto,1fr),\n    inset: 4pt,\n    align: horizon,\n    grid.cell(fill: rgb(0xd0, 0xd0, 0xd0),align: top, inset:(rest:4pt, /*right: 10pt*/), heading(outlined: false,str(number))),\n    [\n      #heading(title)\n      #if singer != none {\n        strong(singer) + \"\\n\"\n      }\n    ],\n  ),\n  // comment",
+    "origin": "Chroma v2.27.0 lexers/testdata/typst.actual (first 20 lines)"
+  },
+  {
+    "language": "ucode",
+    "lexer": "ucode",
+    "source": "#!/usr/bin/env ucode\n\nimport { open } from \"fs\";\nimport * as o from \"fs\";\n\n// This is a comment on a line of its own.\nfunction abcd(x, ...values) {\n\tprint(...values, \"\\n\");\n\treturn null;\n}\n\nlet x_5 = 5; // This is a comment on a line of code.\n\nlet id = x => x;\nlet empty = () => 0;\nlet add = (a, b) => a + b;\n\nif (true) {\n\tabcd(0);\n} else if (false) {",
+    "origin": "Chroma v2.27.0 lexers/testdata/ucode.actual (first 20 lines)"
+  },
+  {
+    "language": "v",
+    "lexer": "V",
+    "source": "module main\n\n// main module\n\nimport os { input, user_os }\nimport time\nimport math\n\ntype MyTime = time.Time\n\nfn main() {\n\tprintln('hello world')\n\n\tprintln(sub(100, 50))\n\n\tn := write_log(.return_error) or {\n\t\tprintln('Error: $err')\n\t\t0\n\t}\n\tprintln('$n bytes written')",
+    "origin": "Chroma v2.27.0 lexers/testdata/v/v.actual (first 20 lines)"
+  },
+  {
+    "language": "vsh",
+    "lexer": "V shell",
+    "source": "#!/usr/bin/env -S v run\n// The shebang above associates the file to V on Unix-like systems,\n// so it can be run just by specifying the path to the file\n// once it's made executable using `chmod +x`.\n\n// print command then execute it\nfn sh(cmd string){\n  println(\"❯ $cmd\")\n  print(execute_or_exit(cmd).output)\n}\n\n// Remove if build/ exits, ignore any errors if it doesn't\nrmdir_all('build') or { }\n\n// Create build/, never fails as build/ does not exist\nmkdir('build')?\n\n// Move *.v files to build/\nresult := execute('mv *.v build/')\nif result.exit_code != 0 {",
+    "origin": "Chroma v2.27.0 lexers/testdata/vshell.actual (first 20 lines)"
+  },
+  {
+    "language": "vala",
+    "lexer": "Vala",
+    "source": "class HelloWorld: Object {\n\n    public signal void some_event ();\n\n    public void method () {\n        some_event ();\n    }\n    \n    struct Vector {\n        public double x;\n        public double y;\n        public double z;\n    }\n\n    enum WindowType {\n        TOPLEVEL,\n        POPUP\n    }\n\n    private uint year = 0;",
+    "origin": "Chroma v2.27.0 lexers/testdata/vala.actual (first 20 lines)"
+  },
+  {
+    "language": "vb.net",
+    "lexer": "VB.net",
+    "source": "Imports System\n\nPublic Module Hello\n   Public Sub Main(  )\n      Console.WriteLine(\"hello, world\")\n   End Sub\nEnd Module",
+    "origin": "Chroma v2.27.0 lexers/testdata/vbnet.actual (first 20 lines)"
+  },
+  {
+    "language": "verilog",
+    "lexer": "verilog",
+    "source": "module main\n\n// main module\n\nimport os { input, user_os }\nimport time\nimport math\n\ntype MyTime = time.Time\n\nfn main() {\n\tprintln('hello world')\n\n\tprintln(sub(100, 50))\n\n\tn := write_log(.return_error) or {\n\t\tprintln('Error: $err')\n\t\t0\n\t}\n\tprintln('$n bytes written')",
+    "origin": "Chroma v2.27.0 lexers/testdata/v/v.actual (first 20 lines)"
+  },
+  {
+    "language": "vhdl",
+    "lexer": "VHDL",
+    "source": "-- comment\nentity hello is\n port (a: in integer; b: out integer);\nend hello;\narchitecture rtl of hello is\nbegin\n b <= a + 42;\nend rtl;",
+    "origin": "handwritten"
+  },
+  {
+    "language": "vhs",
+    "lexer": "VHS",
+    "source": "# Where should we write the GIF?\nOutput demo.gif\n\n# Set up a 1200x600 terminal with 46px font.\nSet FontSize 46\nSet Width 1200\nSet Height 600\n\n# Type a command in the terminal.\nType@100ms \"echo 'Welcome to VHS!'\"\n\n# Pause for dramatic effect...\nSleep 500ms\n\n# Run the command by pressing enter.\nEnter\n\n# Admire the output for a bit.\nSleep 5s",
+    "origin": "Chroma v2.27.0 lexers/testdata/vhs.actual (first 20 lines)"
+  },
+  {
+    "language": "vim",
+    "lexer": "VimL",
+    "source": "execute pathogen#infect()\n\nsyntax on\ncolorscheme swapoff\n\n\" Turn off status line.\nset laststatus=0\n\n\" Turn off annoying beeps\nset vb\nset noeb\nset vb t_vb=\n\nset mouse=r\nset visualbell\n\n\" Force latin1 terminal encoding?\nset fileencoding=utf-8\nset encoding=utf-8\nset termencoding=utf-8",
+    "origin": "Chroma v2.27.0 lexers/testdata/vim.actual (first 20 lines)"
+  },
+  {
+    "language": "vue",
+    "lexer": "vue",
+    "source": "<template>\n    <button class=\"button\">This is MyButton</button>\n    <ul-extendded v-if=\"examples.length\" bordered>\n        <li\n            v-for=\"example in examples\"\n            :key=\"`${example.id}`\"\n        />\n    </ul-extendded>\n</template>\n\n<template v-else>\n\t<svg-icon v-if=\"isViewTag\">\n\t<svg-icon v-else-if=\"isViewTree\" name=\"octicon-git-commit\"/>\n\t<svg-icon v-else name=\"octicon-git-branch\"/>\n</template>\n<template>\n\t<input type=\"hidden\" name=\"_csrf\" :value=\"csrfToken\">\n\t<a @click.stop>\n    <button @click=\"menuVisible = !menuVisible\" @keyup.enter=\"menuVisible = !menuVisible\"/>\n</template>",
+    "origin": "Chroma v2.27.0 lexers/testdata/vue.actual (first 20 lines)"
+  },
+  {
+    "language": "wast",
+    "lexer": "WebAssembly Text Format",
+    "source": "(module $hello.wasm\n  (type (;0;) (func (param i32 i32 i32) (result i32)))\n  (type (;1;) (func (param i32 i64 i32) (result i64)))\n  (type (;2;) (func (param i32) (result i32)))\n  (type (;3;) (func (param i32 i32) (result i32)))\n  (type (;4;) (func (param i32 i64 i32 i32) (result i32)))\n  (type (;5;) (func (param i32 i32 i32 i32) (result i32)))\n  (type (;6;) (func (param i32)))\n  (type (;7;) (func))\n  (type (;8;) (func (result i32)))\n  (import \"wasi_snapshot_preview1\" \"fd_close\" (func $__imported_wasi_snapshot_preview1_fd_close (type 2)))\n  (import \"wasi_snapshot_preview1\" \"fd_fdstat_get\" (func $__imported_wasi_snapshot_preview1_fd_fdstat_get (type 3)))\n  (import \"wasi_snapshot_preview1\" \"fd_seek\" (func $__imported_wasi_snapshot_preview1_fd_seek (type 4)))\n  (import \"wasi_snapshot_preview1\" \"fd_write\" (func $__imported_wasi_snapshot_preview1_fd_write (type 5)))\n  (import \"wasi_snapshot_preview1\" \"proc_exit\" (func $__imported_wasi_snapshot_preview1_proc_exit (type 6)))\n  (func $__wasm_call_ctors (type 7))\n  (func $_start (type 7)\n    (local i32)\n    block  ;; label = @1\n      block  ;; label = @2",
+    "origin": "Chroma v2.27.0 lexers/testdata/wat.actual (first 20 lines)"
+  },
+  {
+    "language": "WDTE",
+    "lexer": "WDTE",
+    "source": "# comment\nlet answer => 42;\nlet greet name => \"hello\";\nanswer -> io.writeln;",
+    "origin": "handwritten"
+  },
+  {
+    "language": "wgsl",
+    "lexer": "WebGPU Shading Language",
+    "source": "alias a=ptr<function,i32>;\nalias b=ptr<private,i32>;\nalias c=ptr<workgroup,i32>;\nalias d=ptr<uniform,i32>;\nalias e=ptr<storage,i32>;",
+    "origin": "Chroma v2.27.0 lexers/testdata/wgsl.address.space.actual (first 20 lines)"
+  },
+  {
+    "language": "vtt",
+    "lexer": "WebVTT",
+    "source": "WEBVTT\n\n00:00:00.000 --> 00:00:04.200\nhello world\n\nNOTE comment",
+    "origin": "handwritten"
+  },
+  {
+    "language": "whiley",
+    "lexer": "Whiley",
+    "source": "\nimport uint from std::integer\nimport uinteger from js::core\nimport random from js::math\nimport Document, Window, CanvasRenderingContext2D from w3c::dom\nimport Element,HTMLCanvasElement, HTMLImageElement, MouseEvent from w3c::dom\n\nimport model\nimport view\n\n/**\n * Add a given number of bombs to the board.\n */\nmethod add_random_bombs(model::Board board, uint n) -> model::Board:\n    uinteger remaining = |board.squares|   \n    // Use Knuth's algorithm S\n    for x in 0..board.width:\n        for y in 0..board.height:\n            // Flip a coin (so-to-speak)\n            if random(remaining) < n:",
+    "origin": "Chroma v2.27.0 lexers/testdata/whiley.actual (first 20 lines)"
+  },
+  {
+    "language": "xml",
+    "lexer": "XML",
+    "source": "<?xml version=\"1.0\"?>\n<!-- comment -->\n<root answer=\"42\"><name>hello &amp; world</name></root>",
+    "origin": "handwritten"
+  },
+  {
+    "language": "xorg.conf",
+    "lexer": "Xorg",
+    "source": "# comment\nSection \"Device\"\n Identifier \"hello\"\n Driver \"modesetting\"\n Option \"Answer\" \"42\"\nEndSection",
+    "origin": "handwritten"
+  },
+  {
+    "language": "yaml",
+    "lexer": "YAML",
+    "source": "---  # document start\n\n# Comments in YAML look like this.\n\ncomment_after_string_key: string value # comments can follow on same line\ncomment_after_key_with_colon: woof # Note: this should be a comment\nnested_comment: # this is a comment right next to a key\n  sub_key: sub string value # sub comment\n  inline_not_comment: string#hash #nospacecomment\n  bool_comment: True # comment after bool\n  int_comment: 123 # comment after int\n  date_comment: 2010-11-12 # comment after date\n  single_quote: 'single # quote string' # comment after single quote string\n  double_quote: \"double # quote string\" # comment after double quote string\n  slash_comment: \"slash\" // comment after double quote string\n  slash_comment_with_colon: \"slash\" // comment: after double quote string\n  slash_comment_after_literal: slash // comment: after literal\n  key: no comment\n\n################",
+    "origin": "Chroma v2.27.0 lexers/testdata/yaml.actual (first 20 lines)"
+  },
+  {
+    "language": "yang",
+    "lexer": "YANG",
+    "source": "module server-system {\n    yang-version 1.1;\n    namespace \"http://autlan.dt/gribok/yang/example\";\n    prefix ex;\n\n    import ietf-yang-types {\n      prefix yang;\n      reference\n        \"RFC 6991: Common YANG Data Types.\";\n    }\n\n    organization \"Gribok\";\n    contact \"gribok@example.org\";\n    description\n        \"An example module\";\n\n    revision 2020-04-03 {\n        description \"Example yang\";\n    }\n",
+    "origin": "Chroma v2.27.0 lexers/testdata/yang.actual (first 20 lines)"
+  },
+  {
+    "language": "z80",
+    "lexer": "Z80 Assembly",
+    "source": "; comment\nld a, 42\nld hl, message\nret\nmessage: db \"hello\", 0",
+    "origin": "handwritten"
+  },
+  {
+    "language": "zed",
+    "lexer": "Zed",
+    "source": "/**\n * Project is a project.\n */\ndefinition test/project {\n\trelation issue_creator: role#member\n\trelation issue_assigner: role#member\n\trelation any_issue_resolver: role#member\n\trelation assigned_issue_resolver: role#member\n\trelation comment_creator: role#member\n\trelation comment_deleter: role#member\n\trelation role_manager: role#member\n\t\n\tpermission create_issue = issue_creator\n\tpermission create_role = role_manager\n}\n\ndefinition role {\n    /** project is the project */\n\trelation project: project\n\trelation member: user",
+    "origin": "Chroma v2.27.0 lexers/testdata/zed.actual (first 20 lines)"
+  },
+  {
+    "language": "zig",
+    "lexer": "Zig",
+    "source": "const Object = @This();\n\nconst Wasm = @import(\"../Wasm.zig\");\nconst Alignment = Wasm.Alignment;\n\nconst std = @import(\"std\");\nconst Allocator = std.mem.Allocator;\nconst Path = std.Build.Cache.Path;\nconst log = std.log.scoped(.object);\nconst assert = std.debug.assert;\n\n/// Wasm spec version used for this `Object`\nversion: u32,\n/// For error reporting purposes only.\n/// Name (read path) of the object or archive file.\npath: Path,\n/// For error reporting purposes only.\n/// If this represents an object in an archive, it's the basename of the\n/// object, and path refers to the archive.\narchive_member_name: Wasm.OptionalString,",
+    "origin": "Chroma v2.27.0 lexers/testdata/zig.actual (first 20 lines)"
+  },
+  {
+    "language": "phtml",
+    "lexer": "PHTML",
+    "source": "<!-- comment -->\n<h1><?php echo \"hello\"; ?></h1>\n<?php $answer = 42; if ($answer) { echo $answer; } ?>",
+    "origin": "handwritten"
+  },
+  {
+    "language": "go-html-template",
+    "lexer": "Go HTML Template",
+    "source": "<!-- comment -->\n<h1>{{.Title}}</h1>\n{{if .Ready}}<b>{{printf \"%d\" 42}}</b>{{end}}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "yaml+jinja",
+    "lexer": "YAML+Jinja",
+    "source": "# comment\nname: {{ name|upper }}\nanswer: 42\n{% if enabled %}\nmessage: \"hello\"\n{% endif %}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "caddyfile",
+    "lexer": "Caddyfile",
+    "source": "{\n\tdebug\n\tadmin off\n\ton_demand_tls {\n\t\task https://example.com\n\t}\n\tlog default {\n\t\toutput file /var/log/caddy/access.log\n\t\tformat json\n\t}\n\tauto_https disable_redirects\n\trenew_interval 20m\n\n\t# this is a comment\n\tservers 192.168.1.2:8080 {\n\t\tname public\n\t\ttrusted_proxies static private_ranges\n\t\tlog_credentials\n\t}\n}\n\n# top level comment\n\n(blocking) {\n\t@blocked {\n\t\tpath *.txt *.md *.mdown /site/*\n\t}\n\tredir @blocked /\n}\n\nhttp://example.com {\n\trespond \"http\"\n}\n\nexample.com, fake.org, {$ENV_SITE} {\n\troot * /srv\n\n\trespond /get-env {$ENV_VAR}\n\trespond /get-env {$ENV_VAR:default}\n\n\ttls internal\n\ttls /path/to/cert.pem /path/to/key.pem\n\n\troute {\n\t\t# Add trailing slash for directory requests\n\t\t@canonicalPath {\n\t\t\tfile {\n\t\t\t\ttry_files {path}/index.php\n\t\t\t}\n\t\t\tnot path */\n\t\t}\n\t\tredir @canonicalPath {path}/ 308\n\n\t\t# If the requested file does not exist, try index files\n\t\t@indexFiles {\n\t\t\tfile {\n\t\t\t\ttry_files {path} {path}/index.php index.php\n\t\t\t\tsplit_path .php\n\t\t\t}\n\t\t}\n\t\trewrite @indexFiles {http.matchers.file.relative}\n\n\t\t# Proxy PHP files to the FastCGI responder\n\t\t@phpFiles {\n\t\t\tpath *.php\n\t\t}\n\t\treverse_proxy @phpFiles unix//var/run/php7.4-fpm.sock {\n\t\t\ttransport fastcgi {\n\t\t\t\tsplit .php\n\t\t\t}\n\t\t}\n\t}\n\n\t@encode_exts {\n\t\tpath / *.html *.js *.css *.svg\n\t}\n\n\theader {\n\t\tX-Content-Type-Options nosniff\n\t\tX-XSS-Protection \"1; mode=block\"\n\t\tX-Robots-Tag none\n\t\tContent-Security-Policy \"frame-ancestors 'self'\"\n\t\tX-Frame-Options DENY\n\t\tReferrer-Policy same-origin\n\t}\n\n\t@singleLine not path /matcher\n\trespond @singleLine \"Awesome.\"\n\n\timport blocking\n\timport blocking foo\n\timport glob/*\n\n\tfile_server\n\n\t@named host example.com\n\thandle @named {\n\t\thandle /foo* {\n\t\t\thandle /foo* {\n\t\t\t\trespond \"{path} foo\"\n\t\t\t}\n\t\t}\n\t\trespond \"foo\"\n\t}\n\n\thandle_path /foo* {\n\t\trespond \"foo\"\n\t}\n\n\treverse_proxy /api/* unix//var/run/api.sock {\n\t\t@good status 200\n\t\thandle_response @good {\n\t\t\trewrite * /foo{uri}\n\t\t\tfile_server\n\t\t}\n\t}\n\n\trespond <<HTML\n\t\t<!DOCTYPE html>\n\t\t<html>\n\t\t\t<head>\n\t\t\t\t<title>Test</title>\n\t\t\t</head>\n\t\t\t<body>\n\t\t\t\t<h1>Hello, world!</h1>\n\t\t\t</body>\n\t\t</html>\n\t\tHTML 200\n\n\t@file `file()`\n\t@first `file({'try_files': [{path}, {path} + '/', 'index.html']})`\n\t@smallest `file({'try_policy': 'smallest_size', 'try_files': ['a.txt', 'b.txt']})`\n\n\t@without-both {\n\t\tnot {\n\t\t\tpath /api/*\n\t\t\tmethod POST\n\t\t}\n\t}\n\n\tpath_regexp [<name>] <regexp>\n}\n",
+    "origin": "Chroma v2.27.0 lexers/testdata/caddyfile.actual"
+  },
+  {
+    "language": "gemtext",
+    "lexer": "Gemtext",
+    "source": "# This is a heading!\n\n#This is also a heading!\n\nThis is some text. It is not special.\n\n## Another heading\n\n##yes, leading spaces are optional\n\n=> gemini://geminiprotocol.net/docs/gemtext-specification.gmi\n\n=> gemini://geminiprotocol.net/docs/gemtext-specification.gmi Here is a friendly link to the Gemtext specification\n\n=> https://geminiprotocol.net/docs/gemtext-specification.gmi gemini protocol isn't special for links\n\n=> gemini://geminiprotocol.net/\tmultiple kinds of whitespace\n\n=>  gemini://geminiprotocol.net/\t multiple whitespace between parts!\n\n=> /foo/bar/baz.txt leading slash still counts\n\nLinks may also be closer together. Here are some examples from the spec:\n=> gemini://example.org/\n=> gemini://example.org/ An example link\n=> gemini://example.org/foo\tAnother example link at the same host\n=> foo/bar/baz.txt\tA relative link\n=> \tgopher://example.org:70/1 A gopher link\n\n=>this shouldn't be a link, but it is. \n=>gemini://example.org/ the leading space is optional\n\n### Why not try lists?\n\n\n###spaces are still optional\n\n* This is a list item.\n* Here's another.\n*  Still a list item!\n*This is not.\n** This is also not.\n*\tNeither is this.\n- Not a list item.\n  - Not a list item.\n\n> Someone said this.\n\n>Someone also said this.\n\n```\nThis text is preformatted.\n\n# Hello, world!\n\nThis isn't to be treated as Gemtext:\n=> gemini://example.com\n\n> no one said this\n```\n\n```\nThis is also plaintext\n```This text is ignored\n\n\n```This is alt text\nThis text is also preformatted.\n```this text is ignored.\n\n```Art by Joan Stark of a camp site. A small tent faces a small campfire. There is a log nearby, perfect for sitting on. The initials \"jgs\" can be seen.\n        ______\njgs    /     /\\\n      /     /  \\\n     /_____/----\\_    (\n    \"     \"          ).\n   _ ___          o (:') o\n  (@))_))        o ~/~~\\~ o\n                  o  o  o\n```\n\nSyntax highlighting may be applied to preformatted blocks:\n```javascript\n\tcolumn.substring(0,num)\n```\n\nThe spec says, \"Any text following the leading \"```\" of a preformat toggle line MUST be ignored by clients.\" So...\n```\n```this is a comment!\nwow, what WAS that??\n",
+    "origin": "Chroma v2.27.0 lexers/testdata/gemtext.actual"
+  },
+  {
+    "language": "mess",
+    "lexer": "Markless",
+    "source": "# Hello there!\nThis is a playground for ''Markless''(https://shirakumo.org/docs/markless, color red, large), a //text based// **markup language** intended for __simple__ document and comment publications.\n\nMarkless is a relatively new[1] markup standard that focuses on being intuitive first and fast for computers to process second. Being a purely text-based markup, no complicated editor software is required to create documents in it, any simple text editor will do. v(Though of course, having syntax highlighting and previews are nice.)\n\n[1] Development of the standard started in 2015\n\nThe Markless standard does not specify its results based on another document format, meaning that an implementation could be written to turn a Markless document into practically any other format[2]. Markless is strict and does not allow for any ambiguities in its markup. This should both make it less confusing for you, and easier to parse for a computer program.\n\n[2] While the output here is HTML, cl-markless for instance can also translate to BBCode, LaTeX, and EPUB, among other formats.\n\nHere's some more useful links:\n- https://shirakumo.org/docs/markless/\n  For a more complete tutorial on Markless' syntax\n- https://shirakumo.org/docs/markless/markless.html\n  The full specification document\n- https://shirakumo.org/project/cl-markless/releases/latest\n  Downloads for cl-markless to convert documents offline\n\nThe Markless document standard and ecosystem is brought to you by the ''Shirakumo Collective''(link #logo).\n\n[ image https://shirakumo.org/logo2.png, description Shirakumo Logo, caption The logo for the Shirakumo Team, link https://shirakumo.org, label logo ]\n\n==\n\n:::\n- ::This should //not// be parsed\n:::\n\n:: markless\n- This //should// be parsed\n::\n\n| Quoting for justice\n~ Someone, probably\n\n~ Yukari | And **this** is how you do the\n         | inline quotes.\n~ Haruna | //Woah.//\n\n[ image simple ]\n[ image another\n\n1. First things first, this <-is great->\n10. Now for something different.\n",
+    "origin": "Chroma v2.27.0 lexers/testdata/markless.actual"
+  },
+  {
+    "language": "svelte",
+    "lexer": "Svelte",
+    "source": "<script lang=\"typescript\">\n\t// Nested is defined elsewhere\n\timport Nested from './Nested.svelte';\n\n\tlet src = 'example.png';\n\tlet name = 'world';\n\n\tlet names = [\n\t\t{ id: 'id0001', name: 'Name 1' },\n\t\t{ id: 'id0002', name: 'Name 2' },\n\t\t{ id: 'id0003', name: 'Name 3' }\n\t];\n</script>\n\n<style>\n\th1 {\n\t\tcolor: red;\n\t\tfont-family: Arial, Helvetica, sans-serif;\n\t\tfont-size: 2em;\n\t}\n</style>\n\n<style lang=\"sass\">\n$color: red\nh1\n  color: $color\n  font-family: Arial, Helvetica, sans-serif\n  font-size: 2em\n</style>\n\n<h1>Hello {name}!</h1>\n<img {src} alt=\"Example image\">\n\n<!-- import external component -->\n<Nested/>\n\n<ul>\n    {#each names as { id, name }, i}\n\t<li>{name} ({id})</li>\n\t{/each}\n</ul>\n\n<template>\n    <form on:submit|preventDefault=\"{submitSearch}\">\n        <input type=\"search\" bind:value=\"{name}\" required />\n        <button type=\"submit\">Search</button>\n    </form>\n\n    {#if porridge.temperature > 100}\n\t<p>too hot!</p>\n    {:else if 80 > porridge.temperature}\n\t<p>too cold!</p>\n    {:else}\n\t<p>just right!</p>\n    {/if}\n\n    {#await promise}\n\t<!-- promise is pending -->\n\t<p>waiting for the promise to resolve...</p>\n    {:then value}\n\t<!-- promise was fulfilled -->\n\t<p>The value is {value}</p>\n    {:catch error}\n\t<!-- promise was rejected -->\n\t<p>Something went wrong: {error.message}</p>\n    {/await}\n\n    {#await promise then value}\n\t<p>The value is {value}</p>\n    {/await}\n\n    {#await promise catch error}\n\t<p>The error is {error}</p>\n    {/await}\n\n    {#key value}\n\t<div transition:fade>{value}</div>\n    {/key}\n\n    <div class=\"blog-post\">\n\t    <h1>{post.title}</h1>\n\t    {@html post.content}\n    </div>\n\n    {@debug user}\n</template>",
+    "origin": "Chroma v2.27.0 lexers/testdata/svelte.actual"
+  },
+  {
+    "language": "http",
+    "lexer": "HTTP",
+    "source": "GET /foo HTTP/2.0\nContent-Type: application/json\nUser-Agent: foo\n\n{\"hello\": \"world\"}\n",
+    "origin": "Chroma v2.27.0 lexers/testdata/http.2.0.actual"
+  },
+  {
+    "language": "http",
+    "lexer": "HTTP",
+    "source": "GET /foo HTTP/2\nContent-Type: application/json\nUser-Agent: foo\n\n{\"hello\": \"world\"}\n",
+    "origin": "Chroma v2.27.0 lexers/testdata/http.2.actual"
+  },
+  {
+    "language": "http",
+    "lexer": "HTTP",
+    "source": "GET /foo HTTP/3\nContent-Type: application/json\nUser-Agent: foo\n\n{\"hello\": \"world\"}\n",
+    "origin": "Chroma v2.27.0 lexers/testdata/http.3.actual"
+  },
+  {
+    "language": "http",
+    "lexer": "HTTP",
+    "source": "GET /foo HTTP/1.1\nContent-Type: application/json\nUser-Agent: foo\n\n{\"hello\": \"world\"}\n",
+    "origin": "Chroma v2.27.0 lexers/testdata/http.actual"
+  },
+  {
+    "language": "http",
+    "lexer": "HTTP",
+    "source": "HTTP/1.1 304\nServer: nginx\nDate: Sat, 08 Apr 2023 19:25:13 GMT\nConnection: keep-alive\nKeep-Alive: timeout=60\n\n",
+    "origin": "Chroma v2.27.0 lexers/testdata/http.response-no-reason-phrase.actual"
+  },
+  {
+    "language": "http",
+    "lexer": "HTTP",
+    "source": "HTTP/1.1 202 OK\nServer: nginx\nDate: Sat, 08 Apr 2023 19:25:13 GMT\nConnection: keep-alive\nKeep-Alive: timeout=60\n\n",
+    "origin": "Chroma v2.27.0 lexers/testdata/http.response.actual"
+  },
+  {
+    "language": "caddyfile-directives",
+    "lexer": "Caddyfile Directives",
+    "source": "# server\n@api path /api/*\nhandle @api {\n reverse_proxy localhost:8080\n}\nrespond \"hello {uri}\" 200\n",
+    "origin": "handwritten"
+  },
+  {
+    "language": "caddyfile-directives",
+    "lexer": "Caddyfile Directives",
+    "source": "uri strip_prefix /api\nheader X-Test \"value\"\n",
+    "origin": "handwritten"
+  },
+  {
+    "language": "genshitext",
+    "lexer": "Genshi Text",
+    "source": "## comment\n#for item in items\n${item.name}: $item.price\n#end for\n",
+    "origin": "handwritten"
+  },
+  {
+    "language": "genshitext",
+    "lexer": "Genshi Text",
+    "source": "#choose x + 1\n#when 2\nvalue\n#otherwise\nother\n#end\n",
+    "origin": "handwritten"
+  },
+  {
+    "language": "html+genshi",
+    "lexer": "Genshi HTML",
+    "source": "<div py:for=\"x in items\" class=\"item ${x}\">${x.name}</div>\n<?python n = 42 ?>\n",
+    "origin": "handwritten"
+  },
+  {
+    "language": "genshi",
+    "lexer": "Genshi",
+    "source": "<py:for each=\"x in items\"><item id='$x.id'>${x.name}</item></py:for>\n",
+    "origin": "handwritten"
+  },
+  {
+    "language": "rst",
+    "lexer": "reStructuredText",
+    "source": "Title\n=====\n\n* **first** and *second*\n* `link <https://example.com>`_\n\n.. code-block:: python\n\n    n = 42\n    print(n)\n\n",
+    "origin": "handwritten"
+  },
+  {
+    "language": "rst",
+    "lexer": "reStructuredText",
+    "source": ".. sourcecode:: rust\n\n    let n = 42;\n    // comment\n    println!(\"{}\", n);\n\n",
+    "origin": "handwritten"
+  },
+  {
+    "language": "rst",
+    "lexer": "reStructuredText",
+    "source": ".. code:: missing-lexer\n\n    some code\n    next line\n\n",
+    "origin": "handwritten"
+  },
+  {
+    "language": "rst",
+    "lexer": "reStructuredText",
+    "source": "A paragraph with ``literal`` text and :ref:`reference`.\n",
+    "origin": "handwritten"
+  },
+  {
+    "language": "http",
+    "lexer": "HTTP",
+    "source": "POST /api HTTP/1.1\r\ncontent-TYPE: application/json; charset=utf-8\r\n\r\n{\"answer\": 42, \"ok\": true}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "http",
+    "lexer": "HTTP",
+    "source": "HTTP/1.1 200 OK\nContent-Type: application/calendar+xml\n\n<event id=\"42\">hello</event>",
+    "origin": "handwritten"
+  },
+  {
+    "language": "http",
+    "lexer": "HTTP",
+    "source": "GET / HTTP/1.1\nContent-Type: application/x-unknown\n\nunknown body\n",
+    "origin": "handwritten"
+  },
+  {
+    "language": "http",
+    "lexer": "HTTP",
+    "source": "GET / HTTP/1.1\nX-Test: value\n\nplain body\n",
+    "origin": "handwritten"
+  },
+  {
+    "language": "http",
+    "lexer": "HTTP",
+    "source": "HTTP/1.1 200 OK\nContent-Type: text/html\n folded value\n\n<p>Hello</p>\n",
+    "origin": "handwritten"
+  },
+  {
+    "language": "http",
+    "lexer": "HTTP",
+    "source": "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Type: application/json\n\n[1, 2, 3]",
+    "origin": "handwritten"
+  },
+  {
+    "language": "http",
+    "lexer": "HTTP",
+    "source": "HTTP/1.1 200 OK\nContent-Type: Application/JSON\n\n{\"answer\": 42}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "http",
+    "lexer": "HTTP",
+    "source": "not an HTTP request\n",
+    "origin": "handwritten"
+  },
+  {
+    "language": "svelte",
+    "lexer": "Svelte",
+    "source": "<script>let x = {a: \"text\"};</script>\n<style>p { color: red }</style>\n<p>{x.a}</p>",
+    "origin": "handwritten"
+  },
+  {
+    "language": "svelte",
+    "lexer": "Svelte",
+    "source": "<button on:click|stopPropagation|preventDefault={f}>{\"hello {world}\"}</button>\n{#if x}<p>{x}</p>{:else if y}<p>{y}</p>{:else}empty{/if}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "svelte",
+    "lexer": "Svelte",
+    "source": "<!-- <script lang=\"ts\">{ignored}</script> -->\n<script lang=\"ts\">let n: number = 42;</script>\n{#await p then value}<p>{value}</p>{/await}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "svelte",
+    "lexer": "Svelte",
+    "source": "{#each items as { name, id }}{name}{/each}\n{@html raw}\n{@debug x}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "gemtext",
+    "lexer": "Gemtext",
+    "source": "```python\nx = 42\nprint(x)\n``` comment\n=> gemini://example.com Example\n",
+    "origin": "handwritten"
+  },
+  {
+    "language": "caddy",
+    "lexer": "Caddyfile",
+    "source": "localhost {\n @not not path /a /b\n route {\n  respond @not `hello {uri}`\n }\n}\n",
+    "origin": "handwritten"
+  },
+  {
+    "language": "caddy",
+    "lexer": "Caddyfile",
+    "source": "example.com {\n respond <<END\nhello\nEND 200\n}\n",
+    "origin": "handwritten nil-emitter heredoc witness (lexers/caddyfile.go)"
+  },
+  {
+    "language": "haxe",
+    "lexer": "Haxe",
+    "source": "package example;\nimport haxe.ds.StringMap;\nusing StringTools;\n// a comment\nclass Main {\n  static function main() {\n    var answer:Int = 42;\n    trace(\"hello\");\n  }\n}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "hx",
+    "lexer": "Haxe",
+    "source": "class Example {\n  #if js\n  public function render():String { return \"web\"; }\n  #elseif (cpp || java)\n  public function render():String { return \"native\"; }\n  #else\n  public function render():String { return \"other\"; }\n  #end\n}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "hxsl",
+    "lexer": "Haxe",
+    "source": "class Shader extends hxsl.Shader {\n  static var SRC = {\n    var color:Vec4;\n    function fragment() { pixelColor = color; }\n  };\n}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "haxe",
+    "lexer": "Haxe",
+    "source": "#if outer\nclass First {\n  #if inner\n  var value:Int;\n  #else\n  var value:String;\n  #end\n}\n#else\nclass Second {}\n#end",
+    "origin": "handwritten"
+  },
+  {
+    "language": "haxe",
+    "lexer": "Haxe",
+    "source": "#if js\nclass First {\n#else\nclass Second {\n#end\n  var value = 42;\n}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "haxe",
+    "lexer": "Haxe",
+    "source": "class Main {\n  function run() {\n    var x = #if debug (1 + 2) #else 3 #end;\n    trace(x);\n  }\n}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "haxe",
+    "lexer": "Haxe",
+    "source": "#if (version >= 4.2 && !old)\nvar x = 0xFF + .5e2;\n#elseif (!debug && (cpp || java))\nvar x = 1e3;\n#else\nvar x = 42.;\n#end",
+    "origin": "handwritten"
+  },
+  {
+    "language": "haxe",
+    "lexer": "Haxe",
+    "source": "#error \"Unsupported target\"\n#error 'bad target'\nvar x = 1;",
+    "origin": "handwritten"
+  },
+  {
+    "language": "haxe",
+    "lexer": "Haxe",
+    "source": "#else\nvar x = 1;\n#elseif debug\nvar y = 2;\n#end\n#end",
+    "origin": "handwritten"
+  },
+  {
+    "language": "haxe",
+    "lexer": "Haxe",
+    "source": "class Main {\n  static function main() {\n    var name = \"世界\";\n    trace('hello $name ${1 + 2} $$');\n    var regex = ~/hello\\/world/gi;\n    /* multiline\n       comment */\n  }\n}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "haxe",
+    "lexer": "Haxe",
+    "source": "@:keep\nclass Box<T:(Iterable<Int>, Dynamic)> extends Base implements IFace {\n  public var value(default, null):Array<T>;\n  public function new(v:Array<T>) { value = v; }\n}\ntypedef Point = { x:Float, ?y:Float };\nenum Color { Red; RGB(r:Int, g:Int, b:Int); }\nabstract Id(Int) from Int to Int {}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "haxe",
+    "lexer": "Haxe",
+    "source": "function run(x:Dynamic) {\n  for (i in 0...10) if (i > 3) break;\n  while (x != null) x--;\n  do { x++; } while (x < 2);\n  try { throw x; } catch (e:Dynamic) trace(e);\n  switch (x) { case 1, 2: return true; default: return false; }\n}",
+    "origin": "handwritten"
+  },
+  {
+    "language": "haxe",
+    "lexer": "Haxe",
+    "source": "macro class {\n  public function make() { return macro $v{42}; }\n}\nvar x = { name: \"value\", count: 2 };\nvar f = function(x:Int):Int return x * 2;\nx.count = f(x.count);",
+    "origin": "handwritten"
+  },
+  {
+    "language": "haxe",
+    "lexer": "Haxe",
+    "source": "class Main { function f() { var x = ((((((((((((((((((((((((((((((((((((((((\n#if a\n1\n#elseif b\n2\n#else\n3\n#end\n)))))))))))))))))))))))))))))))))))))))); } }",
+    "origin": "handwritten"
+  },
+  {
+    "language": "haxe",
+    "lexer": "Haxe",
+    "source": "#if a\n#if a\n#if a\n#if a\n#if a\n#if a\n#if a\n#if a\n#if a\n#if a\n#if a\n#if a\n#if a\n#if a\n#if a\n#if a\n#if a\n#if a\n#if a\n#if a\n#if a\n#if a\n#if a\n#if a\n#if a\n#if a\n#if a\n#if a\n#if a\n#if a\n#if a\n#if a\n#if a\n#if a\n#if a\n#if a\n#if a\n#if a\n#if a\n#if a\nclass Deep {}\n#end\n#end\n#end\n#end\n#end\n#end\n#end\n#end\n#end\n#end\n#end\n#end\n#end\n#end\n#end\n#end\n#end\n#end\n#end\n#end\n#end\n#end\n#end\n#end\n#end\n#end\n#end\n#end\n#end\n#end\n#end\n#end\n#end\n#end\n#end\n#end\n#end\n#end\n#end\n#end\n",
+    "origin": "handwritten"
+  },
+  {
+    "language": "md",
+    "lexer": "markdown",
+    "source": "```haxe\nclass Main { static function main() trace(\"hello\"); }\n```",
+    "origin": "handwritten"
+  },
+  {
+    "language": "http",
+    "lexer": "HTTP",
+    "source": "HTTP/1.1 200 OK\nContent-Type: text/haxe\n\nclass Main { var x = 42; }",
+    "origin": "handwritten"
+  },
+  {
+    "language": "rst",
+    "lexer": "reStructuredText",
+    "source": ".. code:: haxe\n\n    class Main { var x = 42; }\n\n",
+    "origin": "handwritten"
+  },
+  {
+    "language": "haxe",
+    "lexer": "Haxe",
+    "source": "var x = #if a 1 #else 2 #end;",
+    "origin": "handwritten"
+  },
+  {
+    "lexer": "Raku",
+    "language": "raku",
+    "source": "my Int $n = 42; # count\nsay \"hello $n\";\n",
+    "origin": "handwritten Raku contract"
+  },
+  {
+    "lexer": "Raku",
+    "language": "perl6",
+    "source": "use v6;\nsub greet(Str $name) { say \"Hello, $name!\" }\ngreet(\"Ada\");\n",
+    "origin": "handwritten Raku contract"
+  },
+  {
+    "lexer": "Raku",
+    "language": "pl6",
+    "source": "class Point { has $.x; has $.y; method norm { sqrt($!x**2 + $!y**2) } }\n",
+    "origin": "handwritten Raku contract"
+  },
+  {
+    "lexer": "Raku",
+    "language": "raku",
+    "source": "my @a = <one two three>;\nmy %h = :foo(42), :bar<text>;\n@a.map(*.uc).say;\n",
+    "origin": "handwritten Raku contract"
+  },
+  {
+    "lexer": "Raku",
+    "language": "raku",
+    "source": "say q{one {nested} two};\nsay qq[hello $name {1+2}];\nsay Q/foo/;\n",
+    "origin": "handwritten Raku contract"
+  },
+  {
+    "lexer": "Raku",
+    "language": "raku",
+    "source": "say q:ww<one two>; say q:c{a {2+3}}; say q:s/a $x/;\n",
+    "origin": "handwritten Raku contract"
+  },
+  {
+    "lexer": "Raku",
+    "language": "raku",
+    "source": "say q:to/END/;\nhello\nEND\nsay 1;\n",
+    "origin": "handwritten Raku contract"
+  },
+  {
+    "lexer": "Raku",
+    "language": "raku",
+    "source": "my $x = q:heredoc«END»;\nhello $x\nEND\n",
+    "origin": "handwritten Raku contract"
+  },
+  {
+    "lexer": "Raku",
+    "language": "raku",
+    "source": "my $x = rx/ a+ \\d /;\n$x ~~ m:i{a+};\n$x ~~ s/a/b/;\n",
+    "origin": "handwritten Raku contract"
+  },
+  {
+    "lexer": "Raku",
+    "language": "raku",
+    "source": "token ident { <alpha> \\w* }\nrule pair($x) { <ident> \":\" <ident> }\n",
+    "origin": "handwritten Raku contract"
+  },
+  {
+    "lexer": "Raku",
+    "language": "raku",
+    "source": "my $p = rx{ <[a..z]>+ \\d**2 <before x> { say 1 } };\n",
+    "origin": "handwritten Raku contract"
+  },
+  {
+    "lexer": "Raku",
+    "language": "raku",
+    "source": "my $r = rx{ <foo(1)> <foo: $x> <foo bar> <x=alpha> };\n",
+    "origin": "handwritten Raku contract"
+  },
+  {
+    "lexer": "Raku",
+    "language": "raku",
+    "source": "my $r = rx{ $(1+2) :my $x = 1; <{say $x}> };\n",
+    "origin": "handwritten Raku contract"
+  },
+  {
+    "lexer": "Raku",
+    "language": "raku",
+    "source": "say 'a\\\\b'; say \"hi \\n $x.foo(2)\";\n",
+    "origin": "handwritten Raku contract"
+  },
+  {
+    "lexer": "Raku",
+    "language": "raku",
+    "source": "#`{outer {nested} comment}\nmy $x = 1;\n",
+    "origin": "handwritten Raku contract"
+  },
+  {
+    "lexer": "Raku",
+    "language": "raku",
+    "source": "#|{Documentation B<bold I<nested>> U<underlined>}\nsub f { 1 }\n",
+    "origin": "handwritten Raku contract"
+  },
+  {
+    "lexer": "Raku",
+    "language": "raku",
+    "source": "=head1 Title B<bold>\n\n=para :foo<bar>\ntext I<italic>\n\n",
+    "origin": "handwritten Raku contract"
+  },
+  {
+    "lexer": "Raku",
+    "language": "raku",
+    "source": "=begin pod :foo<bar>\nB<bold> and I<italic>\n=end pod\nsay 1;\n",
+    "origin": "handwritten Raku contract"
+  },
+  {
+    "lexer": "Raku",
+    "language": "raku",
+    "source": "=begin code :lang<python>\nprint(42)\n=end code\nsay 1;\n",
+    "origin": "handwritten Raku contract"
+  },
+  {
+    "lexer": "Raku",
+    "language": "raku",
+    "source": "=for para :foo<bar>\ntext C<code>\n\n=encoding utf8\n=alias foo bar\n",
+    "origin": "handwritten Raku contract"
+  },
+  {
+    "lexer": "Raku",
+    "language": "raku",
+    "source": "=config pod :foo<bar>\n=item first B<bold>\n\n=finish\nfinished text\n",
+    "origin": "handwritten Raku contract"
+  },
+  {
+    "lexer": "Raku",
+    "language": "raku",
+    "source": "say q⟨one ⟨nested⟩ two⟩; #`⟦comment⟧\n",
+    "origin": "handwritten Raku contract"
+  },
+  {
+    "lexer": "Raku",
+    "language": "raku",
+    "source": "my $x = q{one \\} two};\nmy $y = qq<hi $x>;\n",
+    "origin": "handwritten Raku contract"
+  },
+  {
+    "lexer": "Raku",
+    "language": "raku",
+    "source": "my @a = <<one \"two three\">>; say «one two»;\n",
+    "origin": "handwritten Raku contract"
+  },
+  {
+    "lexer": "Raku",
+    "language": "raku",
+    "source": "constant C = 0xff; my $x = v1.2.3;\nsay @a Z[+] @b; say 3 ≤ 4;\n",
+    "origin": "handwritten Raku contract"
+  },
+  {
+    "lexer": "markdown",
+    "language": "markdown",
+    "source": "```raku\nmy $x=42; say qq{hello $x};\n```",
+    "origin": "handwritten Raku contract"
+  },
+  {
+    "lexer": "reStructuredText",
+    "language": "rst",
+    "source": ".. code:: raku\n\n    my $x = 42;\n    say $x;\n\n",
+    "origin": "handwritten Raku contract"
+  },
+  {
+    "lexer": "HTTP",
+    "language": "http",
+    "source": "HTTP/1.1 200 OK\nContent-Type: text/x-raku\n\nmy $x = 42;\n",
+    "origin": "handwritten Raku contract"
+  },
+  {
+    "language": "raku",
+    "lexer": "Raku",
+    "source": "#!/usr/bin/env raku\n\n=begin pod\n=head1 Some test data for B<Chroma>\n\n=head2 Multi-line\nheading\n\n=head2 One-line heading\n=begin code :lang<go>\nfmt.Println(\"Hello from Go\")\n=end code\n\n    =begin DESCRIPTION\n    Some description\n    =item one item\n    =end DESCRIPTION\n\n=for defn :numbered\n               We\n               Need\n               Numbers\n\n=end  pod\n\nsay $=pod[0].config<numbered>;\n\nsub f1($a) {\n    $a+1; #=> Comment looking like a pod declaration, but with a closing bracket!\n}\n\n2.&f1;\n\nsub f2($a,$b) {\n    $a+1;\n}\n\n2.&f2(3);\n\nModule::function($var);\n\n#| Fibonacci with Multiple dispatch\nmulti sub fib (0 --> 0) {}\nmulti sub fib (1 --> 1) {}\nmulti sub fib (\\n where * > 1) {\n    fib(n - 1) + fib(n - 2)\n}\nsay fib 10;\n# OUTPUT: 55\n\n#| B<A C<<uh U<Shape> umm>> role>\nrole Shape {\n    method area { ... }\n\n    method print_area {\n        say \"Area of {self.^name} is {self.area}.\";\n    }\n}\n\nclass Rectangle does Shape {\n    has $.width is required;\n    has $.height is required;\n\n    method area {\n        $!width * $!height\n    }\n}\n\nRectangle.new(width => 5, height => 7).print_area;\n\n# Inifinite and lazy list\nmy @fib = 0, 1, * + * ... ∞;\nsay @fib[^11];\n# OUTPUT: (0 1 1 2 3 5 8 13 21 34 55)\n\n# Feed operator\n@fib[^20] ==> grep(&is-prime) ==> say();\n# OUTPUT: (2 3 5 13 89 233 1597)\n\n# Function composition\nmy &reverse_primes = &reverse ∘ &grep.assuming(&is-prime);\nsay reverse_primes ^20;\n# OUTPUT: (19 17 13 11 7 5 3 2)\n\nmy @a = 1..4;\nmy @b = 'a'..'d';\n# Zip two lists using Z meta operator\nsay @a Z @b;\n# OUTPUT: ((1 a) (2 b) (3 c) (4 d))\nsay @a Z=> @b;\n# OUTPUT: (1 => a 2 => b 3 => c 4 => d)\nsay [\\R<] 1, 5, 6;\n\n# Hyper Operators\nsay @b «~» @a;\n# OUTPUT: [a1 b2 c3 d4]\n\n# Junctions\nsay 'Find all the words starting with a lowercase vowel'.words.grep: *.starts-with: any <a e i o u>;\n\nsub MAIN(\n    Str   $file where *.IO.f = 'file.dat',  #= an existing file to frobnicate\n    Int  :size(:$length) = 24,              #= length/size needed for frobnication\n    Bool :$verbose,                         #= required verbosity\n) {\n    say $length if $length.defined;\n    say $file   if $file.defined;\n    say 'Verbosity ', ($verbose ?? 'on' !! 'off');\n}\n\n#|｢[\nINI Parser\nC<SomeCode>\n=head1 heading\n]｣\ngrammar INIParser {\n    token TOP { <block> <section>* }\n    token section { <header> <block> }\n    token header { '[' ~ ']' \\w+ \\n+ }\n    token block { [<pair> | <comment>]* }\n    rule pair { <key> '=' <value> }\n    token comment { ';' \\N* \\n+ }\n    token key { \\w+ }\n    token value { <-[\\n ;]>+ }\n}\n\nmy $match = INIParser.parse: q:to/END/;\n; Comment\nkey1=value1\nkey2 = value2\n\n; Section 1\n[section1]\nkey3=value3\nEND\n\ngrammar Nested {\n    token TOP { <block> <section>* { if $/ { say $/ } } }\n    token block {\n        <?before <.[\\)\\]\\}]>>\n    }\n\n    token you_are_here {\n    <?{ nqp::getlexdyn('$?FILES') ~~ /\\.setting$/ }> ||\n    \\w+ 'some text' \\d+\n        { self.typed_panic('X::Syntax::Reserved',\n                reserved => 'use of {YOU_ARE_HERE} outside of a setting',\n                instead => ' (use whitespace if not a setting, or rename file with .setting extension?)');\n        }\n    }\n\n    rule statement_control:sym<if> {\n        $<sym>=[if|with]<.kok> {}\n        <xblock(~$<sym>[0] ~~ /with/ ?? $PBLOCK_REQUIRED_TOPIC !! $PBLOCK_NO_TOPIC)>\n        [\n            [\n            | 'else'\\h*'if' <.typed_panic: 'X::Syntax::Malformed::Elsif'>\n            | 'elif' { $/.typed_panic('X::Syntax::Malformed::Elsif', what => \"elif\") }\n            | $<sym>='elsif'  <xblock>\n            | $<sym>='orwith' <xblock($PBLOCK_REQUIRED_TOPIC)>\n            ]\n        ]*\n        {}\n        [\n            'else'\n            <else=.pblock(~$<sym>[-1] ~~ /with/ ?? $PBLOCK_REQUIRED_TOPIC !! $PBLOCK_NO_TOPIC)>\n        ]?\n    }\n\n    token special_variable:sym<$\\\\> {\n        '$\\\\' <?before \\s | ',' | '=' | <.terminator> >\n        <.obsvar('$\\\\')>\n    }\n\n    token type_declarator:sym<enum> {\n        :my %*MYSTERY;\n        [ <?[<(«]> <term> <.ws> || <.panic: 'An enum must supply an expression using <>, «», or ()'> ]\n        <.explain_mystery> <.cry_sorrows>\n        <?{\n            elsif !($text ~~ /^(\\w|\\:)+$/) {\n                $/.obs($bad, \"$sigil\\($text) for hard ref or $sigil\\::($text) for symbolic ref\");\n            }\n        }>\n    }\n\n    token rad_number {\n        :my $rad_digits := token rad_digits { <rad_digit>+ [ _ <rad_digit>+ ]* };\n        <O(|%methodcall)>\n        <O=.revO($<infixish>)>\n        <code=[A..Z]>\n    }\n\n    token pod_balanced_braces {\n        <?{ nqp::chars($<start>) == $*POD_ANGLE_COUNT || $*POD_ANGLE_COUNT < 0 }>\n    }\n\n    token routine_declarator:sym<macro> {\n        :my $*LINE_NO := HLL::Compiler.lineof(self.orig(), self.from(), :cache(1));\n        <!!{ nqp::rebless($/, self.slang_grammar('MAIN')); 1 }>\n        <sym> <.end_keyword> <macro_def()>\n    }\n\n    token routine_declarator:sym<macro> {\n        :my $*LINE_NO := HLL::Compiler.lineof(self.orig(), self.from(), :cache(1));\n        <sym> <.end_keyword> <macro_def()>\n    }\n\n    token integer {\n       <!!before ['.' <?before \\s | ',' | '=' | ':' <!before  <coloncircumfix <OPER=prefix> > > | <.terminator> | $ > <.typed_sorry: 'X::Syntax::Number::IllegalDecimal'>]? >\n       [ <?before '_' '_'+\\d> <.sorry: \"Only isolated underscores are allowed inside numbers\"> ]?\n    }\n}\n\nsay $match<block><pair>[0]<value>;\n# OUTPUT: ｢value1｣\n\nsay $match<section>[0]<block><pair>[0]<value>;\n# OUTPUT: ｢value3｣\n\n# Promise\nmy $promise = start {\n    my $i = 0;\n    for 1 .. 10 {\n        $i += $_\n    }\n    $i\n}\nmy $result = await $promise;\nsay $result;\n# OUTPUT: 55\n\n# Supply\nmy $bread-supplier = Supplier.new;\nmy $vegetable-supplier = Supplier.new;\n\nmy $supply = supply {\n    whenever $bread-supplier.Supply {\n        emit(\"We've got bread: \" ~ $_);\n    };\n    whenever $vegetable-supplier.Supply {\n        emit(\"We've got a vegetable: \" ~ $_);\n    };\n}\n$supply.tap(-> $v { say \"$v\" });\n\n$vegetable-supplier.emit(\"Radish\");\n# OUTPUT: «We've got a vegetable: Radish␤»\n$bread-supplier.emit(\"Thick sliced\");\n# OUTPUT: «We've got bread: Thick sliced␤»\n$vegetable-supplier.emit(\"Lettuce\");\n# OUTPUT: «We've got a vegetable: Lettuce␤»\n\nsay (1, 2, 3) »+« (4, 5, 6);\nsay (1, 2, 3, 4) »~» <a b>;\nsay (&sin, &cos, &sqrt)».(0.5);\nsay (<a b>, <c d e>)».&{ .elems };\nsay << '>>' >>;\nsay \"stuff here!!!\".subst(:g, /<</, '|');\nmy @array = <<an 'array of' {\"many\"} items>>;\n\nsay [1,2,3] (&) [2,5,7];\nsay [1,2,3] ∩ [2,5,7];\nsay 2 =:= 3;\nsay [1,2,3] Z [4,5,6];\n[1,2,3] RZ[=>] [4,5,6];\n\nrx/:i\n        \\w+ # some comment\n        'text'\n        \\d ** 2..5\n        \"double quotes!\"\n        <alnum>\n        <:N + alpha>+\n        <{1 + 2}>\n        <:madeup>\n        '[' \\w+ ']' || \\S+ \\s* '=' \\s* \\S*\n        || '[' \\w+ ']'\n        || \\S+ \\s* '=' \\s* \\S*\n        <:Script('Latin')>\n        <:Block<Basic Latin>>\n        if | if <.ws> else $0\n        <:Lu+:N>\n        < f fo foo food >\n        <:L + :!N>\n        <[ a .. c 1 2 3 ]>*\n        @variable\n        <[\\d] - [13579]>\n        <?before a $0> && .\n        <:Zs + [\\x9] - [\\xA0]>\n        ^ raku $\n        ^ raku$\n        [^raku$|something$]else$\n        <[ \\x[00C0] .. \\x[00C6] ]>*\n        two<|w>\\-<|w>words\n        <[\\c[GREEK SMALL LETTER ALPHA]..\\c[GREEK SMALL LETTER GAMMA]]>*\n        two<!|w><!|w>words\n        << br >>\n        own »\n        ^^ <?alnum> \\d+\n        ^^ \\d+ <!:Script<Tamil>>\n        abc <?[ d..f ]>\n        abc <?@some-array>\n        <?after ^^ | \".\" \\s+> <:Lu>\\S+\n        [ ab || cbc ]\n        (a || b)+\n        [a||b] (c)\n        (\\d) ($0)\n        (\\d) {} :my $c = $0; ($c)\n        :my $counter = 0; ( \\V* { ++$counter } ) *%% \\n\n        (a) b {} :my $c2 = $/;\n        test\n        (a) {say \"Check so far \", ~$/} b :my $c3 = ~$0;\n        { say 'hi' }\n\n        $<myname> = [ \\w+ ]\n\n        <!!{ $*LANG := $*LEAF := $/.clone_braid_from(self); 1 }>\n\n        <?before <.[\\)\\]\\}]>>\n\n        \\/\n\n        $<string>=( [ $<part>=[abc] ]* % '-' )\n        $<variable>=\\w+ '=' $<value>=\\w+\n        a <( b )> c\n        <(a <( b )> c)>\n        '(' ~ ')' <expression>\n        $<OPEN> = '(' <SETGOAL: ')'> <some-expression> [ $GOAL || <FAILGOAL> ]\n        <?> ~ ')' \\d+\n        '(' <-[()]>* ')' || '('[ <-[()]>* <~~> <-[()]>* ]* ')'\n        @<named-regex>=<.ident>\n        <.named-regex>\n        <&named-regex>\n        <someregex('a')>\n        <capture-name=named-regex>\n        <capture-name=named-regex(2)>\n        <$test>\n        <@test>\n        $(1 + 2; $test)\n        $pattern3.flip # Nil\n        \"$pattern3.flip()\"\n        $([~] $pattern3.comb.reverse)\n        @(%h.keys)\n        \\d ** 1..3 <?{ $/.Int <= 255 && $/.Int >= 0 }>\n        $/;\n\n$<variable><key>;\n\nconstant \\something:some<adverb> = 'something';\n\nmy %hash = %(\n    query => something,\n    qq => 'something',\n    :23year,\n    m => $test,\n    :yes,\n    :!yes,\n    (Less) => $test,\n);\n\nmy %hash2 = %(\n    :query(something),\n    :qq<something>,\n    :m(something),\n    :23('a'),\n    :test<something>,\n    :query1{1 + 2}\n    :list[1,2,3]\n);\n\n=for comment\nsome comment\n\n=table\n  |col|\n  |row|\n\nsay Q[｢some $text｣];\nsay qq｢｢some $regex text｣｣;\nsay qww｢｢some $variable 'some text' text｣｣;\nsay q:ww｢｢some $variable 'some text' text｣｣;\nsay q:w｢｢some $variable 'some text' text｣｣;\nsay qq:w｢｢some $regex 'some text' text｣｣;\nsay Q:c｢｢some $regex 'some text' { 2 + 1 } text｣｣;\nsay q:a｢｢some @array[2] 'some text' { 2 + 1 } text｣｣;\nsay Q:a:c｢｢some @array 'some text' { 2 + 1 } text｣｣;\nQ[some \\qq[$variable.method()] testing]\nQ:a:c[some \\qq[$variable.method()] testing]\nsay Q:c:h｢Testing {'toasting'} %h<one>｣;\nsay Q:c:h｢Testing {'toasting'} %h<one><two>｣;\nsay Q:c:h｢Testing {'toasting'} %h<<one>>｣;\nsay Q:c:h｢Testing {'toasting'} %h«one»｣;\nsay Q:b[Testing];\n'some \\qq[$variable.method()] testing';\n'somes\\' testing';\n\"some \\qq[$variable.method()] testing\";\n\"some $variable.method() testing\";\n\"some $variable:some<adverb>.method() testing\";\n\"some $variable:some('adverb').method() testing\";\n\"some func() testing\";\n\"some func:some<adverb>() testing\";\n\"some &func() testing\";\n\"some &func($test) testing\";\n\"some &func:some<adverb>() testing\";\nsay \"Something foo(2) $a.succ(2+3, $some_variable) $a.some-method()  @more $_.Str(2) $_: { $_ * 2 }\";\n\n#`[[\nmultiline comment]\n]]\n\nmy $regex = /'match' \\s* <[:-]> \\s* \\w 'something'/;\n\nsay S/some/a/ given $text;\nsay s/some/a/;\nsay S%some%a% given $text;\nsay $text ~~ s/(some) \\d+ $<var>=<alnum>/a $0/;\nsay $text ~~ s:Pos(2)/(some)/$0/;\nsay $text ~~ s%some%a%;\nsay $text ~~ s%s(.)me%a$0%;\nsay $text ~~ s:r/some/a/;\nsay $text ~~ m/^text [:i \\d+]$/;\nsay $text ~~ m:s/^<{2+5}>$/;\nsay $text ~~ m%^text$%;\nsay $text ~~ /^text$/;\nsay $text ~~ tr/abcde/12345/;\ns{\\w+} = 'test';\n\nsay 1+1i;\n\nCATCH {\n    when X::AdHoc {}\n    when CX::Warn {}\n}\n\nsay Q:heredoc｢FINISH｣;\nsome long\ntext\nhere.\nFINISH\n\n$*IN.lines.first: { .say and .so with %a{.Int cmp n}}\n\n#| Grammar C<G>\ngrammar G {\n    rule TOP { <function-define> }\n    rule function-define {\n        :my \\var = 'something';\n        'sub' <identifier>\n        {\n            say \"func \" ~ $<identifier>.made;\n            make $<identifier>.made;\n        }\n        '(' <parameter> ')' '{' '}'\n        { say \"end \" ~ $/.made; }\n    }\n    token identifier { \\w+ { make ~$/; } }\n    token parameter { \\w+ { say \"param \" ~ $/; } }\n    token token { \\w+ { say \"param \" ~ $/; } }\n}\n\nuse Some::Module;\nuse Some::Module:auth<author>:ver(v1.0.0);\n\nnotes $trip: \"Almost there\";\n\nLABEL:\nfor <a b c> {\n}\n\n#|[[\nmultiline pod declaration]\n]]\ngrammar Calculator {\n    token TOP { <calc-op> }\n\n    proto rule calc-op          {*}\n    proto rule calc-op($a)          {*}\n    rule calc-op:sym<add> { <num> '+' <num> }\n    rule calc-op:sym<add> { <num> ':' '+' <num> }\n    rule calc-op:sym<sub>($a) { <num> '-' <num> }\n\n    token num { \\d+ }\n}\n\nclass Calculations {\n    method TOP              ($/) { make $<calc-op>.made; }\n    method calc-op:sym<add> ($/) { make [+] $<num>; }\n    method calc-op:sym<sub> ($/) { make [-] $<num>; }\n    method calc-op:sym<sub>($/) { make [-] $<num>; }\n    method calc-op:sym($/) { make [-] $<num>; }\n    method calc-op:sym<sub> { make [-] $<num>; }\n}\n\nsay Calculator.parse('2 + 3', actions => Calculations).made;\n\nput Date.today.later(:2years).year;\n\n=finish\nC<say> Date.today.year;\n# Output: 2020\nB<say> Date.today.later(:2years).year;\n",
+    "origin": "Chroma v2.27.0 lexers/testdata/raku/raku.actual"
+  },
+  {
+    "language": "raku",
+    "lexer": "Raku",
+    "source": "say q:to//;\n\nsay 'something';\n\n# Unterminated heredoc\nsay q:to/Foo/;\n\nsay 'something';\n",
+    "origin": "Chroma v2.27.0 lexers/testdata/raku/unterminated_heredoc.actual"
+  },
+  {
+    "language": "raku",
+    "lexer": "Raku",
+    "source": "say q⟨é\\⟩ a⟩;\n",
+    "origin": "handwritten minimized indexAt Unicode byte-count witness"
+  },
+  {
+    "language": "raku",
+    "lexer": "Raku",
+    "source": "=begin code :lang<goー>\nvar x = 42\n=end code\n",
+    "origin": "handwritten minimized POD ASCII word-class witness"
+  }
+]

@@ -1,0 +1,127 @@
+# Public-API Go-oracle fixtures for crates/d2-rs-export: lib/pptx parts and
+# properties, lib/pdf documents/navigation/PNG pages, FPDF font subsets,
+# lib/png EXIF, archive/zip over the PPTX template, d2scene aspect matrices.
+# One go-test-hook overlaid into lib/pdf
+# (tools/fixtures/hooks/renderexport-public-api, D2RS_PUBLIC_MODE per recipe) harvested from .reference/codex-runs/witness-inputs/run{30,31,32,34,36,40}
+# and tools/pdf-master-probe. PDF navigation/font fields are then extracted by
+# scripts/export_pdf_fixtures.py (stdlib only). See docs/FIXTURES.md.
+#
+# Regenerate:  uv run --no-project python scripts/regen-fixtures.py --only 'renderexport-public-*' --jobs 4
+# Test:        cargo test -p d2-rs-export --features oracle-fixtures
+
+[defaults]
+timeout = 900
+# The hook package (lib/pdf) and every package it imports.
+key_deps.upstream_paths = ["lib", "d2renderers", "d2target", "d2themes", "d2graph", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "renderexport-public-pptx"
+kind = "go-test-hook"
+package = "lib/pdf"
+hooks = ["tools/fixtures/hooks/renderexport-public-api/d2rs_public_api_test.go"]
+test = "TestD2RSPublicAPI"
+description = "lib/pptx generated XML parts (navigation on/off) and docProps core/app"
+env = { D2RS_PUBLIC_MODE = "pptx", D2RS_PUBLIC_OUT = "{stage}" }
+outputs = [
+  "crates/d2-rs-export/tests/fixtures/pptx-parts/plain/[Content_Types].xml",
+  "crates/d2-rs-export/tests/fixtures/pptx-parts/plain/_rels/.rels",
+  "crates/d2-rs-export/tests/fixtures/pptx-parts/plain/ppt/presentation.xml",
+  "crates/d2-rs-export/tests/fixtures/pptx-parts/plain/ppt/_rels/presentation.xml.rels",
+  "crates/d2-rs-export/tests/fixtures/pptx-parts/plain/ppt/slides/slide1.xml",
+  "crates/d2-rs-export/tests/fixtures/pptx-parts/plain/ppt/slides/slide2.xml",
+  "crates/d2-rs-export/tests/fixtures/pptx-parts/plain/ppt/slides/_rels/slide1.xml.rels",
+  "crates/d2-rs-export/tests/fixtures/pptx-parts/plain/ppt/slides/_rels/slide2.xml.rels",
+  "crates/d2-rs-export/tests/fixtures/pptx-parts/nav/[Content_Types].xml",
+  "crates/d2-rs-export/tests/fixtures/pptx-parts/nav/_rels/.rels",
+  "crates/d2-rs-export/tests/fixtures/pptx-parts/nav/ppt/presentation.xml",
+  "crates/d2-rs-export/tests/fixtures/pptx-parts/nav/ppt/_rels/presentation.xml.rels",
+  "crates/d2-rs-export/tests/fixtures/pptx-parts/nav/ppt/slides/slide1.xml",
+  "crates/d2-rs-export/tests/fixtures/pptx-parts/nav/ppt/slides/slide2.xml",
+  "crates/d2-rs-export/tests/fixtures/pptx-parts/nav/ppt/slides/_rels/slide1.xml.rels",
+  "crates/d2-rs-export/tests/fixtures/pptx-parts/nav/ppt/slides/_rels/slide2.xml.rels",
+  "crates/d2-rs-export/tests/fixtures/pptx-properties-core.xml",
+  "crates/d2-rs-export/tests/fixtures/pptx-properties-app.xml",
+]
+
+[[recipe]]
+name = "renderexport-public-zip"
+kind = "go-test-hook"
+package = "lib/pdf"
+hooks = ["tools/fixtures/hooks/renderexport-public-api/d2rs_public_api_test.go"]
+test = "TestD2RSPublicAPI"
+description = "Go 1.27 archive/zip Create/Copy bytes over the pinned lib/pptx/template.pptx"
+env = { D2RS_PUBLIC_MODE = "zip", D2RS_PUBLIC_OUT = "{stage}" }
+outputs = ["crates/d2-rs-export/tests/fixtures/zip-encoding-go127.zip"]
+
+[[recipe]]
+name = "renderexport-public-png-exif"
+kind = "go-test-hook"
+package = "lib/pdf"
+hooks = ["tools/fixtures/hooks/renderexport-public-api/d2rs_public_api_test.go"]
+test = "TestD2RSPublicAPI"
+description = "lib/png.AddExif over seven version strings, opaque and alpha PNGs"
+env = { D2RS_PUBLIC_MODE = "png-exif", D2RS_PUBLIC_OUT = "{stage}" }
+outputs = ["crates/d2-rs-export/tests/fixtures/png-exif-source-v090.json"]
+
+[[recipe]]
+name = "renderexport-public-pdf-master"
+kind = "go-test-hook"
+package = "lib/pdf"
+hooks = ["tools/fixtures/hooks/renderexport-public-api/d2rs_public_api_test.go"]
+test = "TestD2RSPublicAPI"
+description = "lib/pdf AddPDFPage documents (links, navigation, fills, opaque/default PNG), split-IDAT PNG pages, d2scene aspect matrices"
+env = { D2RS_PUBLIC_MODE = "pdf-master", D2RS_PUBLIC_OUT = "{stage}" }
+outputs = [
+  "crates/d2-rs-export/tests/fixtures/pdf-png-idat-fpdf-master.json",
+  "crates/d2-rs-export/tests/fixtures/pdf-documents-fpdf-master.json",
+  "crates/d2-rs-export/tests/fixtures/pdf-opaque-default-fpdf-master.pdf",
+  "crates/d2-rs-export/tests/fixtures/vector-image-placement-source-master.json",
+]
+
+[[recipe]]
+name = "renderexport-public-pdf-navigation-docs"
+kind = "go-test-hook"
+package = "lib/pdf"
+hooks = ["tools/fixtures/hooks/renderexport-public-api/d2rs_public_api_test.go"]
+test = "TestD2RSPublicAPI"
+description = "lib/pdf navigation PDFs (intermediate for renderexport-public-pdf-navigation)"
+env = { D2RS_PUBLIC_MODE = "pdf-navigation", D2RS_PUBLIC_OUT = "{stage}/tools/renderexport-pdf-navigation" }
+outputs = ["tools/renderexport-pdf-navigation/plain.pdf", "tools/renderexport-pdf-navigation/nav.pdf"]
+
+[[recipe]]
+name = "renderexport-public-pdf-navigation"
+kind = "command"
+description = "Page sizes, link rects and /XYZ destinations of the navigation PDFs"
+after = ["renderexport-public-pdf-navigation-docs"]
+argv = ["{python}", "scripts/export_pdf_fixtures.py", "navigation"]
+outputs = ["crates/d2-rs-export/tests/fixtures/pdf-navigation-source-v090.json"]
+
+[[recipe]]
+name = "renderexport-public-pdf-fonts-docs"
+kind = "go-test-hook"
+package = "lib/pdf"
+hooks = ["tools/fixtures/hooks/renderexport-public-api/d2rs_public_api_test.go"]
+test = "TestD2RSPublicAPI"
+description = "FPDF UTF-8 Source Sans Pro PDFs (intermediate for renderexport-public-pdf-fonts)"
+env = { D2RS_PUBLIC_MODE = "pdf-fonts", D2RS_PUBLIC_OUT = "{stage}/tools/renderexport-pdf-fonts" }
+outputs = ["tools/renderexport-pdf-fonts/empty.pdf", "tools/renderexport-pdf-fonts/board.pdf", "tools/renderexport-pdf-fonts/unicode.pdf"]
+
+[[recipe]]
+name = "renderexport-public-pdf-fonts"
+kind = "command"
+description = "Raw FPDF font objects and decoded FontFile2 subsets per font"
+after = ["renderexport-public-pdf-fonts-docs"]
+argv = ["{python}", "scripts/export_pdf_fixtures.py", "fonts"]
+outputs = ["crates/d2-rs-export/tests/fixtures/pdf-fonts-fpdf.json"]
+
+[[recipe]]
+name = "renderexport-ascii-callers"
+kind = "command"
+description = "ASCII text of 12 hand-written sources x layouts/modes/scales from pinned d2js, with the pinned Go CLI file outcome"
+upstream = true
+after = ["d2js-node-package"]
+argv = ["{python}", "scripts/export_ascii_callers.py"]
+outputs = ["crates/d2-rs-export/tests/fixtures/ascii-callers-source-v090.json"]
+key_deps.files = ["scripts/fixture_recipe.py", "tools/d2js-capture/d2js.mjs", "tools/d2js-capture/ascii-callers.mjs",
+                  "tools/fixtures/inputs/renderexport/ascii-callers-sources.json"]
+key_deps.go_toolchain = true

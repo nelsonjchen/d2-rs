@@ -1,0 +1,184 @@
+# Go CLI oracle fixtures for crates/d2-rs-cli (also read by d2-rs-wasm):
+# the pinned Go `d2` command, built from the runner's patched upstream tree
+# with version stamp v0.9.0 (the version d2-rs reports), run on the
+# hand-composed requests of the historical v0.9.0-era witness scripts. See
+# scripts/cli_go_fixtures.py for the request sources and docs/FIXTURES.md.
+#
+# Families that decode PNG/PDF/PPTX run under `uv run --with` pinned Pillow
+# and pypdf; the others use the runner's interpreter.
+#
+# Regenerate:  uv run --no-project python scripts/regen-fixtures.py --only 'cli-*'
+# Test:        cargo test -p d2-rs --features oracle-fixtures
+
+[defaults]
+kind = "command"
+upstream = true
+timeout = 1800
+
+[defaults.key_deps]
+files = ["scripts/fixture_recipe.py", "scripts/cli_go_fixtures.py"]
+go_toolchain = true
+
+[[recipe]]
+name = "cli-gif-subtree"
+description = "Selected GIF subtrees, quoted and folder-only boards, file/stdin/stdout boundaries"
+outputs = ["crates/d2-rs-cli/tests/fixtures/gif-subtree-source-v090.json"]
+argv = ["{python}", "scripts/cli_go_fixtures.py", "gif-subtree"]
+
+[[recipe]]
+name = "cli-paged-subtree"
+description = "Selected PDF/PPTX subtrees: every page, drawing stream, image, annotation and PPTX member"
+outputs = ["crates/d2-rs-cli/tests/fixtures/paged-subtree-source-v090.json"]
+argv = ["uv", "run", "--no-project", "--with", "pillow==11.3.0", "--with", "pypdf==5.9.0", "python", "scripts/cli_go_fixtures.py", "paged-subtree"]
+
+[[recipe]]
+name = "cli-png-metadata"
+description = "PNG file/stdin/stdout, subtree traversal and --omit-version file hashes"
+outputs = ["crates/d2-rs-cli/tests/fixtures/png-metadata-source-v090.json"]
+argv = ["{python}", "scripts/cli_go_fixtures.py", "png-metadata"]
+
+[[recipe]]
+name = "cli-subtree-output"
+description = "Selected SVG board directory trees"
+outputs = ["crates/d2-rs-cli/tests/fixtures/subtree-output-source-v090.json"]
+argv = ["{python}", "scripts/cli_go_fixtures.py", "subtree-output"]
+
+[[recipe]]
+name = "cli-animation-target-canvas"
+description = "Animated SVG outer/inner canvases, transition counts and recursive hashes"
+outputs = ["crates/d2-rs-cli/tests/fixtures/animation-target-canvas-source-v090.json"]
+argv = ["{python}", "scripts/cli_go_fixtures.py", "animation-target-canvas"]
+
+[[recipe]]
+name = "cli-animation-io"
+description = "Animated SVG destination policy for stdin/stdout and multiboard targets"
+outputs = ["crates/d2-rs-cli/tests/fixtures/animation-io-source-v090.json"]
+argv = ["{python}", "scripts/cli_go_fixtures.py", "animation-io"]
+
+[[recipe]]
+name = "cli-badge-paint-order"
+description = "TALA link/tooltip badge paint order and ancestor contracts"
+outputs = ["crates/d2-rs-cli/tests/fixtures/badge-paint-order-source-v090.json"]
+argv = ["{python}", "scripts/cli_go_fixtures.py", "badge-paint-order"]
+
+[[recipe]]
+name = "cli-braket-png"
+description = "Whole braket/radical LaTeX diagram PNGs (TALA seed 1, theme 0, scale 2)"
+outputs = ["crates/d2-rs-cli/tests/fixtures/braket-fraction-script-source-v090.png", "crates/d2-rs-cli/tests/fixtures/braket-nested-root-inner-product-source-v090.png", "crates/d2-rs-cli/tests/fixtures/braket-nested-root-bra-scripts-source-v090.png", "crates/d2-rs-cli/tests/fixtures/size-empty-radical-source-v090.png"]
+argv = ["{python}", "scripts/cli_go_fixtures.py", "braket-png"]
+
+[[recipe]]
+name = "cli-unavailable-image"
+description = "PNG of an image shape whose icon file is missing"
+outputs = ["crates/d2-rs-cli/tests/fixtures/unavailable-image-v090.png"]
+argv = ["{python}", "scripts/cli_go_fixtures.py", "unavailable-image"]
+
+[[recipe]]
+name = "cli-tala-structured-font"
+description = "TALA class/SQL table PNG frames"
+outputs = ["crates/d2-rs-cli/tests/fixtures/tala-structured-font-v090/class-default.png", "crates/d2-rs-cli/tests/fixtures/tala-structured-font-v090/sql-default.png", "crates/d2-rs-cli/tests/fixtures/tala-structured-font-v090/structured-edge.png", "crates/d2-rs-cli/tests/fixtures/tala-structured-font-v090/provenance.json"]
+argv = ["{python}", "scripts/cli_go_fixtures.py", "tala-structured-font"]
+
+[[recipe]]
+name = "cli-paged-rgba"
+description = "PPTX slide frames of quoted boards (RGBA with transparency)"
+outputs = ["crates/d2-rs-cli/tests/fixtures/paged-rgba-v090/board-1.png", "crates/d2-rs-cli/tests/fixtures/paged-rgba-v090/board-2.png", "crates/d2-rs-cli/tests/fixtures/paged-rgba-v090/board-3.png", "crates/d2-rs-cli/tests/fixtures/paged-rgba-v090/provenance.json"]
+argv = ["{python}", "scripts/cli_go_fixtures.py", "paged-rgba"]
+
+[[recipe]]
+name = "cli-paged-links"
+description = "PDF annotations and PPTX links, navigation and frames under Dagre, ELK and TALA"
+outputs = ["crates/d2-rs-cli/tests/fixtures/paged-links-v090.json"]
+argv = ["uv", "run", "--no-project", "--with", "pillow==11.3.0", "--with", "pypdf==5.9.0", "python", "scripts/cli_go_fixtures.py", "paged-links"]
+
+[[recipe]]
+name = "cli-engine-options"
+description = "Dagre/ELK CLI engine options: complete PNG inventories"
+outputs = ["crates/d2-rs-cli/tests/fixtures/engine-options-source-v090.json"]
+argv = ["uv", "run", "--no-project", "--with", "pillow==11.3.0", "--with", "pypdf==5.9.0", "python", "scripts/cli_go_fixtures.py", "engine-options"]
+
+[[recipe]]
+name = "cli-version-flags"
+description = "--version/version/help dispatch, flag errors and the master help text"
+outputs = ["crates/d2-rs-cli/tests/fixtures/version-flags-source-v090.json", "crates/d2-rs-cli/tests/fixtures/help-master-6a7b4837.txt"]
+argv = ["{python}", "scripts/cli_go_fixtures.py", "version-flags"]
+
+[[recipe]]
+name = "cli-sanity-svg"
+description = "Upstream sanity/basic/dagre golden SVG stamped v0.9.0"
+outputs = ["crates/d2-rs-cli/tests/fixtures/sanity-basic-dagre-v090.svg"]
+argv = ["{python}", "scripts/cli_go_fixtures.py", "sanity-svg"]
+key_deps.go_toolchain = false
+key_deps.upstream_paths = ["e2etests/testdata/sanity/basic/dagre/sketch.exp.svg"]
+
+[[recipe]]
+name = "cli-isometric-hash"
+description = "Diagram.Bytes() behind the isometric SVG hash for the root board and the whole board tree"
+outputs = ["crates/d2-rs-cli/tests/fixtures/isometric-root-hash-master.bytes", "crates/d2-rs-cli/tests/fixtures/isometric-tree-hash-master.bytes"]
+argv = ["{python}", "scripts/cli_go_fixtures.py", "isometric-hash"]
+
+# Upstream test-call observations (scripts/cli_go_api_fixtures.py): pinned Go
+# tests with their calls routed through env-gated hooks, supplied as go
+# -overlay entries; the original assertions stay active.
+
+[[recipe]]
+name = "cli-board-output-unicode"
+kind = "go-test-hook"
+description = "filepath.Clean and Unicode case-fold/NFC board output collision keys"
+outputs = ["crates/d2-rs-cli/tests/fixtures/board-output-unicode.json"]
+package = "d2cli"
+hooks = ["tools/fixtures/hooks/cli-board-output-unicode/d2rs_board_output_unicode_test.go"]
+test = "TestD2RSBoardOutputUnicode"
+
+[[recipe]]
+name = "cli-board-manifest"
+description = "Board output manifest ownership admission: original test calls plus the admission grid"
+outputs = ["crates/d2-rs-cli/tests/fixtures/board-manifest-api.json"]
+argv = ["{python}", "scripts/cli_go_api_fixtures.py", "board-manifest"]
+key_deps.files = ["scripts/cli_go_api_fixtures.py", "scripts/upstream_overlay.py", "tools/board-manifest-scoreboard/hook_test.go"]
+
+[[recipe]]
+name = "cli-board-path"
+description = "Board name components, collisions and append-path containment from the original d2cli tests"
+outputs = ["crates/d2-rs-cli/tests/fixtures/board-path-api.json"]
+argv = ["{python}", "scripts/cli_go_api_fixtures.py", "board-path"]
+key_deps.files = ["scripts/fixture_recipe.py", "scripts/cli_go_api_fixtures.py", "scripts/upstream_overlay.py", "scripts/references.py", "scripts/*-scoreboard.py", "tools/board-path-scoreboard/hook_test.go"]
+
+[[recipe]]
+name = "cli-renderer-contract"
+description = "Original d2animate/d2scene/... renderer contract calls and complete results"
+outputs = ["crates/d2-rs-cli/tests/fixtures/renderer-contract-api.json"]
+argv = ["{python}", "scripts/cli_go_api_fixtures.py", "renderer-contract"]
+key_deps.files = ["scripts/fixture_recipe.py", "scripts/cli_go_api_fixtures.py", "scripts/upstream_overlay.py", "scripts/references.py", "scripts/*-scoreboard.py", "tools/renderer-contract-scoreboard"]
+
+# Layout and sketch probes (tools/fixtures/programs/cli-layout-probes, built
+# by scripts/cli_go_fixtures.py with upstream's go.mod): the pinned
+# d2lib/TALA/Dagre/rough-go APIs on generated request grids.
+
+[[recipe]]
+name = "cli-authored-label-position"
+description = "TALA (seed 1) label positions for the label.near grid over four shapes and flat/nested/grid layouts"
+outputs = ["crates/d2-rs-cli/tests/fixtures/authored-label-position-source-v090.json"]
+argv = ["{python}", "scripts/cli_go_fixtures.py", "probe-label-positions"]
+key_deps.files = ["tools/fixtures/programs/cli-layout-probes"]
+
+[[recipe]]
+name = "lib-raw-labeled-opposing"
+description = "TALA seed failures for opposing edge labels without measured label geometry"
+outputs = ["crates/d2-rs-lib/tests/fixtures/raw-labeled-opposing-source-v090.json"]
+argv = ["{python}", "scripts/cli_go_fixtures.py", "probe-raw-labeled"]
+key_deps.files = ["tools/fixtures/programs/cli-layout-probes", "crates/d2-rs-lib/tests/fixtures/simple.json"]
+
+[[recipe]]
+name = "dagre-flat-long-label"
+description = "Dagre boxes and routes of flat chains with one long labeled edge, all directions, ordinary and sketch fonts"
+outputs = ["crates/d2-rs-dagre/tests/fixtures/flat-long-label-source-v090.json"]
+argv = ["{python}", "scripts/cli_go_fixtures.py", "probe-dagre-flat"]
+key_deps.files = ["tools/fixtures/programs/cli-layout-probes"]
+
+[[recipe]]
+name = "sketch-solid-paths"
+description = "rough-go solid rectangle/polygon fill and outline paths over seeds and SketchOptions modes"
+outputs = ["crates/d2-rs-sketch/tests/fixtures/solid-paths-source-v090.tsv"]
+argv = ["{python}", "scripts/cli_go_fixtures.py", "probe-solid-paths"]
+key_deps.files = ["tools/fixtures/programs/cli-layout-probes"]

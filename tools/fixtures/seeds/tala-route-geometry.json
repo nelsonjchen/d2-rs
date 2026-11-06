@@ -1,0 +1,1114 @@
+[
+ {
+  "name": "valid",
+  "nodes": [
+   {
+    "id": "a",
+    "position": [
+     "10",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   },
+   {
+    "id": "b",
+    "position": [
+     "250",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   }
+  ],
+  "visit_order": [
+   0,
+   1
+  ]
+ },
+ {
+  "name": "missing-a",
+  "nodes": [
+   {
+    "id": "a",
+    "position": null,
+    "width": "100",
+    "height": "60"
+   },
+   {
+    "id": "b",
+    "position": [
+     "250",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   }
+  ],
+  "visit_order": [
+   0,
+   1
+  ]
+ },
+ {
+  "name": "width-zero",
+  "nodes": [
+   {
+    "id": "a",
+    "position": [
+     "10",
+     "20"
+    ],
+    "width": "0",
+    "height": "60"
+   },
+   {
+    "id": "b",
+    "position": [
+     "250",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   }
+  ],
+  "visit_order": [
+   0,
+   1
+  ]
+ },
+ {
+  "name": "width-negative",
+  "nodes": [
+   {
+    "id": "a",
+    "position": [
+     "10",
+     "20"
+    ],
+    "width": "-1",
+    "height": "60"
+   },
+   {
+    "id": "b",
+    "position": [
+     "250",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   }
+  ],
+  "visit_order": [
+   0,
+   1
+  ]
+ },
+ {
+  "name": "width-nan",
+  "nodes": [
+   {
+    "id": "a",
+    "position": [
+     "10",
+     "20"
+    ],
+    "width": "NaN",
+    "height": "60"
+   },
+   {
+    "id": "b",
+    "position": [
+     "250",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   }
+  ],
+  "visit_order": [
+   0,
+   1
+  ]
+ },
+ {
+  "name": "width-infinity",
+  "nodes": [
+   {
+    "id": "a",
+    "position": [
+     "10",
+     "20"
+    ],
+    "width": "+Inf",
+    "height": "60"
+   },
+   {
+    "id": "b",
+    "position": [
+     "250",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   }
+  ],
+  "visit_order": [
+   0,
+   1
+  ]
+ },
+ {
+  "name": "width-large",
+  "nodes": [
+   {
+    "id": "a",
+    "position": [
+     "10",
+     "20"
+    ],
+    "width": "1000000001",
+    "height": "60"
+   },
+   {
+    "id": "b",
+    "position": [
+     "250",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   }
+  ],
+  "visit_order": [
+   0,
+   1
+  ]
+ },
+ {
+  "name": "height-zero",
+  "nodes": [
+   {
+    "id": "a",
+    "position": [
+     "10",
+     "20"
+    ],
+    "width": "100",
+    "height": "0"
+   },
+   {
+    "id": "b",
+    "position": [
+     "250",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   }
+  ],
+  "visit_order": [
+   0,
+   1
+  ]
+ },
+ {
+  "name": "height-negative",
+  "nodes": [
+   {
+    "id": "a",
+    "position": [
+     "10",
+     "20"
+    ],
+    "width": "100",
+    "height": "-1"
+   },
+   {
+    "id": "b",
+    "position": [
+     "250",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   }
+  ],
+  "visit_order": [
+   0,
+   1
+  ]
+ },
+ {
+  "name": "height-nan",
+  "nodes": [
+   {
+    "id": "a",
+    "position": [
+     "10",
+     "20"
+    ],
+    "width": "100",
+    "height": "NaN"
+   },
+   {
+    "id": "b",
+    "position": [
+     "250",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   }
+  ],
+  "visit_order": [
+   0,
+   1
+  ]
+ },
+ {
+  "name": "height-infinity",
+  "nodes": [
+   {
+    "id": "a",
+    "position": [
+     "10",
+     "20"
+    ],
+    "width": "100",
+    "height": "-Inf"
+   },
+   {
+    "id": "b",
+    "position": [
+     "250",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   }
+  ],
+  "visit_order": [
+   0,
+   1
+  ]
+ },
+ {
+  "name": "height-large",
+  "nodes": [
+   {
+    "id": "a",
+    "position": [
+     "10",
+     "20"
+    ],
+    "width": "100",
+    "height": "1000000001"
+   },
+   {
+    "id": "b",
+    "position": [
+     "250",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   }
+  ],
+  "visit_order": [
+   0,
+   1
+  ]
+ },
+ {
+  "name": "missing-b",
+  "nodes": [
+   {
+    "id": "a",
+    "position": [
+     "10",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   },
+   {
+    "id": "b",
+    "position": null,
+    "width": "100",
+    "height": "60"
+   }
+  ],
+  "visit_order": [
+   0,
+   1
+  ]
+ },
+ {
+  "name": "x-nan",
+  "nodes": [
+   {
+    "id": "a",
+    "position": [
+     "NaN",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   },
+   {
+    "id": "b",
+    "position": [
+     "250",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   }
+  ],
+  "visit_order": [
+   0,
+   1
+  ]
+ },
+ {
+  "name": "x-infinity",
+  "nodes": [
+   {
+    "id": "a",
+    "position": [
+     "+Inf",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   },
+   {
+    "id": "b",
+    "position": [
+     "250",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   }
+  ],
+  "visit_order": [
+   0,
+   1
+  ]
+ },
+ {
+  "name": "x-negative-infinity",
+  "nodes": [
+   {
+    "id": "a",
+    "position": [
+     "-Inf",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   },
+   {
+    "id": "b",
+    "position": [
+     "250",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   }
+  ],
+  "visit_order": [
+   0,
+   1
+  ]
+ },
+ {
+  "name": "x-large",
+  "nodes": [
+   {
+    "id": "a",
+    "position": [
+     "1000000001",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   },
+   {
+    "id": "b",
+    "position": [
+     "250",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   }
+  ],
+  "visit_order": [
+   0,
+   1
+  ]
+ },
+ {
+  "name": "x-negative-large",
+  "nodes": [
+   {
+    "id": "a",
+    "position": [
+     "-1000000001",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   },
+   {
+    "id": "b",
+    "position": [
+     "250",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   }
+  ],
+  "visit_order": [
+   0,
+   1
+  ]
+ },
+ {
+  "name": "y-nan",
+  "nodes": [
+   {
+    "id": "a",
+    "position": [
+     "10",
+     "NaN"
+    ],
+    "width": "100",
+    "height": "60"
+   },
+   {
+    "id": "b",
+    "position": [
+     "250",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   }
+  ],
+  "visit_order": [
+   0,
+   1
+  ]
+ },
+ {
+  "name": "y-infinity",
+  "nodes": [
+   {
+    "id": "a",
+    "position": [
+     "10",
+     "+Inf"
+    ],
+    "width": "100",
+    "height": "60"
+   },
+   {
+    "id": "b",
+    "position": [
+     "250",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   }
+  ],
+  "visit_order": [
+   0,
+   1
+  ]
+ },
+ {
+  "name": "y-negative-infinity",
+  "nodes": [
+   {
+    "id": "a",
+    "position": [
+     "10",
+     "-Inf"
+    ],
+    "width": "100",
+    "height": "60"
+   },
+   {
+    "id": "b",
+    "position": [
+     "250",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   }
+  ],
+  "visit_order": [
+   0,
+   1
+  ]
+ },
+ {
+  "name": "y-large",
+  "nodes": [
+   {
+    "id": "a",
+    "position": [
+     "10",
+     "1000000001"
+    ],
+    "width": "100",
+    "height": "60"
+   },
+   {
+    "id": "b",
+    "position": [
+     "250",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   }
+  ],
+  "visit_order": [
+   0,
+   1
+  ]
+ },
+ {
+  "name": "y-negative-large",
+  "nodes": [
+   {
+    "id": "a",
+    "position": [
+     "10",
+     "-1000000001"
+    ],
+    "width": "100",
+    "height": "60"
+   },
+   {
+    "id": "b",
+    "position": [
+     "250",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   }
+  ],
+  "visit_order": [
+   0,
+   1
+  ]
+ },
+ {
+  "name": "right-overflow",
+  "nodes": [
+   {
+    "id": "a",
+    "position": [
+     "999999901",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   },
+   {
+    "id": "b",
+    "position": [
+     "250",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   }
+  ],
+  "visit_order": [
+   0,
+   1
+  ]
+ },
+ {
+  "name": "bottom-overflow",
+  "nodes": [
+   {
+    "id": "a",
+    "position": [
+     "10",
+     "999999941"
+    ],
+    "width": "100",
+    "height": "60"
+   },
+   {
+    "id": "b",
+    "position": [
+     "250",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   }
+  ],
+  "visit_order": [
+   0,
+   1
+  ]
+ },
+ {
+  "name": "position-before-width",
+  "nodes": [
+   {
+    "id": "a",
+    "position": null,
+    "width": "0",
+    "height": "60"
+   },
+   {
+    "id": "b",
+    "position": [
+     "250",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   }
+  ],
+  "visit_order": [
+   0,
+   1
+  ]
+ },
+ {
+  "name": "width-before-height",
+  "nodes": [
+   {
+    "id": "a",
+    "position": [
+     "10",
+     "20"
+    ],
+    "width": "0",
+    "height": "-1"
+   },
+   {
+    "id": "b",
+    "position": [
+     "250",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   }
+  ],
+  "visit_order": [
+   0,
+   1
+  ]
+ },
+ {
+  "name": "height-before-x",
+  "nodes": [
+   {
+    "id": "a",
+    "position": [
+     "NaN",
+     "20"
+    ],
+    "width": "100",
+    "height": "0"
+   },
+   {
+    "id": "b",
+    "position": [
+     "250",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   }
+  ],
+  "visit_order": [
+   0,
+   1
+  ]
+ },
+ {
+  "name": "x-before-y",
+  "nodes": [
+   {
+    "id": "a",
+    "position": [
+     "NaN",
+     "+Inf"
+    ],
+    "width": "100",
+    "height": "60"
+   },
+   {
+    "id": "b",
+    "position": [
+     "250",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   }
+  ],
+  "visit_order": [
+   0,
+   1
+  ]
+ },
+ {
+  "name": "y-before-right",
+  "nodes": [
+   {
+    "id": "a",
+    "position": [
+     "999999901",
+     "NaN"
+    ],
+    "width": "100",
+    "height": "60"
+   },
+   {
+    "id": "b",
+    "position": [
+     "250",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   }
+  ],
+  "visit_order": [
+   0,
+   1
+  ]
+ },
+ {
+  "name": "right-before-bottom",
+  "nodes": [
+   {
+    "id": "a",
+    "position": [
+     "999999901",
+     "999999941"
+    ],
+    "width": "100",
+    "height": "60"
+   },
+   {
+    "id": "b",
+    "position": [
+     "250",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   }
+  ],
+  "visit_order": [
+   0,
+   1
+  ]
+ },
+ {
+  "name": "first-before-second",
+  "nodes": [
+   {
+    "id": "a",
+    "position": [
+     "10",
+     "20"
+    ],
+    "width": "100",
+    "height": "0"
+   },
+   {
+    "id": "b",
+    "position": [
+     "250",
+     "20"
+    ],
+    "width": "0",
+    "height": "60"
+   }
+  ],
+  "visit_order": [
+   0,
+   1
+  ]
+ },
+ {
+  "name": "visit-order",
+  "nodes": [
+   {
+    "id": "a",
+    "position": [
+     "10",
+     "20"
+    ],
+    "width": "100",
+    "height": "0"
+   },
+   {
+    "id": "b",
+    "position": [
+     "250",
+     "20"
+    ],
+    "width": "0",
+    "height": "60"
+   }
+  ],
+  "visit_order": [
+   1,
+   0
+  ]
+ },
+ {
+  "name": "quoted-id",
+  "nodes": [
+   {
+    "id": "a\"b\\c",
+    "position": null,
+    "width": "100",
+    "height": "60"
+   },
+   {
+    "id": "b",
+    "position": [
+     "250",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   }
+  ],
+  "visit_order": [
+   0,
+   1
+  ]
+ },
+ {
+  "name": "width-attribute",
+  "nodes": [
+   {
+    "id": "a",
+    "position": [
+     "10",
+     "20"
+    ],
+    "width": "100",
+    "height": "60",
+    "attrs": {
+     "width": "100"
+    }
+   },
+   {
+    "id": "b",
+    "position": [
+     "250",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   }
+  ],
+  "visit_order": [
+   0,
+   1
+  ]
+ },
+ {
+  "name": "different-constraints",
+  "nodes": [
+   {
+    "id": "a",
+    "position": [
+     "10",
+     "20"
+    ],
+    "width": "100",
+    "height": "60",
+    "attrs": {
+     "left": "1000",
+     "top": "2000"
+    }
+   },
+   {
+    "id": "b",
+    "position": [
+     "250",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   }
+  ],
+  "visit_order": [
+   0,
+   1
+  ]
+ },
+ {
+  "name": "missing-before-constraints",
+  "nodes": [
+   {
+    "id": "a",
+    "position": null,
+    "width": "100",
+    "height": "60",
+    "attrs": {
+     "left": "1000",
+     "top": "2000"
+    }
+   },
+   {
+    "id": "b",
+    "position": [
+     "250",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   }
+  ],
+  "visit_order": [
+   0,
+   1
+  ]
+ },
+ {
+  "name": "missing-before-attribute",
+  "nodes": [
+   {
+    "id": "a",
+    "position": null,
+    "width": "100",
+    "height": "60",
+    "attrs": {
+     "width": "nope"
+    }
+   },
+   {
+    "id": "b",
+    "position": [
+     "250",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   }
+  ],
+  "visit_order": [
+   0,
+   1
+  ]
+ },
+ {
+  "name": "dimension-before-attribute",
+  "nodes": [
+   {
+    "id": "a",
+    "position": [
+     "10",
+     "20"
+    ],
+    "width": "0",
+    "height": "60",
+    "attrs": {
+     "width": "nope"
+    }
+   },
+   {
+    "id": "b",
+    "position": [
+     "250",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   }
+  ],
+  "visit_order": [
+   0,
+   1
+  ]
+ },
+ {
+  "name": "attribute-after-geometry",
+  "nodes": [
+   {
+    "id": "a",
+    "position": [
+     "10",
+     "20"
+    ],
+    "width": "100",
+    "height": "60",
+    "attrs": {
+     "width": "nope"
+    }
+   },
+   {
+    "id": "b",
+    "position": [
+     "250",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   }
+  ],
+  "visit_order": [
+   0,
+   1
+  ]
+ },
+ {
+  "name": "unpaired-constraints",
+  "nodes": [
+   {
+    "id": "a",
+    "position": [
+     "10",
+     "20"
+    ],
+    "width": "100",
+    "height": "60",
+    "attrs": {
+     "left": "1000"
+    }
+   },
+   {
+    "id": "b",
+    "position": [
+     "250",
+     "20"
+    ],
+    "width": "100",
+    "height": "60"
+   }
+  ],
+  "visit_order": [
+   0,
+   1
+  ]
+ }
+]

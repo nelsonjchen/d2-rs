@@ -1,0 +1,109 @@
+# d2-rs-language oracle fixtures over the public d2compiler API, captured at
+# the manifest pin: tools/public-compiler-oracle (d2compiler.Compile,
+# d2graph.SerializeGraph, Graph.SetDimensions with textmeasure.NewRuler) built
+# by scripts/check-public-compiler.py against the runner's patched upstream
+# tree with upstream's own go.mod. Requests come from
+# scripts/public_compiler_cases.py (link-security, class-applications,
+# measured-state) or, for the seeded families, from the constructed D2 inputs
+# in tools/fixtures/seeds/lang-public-compiler/ (no Go output is committed).
+# Logical paths keep their historical *-v090.json names.
+#
+# Regenerate:  uv run --no-project python scripts/regen-fixtures.py --only 'lang-public-*'
+# Test:        cargo test -p d2-rs-language --features oracle-fixtures
+
+[defaults]
+kind = "command"
+upstream = true
+timeout = 1800
+
+[defaults.key_deps]
+files = [
+  "scripts/fixture_recipe.py",
+  "scripts/language_oracle.py",
+  "scripts/check-public-compiler.py",
+  "scripts/public_compiler_cases.py",
+  "tools/public-compiler-oracle",
+  "tools/fixtures/seeds/lang-public-compiler",
+]
+go_toolchain = true
+# The package closure of d2compiler + d2graph + lib/textmeasure inside the D2
+# module (`go list -deps`).
+upstream_paths = [
+  "go.mod",
+  "go.sum",
+  "d2ast",
+  "d2compiler",
+  "d2format",
+  "d2graph",
+  "d2ir",
+  "d2parser",
+  "d2target",
+  "d2themes",
+  "d2renderers/d2fonts",
+  "d2renderers/d2latex",
+  "d2renderers/d2scene",
+  "d2renderers/internal",
+  "lib/color",
+  "lib/font",
+  "lib/geo",
+  "lib/label",
+  "lib/memfs",
+  "lib/shape",
+  "lib/svg",
+  "lib/syncmap",
+  "lib/textmeasure",
+]
+
+[[recipe]]
+name = "lang-public-link-security"
+description = "Label/tooltip/link security diagnostics and error order through d2compiler.Compile"
+outputs = ["crates/d2-rs-language/tests/fixtures/public-link-security-v090.json"]
+argv = ["{python}", "scripts/check-public-compiler.py", "link-security"]
+
+[[recipe]]
+name = "lang-public-class-applications"
+description = "Class application diagnostics and applied attributes through d2compiler.Compile"
+outputs = ["crates/d2-rs-language/tests/fixtures/public-class-applications-v090.json"]
+argv = ["{python}", "scripts/check-public-compiler.py", "class-applications"]
+
+[[recipe]]
+name = "lang-public-measured-state"
+description = "Label bytes, sizes and label dimensions after SetDimensions over constructed boundaries"
+outputs = ["crates/d2-rs-language/tests/fixtures/public-measured-state-v090.json"]
+argv = ["{python}", "scripts/check-public-compiler.py", "measured-state"]
+
+[[recipe]]
+name = "lang-public-compiler-diagnostics"
+description = "All IR diagnostics returned before graph construction (fstest.MapFS imports)"
+outputs = ["crates/d2-rs-language/tests/fixtures/public-compiler-diagnostics-v090.json"]
+argv = ["{python}", "scripts/check-public-compiler.py", "compiler-diagnostics"]
+
+[[recipe]]
+name = "lang-public-compiler-memfs-diagnostics"
+description = "The same diagnostics plus import paths through lib/memfs, as d2js compiles"
+outputs = ["crates/d2-rs-language/tests/fixtures/public-compiler-memfs-diagnostics-v090.json"]
+argv = ["{python}", "scripts/check-public-compiler.py", "compiler-memfs-diagnostics"]
+
+[[recipe]]
+name = "lang-public-compiler-markdown-links"
+description = "Sanitized Markdown link validation through d2compiler.Compile"
+outputs = ["crates/d2-rs-language/tests/fixtures/public-compiler-markdown-links-v090.json"]
+argv = ["{python}", "scripts/check-public-compiler.py", "compiler-markdown-links"]
+
+[[recipe]]
+name = "lang-public-graph-field-diagnostics"
+description = "Object field diagnostics in source order"
+outputs = ["crates/d2-rs-language/tests/fixtures/public-graph-field-diagnostics-v090.json"]
+argv = ["{python}", "scripts/check-public-compiler.py", "graph-field-diagnostics"]
+
+[[recipe]]
+name = "lang-public-icon-url-compiler"
+description = "Icon URL validation at source scalar ranges, including imports"
+outputs = ["crates/d2-rs-language/tests/fixtures/public-icon-url-compiler-v090.json"]
+argv = ["{python}", "scripts/check-public-compiler.py", "icon-url-compiler"]
+
+[[recipe]]
+name = "lang-public-late-validation"
+description = "Late label/near/edge/position validation in source order"
+outputs = ["crates/d2-rs-language/tests/fixtures/public-late-validation-v090.json"]
+argv = ["{python}", "scripts/check-public-compiler.py", "late-validation"]

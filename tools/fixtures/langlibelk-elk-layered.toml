@@ -1,0 +1,405 @@
+# elk-go (github.com/d2lang/elk-go) Layered, Box and Rectpacking fixtures for
+# crates/d2-rs-elk (model_order_contract.rs, box_layout.rs, rectpacking/mod.rs).
+#
+# scripts/check-elk-layered.py builds tools/elk-oracle (elk.LayoutJSON) for
+# arm64 in a minimal module requiring only elk-go at the version pinned in
+# reference-manifest.json `dependencies`, runs every case of the fixture's
+# generator in scripts/elk_cases and records the raw output. Some matrices
+# start from elk-go's own testdata/curated graphs, read from the same pinned
+# module. The D2 pin does not matter, so these recipes do not use the
+# upstream checkout.
+#
+# Regenerate:  uv run --no-project python scripts/regen-fixtures.py --only 'elk-layered-*'
+# Test:        cargo test -p d2-rs-elk --features oracle-fixtures
+
+[defaults]
+kind = "command"
+timeout = 1800
+
+[defaults.key_deps]
+files = [
+  "scripts/fixture_recipe.py",
+  "scripts/elk_oracle.py",
+  "tools/elk-oracle/main.go",
+  "tools/oracle/go.mod",
+  "tools/oracle/go.sum",
+]
+go_modules = ["github.com/d2lang/elk-go"]
+go_toolchain = true
+
+[[recipe]]
+name = "elk-layered-box-grouping"
+description = "Box packing modes, node expansion, child constraints and nested Fixed children"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_box_grouping.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "box_grouping"]
+key_deps.files = ["scripts/elk_cases/packing.py"]
+
+[[recipe]]
+name = "elk-layered-center-label-sides"
+description = "Edge label side selection for root- and child-owned labels on the curated compound graph"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_center_label_sides.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "center_label_sides"]
+key_deps.files = ["scripts/elk_cases/labels.py", "scripts/elk_cases/curated.py"]
+
+[[recipe]]
+name = "elk-layered-coffman-option-forms"
+description = "Coffman-Graham strategy/layer-bound option keys, value forms and suffixed numbers"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_coffman_option_forms.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "coffman_option_forms"]
+key_deps.files = ["scripts/elk_cases/coffman.py", "scripts/elk_cases/curated.py"]
+
+[[recipe]]
+name = "elk-layered-component-lifecycle"
+description = "Two copies of a seeded component, sequential or interleaved, across layering and cycle breaking"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_component_lifecycle.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "component_lifecycle"]
+key_deps.files = ["scripts/elk_cases/layered.py"]
+
+[[recipe]]
+name = "elk-layered-component-single-transfer"
+description = "Network-simplex parallel-edge controls and single self-loop components"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_component_single_transfer.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "component_single_transfer"]
+key_deps.files = ["scripts/elk_cases/coffman.py", "scripts/elk_cases/curated.py"]
+
+[[recipe]]
+name = "elk-layered-component-trial-limits"
+description = "Thoroughness 0..7 on dense components, flat and INCLUDE_CHILDREN"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_component_trial_limits.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "component_trial_limits"]
+key_deps.files = ["scripts/elk_cases/layered.py"]
+
+[[recipe]]
+name = "elk-layered-component-world-packing"
+description = "Component packing with isolated, path, loop and labelled components"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_component_world_packing.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "component_world_packing"]
+key_deps.files = ["scripts/elk_cases/components.py"]
+
+[[recipe]]
+name = "elk-layered-dense-component-trials"
+description = "Seeded 6-node DAGs and cyclic graphs across layering and model order"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_dense_component_trials.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "dense_component_trials"]
+key_deps.files = ["scripts/elk_cases/layered.py"]
+
+[[recipe]]
+name = "elk-layered-external-port-spacing"
+description = "Port-port spacing values, scopes and option spellings on the curated single-container graph"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_external_port_spacing.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "external_port_spacing"]
+key_deps.files = ["scripts/elk_cases/spacing.py", "scripts/elk_cases/curated.py"]
+
+[[recipe]]
+name = "elk-layered-hierarchy-boundary-orders"
+description = "Cross-hierarchy boundary order: pair counts, root/child order, crossings and seeds"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_hierarchy_boundary_orders.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "hierarchy_boundary_orders"]
+key_deps.files = ["scripts/elk_cases/hierarchy.py", "scripts/elk_cases/curated.py"]
+
+[[recipe]]
+name = "elk-layered-hierarchy-junctions"
+description = "Junction points for root/child-owned and boundary-crossing edges"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_hierarchy_junctions.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "hierarchy_junctions"]
+key_deps.files = ["scripts/elk_cases/junctions.py"]
+
+[[recipe]]
+name = "elk-layered-hierarchy-labels"
+description = "hierarchy_junctions with an outside or inline label on every edge"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_hierarchy_labels.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "hierarchy_labels"]
+key_deps.files = ["scripts/elk_cases/junctions.py"]
+
+[[recipe]]
+name = "elk-layered-hierarchy-resize-depths"
+description = "INCLUDE_CHILDREN resize through wrapper depths, declared sizes and labels"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_hierarchy_resize_depths.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "hierarchy_resize_depths"]
+key_deps.files = ["scripts/elk_cases/hierarchy.py", "scripts/elk_cases/curated.py"]
+
+[[recipe]]
+name = "elk-layered-included-hierarchy-direction"
+description = "Root/child direction pairs, with and without a boundary-crossing edge"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_included_hierarchy_direction.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "included_hierarchy_direction"]
+key_deps.files = ["scripts/elk_cases/hierarchy.py", "scripts/elk_cases/curated.py"]
+
+[[recipe]]
+name = "elk-layered-label-pair-spacing"
+description = "Edge label pairs with edge-node and edge-edge spacing"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_label_pair_spacing.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "label_pair_spacing"]
+key_deps.files = ["scripts/elk_cases/spacing.py", "scripts/elk_cases/curated.py"]
+
+[[recipe]]
+name = "elk-layered-mixed-component-lifecycles"
+description = "Mixed six/ten-node components with isolates, labels and loops"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_mixed_component_lifecycles.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "mixed_component_lifecycles"]
+key_deps.files = ["scripts/elk_cases/layered.py"]
+
+[[recipe]]
+name = "elk-layered-native-coffman-graham-controls"
+description = "Coffman-Graham layering across graph profiles, bounds, seeds and model order"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_native_coffman_graham_controls.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "native_coffman_graham_controls"]
+key_deps.files = ["scripts/elk_cases/coffman.py", "scripts/elk_cases/curated.py"]
+
+[[recipe]]
+name = "elk-layered-nested-input-model-sort"
+description = "Model-order sorting of nested children and edges"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_nested_input_model_sort.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "nested_input_model_sort"]
+key_deps.files = ["scripts/elk_cases/model_order.py"]
+
+[[recipe]]
+name = "elk-layered-nested-model-order"
+description = "D2-adapter nested containers with outside labels"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_nested_model_order.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "nested_model_order"]
+key_deps.files = ["scripts/elk_cases/hierarchy.py", "scripts/elk_cases/curated.py"]
+
+[[recipe]]
+name = "elk-layered-north-south-switch-sides"
+description = "allowNonFlowPortsToSwitchSides value forms and spellings"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_north_south_switch_sides.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "north_south_switch_sides"]
+key_deps.files = ["scripts/elk_cases/junctions.py"]
+
+[[recipe]]
+name = "elk-layered-p1-component-discovery"
+description = "Seeded 10/14-node graphs: component discovery and cycle breaking"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_p1_component_discovery.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "p1_component_discovery"]
+key_deps.files = ["scripts/elk_cases/layered.py"]
+
+[[recipe]]
+name = "elk-layered-rectpacking-options"
+description = "Rectpacking strategies, option spellings, micro layout and seeded varied graphs"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_rectpacking_options.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "rectpacking_options"]
+key_deps.files = ["scripts/elk_cases/packing.py"]
+
+[[recipe]]
+name = "elk-layered-root-coordinates"
+description = "Root x/y forms and root sizes on empty and populated graphs"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_root_coordinates.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "root_coordinates"]
+key_deps.files = ["scripts/elk_cases/hierarchy.py", "scripts/elk_cases/curated.py"]
+
+[[recipe]]
+name = "elk-layered-shared-port-alignment"
+description = "Port alignment values and spellings on shared ports"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_shared_port_alignment.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "shared_port_alignment"]
+key_deps.files = ["scripts/elk_cases/junctions.py"]
+
+[[recipe]]
+name = "elk-layered-box-simple"
+description = "Box SIMPLE packing of five node sets with default, asymmetric-padding and spacing options (root and child boxes)"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_box_simple.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "box_simple"]
+key_deps.files = ["scripts/elk_cases/packing.py"]
+
+[[recipe]]
+name = "elk-layered-box-grouping-expanded"
+description = "Box port inference, nested Box scopes and flat edge carriers per packing mode"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_box_grouping_expanded.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "box_grouping_expanded"]
+key_deps.files = ["scripts/elk_cases/packing.py"]
+
+[[recipe]]
+name = "elk-layered-owned-edge-compound"
+description = "elk-go curated 09_compound, complete raw output"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_owned_edge_compound.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "owned_edge_compound"]
+key_deps.files = ["scripts/elk_cases/curated.py"]
+
+[[recipe]]
+name = "elk-layered-curated-cross-hierarchy"
+description = "elk-go curated 11_cross_hierarchy, complete raw output"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_curated_cross_hierarchy.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "curated_cross_hierarchy"]
+key_deps.files = ["scripts/elk_cases/curated.py"]
+
+[[recipe]]
+name = "elk-layered-curated-component-direction"
+description = "elk-go curated 12_force_model_order, complete raw output"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_curated_component_direction.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "curated_component_direction"]
+key_deps.files = ["scripts/elk_cases/curated.py"]
+
+[[recipe]]
+name = "elk-layered-curated-isomorphic"
+description = "elk-go curated 13_moon_issue8_isomorphic, complete raw output"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_curated_isomorphic.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "curated_isomorphic"]
+key_deps.files = ["scripts/elk_cases/curated.py"]
+
+[[recipe]]
+name = "elk-layered-curated-single-container"
+description = "elk-go curated 14_moon_issue9_single_container, complete raw output"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_curated_single_container.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "curated_single_container"]
+key_deps.files = ["scripts/elk_cases/curated.py"]
+
+[[recipe]]
+name = "elk-layered-curated-coffman"
+description = "elk-go curated 15_coffman_graham, complete raw output"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_curated_coffman.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "curated_coffman"]
+key_deps.files = ["scripts/elk_cases/curated.py"]
+
+[[recipe]]
+name = "elk-layered-fixed"
+description = "Fixed provider positions, padding, minimum and fixed sizes, labels, ports and sections"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_fixed.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "fixed"]
+key_deps.files = ["scripts/elk_cases/placement.py"]
+
+[[recipe]]
+name = "elk-layered-random-seeded"
+description = "Random provider seeds (int and string, int32 bounds), sections, hyperedges and nesting"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_random_seeded.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "random_seeded"]
+key_deps.files = ["scripts/elk_cases/placement.py"]
+
+[[recipe]]
+name = "elk-layered-rectpacking-default"
+description = "Default Rectpacking over hand-picked, seeded-random and single-node micro graphs"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_rectpacking_default.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "rectpacking_default"]
+key_deps.files = ["scripts/elk_cases/packing.py"]
+
+[[recipe]]
+name = "elk-layered-rectpacking-errors"
+description = "Rectpacking option combinations elk-go rejects (provider error text)"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_rectpacking_errors.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "rectpacking_errors"]
+key_deps.files = ["scripts/elk_cases/packing.py"]
+
+[[recipe]]
+name = "elk-layered-root-list-presence"
+description = "Absent, null and empty root children/edges/layoutOptions, isolated and path graphs"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_root_list_presence.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "root_list_presence"]
+key_deps.files = ["scripts/elk_cases/identity.py"]
+
+[[recipe]]
+name = "elk-layered-label-identity"
+description = "Node, edge and self-loop label IDs: absent, null, strings, Unicode, integers and int64 bounds"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_label_identity.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "label_identity"]
+key_deps.files = ["scripts/elk_cases/identity.py"]
+
+[[recipe]]
+name = "elk-layered-invalid-label-identity"
+description = "Label IDs elk-go refuses to decode (decode error text)"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_invalid_label_identity.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "invalid_label_identity"]
+key_deps.files = ["scripts/elk_cases/identity.py"]
+
+[[recipe]]
+name = "elk-layered-junction-admission"
+description = "Input junctionPoints forms elk-go accepts on the shared-port alignment graph"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_junction_admission.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "junction_admission"]
+key_deps.files = ["scripts/elk_cases/identity.py", "scripts/elk_cases/junctions.py"]
+
+[[recipe]]
+name = "elk-layered-invalid-junction-admission"
+description = "Input junctionPoints forms elk-go refuses to decode (decode error text)"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_invalid_junction_admission.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "invalid_junction_admission"]
+key_deps.files = ["scripts/elk_cases/identity.py", "scripts/elk_cases/junctions.py"]
+
+[[recipe]]
+name = "elk-layered-coordinate-ancestor-cases"
+description = "Edges between a depth-3 descendant, its ancestors and a root sibling"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_coordinate_ancestor_cases.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "coordinate_ancestor_cases"]
+key_deps.files = ["scripts/elk_cases/identity.py"]
+
+[[recipe]]
+name = "elk-layered-owned-edges"
+description = "Curated compound inside edge owned by root, cluster, a wrapper or two siblings, per direction"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_owned_edges.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "owned_edges"]
+key_deps.files = ["scripts/elk_cases/labels.py", "scripts/elk_cases/curated.py"]
+
+[[recipe]]
+name = "elk-layered-inline-label-stacks"
+description = "Stacked inline edge labels per side-selection mode, owner and direction"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_inline_label_stacks.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "inline_label_stacks"]
+key_deps.files = ["scripts/elk_cases/labels.py", "scripts/elk_cases/curated.py"]
+
+# D2-adapter-shaped graphs: the ELK request is captured from the pinned D2
+# adapter (scripts/elk_cases/adapter_wire.py, tools/elk-adapter-wire-oracle),
+# so these also key on the whole pinned upstream tree (the d2lib closure is
+# most of it).
+
+[[recipe]]
+name = "elk-layered-cycle-geometry"
+description = "Adapter wires of three-node cycles, a dummy-name reciprocal pair and an SQL-table cycle, per direction"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_cycle_geometry.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "cycle_geometry"]
+upstream = true
+key_deps.files = ["scripts/elk_cases/adapter_wire.py", "tools/elk-adapter-wire-oracle"]
+
+[[recipe]]
+name = "elk-layered-fixed-sql-ports"
+description = "Adapter wires with SQL-table column ports (table cycle and table-to-table), per direction"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_fixed_sql_ports.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "fixed_sql_ports"]
+upstream = true
+key_deps.files = ["scripts/elk_cases/adapter_wire.py", "tools/elk-adapter-wire-oracle"]
+
+[[recipe]]
+name = "elk-layered-mixed-loop-geometry"
+description = "Adapter wire of a labelled self-loop beside a cycle, per direction"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_mixed_loop_geometry.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "mixed_loop_geometry"]
+upstream = true
+key_deps.files = ["scripts/elk_cases/adapter_wire.py", "tools/elk-adapter-wire-oracle"]
+
+[[recipe]]
+name = "elk-layered-broader-loop-geometry"
+description = "The loop wire with a second loop, resized nodes and label, or a wrapper group"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_broader_loop_geometry.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "broader_loop_geometry"]
+upstream = true
+key_deps.files = ["scripts/elk_cases/adapter_wire.py", "tools/elk-adapter-wire-oracle"]
+
+[[recipe]]
+name = "elk-layered-greedy-cycle-geometry"
+description = "The RIGHT loop wire under GREEDY cycle breaking: seeds, model order, edge priority"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_greedy_cycle_geometry.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "greedy_cycle_geometry"]
+upstream = true
+key_deps.files = ["scripts/elk_cases/adapter_wire.py", "tools/elk-adapter-wire-oracle"]
+
+[[recipe]]
+name = "elk-layered-nested-edge-container"
+description = "Adapter wire of an edge between sibling containers inside a container, per root direction"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_nested_edge_container.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "nested_edge_container"]
+upstream = true
+key_deps.files = ["scripts/elk_cases/adapter_wire.py", "tools/elk-adapter-wire-oracle"]
+
+[[recipe]]
+name = "elk-layered-ancestor-descendant-edges"
+description = "Adapter wires of upstream e2e cases with ancestor/descendant edges (todo/container_child_edge, todo/child_parent_edges, stable/chaos1)"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_ancestor_descendant_edges.json"]
+argv = ["{python}", "scripts/check-elk-layered.py", "ancestor_descendant_edges"]
+upstream = true
+key_deps.files = ["scripts/elk_cases/adapter_wire.py", "tools/elk-adapter-wire-oracle"]
+
+[[recipe]]
+name = "elk-wire-inline-center-label-minimum-size"
+description = "elk-go output for the committed inline-center-label wire graph (tests/elk; historical -go-v090 name)"
+outputs = ["tests/elk/inline-center-label-minimum-size-go-v090.json"]
+inputs = ["tests/elk/inline-center-label-minimum-size-wire.json"]
+argv = ["{python}", "scripts/check-elk-wire-output.py", "{input}"]
+key_deps.files = ["scripts/check-elk-wire-output.py"]

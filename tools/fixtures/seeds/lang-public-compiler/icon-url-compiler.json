@@ -1,0 +1,123 @@
+[
+ {
+  "path": "pinned/d2compiler/compile_test.go#L2305C10-field-text.d2",
+  "text": "x: {\n  near: y\n  icon: \"::????:::%%orange\"\n  style.opacity: -1\n  style.opacity: 232\n}\n"
+ },
+ {
+  "path": "pinned/d2compiler/compile_test.go#L2305C10-field-text.d2",
+  "text": "x: {\n  near: y\n  icon: \"::????:::%%orange\"\n  style.opacity: -1\n  style.opacity: 232\n}\n",
+  "utf16": true
+ },
+ {
+  "path": "main.d2",
+  "text": "x: @dir/library.item",
+  "files": {
+   "dir/library.d2": "item: {icon: \"http://[bad]/x\"; link: \"http://[bad]/x\"; child.icon: \"../child.svg\"}",
+   "dir/wrapper.d2": "nested: @library"
+  }
+ },
+ {
+  "path": "main.d2",
+  "text": "x: @dir/library.item",
+  "files": {
+   "dir/library.d2": "item: {icon: \"http://a:1,b:2/x\"; link: \"http://a:1,b:2/x\"; child.icon: \"../child.svg\"}",
+   "dir/wrapper.d2": "nested: @library"
+  }
+ },
+ {
+  "path": "main.d2",
+  "text": "x: @dir/library; y: @dir/library",
+  "files": {
+   "dir/library.d2": "item: {icon: \"%ZZ\"; link: \"%ZZ\"; child.icon: \"../child.svg\"}",
+   "dir/wrapper.d2": "nested: @library"
+  }
+ },
+ {
+  "path": "main.d2",
+  "text": "...@dir/library",
+  "files": {
+   "dir/library.d2": "item: {icon: \"%ZZ\"; link: \"%ZZ\"; child.icon: \"../child.svg\"}",
+   "dir/wrapper.d2": "nested: @library"
+  }
+ },
+ {
+  "path": "main.d2",
+  "text": "x: @dir/library.item",
+  "files": {
+   "dir/library.d2": "item: {icon: \"%ZZ\"; link: \"%ZZ\"; child.icon: \"../child.svg\"}",
+   "dir/wrapper.d2": "nested: @library"
+  }
+ },
+ {
+  "path": "main.d2",
+  "text": "x: @dir/wrapper",
+  "files": {
+   "dir/library.d2": "item: {icon: \"%ZZ\"; link: \"%ZZ\"; child.icon: \"../child.svg\"}",
+   "dir/wrapper.d2": "nested: @library"
+  }
+ },
+ {
+  "path": "main.d2",
+  "text": "x: @dir/library; y: @dir/library",
+  "files": {
+   "dir/library.d2": "item: {icon: \"http://host/x#%ZZ\"; link: \"http://host/x#%ZZ\"; child.icon: \"../child.svg\"}",
+   "dir/wrapper.d2": "nested: @library"
+  }
+ },
+ {
+  "path": "main.d2",
+  "text": "...@dir/library",
+  "files": {
+   "dir/library.d2": "item: {icon: \"http://host/x#%ZZ\"; link: \"http://host/x#%ZZ\"; child.icon: \"../child.svg\"}",
+   "dir/wrapper.d2": "nested: @library"
+  }
+ },
+ {
+  "path": "main.d2",
+  "text": "x: @dir/library.item",
+  "files": {
+   "dir/library.d2": "item: {icon: \"http://host/x#%ZZ\"; link: \"http://host/x#%ZZ\"; child.icon: \"../child.svg\"}",
+   "dir/wrapper.d2": "nested: @library"
+  }
+ },
+ {
+  "path": "main.d2",
+  "text": "x: @dir/wrapper",
+  "files": {
+   "dir/library.d2": "item: {icon: \"http://host/x#%ZZ\"; link: \"http://host/x#%ZZ\"; child.icon: \"../child.svg\"}",
+   "dir/wrapper.d2": "nested: @library"
+  }
+ },
+ {
+  "path": "main.d2",
+  "text": "x: @dir/library; y: @dir/library",
+  "files": {
+   "dir/library.d2": "item: {icon: \"a:/%ZZ\"; link: \"a:/%ZZ\"; child.icon: \"../child.svg\"}",
+   "dir/wrapper.d2": "nested: @library"
+  }
+ },
+ {
+  "path": "main.d2",
+  "text": "...@dir/library",
+  "files": {
+   "dir/library.d2": "item: {icon: \"a:/%ZZ\"; link: \"a:/%ZZ\"; child.icon: \"../child.svg\"}",
+   "dir/wrapper.d2": "nested: @library"
+  }
+ },
+ {
+  "path": "main.d2",
+  "text": "x: @dir/library.item",
+  "files": {
+   "dir/library.d2": "item: {icon: \"a:/%ZZ\"; link: \"a:/%ZZ\"; child.icon: \"../child.svg\"}",
+   "dir/wrapper.d2": "nested: @library"
+  }
+ },
+ {
+  "path": "main.d2",
+  "text": "x: @dir/wrapper",
+  "files": {
+   "dir/library.d2": "item: {icon: \"a:/%ZZ\"; link: \"a:/%ZZ\"; child.icon: \"../child.svg\"}",
+   "dir/wrapper.d2": "nested: @library"
+  }
+ }
+]

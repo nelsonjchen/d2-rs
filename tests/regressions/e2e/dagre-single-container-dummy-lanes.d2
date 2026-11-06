@@ -1,0 +1,18 @@
+network: {
+  cell tower: {
+		satellites: {
+    }
+  }
+  data processor: {
+    storage: {
+    }
+  }
+  cell tower.transmitter -> data processor.storage: phone logs
+}
+user: {
+}
+user -> network.cell tower: make call
+user -> network.online portal.ui: access {
+}
+api server -> network.online portal.ui: display
+network.data processor -> api server

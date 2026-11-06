@@ -1,0 +1,158 @@
+[
+  {
+    "name": "ascii_case",
+    "input": "{\"NODES\":[{\"ID\":1,\"WIDTH\":10,\"Height\":20}],\"cellsize\":40}"
+  },
+  {
+    "name": "unicode_fold",
+    "input": "{\"node\u017f\":[{\"id\":1}],\"edges\":[{\"style\":{\"stro\u212ae\":{\"VALUE\":\"red\"}}}]}"
+  },
+  {
+    "name": "pointer_merge",
+    "input": "{\"nodes\":[{\"label\":{\"Text\":\"hello\",\"Width\":40},\"LABEL\":{\"Height\":20}}]}"
+  },
+  {
+    "name": "pointer_reset",
+    "input": "{\"nodes\":[{\"label\":{\"Text\":\"hello\"},\"label\":null,\"label\":{\"Height\":20}}]}"
+  },
+  {
+    "name": "scalar_null_preserves",
+    "input": "{\"nodes\":[{\"width\":10,\"WIDTH\":null,\"isInvisible\":true,\"isinvisible\":null}]}"
+  },
+  {
+    "name": "slice_reuses_struct",
+    "input": "{\"nodes\":[{\"id\":1,\"width\":10}],\"NODES\":[{\"id\":2}]}"
+  },
+  {
+    "name": "slice_shrink_expand",
+    "input": "{\"nodes\":[{\"id\":1,\"width\":10},{\"id\":2,\"width\":20}],\"nodes\":[{\"id\":3}],\"nodes\":[{},{}]}"
+  },
+  {
+    "name": "slice_empty_resets",
+    "input": "{\"nodes\":[{\"id\":1,\"width\":10}],\"nodes\":[],\"nodes\":[{}]}"
+  },
+  {
+    "name": "slice_null_resets",
+    "input": "{\"nodes\":[{\"id\":1,\"width\":10}],\"nodes\":null,\"nodes\":[{}]}"
+  },
+  {
+    "name": "slice_null_struct_retains",
+    "input": "{\"nodes\":[{\"id\":1}],\"nodes\":[null]}"
+  },
+  {
+    "name": "slice_null_pointer_resets",
+    "input": "{\"edges\":[{\"points\":[{\"x\":10}],\"points\":[null],\"points\":[{\"y\":20}]}]}"
+  },
+  {
+    "name": "map_merges_fields",
+    "input": "{\"containers\":{\"0\":[1]},\"CONTAINERS\":{\"1\":[2]}}"
+  },
+  {
+    "name": "map_value_replaced",
+    "input": "{\"clusters\":{\"1\":{\"Nodes\":[2],\"Padding\":10}},\"clusters\":{\"1\":{\"Padding\":20}}}"
+  },
+  {
+    "name": "map_numeric_key_alias",
+    "input": "{\"containers\":{\"+01\":[1],\"1\":[2],\"-0\":[3]}}"
+  },
+  {
+    "name": "struct_null_retains",
+    "input": "{\"edges\":[{\"style\":{\"stroke\":{\"value\":\"red\"}},\"style\":null}]}"
+  },
+  {
+    "name": "null_root_wire_zero",
+    "input": "null"
+  },
+  {
+    "name": "unknown_field",
+    "input": "{\"nodes\":[{\"unknownField\":1}]}"
+  },
+  {
+    "name": "overwritten_type_error",
+    "input": "{\"CellSize\":\"bad\",\"CellSize\":1}"
+  },
+  {
+    "name": "fractional_integer_error",
+    "input": "{\"nodes\":[{\"id\":1.0}]}"
+  },
+  {
+    "name": "folded_error_path",
+    "input": "{\"NODES\":[{\"ID\":1.0}]}"
+  },
+  {
+    "name": "array_element_type",
+    "input": "{\"nodes\":[true]}"
+  },
+  {
+    "name": "map_key_type",
+    "input": "{\"containers\":{\"bad\":[]}}"
+  },
+  {
+    "name": "float_type",
+    "input": "{\"nodes\":[{\"width\":true}]}"
+  },
+  {
+    "name": "integer_exponent",
+    "input": "{\"nodes\":[{\"id\":1e0}]}"
+  },
+  {
+    "name": "float_overflow",
+    "input": "{\"nodes\":[{\"width\":1e999}]}"
+  },
+  {
+    "name": "list_type",
+    "input": "{\"nodes\":true}"
+  },
+  {
+    "name": "integer_overflow",
+    "input": "{\"nodes\":[{\"id\":9223372036854775808}]}"
+  },
+  {
+    "name": "integer_negative_overflow",
+    "input": "{\"nodes\":[{\"id\":-9223372036854775809}]}"
+  },
+  {
+    "name": "native_integer_type",
+    "input": "{\"nodes\":[{\"fontSize\":1.5}]}"
+  },
+  {
+    "name": "pointer_struct_type",
+    "input": "{\"nodes\":[{\"label\":2}]}"
+  },
+  {
+    "name": "map_value_type",
+    "input": "{\"containers\":{\"1\":true}}"
+  },
+  {
+    "name": "map_element_type",
+    "input": "{\"containers\":{\"1\":[true]}}"
+  },
+  {
+    "name": "root_type",
+    "input": "[]"
+  },
+  {
+    "name": "nested_style_type",
+    "input": "{\"edges\":[{\"style\":{\"stroke\":{\"value\":3}}}]}"
+  },
+  {
+    "name": "map_slash_error_path",
+    "input": "{\"containers\":{\"a/b~c\":[]}}"
+  },
+  {
+    "name": "number_negative_zero",
+    "input": "{\"nodes\":[{\"id\":-0,\"width\":-0.0}]}"
+  },
+  {
+    "name": "number_exponent_float",
+    "input": "{\"nodes\":[{\"width\":1.234567890123456e-200}]}"
+  },
+  {
+    "name": "earliest_unknown_then_type",
+    "input": "{\"unknown\":0,\"CellSize\":false}"
+  },
+  {
+    "name": "earliest_type_then_unknown",
+    "input": "{\"CellSize\":false,\"unknown\":0}"
+  }
+]

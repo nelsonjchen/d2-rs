@@ -1,0 +1,14 @@
+# Two root compounds exercise Dagro's expanded ranks and post-layout spacing.
+# Horizontal rank separation is max(100, measured edge-label width + 40).
+direction: right
+source_group: {
+  a
+  b
+  a -> b
+}
+target_group: {
+  c
+  d
+  c -> d
+}
+source_group.a -> target_group.c: This connection label requires more than the default rank separation

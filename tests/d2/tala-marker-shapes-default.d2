@@ -1,0 +1,180 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+# Covers every author-reachable marker shape at both connection ends.
+# The final none row is an explicit no-marker control.
+
+arrow_source: "" {width: 60; height: 40; left: 0; top: 0}
+arrow_target: "" {width: 60; height: 40; left: 200; top: 0}
+arrow_source <-> arrow_target: {
+  source-arrowhead: {
+    shape: arrow
+  }
+  target-arrowhead: {
+    shape: arrow
+  }
+}
+
+triangle_source: "" {width: 60; height: 40; left: 0; top: 90}
+triangle_target: "" {width: 60; height: 40; left: 200; top: 90}
+triangle_source <-> triangle_target: {
+  source-arrowhead: {
+    shape: triangle
+  }
+  target-arrowhead: {
+    shape: triangle
+  }
+}
+
+unfilled_triangle_source: "" {width: 60; height: 40; left: 0; top: 180}
+unfilled_triangle_target: "" {width: 60; height: 40; left: 200; top: 180}
+unfilled_triangle_source <-> unfilled_triangle_target: {
+  source-arrowhead: {
+    shape: triangle
+    style.filled: false
+  }
+  target-arrowhead: {
+    shape: triangle
+    style.filled: false
+  }
+}
+
+diamond_source: "" {width: 60; height: 40; left: 0; top: 270}
+diamond_target: "" {width: 60; height: 40; left: 200; top: 270}
+diamond_source <-> diamond_target: {
+  source-arrowhead: {
+    shape: diamond
+  }
+  target-arrowhead: {
+    shape: diamond
+  }
+}
+
+filled_diamond_source: "" {width: 60; height: 40; left: 0; top: 360}
+filled_diamond_target: "" {width: 60; height: 40; left: 200; top: 360}
+filled_diamond_source <-> filled_diamond_target: {
+  source-arrowhead: {
+    shape: diamond
+    style.filled: true
+  }
+  target-arrowhead: {
+    shape: diamond
+    style.filled: true
+  }
+}
+
+circle_source: "" {width: 60; height: 40; left: 0; top: 450}
+circle_target: "" {width: 60; height: 40; left: 200; top: 450}
+circle_source <-> circle_target: {
+  source-arrowhead: {
+    shape: circle
+  }
+  target-arrowhead: {
+    shape: circle
+  }
+}
+
+filled_circle_source: "" {width: 60; height: 40; left: 0; top: 540}
+filled_circle_target: "" {width: 60; height: 40; left: 200; top: 540}
+filled_circle_source <-> filled_circle_target: {
+  source-arrowhead: {
+    shape: circle
+    style.filled: true
+  }
+  target-arrowhead: {
+    shape: circle
+    style.filled: true
+  }
+}
+
+box_source: "" {width: 60; height: 40; left: 0; top: 630}
+box_target: "" {width: 60; height: 40; left: 200; top: 630}
+box_source <-> box_target: {
+  source-arrowhead: {
+    shape: box
+  }
+  target-arrowhead: {
+    shape: box
+  }
+}
+
+filled_box_source: "" {width: 60; height: 40; left: 0; top: 720}
+filled_box_target: "" {width: 60; height: 40; left: 200; top: 720}
+filled_box_source <-> filled_box_target: {
+  source-arrowhead: {
+    shape: box
+    style.filled: true
+  }
+  target-arrowhead: {
+    shape: box
+    style.filled: true
+  }
+}
+
+cross_source: "" {width: 60; height: 40; left: 0; top: 810}
+cross_target: "" {width: 60; height: 40; left: 200; top: 810}
+cross_source <-> cross_target: {
+  source-arrowhead: {
+    shape: cross
+  }
+  target-arrowhead: {
+    shape: cross
+  }
+}
+
+cf_one_source: "" {width: 60; height: 40; left: 0; top: 900}
+cf_one_target: "" {width: 60; height: 40; left: 200; top: 900}
+cf_one_source <-> cf_one_target: {
+  source-arrowhead: {
+    shape: cf-one
+  }
+  target-arrowhead: {
+    shape: cf-one
+  }
+}
+
+cf_many_source: "" {width: 60; height: 40; left: 0; top: 990}
+cf_many_target: "" {width: 60; height: 40; left: 200; top: 990}
+cf_many_source <-> cf_many_target: {
+  source-arrowhead: {
+    shape: cf-many
+  }
+  target-arrowhead: {
+    shape: cf-many
+  }
+}
+
+cf_one_required_source: "" {width: 60; height: 40; left: 0; top: 1080}
+cf_one_required_target: "" {width: 60; height: 40; left: 200; top: 1080}
+cf_one_required_source <-> cf_one_required_target: {
+  source-arrowhead: {
+    shape: cf-one-required
+  }
+  target-arrowhead: {
+    shape: cf-one-required
+  }
+}
+
+cf_many_required_source: "" {width: 60; height: 40; left: 0; top: 1170}
+cf_many_required_target: "" {width: 60; height: 40; left: 200; top: 1170}
+cf_many_required_source <-> cf_many_required_target: {
+  source-arrowhead: {
+    shape: cf-many-required
+  }
+  target-arrowhead: {
+    shape: cf-many-required
+  }
+}
+
+none_source: "" {width: 60; height: 40; left: 0; top: 1260}
+none_target: "" {width: 60; height: 40; left: 200; top: 1260}
+none_source <-> none_target: {
+  source-arrowhead: {
+    shape: none
+  }
+  target-arrowhead: {
+    shape: none
+  }
+}
+

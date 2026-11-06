@@ -1,0 +1,24 @@
+network: {
+  cell tower: {
+		satellites: {
+			shape: stored_data
+      width: 140
+		}
+		transmitter: {
+      width: 140
+    }
+		satellites -> transmitter: send {
+		}
+		satellites -> transmitter: send {
+		}
+		satellites -> transmitter: send {
+		}
+  }
+  data processor: {
+    storage: {
+    }
+  }
+}
+user -> network.online portal.ui: access {
+}
+network.data processor -> api server

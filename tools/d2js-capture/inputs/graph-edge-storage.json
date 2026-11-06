@@ -1,0 +1,20 @@
+[
+{"name": "dagre/storage-root-grid-container", "source": "grid-rows: 2\na: {b; c}\nd\n", "options": {"layout": "dagre"}},
+{"name": "dagre/storage-constant-near", "source": "a\nb: {near: top-left}\n", "options": {"layout": "dagre"}},
+{"name": "dagre/storage-empty-object-grid", "source": "a: {grid-rows: 2}\n", "options": {"layout": "dagre"}},
+{"name": "dagre/storage-nested-sequence-actors", "source": "a: {shape: sequence_diagram; b; c}\n", "options": {"layout": "dagre"}},
+{"name": "dagre/storage-nested-grid-sequence", "source": "a: {grid-rows: 2; b: {shape: sequence_diagram; c; d}; e}\n", "options": {"layout": "dagre"}},
+{"name": "dagre/storage-root-grid-nested-grid", "source": "grid-rows: 2\na: {grid-rows: 2; b; c}\nd\n", "options": {"layout": "dagre"}},
+{"name": "elk/storage-root-grid-container", "source": "grid-rows: 2\na: {b; c}\nd\n", "options": {"layout": "elk"}},
+{"name": "elk/storage-constant-near", "source": "a\nb: {near: top-left}\n", "options": {"layout": "elk"}},
+{"name": "elk/storage-empty-object-grid", "source": "a: {grid-rows: 2}\n", "options": {"layout": "elk"}},
+{"name": "elk/storage-nested-sequence-actors", "source": "a: {shape: sequence_diagram; b; c}\n", "options": {"layout": "elk"}},
+{"name": "elk/storage-nested-grid-sequence", "source": "a: {grid-rows: 2; b: {shape: sequence_diagram; c; d}; e}\n", "options": {"layout": "elk"}},
+{"name": "elk/storage-root-grid-nested-grid", "source": "grid-rows: 2\na: {grid-rows: 2; b; c}\nd\n", "options": {"layout": "elk"}},
+{"name": "tala/storage-root-grid-container", "source": "grid-rows: 2\na: {b; c}\nd\n", "options": {"layout": "tala"}},
+{"name": "tala/storage-constant-near", "source": "a\nb: {near: top-left}\n", "options": {"layout": "tala"}},
+{"name": "tala/storage-empty-object-grid", "source": "a: {grid-rows: 2}\n", "options": {"layout": "tala"}},
+{"name": "tala/storage-nested-sequence-actors", "source": "a: {shape: sequence_diagram; b; c}\n", "options": {"layout": "tala"}},
+{"name": "tala/storage-nested-grid-sequence", "source": "a: {grid-rows: 2; b: {shape: sequence_diagram; c; d}; e}\n", "options": {"layout": "tala"}},
+{"name": "tala/storage-root-grid-nested-grid", "source": "grid-rows: 2\na: {grid-rows: 2; b; c}\nd\n", "options": {"layout": "tala"}}
+]

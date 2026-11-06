@@ -1,0 +1,70 @@
+# Whole-D2 layout oracle fixtures for crates/d2-rs-layout, captured against the
+# manifest pin's patched upstream tree. See docs/FIXTURES.md; retired layout
+# fixtures are recorded in docs/fixture-retirements/tala.md.
+#
+# Generators are subcommands of scripts/layout_oracle_fixtures.py: they build
+# tools/d2-layout-oracle (d2lib.Compile with an in-process engine, plus a
+# d2layouts overlay observing object-position validation) in the recipe
+# workdir, run it twice and require identical output. Inputs are hand-written
+# D2 sources in tools/fixtures/seeds/layout-sequence-sources.json or
+# generated in the script; the ELK case's native adapter graph is a seed.
+#
+# Regenerate:  uv run --no-project python scripts/regen-fixtures.py --only 'layout-*'
+# Test:        cargo test -p d2-rs-layout --features oracle-fixtures
+
+[defaults]
+kind = "command"
+upstream = true
+timeout = 1800
+
+[defaults.key_deps]
+files = [
+  "scripts/layout_oracle_fixtures.py",
+  "scripts/tala_oracle_fixtures.py",
+  "scripts/fixture_recipe.py",
+  "scripts/exact_json.py",
+  "scripts/references.py",
+  "tools/d2-layout-oracle",
+]
+go_toolchain = true
+# d2lib compiles, measures, lays out and exports: most of the tree matters.
+upstream_paths = ["."]
+
+[[recipe]]
+name = "layout-sequence"
+description = "Sequence-diagram targets with reference scopes/source lines, failing scope position validation and its message formats"
+outputs = [
+  "crates/d2-rs-layout/tests/fixtures/sequence-group-label-adjustment-source-v090.json",
+  "crates/d2-rs-layout/tests/fixtures/sequence-note-source-order-source-v090.json",
+  "crates/d2-rs-layout/tests/fixtures/sequence-lifeline-source-order-source-v090.json",
+  "crates/d2-rs-layout/tests/fixtures/sequence-invalid-positions-source-v090.json",
+]
+argv = ["{python}", "scripts/layout_oracle_fixtures.py", "sequence"]
+key_deps.files = ["tools/fixtures/seeds/layout-sequence-sources.json"]
+
+[[recipe]]
+name = "layout-grid-fixed-placement"
+description = "Every object box (decimal and float64 bits) of fixed-size 2x2 grids, three sizes, three gaps, both axis orders"
+outputs = ["crates/d2-rs-layout/tests/fixtures/grid-fixed-placement-source-v090.json"]
+argv = ["{python}", "scripts/layout_oracle_fixtures.py", "grid"]
+
+[[recipe]]
+name = "layout-grid-capacity"
+description = "Upstream d2grid resource_limits_test.go constructor, capacity and even-layout calls (scoreboard hook)"
+outputs = ["crates/d2-rs-layout/tests/fixtures/grid-capacity-master.json"]
+argv = ["{python}", "scripts/layout_oracle_fixtures.py", "grid-capacity"]
+key_deps.files = ["tools/grid-capacity-scoreboard/hook_test.go"]
+
+[[recipe]]
+name = "layout-grid-search"
+description = "Five upstream randomized getBestLayout reference calls (grid_search_test.go, scoreboard hook)"
+outputs = ["crates/d2-rs-layout/tests/fixtures/grid-search-master.json"]
+argv = ["{python}", "scripts/layout_oracle_fixtures.py", "grid-search"]
+key_deps.files = ["tools/grid-search-scoreboard/hook_test.go"]
+
+[[recipe]]
+name = "layout-elk-nested-sequence-grid"
+description = "ELK target boxes of a sequence diagram nested in a grid cell inside a sequence diagram"
+outputs = ["crates/d2-rs-layout/tests/fixtures/elk-nested-sequence-grid-source-v090.json"]
+argv = ["{python}", "scripts/layout_oracle_fixtures.py", "elk-nested-sequence-grid"]
+key_deps.files = ["tools/fixtures/seeds/layout-elk-nested-sequence-grid.json"]

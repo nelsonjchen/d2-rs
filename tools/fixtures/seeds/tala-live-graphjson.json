@@ -1,0 +1,316 @@
+[
+  {
+    "name": "single",
+    "seed": 1,
+    "input": {
+      "nodes": [
+        {
+          "id": 1,
+          "width": 80,
+          "height": 40,
+          "shapeType": "Square"
+        }
+      ],
+      "edges": [],
+      "containers": {
+        "0": [
+          1
+        ]
+      }
+    }
+  },
+  {
+    "name": "nullable-identities",
+    "seed": 1,
+    "input": {
+      "nodes": [
+        {
+          "id": 1,
+          "width": 80,
+          "height": 40,
+          "shapeType": "Square",
+          "d2id": ""
+        },
+        {
+          "id": 2,
+          "width": 80,
+          "height": 40,
+          "shapeType": "Square"
+        }
+      ],
+      "edges": [
+        {
+          "id": 9,
+          "d2id": "",
+          "from": 1,
+          "to": 2
+        }
+      ],
+      "containers": {
+        "0": [
+          1,
+          2
+        ]
+      }
+    }
+  },
+  {
+    "name": "complete-style",
+    "seed": 1,
+    "input": {
+      "nodes": [
+        {
+          "id": 1,
+          "width": 80,
+          "height": 40,
+          "shapeType": "Square"
+        },
+        {
+          "id": 2,
+          "width": 80,
+          "height": 40,
+          "shapeType": "Square"
+        }
+      ],
+      "edges": [
+        {
+          "id": 9,
+          "from": 1,
+          "to": 2,
+          "style": {
+            "stroke": {
+              "value": "red"
+            },
+            "opacity": {
+              "value": "0.75"
+            },
+            "strokeWidth": {
+              "value": "2"
+            },
+            "fill": {
+              "value": "blue"
+            },
+            "fillPattern": {
+              "value": "dots"
+            },
+            "strokeDash": {
+              "value": "0"
+            },
+            "borderRadius": {
+              "value": "0"
+            },
+            "shadow": {
+              "value": "false"
+            },
+            "3d": {
+              "value": "false"
+            },
+            "multiple": {
+              "value": "true"
+            },
+            "font": {
+              "value": "mono"
+            },
+            "fontSize": {
+              "value": "16"
+            },
+            "fontColor": {
+              "value": "green"
+            },
+            "animated": {
+              "value": "false"
+            },
+            "bold": {
+              "value": "true"
+            },
+            "italic": {
+              "value": "true"
+            },
+            "underline": {
+              "value": "false"
+            },
+            "filled": {
+              "value": "true"
+            },
+            "doubleBorder": {
+              "value": "false"
+            },
+            "textTransform": {
+              "value": "uppercase"
+            }
+          }
+        }
+      ],
+      "containers": {
+        "0": [
+          1,
+          2
+        ]
+      }
+    }
+  },
+  {
+    "name": "zero-edge-ids",
+    "seed": 1,
+    "input": {
+      "nodes": [
+        {
+          "id": 1,
+          "width": 80,
+          "height": 40,
+          "shapeType": "Square"
+        },
+        {
+          "id": 2,
+          "width": 80,
+          "height": 40,
+          "shapeType": "Square"
+        },
+        {
+          "id": 3,
+          "width": 80,
+          "height": 40,
+          "shapeType": "Square"
+        }
+      ],
+      "edges": [
+        {
+          "id": -9,
+          "originalId": 0,
+          "from": 1,
+          "to": 2
+        },
+        {
+          "id": -7,
+          "originalId": 0,
+          "from": 2,
+          "to": 3
+        }
+      ],
+      "containers": {
+        "0": [
+          1,
+          2,
+          3
+        ]
+      }
+    }
+  },
+  {
+    "name": "label-text",
+    "seed": 1,
+    "input": {
+      "nodes": [
+        {
+          "id": 1,
+          "width": 80,
+          "height": 40,
+          "shapeType": "Square",
+          "label": {
+            "Text": "retained text",
+            "Width": 30,
+            "Height": 20
+          }
+        },
+        {
+          "id": 2,
+          "width": 80,
+          "height": 40,
+          "shapeType": "Square"
+        }
+      ],
+      "edges": [
+        {
+          "id": 9,
+          "from": 1,
+          "to": 2,
+          "label": {
+            "Text": "edge text",
+            "Width": 20,
+            "Height": 10
+          }
+        }
+      ],
+      "containers": {
+        "0": [
+          1,
+          2
+        ]
+      }
+    }
+  },
+  {
+    "name": "directions",
+    "seed": 1,
+    "input": {
+      "nodes": [
+        {
+          "id": 1,
+          "width": 80,
+          "height": 40,
+          "shapeType": "Square"
+        },
+        {
+          "id": 2,
+          "width": 80,
+          "height": 40,
+          "shapeType": "Square"
+        }
+      ],
+      "edges": [
+        {
+          "id": 9,
+          "from": 1,
+          "to": 2
+        }
+      ],
+      "directions": {
+        "0": "left"
+      },
+      "containers": {
+        "0": [
+          1,
+          2
+        ]
+      }
+    }
+  },
+  {
+    "name": "nears",
+    "seed": 1,
+    "input": {
+      "nodes": [
+        {
+          "id": 1,
+          "width": 80,
+          "height": 40,
+          "shapeType": "Square",
+          "nears": [
+            3,
+            2
+          ]
+        },
+        {
+          "id": 2,
+          "width": 80,
+          "height": 40,
+          "shapeType": "Square"
+        },
+        {
+          "id": 3,
+          "width": 80,
+          "height": 40,
+          "shapeType": "Square"
+        }
+      ],
+      "edges": [],
+      "containers": {
+        "0": [
+          1,
+          2,
+          3
+        ]
+      }
+    }
+  }
+]

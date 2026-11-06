@@ -1,0 +1,232 @@
+--- a/d2layouts/d2talalayout/internal/trace/rand.go
++++ b/d2layouts/d2talalayout/internal/trace/rand.go
+@@ -3,9 +3,11 @@
+ import (
+ 	"encoding/json"
+ 	"fmt"
++	"math"
+ 	"math/rand"
+ 	"os"
+ 	"runtime"
++	"sync"
+ 	"sync/atomic"
+ )
+ 
+@@ -76,5 +78,78 @@
+ 			fmt.Fprintln(os.Stderr, string(encoded))
+ 		}
+ 	}
+-	return rand.New(&source{Source: rand.NewSource(seed), stream: stream, streamID: streamID})
++	source := &source{Source: rand.NewSource(seed), stream: stream, streamID: streamID}
++	random := rand.New(source)
++	if os.Getenv("D2_TRACE_RNG_OPERATIONS") != "" {
++		operationSources.Store(random, source)
++	}
++	return random
+ }
++
++// Diagnostic operations retain semantic calls, floating-point bits and shuffle
++// swap order in addition to the legacy primitive draw observer. Pointer keys
++// stay inside this registry and are never emitted.
++var operationSources sync.Map
++
++func rngOperation(random *rand.Rand, operation string, fields map[string]any) {
++	if os.Getenv("D2_TRACE_RNG_OPERATIONS") == "" {
++		return
++	}
++	value, ok := operationSources.Load(random)
++	if !ok {
++		return
++	}
++	s := value.(*source)
++	event := map[string]any{"event": "rng-operation", "stream": s.stream,
++		"operation": operation, "draw_count": s.draws}
++	if s.stream == "node-placement" {
++		event["stream_id"] = s.streamID
++	}
++	for key, value := range fields {
++		event[key] = value
++	}
++	if encoded, err := json.Marshal(event); err == nil {
++		fmt.Fprintln(os.Stderr, string(encoded))
++	}
++}
++
++func rngDrawCount(random *rand.Rand) uint64 {
++	if value, ok := operationSources.Load(random); ok {
++		return value.(*source).draws
++	}
++	return 0
++}
++
++func Float64(random *rand.Rand) float64 {
++	before := rngDrawCount(random)
++	value := random.Float64()
++	rngOperation(random, "float64", map[string]any{"draw_count_before": before,
++		"result_bits": fmt.Sprintf("%016x", math.Float64bits(value))})
++	return value
++}
++
++func Int63(random *rand.Rand) int64 {
++	before := rngDrawCount(random)
++	value := random.Int63()
++	rngOperation(random, "int63-result", map[string]any{"draw_count_before": before,
++		"result": fmt.Sprintf("%d", value)})
++	return value
++}
++
++func ShuffleBegin(random *rand.Rand, length int) {
++	rngOperation(random, "shuffle-start", map[string]any{"length": length})
++}
++func ShuffleSwap(random *rand.Rand, index, target int) {
++	rngOperation(random, "shuffle-swap", map[string]any{"index": index, "target": target})
++}
++func ShuffleEnd(random *rand.Rand, length int, completed bool) {
++	rngOperation(random, "shuffle-end", map[string]any{"length": length, "completed": completed})
++}
++func Shuffle(random *rand.Rand, length int, swap func(int, int)) {
++	ShuffleBegin(random, length)
++	random.Shuffle(length, func(index, target int) {
++		ShuffleSwap(random, index, target)
++		swap(index, target)
++	})
++	ShuffleEnd(random, length, true)
++}
+--- a/d2layouts/d2talalayout/internal/limits/optimization.go
++++ b/d2layouts/d2talalayout/internal/limits/optimization.go
+@@ -4,6 +4,7 @@
+ 	"context"
+ 	"errors"
+ 	"fmt"
++	"github.com/d2lang/d2/d2layouts/d2talalayout/internal/trace"
+ 	"math"
+ 	"math/bits"
+ 	"math/rand"
+@@ -115,12 +116,16 @@
+ 	if random == nil {
+ 		return fmt.Errorf("TALA %s shuffle requires a random generator", guard.location)
+ 	}
++	trace.ShuffleBegin(random, len(values))
++	completed := false
++	defer func() { trace.ShuffleEnd(random, len(values), completed) }()
+ 	i := len(values) - 1
+ 	for ; i > 1<<31-1-1; i-- {
+ 		if err := guard.Step(); err != nil {
+ 			return err
+ 		}
+ 		j := int(random.Int63n(int64(i + 1)))
++		trace.ShuffleSwap(random, i, int(j))
+ 		values[i], values[j] = values[j], values[i]
+ 	}
+ 	for ; i > 0; i-- {
+@@ -128,8 +133,10 @@
+ 		if err != nil {
+ 			return err
+ 		}
++		trace.ShuffleSwap(random, i, int(j))
+ 		values[i], values[j] = values[j], values[i]
+ 	}
++	completed = true
+ 	return nil
+ }
+ 
+--- a/d2layouts/d2talalayout/internal/hierarchy/placement.go
++++ b/d2layouts/d2talalayout/internal/hierarchy/placement.go
+@@ -4,6 +4,7 @@
+ 	"cmp"
+ 	"context"
+ 	"fmt"
++	"github.com/d2lang/d2/d2layouts/d2talalayout/internal/trace"
+ 	"math"
+ 	"math/rand"
+ 	"slices"
+@@ -283,7 +284,7 @@
+ 		}
+ 	}
+ 	if rand != nil {
+-		rand.Shuffle(len(placementNodes), func(i, j int) {
++		trace.Shuffle(rand, len(placementNodes), func(i, j int) {
+ 			placementNodes[i], placementNodes[j] = placementNodes[j], placementNodes[i]
+ 		})
+ 	}
+--- a/d2layouts/d2talalayout/internal/placement/sizeless_optimizer.go
++++ b/d2layouts/d2talalayout/internal/placement/sizeless_optimizer.go
+@@ -4,6 +4,7 @@
+ 	"context"
+ 	"encoding/json"
+ 	"fmt"
++	"github.com/d2lang/d2/d2layouts/d2talalayout/internal/trace"
+ 	"maps"
+ 	"math"
+ 	"math/rand"
+@@ -276,8 +277,8 @@
+ 		}
+ 	}
+ 
+-	medianX += (-temp + optim.randGenerator.Float64()*(2.0*temp))
+-	medianY += (-temp + optim.randGenerator.Float64()*(2.0*temp))
++	medianX += (-temp + trace.Float64(optim.randGenerator)*(2.0*temp))
++	medianY += (-temp + trace.Float64(optim.randGenerator)*(2.0*temp))
+ 
+ 	if fixedOrigin != nil {
+ 		medianX = math.Max(medianX, fixedOrigin.X/cell)
+--- a/d2layouts/d2talalayout/internal/placement/sized_optimizer.go
++++ b/d2layouts/d2talalayout/internal/placement/sized_optimizer.go
+@@ -5,6 +5,7 @@
+ 	"context"
+ 	"encoding/json"
+ 	"fmt"
++	"github.com/d2lang/d2/d2layouts/d2talalayout/internal/trace"
+ 	"math"
+ 	"math/rand"
+ 	"os"
+@@ -722,8 +723,8 @@
+ 	}
+ 
+ 	preJitterX, preJitterY := medianX, medianY
+-	randomX := optim.randGenerator.Float64()
+-	randomY := optim.randGenerator.Float64()
++	randomX := trace.Float64(optim.randGenerator)
++	randomY := trace.Float64(optim.randGenerator)
+ 	medianX += ((-1.0 * temp * width) + randomX*(2.0*temp*width))
+ 	medianY += ((-1.0 * temp * height) + randomY*(2.0*temp*height))
+ 	postJitterX, postJitterY := medianX, medianY
+--- a/d2layouts/d2talalayout/internal/grouping/clusters.go
++++ b/d2layouts/d2talalayout/internal/grouping/clusters.go
+@@ -30,7 +30,7 @@
+ 	if averageWidth < averageHeight {
+ 		return layoutgraph.Row
+ 	}
+-	if random.Float64() > 0.5 {
++	if trace.Float64(random) > 0.5 {
+ 		return layoutgraph.Column
+ 	}
+ 	return layoutgraph.Row
+@@ -346,7 +346,7 @@
+ 				}
+ 			}
+ 		}
+-		vesselID, err := nextVesselID(random.Int63())
++		vesselID, err := nextVesselID(trace.Int63(random))
+ 		if err != nil {
+ 			return false, err
+ 		}
+--- a/d2layouts/d2talalayout/internal/grouping/sequences.go
++++ b/d2layouts/d2talalayout/internal/grouping/sequences.go
+@@ -6,6 +6,7 @@
+ 	"cmp"
+ 	"context"
+ 	"fmt"
++	"github.com/d2lang/d2/d2layouts/d2talalayout/internal/trace"
+ 	"math"
+ 	"math/rand"
+ 	"slices"
+@@ -320,7 +321,7 @@
+ 			if err := guard.Step(); err != nil {
+ 				return err
+ 			}
+-			generatedIDs[i] = random.Int63()
++			generatedIDs[i] = trace.Int63(random)
+ 			slotByID[generatedIDs[i]] = i
+ 		}
+ 		orderedGroups := make([][]*layoutgraph.Node, len(groups))

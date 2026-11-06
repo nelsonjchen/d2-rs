@@ -1,0 +1,354 @@
+[
+ {
+  "name": "node-fill-0",
+  "source": "a: {style.fill: \"red\"}\n"
+ },
+ {
+  "name": "node-fill-1",
+  "source": "a: {style.fill: \"RED\"}\n"
+ },
+ {
+  "name": "node-fill-2",
+  "source": "a: {style.fill: \"#abc\"}\n"
+ },
+ {
+  "name": "node-fill-3",
+  "source": "a: {style.fill: \"#abcdef\"}\n"
+ },
+ {
+  "name": "node-fill-4",
+  "source": "a: {style.fill: \"#abcd\"}\n"
+ },
+ {
+  "name": "node-fill-5",
+  "source": "a: {style.fill: \"#abcdef00\"}\n"
+ },
+ {
+  "name": "node-fill-6",
+  "source": "a: {style.fill: \"transparent\"}\n"
+ },
+ {
+  "name": "node-fill-7",
+  "source": "a: {style.fill: \"currentcolor\"}\n"
+ },
+ {
+  "name": "node-fill-8",
+  "source": "a: {style.fill: \"none\"}\n"
+ },
+ {
+  "name": "node-fill-9",
+  "source": "a: {style.fill: \"N1\"}\n"
+ },
+ {
+  "name": "node-fill-10",
+  "source": "a: {style.fill: \"rgb(1,2,3)\"}\n"
+ },
+ {
+  "name": "node-fill-11",
+  "source": "a: {style.fill: \" orange\"}\n"
+ },
+ {
+  "name": "node-fill-12",
+  "source": "a: {style.fill: \"linear-gradient(red, blue)\"}\n"
+ },
+ {
+  "name": "node-fill-13",
+  "source": "a: {style.fill: \"linear-gradient(red)\"}\n"
+ },
+ {
+  "name": "node-fill-14",
+  "source": "a: {style.fill: \"linear-gradient()\"}\n"
+ },
+ {
+  "name": "node-fill-15",
+  "source": "a: {style.fill: \"linear-gradient(,)\"}\n"
+ },
+ {
+  "name": "node-fill-16",
+  "source": "a: {style.fill: \"linear-gradient(red, nonsense)\"}\n"
+ },
+ {
+  "name": "node-fill-17",
+  "source": "a: {style.fill: \"linear-gradient(red garbage, blue)\"}\n"
+ },
+ {
+  "name": "node-fill-18",
+  "source": "a: {style.fill: \"linear-gradient(rgb(1, 2, 3), blue)\"}\n"
+ },
+ {
+  "name": "node-fill-19",
+  "source": "a: {style.fill: \"linear-gradient(rgb(1,2,3), blue)\"}\n"
+ },
+ {
+  "name": "node-fill-20",
+  "source": "a: {style.fill: \"linear-gradient(currentcolor, blue)\"}\n"
+ },
+ {
+  "name": "node-fill-21",
+  "source": "a: {style.fill: \"linear-gradient(#abcd, blue)\"}\n"
+ },
+ {
+  "name": "node-fill-22",
+  "source": "a: {style.fill: \"linear-gradient(abcd, blue)\"}\n"
+ },
+ {
+  "name": "node-fill-23",
+  "source": "a: {style.fill: \"linear-gradient(to nonsense, red)\"}\n"
+ },
+ {
+  "name": "node-fill-24",
+  "source": "a: {style.fill: \"linear-gradient(mushdeg, red)\"}\n"
+ },
+ {
+  "name": "node-fill-25",
+  "source": "a: {style.fill: \"LINEAR-gradient(red, blue)\"}\n"
+ },
+ {
+  "name": "node-fill-26",
+  "source": "a: {style.fill: \"radial-gradient(circle, red)\"}\n"
+ },
+ {
+  "name": "node-fill-27",
+  "source": "a: {style.fill: \"linear-gradient(hsl(0,1,1), blue)\"}\n"
+ },
+ {
+  "name": "node-stroke-0",
+  "source": "a: {style.stroke: \"red\"}\n"
+ },
+ {
+  "name": "node-stroke-1",
+  "source": "a: {style.stroke: \"RED\"}\n"
+ },
+ {
+  "name": "node-stroke-2",
+  "source": "a: {style.stroke: \"#abc\"}\n"
+ },
+ {
+  "name": "node-stroke-3",
+  "source": "a: {style.stroke: \"#abcdef\"}\n"
+ },
+ {
+  "name": "node-stroke-4",
+  "source": "a: {style.stroke: \"#abcd\"}\n"
+ },
+ {
+  "name": "node-stroke-5",
+  "source": "a: {style.stroke: \"#abcdef00\"}\n"
+ },
+ {
+  "name": "node-stroke-6",
+  "source": "a: {style.stroke: \"transparent\"}\n"
+ },
+ {
+  "name": "node-stroke-7",
+  "source": "a: {style.stroke: \"currentcolor\"}\n"
+ },
+ {
+  "name": "node-stroke-8",
+  "source": "a: {style.stroke: \"none\"}\n"
+ },
+ {
+  "name": "node-stroke-9",
+  "source": "a: {style.stroke: \"N1\"}\n"
+ },
+ {
+  "name": "node-stroke-10",
+  "source": "a: {style.stroke: \"rgb(1,2,3)\"}\n"
+ },
+ {
+  "name": "node-stroke-11",
+  "source": "a: {style.stroke: \" orange\"}\n"
+ },
+ {
+  "name": "node-stroke-12",
+  "source": "a: {style.stroke: \"linear-gradient(red, blue)\"}\n"
+ },
+ {
+  "name": "node-stroke-13",
+  "source": "a: {style.stroke: \"linear-gradient(red)\"}\n"
+ },
+ {
+  "name": "node-stroke-14",
+  "source": "a: {style.stroke: \"linear-gradient()\"}\n"
+ },
+ {
+  "name": "node-stroke-15",
+  "source": "a: {style.stroke: \"linear-gradient(,)\"}\n"
+ },
+ {
+  "name": "node-stroke-16",
+  "source": "a: {style.stroke: \"linear-gradient(red, nonsense)\"}\n"
+ },
+ {
+  "name": "node-stroke-17",
+  "source": "a: {style.stroke: \"linear-gradient(red garbage, blue)\"}\n"
+ },
+ {
+  "name": "node-stroke-18",
+  "source": "a: {style.stroke: \"linear-gradient(rgb(1, 2, 3), blue)\"}\n"
+ },
+ {
+  "name": "node-stroke-19",
+  "source": "a: {style.stroke: \"linear-gradient(rgb(1,2,3), blue)\"}\n"
+ },
+ {
+  "name": "node-stroke-20",
+  "source": "a: {style.stroke: \"linear-gradient(currentcolor, blue)\"}\n"
+ },
+ {
+  "name": "node-stroke-21",
+  "source": "a: {style.stroke: \"linear-gradient(#abcd, blue)\"}\n"
+ },
+ {
+  "name": "node-stroke-22",
+  "source": "a: {style.stroke: \"linear-gradient(abcd, blue)\"}\n"
+ },
+ {
+  "name": "node-stroke-23",
+  "source": "a: {style.stroke: \"linear-gradient(to nonsense, red)\"}\n"
+ },
+ {
+  "name": "node-stroke-24",
+  "source": "a: {style.stroke: \"linear-gradient(mushdeg, red)\"}\n"
+ },
+ {
+  "name": "node-stroke-25",
+  "source": "a: {style.stroke: \"LINEAR-gradient(red, blue)\"}\n"
+ },
+ {
+  "name": "node-stroke-26",
+  "source": "a: {style.stroke: \"radial-gradient(circle, red)\"}\n"
+ },
+ {
+  "name": "node-stroke-27",
+  "source": "a: {style.stroke: \"linear-gradient(hsl(0,1,1), blue)\"}\n"
+ },
+ {
+  "name": "node-font-color-0",
+  "source": "a: {style.font-color: \"red\"}\n"
+ },
+ {
+  "name": "node-font-color-1",
+  "source": "a: {style.font-color: \"RED\"}\n"
+ },
+ {
+  "name": "node-font-color-2",
+  "source": "a: {style.font-color: \"#abc\"}\n"
+ },
+ {
+  "name": "node-font-color-3",
+  "source": "a: {style.font-color: \"#abcdef\"}\n"
+ },
+ {
+  "name": "node-font-color-4",
+  "source": "a: {style.font-color: \"#abcd\"}\n"
+ },
+ {
+  "name": "node-font-color-5",
+  "source": "a: {style.font-color: \"#abcdef00\"}\n"
+ },
+ {
+  "name": "node-font-color-6",
+  "source": "a: {style.font-color: \"transparent\"}\n"
+ },
+ {
+  "name": "node-font-color-7",
+  "source": "a: {style.font-color: \"currentcolor\"}\n"
+ },
+ {
+  "name": "node-font-color-8",
+  "source": "a: {style.font-color: \"none\"}\n"
+ },
+ {
+  "name": "node-font-color-9",
+  "source": "a: {style.font-color: \"N1\"}\n"
+ },
+ {
+  "name": "node-font-color-10",
+  "source": "a: {style.font-color: \"rgb(1,2,3)\"}\n"
+ },
+ {
+  "name": "node-font-color-11",
+  "source": "a: {style.font-color: \" orange\"}\n"
+ },
+ {
+  "name": "node-font-color-12",
+  "source": "a: {style.font-color: \"linear-gradient(red, blue)\"}\n"
+ },
+ {
+  "name": "node-font-color-13",
+  "source": "a: {style.font-color: \"linear-gradient(red)\"}\n"
+ },
+ {
+  "name": "node-font-color-14",
+  "source": "a: {style.font-color: \"linear-gradient()\"}\n"
+ },
+ {
+  "name": "node-font-color-15",
+  "source": "a: {style.font-color: \"linear-gradient(,)\"}\n"
+ },
+ {
+  "name": "node-font-color-16",
+  "source": "a: {style.font-color: \"linear-gradient(red, nonsense)\"}\n"
+ },
+ {
+  "name": "node-font-color-17",
+  "source": "a: {style.font-color: \"linear-gradient(red garbage, blue)\"}\n"
+ },
+ {
+  "name": "node-font-color-18",
+  "source": "a: {style.font-color: \"linear-gradient(rgb(1, 2, 3), blue)\"}\n"
+ },
+ {
+  "name": "node-font-color-19",
+  "source": "a: {style.font-color: \"linear-gradient(rgb(1,2,3), blue)\"}\n"
+ },
+ {
+  "name": "node-font-color-20",
+  "source": "a: {style.font-color: \"linear-gradient(currentcolor, blue)\"}\n"
+ },
+ {
+  "name": "node-font-color-21",
+  "source": "a: {style.font-color: \"linear-gradient(#abcd, blue)\"}\n"
+ },
+ {
+  "name": "node-font-color-22",
+  "source": "a: {style.font-color: \"linear-gradient(abcd, blue)\"}\n"
+ },
+ {
+  "name": "node-font-color-23",
+  "source": "a: {style.font-color: \"linear-gradient(to nonsense, red)\"}\n"
+ },
+ {
+  "name": "node-font-color-24",
+  "source": "a: {style.font-color: \"linear-gradient(mushdeg, red)\"}\n"
+ },
+ {
+  "name": "node-font-color-25",
+  "source": "a: {style.font-color: \"LINEAR-gradient(red, blue)\"}\n"
+ },
+ {
+  "name": "node-font-color-26",
+  "source": "a: {style.font-color: \"radial-gradient(circle, red)\"}\n"
+ },
+ {
+  "name": "node-font-color-27",
+  "source": "a: {style.font-color: \"linear-gradient(hsl(0,1,1), blue)\"}\n"
+ },
+ {
+  "name": "deleted",
+  "source": "a: {style.fill: bogus}\na:null\n"
+ },
+ {
+  "name": "overwrite",
+  "source": "a: {style.fill: bogus}\na.style.fill:red\n"
+ },
+ {
+  "name": "arrowhead",
+  "source": "a -> b: {target-arrowhead.style.fill: bogus}\n"
+ },
+ {
+  "name": "order",
+  "source": "style.opacity:2\na -> b: {style.stroke:bogus}\nbox: {a: {style.font: serif}}\n"
+ }
+]

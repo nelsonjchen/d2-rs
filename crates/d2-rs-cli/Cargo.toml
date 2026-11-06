@@ -1,0 +1,74 @@
+[package]
+name = "d2-rs"
+description = "The d2-rs command-line tool, a Rust port of D2's d2cli package."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+readme = "../../README.md"
+
+[features]
+default = []
+# Oracle tier: tests that read Go-oracle artifacts regenerated into
+# oracle-cache/fixtures by scripts/regen-fixtures.py (docs/FIXTURES.md).
+oracle-fixtures = []
+diagnostic-traces = ["d2-rs-lib/diagnostic-traces", "d2-rs-layout/diagnostic-traces", "d2-rs-export/diagnostic-traces", "d2-rs-render/diagnostic-traces"]
+
+[lib]
+name = "d2_rs_cli"
+
+[[bin]]
+name = "d2-rs"
+path = "src/main.rs"
+
+[dependencies]
+d2-rs-render.workspace = true
+d2-rs-export.workspace = true
+d2-rs-core.workspace = true
+d2-rs-language.workspace = true
+d2-rs-layout.workspace = true
+d2-rs-lib.workspace = true
+d2-rs-text.workspace = true
+d2-rs-math.workspace = true
+d2-rs-isometric.workspace = true
+d2-rs-scenebuild.workspace = true
+d2-rs-scene.workspace = true
+d2-rs-tala.workspace = true
+base64.workspace = true
+flate2.workspace = true
+brotli-decompressor.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+reqwest.workspace = true
+hyper.workspace = true
+tokio.workspace = true
+imagesize.workspace = true
+ring.workspace = true
+subtle = "2.6.1"
+ctrlc.workspace = true
+# Global allocator: the TALA port allocates far more often than Go does.
+mimalloc.workspace = true
+# Supplies the matching header to build.rs via DEP_MIMALLOC_INCLUDE_DIR.
+libmimalloc-sys = { version = "=0.1.49", default-features = false }
+# Unicode 17.0.0, matching the pinned Go 1.27 x/text build.
+unicode-normalization = "=0.1.25"
+
+[dev-dependencies]
+d2-rs-testdata.workspace = true
+zip.workspace = true
+d2-rs-elk.workspace = true
+png.workspace = true
+gif.workspace = true
+roxmltree.workspace = true
+
+[build-dependencies]
+cc = "1"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+errno = "0.3"
+
+[lints]
+workspace = true

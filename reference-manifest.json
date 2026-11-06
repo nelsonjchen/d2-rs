@@ -1,0 +1,116 @@
+{
+  "schema_version": 1,
+  "d2": {
+    "repository": "https://github.com/d2lang/d2.git",
+    "branch": "master",
+    "commit": "6a7b4837838a3907604a1d9eec57ee98b6f3cd01",
+    "commit_date": "2026-10-11",
+    "base_tag": "v0.9.0",
+    "checkout": "../d2",
+    "trace_checkout": "../d2-trace",
+    "trace_patches": [
+      "tools/patches/d2-e2e-case-dump.patch",
+      "tools/patches/mathtext-svgimport-admission.patch"
+    ],
+    "go_toolchain": "go1.27.0",
+    "oracle": ".reference/bin/d2-master-6a7b4837-go1.27",
+    "e2e_cases": ".reference/e2e-cases-6a7b4837"
+  },
+  "releases": {
+    "macos-arm64": {
+      "archive": "d2-v0.9.0-macos-arm64.tar.gz",
+      "url": "https://github.com/d2lang/d2/releases/download/v0.9.0/d2-v0.9.0-macos-arm64.tar.gz",
+      "sha256": "eaf6c0c143e56dd9fa97bfb6df25ea9c1ebce40245f056a0768cf1a6c15d3064",
+      "binary_sha256": "e8ba501a413bac33a4d93014c475b804de10fb2863a391583e23a8d88160e311"
+    },
+    "linux-amd64": {
+      "archive": "d2-v0.9.0-linux-amd64.tar.gz",
+      "url": "https://github.com/d2lang/d2/releases/download/v0.9.0/d2-v0.9.0-linux-amd64.tar.gz",
+      "sha256": "5669ddc46b99e942cc96078f4a4e36d5e62103348f4c05179ede27802fdd87a9"
+    },
+    "linux-arm64": {
+      "archive": "d2-v0.9.0-linux-arm64.tar.gz",
+      "url": "https://github.com/d2lang/d2/releases/download/v0.9.0/d2-v0.9.0-linux-arm64.tar.gz",
+      "sha256": "ac2c028697199479acb321db1e3d68caee9f2ba492ed73caa3cd13f3829bf913"
+    },
+    "macos-amd64": {
+      "archive": "d2-v0.9.0-macos-amd64.tar.gz",
+      "url": "https://github.com/d2lang/d2/releases/download/v0.9.0/d2-v0.9.0-macos-amd64.tar.gz",
+      "sha256": "cad39576a480d6bb02ea142fef1726647914b0d2da51ccc9b30b660a2b1babf0"
+    },
+    "windows-amd64": {
+      "archive": "d2-v0.9.0-windows-amd64.tar.gz",
+      "url": "https://github.com/d2lang/d2/releases/download/v0.9.0/d2-v0.9.0-windows-amd64.tar.gz",
+      "sha256": "5f63b643de8f5a6dfb922d172e1b5496e4caf47497c33c4427cf1127f28c340f"
+    },
+    "windows-arm64": {
+      "archive": "d2-v0.9.0-windows-arm64.tar.gz",
+      "url": "https://github.com/d2lang/d2/releases/download/v0.9.0/d2-v0.9.0-windows-arm64.tar.gz",
+      "sha256": "dd05cab459410c287d7ca3eb9cf78145a071742ee8e1b81a0122f84f471883e1"
+    }
+  },
+  "source_builds": {
+    "d2-master-6a7b4837-go1.27.0": {
+      "binary": ".reference/bin/d2-master-6a7b4837-go1.27",
+      "source_commit": "6a7b4837838a3907604a1d9eec57ee98b6f3cd01",
+      "go_toolchain": "go1.27.0",
+      "binary_sha256": "f1bb2cb7cd632a5be742d7c3daf61fadf83895887a5324adf38469f29f50977e",
+      "build_command": "GOTOOLCHAIN=go1.27.0 GOMODCACHE=$PWD/.reference/go-mod/pkg/mod GOCACHE=$PWD/.reference/go-build go -C ../d2 build -mod=readonly -ldflags '-X github.com/d2lang/d2/lib/version.Version=v0.9.0' -o ../d2-rs/.reference/bin/d2-master-6a7b4837-go1.27 .",
+      "reported_version": "v0.9.0",
+      "reported_version_note": "Unstamped master reports v0.8.1-HEAD (lib/version). The oracle keeps the last release's v0.9.0 stamp so version-sensitive CLI comparisons do not diverge on a label alone."
+    }
+  },
+  "dependencies": {
+    "codeberg.org/go-pdf/fpdf": "v0.12.0",
+    "github.com/PuerkitoBio/goquery": "v1.12.0",
+    "github.com/alecthomas/chroma/v2": "v2.27.0",
+    "github.com/andybalholm/brotli": "v1.2.2",
+    "github.com/coder/websocket": "v1.8.15",
+    "github.com/d2lang/dagro": "v0.2.1",
+    "github.com/d2lang/elk-go": "v0.2.0",
+    "github.com/d2lang/mathjax-go": "v0.1.1-0.20261002175158-94d80186bfd7",
+    "github.com/d2lang/rough-go": "v0.2.0",
+    "github.com/d2lang/util-go": "v0.2.0",
+    "github.com/ericpauley/go-quantize": "v0.0.0-20200331213906-ae555eb2afa4",
+    "github.com/fsnotify/fsnotify": "v1.10.1",
+    "github.com/go-text/typesetting": "v0.3.4",
+    "github.com/lucasb-eyer/go-colorful": "v1.4.1",
+    "github.com/mazznoer/csscolorparser": "v0.1.8",
+    "github.com/rivo/uniseg": "v0.4.7",
+    "github.com/spf13/pflag": "v1.0.10",
+    "github.com/stretchr/testify": "v1.11.1",
+    "github.com/yuin/goldmark": "v1.8.5",
+    "go.uber.org/multierr": "v1.11.0",
+    "golang.org/x/image": "v0.45.0",
+    "golang.org/x/net": "v0.57.0",
+    "golang.org/x/sync": "v0.22.0",
+    "golang.org/x/text": "v0.41.0",
+    "golang.org/x/tools": "v0.48.0",
+    "github.com/andybalholm/cascadia": "v1.3.4",
+    "github.com/davecgh/go-spew": "v1.1.1",
+    "github.com/dlclark/regexp2/v2": "v2.6.0",
+    "github.com/kr/pretty": "v0.3.1",
+    "github.com/pkg/browser": "v0.0.0-20240102092130-5ac0b6a4141c",
+    "github.com/pmezard/go-difflib": "v1.0.0",
+    "github.com/rogpeppe/go-internal": "v1.11.0",
+    "golang.org/x/exp": "v0.0.0-20260727155853-b88d891fe743",
+    "golang.org/x/sys": "v0.47.0",
+    "golang.org/x/term": "v0.45.0",
+    "golang.org/x/xerrors": "v0.0.0-20240903120638-7835f813f4da",
+    "gopkg.in/check.v1": "v1.0.0-20201130134442-10cb98267c6c",
+    "gopkg.in/yaml.v3": "v3.0.1"
+  },
+  "direct_engine_development_oracle": {
+    "binary": ".reference/bin/tala-engine-oracle",
+    "source_commit": "d5a51743b6d5c00f1ec6f8340003f5d5a6ba4eda",
+    "go_toolchain": "go1.27.0",
+    "binary_sha256": "447307d677be200f40920d8e8a491e95130845848dada3f587577f4a8b1d18bc",
+    "driver_sha256": "21e40ffac3cb1c972e7e6ef7bae37bc7993b3bb10dd01421aaeafb987676c6fa",
+    "go_mod_sha256": "6064e7984711579da67f6503c4ab3cbdcb39f6088597344ee5d2f2660695ed50",
+    "go_sum_sha256": "924301c79e7c60e85066d4ed751905843d3748563762b2158094e810c3f9c3c3",
+    "build_command": "uv run --no-project python scripts/build-engine-oracle.py",
+    "scope": "pristine direct engine oracle, not the official D2 release binary",
+    "qualification": "oracle-cache/reports/engine-oracle-qualification.json",
+    "fixture_inventory": "oracle-cache/reports/engine-fixture-inventory.json"
+  }
+}

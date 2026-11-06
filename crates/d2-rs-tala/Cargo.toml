@@ -1,0 +1,33 @@
+[package]
+name = "d2-rs-tala"
+description = "Rust port of TALA, the layout engine bundled with D2."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+readme = "../../README.md"
+
+[features]
+default = []
+diagnostic-traces = []
+# Track GoCell borrows and panic on conflicting access (tests always do).
+checked-cells = []
+# Compile tests that read regenerated Go-oracle artifacts (docs/FIXTURES.md).
+oracle-fixtures = []
+
+[dependencies]
+d2-rs-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+rayon.workspace = true
+
+[dev-dependencies]
+d2-rs-testdata.workspace = true
+
+[lints]
+workspace = true

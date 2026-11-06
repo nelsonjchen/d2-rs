@@ -1,0 +1,66 @@
+# Core, raster and zlib oracle fixtures of the mathtext area
+# (crates/d2-rs-core, crates/d2-rs-raster, crates/d2-rs-goflate). See
+# docs/FIXTURES.md.
+#
+# Regenerate:  uv run --no-project python scripts/regen-fixtures.py --only 'mathtext-core-*' --only 'mathtext-raster-*'
+# Test:        cargo test -p d2-rs-core -p d2-rs-raster -p d2-rs-goflate \
+#                --features d2-rs-core/oracle-fixtures,d2-rs-raster/oracle-fixtures,d2-rs-goflate/oracle-fixtures
+
+[defaults]
+timeout = 1800
+
+# Go stdlib only: keyed on the manifest Go toolchain, not the D2 pin.
+[[recipe]]
+name = "mathtext-core-go-float"
+kind = "go-program"
+description = "strconv.ParseFloat validity, bits and errors over syntax controls and seeded random hex/decimal floats"
+outputs = ["crates/d2-rs-core/tests/fixtures/go-float-v127.json"]
+inputs = [{ path = "go-float.json", generate = ["{python}", "scripts/fixture-gen-go-float.py"] }]
+program = "tools/fixtures/programs/mathtext-core-go-float"
+module = "tools/fixtures/programs/mathtext-img-stdlib"
+stdin = "{input}"
+stdout = "crates/d2-rs-core/tests/fixtures/go-float-v127.json"
+key_deps.files = ["scripts/fixture_recipe.py"]
+
+# Per-architecture (docs/FIXTURES.md "Host architecture"): the arm64 reading
+# of D2's halfway-rounded diamond badge ray.
+[[recipe]]
+name = "mathtext-core-badge-ray"
+kind = "go-test-hook"
+description = "lib/shape badge ray extension, segment intersection and length bits for the compact diamond"
+outputs = ["crates/d2-rs-core/tests/fixtures/badge-ray-source-v090-arm64.json"]
+package = "lib/shape"
+hooks = ["tools/fixtures/hooks/mathtext-core-shape/d2rs_badge_ray_test.go"]
+test = "TestD2RSBadgeRay"
+key_deps.upstream_paths = ["lib/shape", "lib/geo", "go.mod"]
+
+[[recipe]]
+name = "mathtext-core-goflate"
+kind = "go-program"
+description = "Go compress/zlib output length and SHA-256 for every specs.txt case x level"
+outputs = ["crates/d2-rs-goflate/tests/fixtures/expected.tsv"]
+program = "tools/goflate-oracle"
+module = "tools/goflate-oracle"
+args = ["-root", "{repo}", "-specs", "{repo}/crates/d2-rs-goflate/tests/fixtures/specs.txt"]
+stdout = "crates/d2-rs-goflate/tests/fixtures/expected.tsv"
+key_deps.files = ["crates/d2-rs-goflate/tests/fixtures/specs.txt", "crates/d2-rs-text/assets"]
+
+[[recipe]]
+name = "mathtext-raster-static-png"
+kind = "go-test-hook"
+description = "rasterimage.DecodeFirst + png.Encode over paletted, NRGBA and Gray16 BestSpeed PNGs"
+outputs = ["crates/d2-rs-raster/tests/fixtures/static-png.json"]
+package = "internal/rasterimage"
+hooks = ["tools/fixtures/hooks/mathtext-raster-png/d2rs_png_contracts_test.go"]
+test = "TestD2RSStaticPNG"
+key_deps.upstream_paths = ["internal/rasterimage", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "mathtext-raster-apng-alpha"
+kind = "go-test-hook"
+description = "rasterimage.DecodeFirst + png.Encode of a partial APNG frame with source and over blending"
+outputs = ["crates/d2-rs-raster/tests/fixtures/apng-alpha.json"]
+package = "internal/rasterimage"
+hooks = ["tools/fixtures/hooks/mathtext-raster-png/d2rs_png_contracts_test.go"]
+test = "TestD2RSAPNGAlpha"
+key_deps.upstream_paths = ["internal/rasterimage", "go.mod", "go.sum"]

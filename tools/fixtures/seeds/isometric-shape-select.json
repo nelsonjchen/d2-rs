@@ -1,0 +1,77 @@
+{
+ "TestDeepThreeDeeActivationsRemainBelowMessages": [
+  0
+ ],
+ "TestHierarchyCanonicalBodyRetainsDepthWithinSourceFootprint": [
+  0
+ ],
+ "TestNativeArrowSourceMetricsAndHollowClearance": [
+  0
+ ],
+ "TestNativeBorderLabelKeepsSourceStrokeAperture": [
+  0,
+  1
+ ],
+ "TestNativeCanonicalInkIsPrintedOverContinuousMatteSides": [
+  0
+ ],
+ "TestNativeCanonicalMissingSilhouettes": [
+  0,
+  1
+ ],
+ "TestNativeComponentRetainsLayoutFootprint": [
+  0
+ ],
+ "TestNativeContainerUsesSourceContourAndStyle": [
+  0
+ ],
+ "TestNativeDecoratedSolidCapPreservesWholeCenteredStroke": [
+  0
+ ],
+ "TestNativeDisjointContoursKeepHeadAndSkipFoldWalls": [
+  0
+ ],
+ "TestNativeFaceSeparatesAuthoredInkFromLitFill": [
+  0,
+  1
+ ],
+ "TestNativeFaceTextureBudgetAndCancellation": [
+  0,
+  1,
+  5
+ ],
+ "TestNativeHollowArrowKnocksOutCrossingWire": [
+  0
+ ],
+ "TestNativeMultipleShadowReliefAndAnimation": [
+  0,
+  1,
+  2,
+  3
+ ],
+ "TestNativePageFoldSharesItsSourceHinge": [
+  0,
+  1,
+  2
+ ],
+ "TestNativeSeparatedInkPreservesSourceGroupOpacity": [
+  0,
+  1
+ ],
+ "TestNativeShapeLabelUsesSourceInnerBox": [
+  0,
+  1
+ ],
+ "TestNativeSourceFaceDecorationsAreDistinct": [
+  0,
+  1
+ ],
+ "TestSequenceActorOutsideLabelsKeepTheirReservedTimelineSpace": [
+  0,
+  1,
+  2
+ ],
+ "TestSequenceComponentsHaveSourceFootprintsAndPhysicalWalls": [
+  0
+ ]
+}

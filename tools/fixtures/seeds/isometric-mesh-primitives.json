@@ -1,0 +1,4 @@
+[
+ {"board": "txtar/border-label/dagre/isometric", "op": "box", "index": 0},
+ {"board": "measured/empty-class/dagre/isometric", "op": "extrudedProfile", "index": 0}
+]

@@ -1,0 +1,15 @@
+[
+"\\frac{1}{2}",
+"\\frac{x+3}{z+4}",
+"\\frac{a}{b}",
+"\\frac{1}{9}",
+"\\frac{x}{y}",
+"\\frac{y}{x}",
+"\\frac{x+1}{y+2}",
+"\\frac{x^2}{y}",
+"\\frac{x}{y^2}",
+"\\frac{\\frac{1}{2}}{3}",
+"\\frac{1}{\\frac{2}{3}}",
+"a+\\frac{x}{y}",
+"\\frac{x}{y}+a"
+]

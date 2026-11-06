@@ -1,0 +1,97 @@
+name: Rust foundation
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  parity-harness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          python-version: "3.12"
+          enable-cache: false
+      - run: uv run --no-project python -B -m unittest discover -s scripts -p "test_render_*.py" -v
+      - run: uv run --no-project python -B -m unittest discover -s scripts -p "test_e2e_png_scoreboard.py" -v
+      - run: uv run --no-project python -B -m unittest discover -s scripts -p "test_regen_fixtures.py" -v
+      - run: uv run --no-project python -B -m unittest discover -s scripts -p "test_perf_bench.py" -v
+      - run: uv run --no-project python -B -m unittest discover -s scripts -p "test_imageasset_policy_scoreboard.py" -v
+      - run: uv run --no-project python -B -m unittest discover -s scripts -p "test_oracle_provenance.py" -v
+      - run: uv run --no-project python -B -m unittest discover -s scripts -p "test_language_scoreboard.py" -v
+      - run: uv run --no-project python -B -m unittest discover -s scripts -p "test_scenebuild_asset_scoreboard.py" -v
+      - run: uv run --no-project python -B -m unittest discover -s scripts -p "test_scenebuild_fallback_scoreboard.py" -v
+      - name: Test retained isometric scoreboards
+        run: |
+          for suite in raster content page_glyph precision lanes geometry frame residual; do
+            uv run --no-project python -B -m unittest discover -s scripts -p "test_isometric_${suite}_scoreboard.py" -v
+          done
+  tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, macos-15-intel, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.98.1
+        with:
+          components: clippy,rustfmt
+      - run: cargo fmt --all --check
+      - run: cargo test --workspace --locked
+      - run: cargo test --workspace --all-features --locked
+      - run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+  checked-cells:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.98.1
+      - run: cargo test --locked --release -p d2-rs-tala --features checked-cells
+  wasm:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      CARGO_BUILD_JOBS: "2"
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_RELEASE_DEBUG: "0"
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target
+    defaults:
+      run:
+        working-directory: crates/d2-rs-wasm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.98.1
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Activate pinned pnpm
+        run: corepack enable && corepack prepare pnpm@9.0.6 --activate
+      - name: Install lockfile-matched WASM bindings CLI
+        run: |
+          cargo install --locked --version 0.2.128 --root "$GITHUB_WORKSPACE/.reference/wasm-bindgen-cli" wasm-bindgen-cli
+          echo "$GITHUB_WORKSPACE/.reference/wasm-bindgen-cli/bin" >> "$GITHUB_PATH"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm test
+      - run: pnpm test:types
+      - name: Install pinned Chromium and Linux dependencies
+        if: runner.os == 'Linux'
+        run: pnpm exec playwright-core install --with-deps chromium
+      - name: Install pinned Chromium on macOS
+        if: runner.os == 'macOS'
+        run: pnpm exec playwright-core install chromium
+      - name: Run real browser worker contracts
+        run: pnpm test:browser
+        env:
+          D2_RS_BROWSER_CHANNEL: chromium
+          D2_RS_BROWSER_OUTPUT: ${{ github.workspace }}/.reference/ci-browser-result.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wasm-browser-${{ matrix.os }}
+          path: .reference/ci-browser-result.json
+          retention-days: 3

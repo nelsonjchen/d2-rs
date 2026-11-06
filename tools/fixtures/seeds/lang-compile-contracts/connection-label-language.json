@@ -1,0 +1,131 @@
+[
+ {
+  "input": "a -> b: |go\nfmt.Println(1)\n|\n"
+ },
+ {
+  "input": "a -> b: |go\nfmt.Println(1)\n|\n(a -> b)[0]: {\nstyle.font-size: 24\nstyle.bold: true\nstyle.italic: false\n}\n"
+ },
+ {
+  "input": "a -> b: {\nlabel: |go\nfmt.Println(1)\n|\n}\n"
+ },
+ {
+  "input": "a -> b: {\nlabel: |go\nfmt.Println(1)\n|\nstyle.font-size: 24\nstyle.bold: true\nstyle.italic: false\n}\n"
+ },
+ {
+  "input": "a -> b: |py\nprint(1)\nreturn True\n|\n"
+ },
+ {
+  "input": "a -> b: |py\nprint(1)\nreturn True\n|\n(a -> b)[0]: {\nstyle.font-size: 24\nstyle.bold: true\nstyle.italic: false\n}\n"
+ },
+ {
+  "input": "a -> b: {\nlabel: |py\nprint(1)\nreturn True\n|\n}\n"
+ },
+ {
+  "input": "a -> b: {\nlabel: |py\nprint(1)\nreturn True\n|\nstyle.font-size: 24\nstyle.bold: true\nstyle.italic: false\n}\n"
+ },
+ {
+  "input": "a -> b: |md\n**rich** text\n|\n"
+ },
+ {
+  "input": "a -> b: |md\n**rich** text\n|\n(a -> b)[0]: {\nstyle.font-size: 24\nstyle.bold: true\nstyle.italic: false\n}\n"
+ },
+ {
+  "input": "a -> b: {\nlabel: |md\n**rich** text\n|\n}\n"
+ },
+ {
+  "input": "a -> b: {\nlabel: |md\n**rich** text\n|\nstyle.font-size: 24\nstyle.bold: true\nstyle.italic: false\n}\n"
+ },
+ {
+  "input": "a -> b: |MD\n**rich** text\n|\n"
+ },
+ {
+  "input": "a -> b: |MD\n**rich** text\n|\n(a -> b)[0]: {\nstyle.font-size: 24\nstyle.bold: true\nstyle.italic: false\n}\n"
+ },
+ {
+  "input": "a -> b: {\nlabel: |MD\n**rich** text\n|\n}\n"
+ },
+ {
+  "input": "a -> b: {\nlabel: |MD\n**rich** text\n|\nstyle.font-size: 24\nstyle.bold: true\nstyle.italic: false\n}\n"
+ },
+ {
+  "input": "a -> b: |latex\n\\frac{x}{y}\n|\n"
+ },
+ {
+  "input": "a -> b: |latex\n\\frac{x}{y}\n|\n(a -> b)[0]: {\nstyle.font-size: 24\nstyle.bold: true\nstyle.italic: false\n}\n"
+ },
+ {
+  "input": "a -> b: {\nlabel: |latex\n\\frac{x}{y}\n|\n}\n"
+ },
+ {
+  "input": "a -> b: {\nlabel: |latex\n\\frac{x}{y}\n|\nstyle.font-size: 24\nstyle.bold: true\nstyle.italic: false\n}\n"
+ },
+ {
+  "input": "shape: sequence_diagram\na -> b: |go\nfmt.Println(1)\n|\n"
+ },
+ {
+  "input": "shape: sequence_diagram\na -> b: |go\nfmt.Println(1)\n|\n(a -> b)[0]: {\nstyle.font-size: 24\nstyle.bold: true\nstyle.italic: false\n}\n"
+ },
+ {
+  "input": "shape: sequence_diagram\na -> b: {\nlabel: |go\nfmt.Println(1)\n|\n}\n"
+ },
+ {
+  "input": "shape: sequence_diagram\na -> b: {\nlabel: |go\nfmt.Println(1)\n|\nstyle.font-size: 24\nstyle.bold: true\nstyle.italic: false\n}\n"
+ },
+ {
+  "input": "shape: sequence_diagram\na -> b: |py\nprint(1)\nreturn True\n|\n"
+ },
+ {
+  "input": "shape: sequence_diagram\na -> b: |py\nprint(1)\nreturn True\n|\n(a -> b)[0]: {\nstyle.font-size: 24\nstyle.bold: true\nstyle.italic: false\n}\n"
+ },
+ {
+  "input": "shape: sequence_diagram\na -> b: {\nlabel: |py\nprint(1)\nreturn True\n|\n}\n"
+ },
+ {
+  "input": "shape: sequence_diagram\na -> b: {\nlabel: |py\nprint(1)\nreturn True\n|\nstyle.font-size: 24\nstyle.bold: true\nstyle.italic: false\n}\n"
+ },
+ {
+  "input": "shape: sequence_diagram\na -> b: |md\n**rich** text\n|\n"
+ },
+ {
+  "input": "shape: sequence_diagram\na -> b: |md\n**rich** text\n|\n(a -> b)[0]: {\nstyle.font-size: 24\nstyle.bold: true\nstyle.italic: false\n}\n"
+ },
+ {
+  "input": "shape: sequence_diagram\na -> b: {\nlabel: |md\n**rich** text\n|\n}\n"
+ },
+ {
+  "input": "shape: sequence_diagram\na -> b: {\nlabel: |md\n**rich** text\n|\nstyle.font-size: 24\nstyle.bold: true\nstyle.italic: false\n}\n"
+ },
+ {
+  "input": "shape: sequence_diagram\na -> b: |MD\n**rich** text\n|\n"
+ },
+ {
+  "input": "shape: sequence_diagram\na -> b: |MD\n**rich** text\n|\n(a -> b)[0]: {\nstyle.font-size: 24\nstyle.bold: true\nstyle.italic: false\n}\n"
+ },
+ {
+  "input": "shape: sequence_diagram\na -> b: {\nlabel: |MD\n**rich** text\n|\n}\n"
+ },
+ {
+  "input": "shape: sequence_diagram\na -> b: {\nlabel: |MD\n**rich** text\n|\nstyle.font-size: 24\nstyle.bold: true\nstyle.italic: false\n}\n"
+ },
+ {
+  "input": "shape: sequence_diagram\na -> b: |latex\n\\frac{x}{y}\n|\n"
+ },
+ {
+  "input": "shape: sequence_diagram\na -> b: |latex\n\\frac{x}{y}\n|\n(a -> b)[0]: {\nstyle.font-size: 24\nstyle.bold: true\nstyle.italic: false\n}\n"
+ },
+ {
+  "input": "shape: sequence_diagram\na -> b: {\nlabel: |latex\n\\frac{x}{y}\n|\n}\n"
+ },
+ {
+  "input": "shape: sequence_diagram\na -> b: {\nlabel: |latex\n\\frac{x}{y}\n|\nstyle.font-size: 24\nstyle.bold: true\nstyle.italic: false\n}\n"
+ },
+ {
+  "input": "a -> b: first {label: second}\n"
+ },
+ {
+  "input": "a -> b: |py\nprint(1)\n|\n(a -> b)[0].label: replacement\n"
+ },
+ {
+  "input": "a -> b: |py\nprint(1)\n|\n(a -> b)[0].label: |md\n**replacement**\n|\n"
+ }
+]

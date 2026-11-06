@@ -1,0 +1,8 @@
+go test fuzz v1
+int64(2718281828)
+byte(16)
+byte(2)
+byte(0)
+byte(70)
+byte(35)
+byte(55)

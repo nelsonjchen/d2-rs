@@ -1,0 +1,24 @@
+[package]
+name = "d2-rs-goflate"
+description = "Byte-exact Rust port of Go's compress/flate encoder and compress/zlib writer."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+readme = "../../README.md"
+
+[features]
+# Oracle tier: tests that read Go-oracle artifacts regenerated into
+# oracle-cache/fixtures by scripts/regen-fixtures.py (docs/FIXTURES.md).
+oracle-fixtures = []
+
+[dependencies]
+
+[dev-dependencies]
+d2-rs-testdata.workspace = true
+sha2.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,631 @@
+[
+ {
+  "name": "width-0",
+  "svg": "<svg width=\"\" height=\"16\"></svg>"
+ },
+ {
+  "name": "rect-1",
+  "svg": "<svg width=\"16\" height=\"16\"><rect width=\"\" height=\"1\"/></svg>"
+ },
+ {
+  "name": "width-2",
+  "svg": "<svg width=\"0\" height=\"16\"></svg>"
+ },
+ {
+  "name": "rect-3",
+  "svg": "<svg width=\"16\" height=\"16\"><rect width=\"0\" height=\"1\"/></svg>"
+ },
+ {
+  "name": "width-4",
+  "svg": "<svg width=\"-1\" height=\"16\"></svg>"
+ },
+ {
+  "name": "rect-5",
+  "svg": "<svg width=\"16\" height=\"16\"><rect width=\"-1\" height=\"1\"/></svg>"
+ },
+ {
+  "name": "width-6",
+  "svg": "<svg width=\"1\" height=\"16\"></svg>"
+ },
+ {
+  "name": "rect-7",
+  "svg": "<svg width=\"16\" height=\"16\"><rect width=\"1\" height=\"1\"/></svg>"
+ },
+ {
+  "name": "width-8",
+  "svg": "<svg width=\"+1\" height=\"16\"></svg>"
+ },
+ {
+  "name": "rect-9",
+  "svg": "<svg width=\"16\" height=\"16\"><rect width=\"+1\" height=\"1\"/></svg>"
+ },
+ {
+  "name": "width-10",
+  "svg": "<svg width=\".5\" height=\"16\"></svg>"
+ },
+ {
+  "name": "rect-11",
+  "svg": "<svg width=\"16\" height=\"16\"><rect width=\".5\" height=\"1\"/></svg>"
+ },
+ {
+  "name": "width-12",
+  "svg": "<svg width=\"1.\" height=\"16\"></svg>"
+ },
+ {
+  "name": "rect-13",
+  "svg": "<svg width=\"16\" height=\"16\"><rect width=\"1.\" height=\"1\"/></svg>"
+ },
+ {
+  "name": "width-14",
+  "svg": "<svg width=\"1e2\" height=\"16\"></svg>"
+ },
+ {
+  "name": "rect-15",
+  "svg": "<svg width=\"16\" height=\"16\"><rect width=\"1e2\" height=\"1\"/></svg>"
+ },
+ {
+  "name": "width-16",
+  "svg": "<svg width=\"1e-999\" height=\"16\"></svg>"
+ },
+ {
+  "name": "rect-17",
+  "svg": "<svg width=\"16\" height=\"16\"><rect width=\"1e-999\" height=\"1\"/></svg>"
+ },
+ {
+  "name": "width-18",
+  "svg": "<svg width=\"1e999\" height=\"16\"></svg>"
+ },
+ {
+  "name": "rect-19",
+  "svg": "<svg width=\"16\" height=\"16\"><rect width=\"1e999\" height=\"1\"/></svg>"
+ },
+ {
+  "name": "width-20",
+  "svg": "<svg width=\"NaN\" height=\"16\"></svg>"
+ },
+ {
+  "name": "rect-21",
+  "svg": "<svg width=\"16\" height=\"16\"><rect width=\"NaN\" height=\"1\"/></svg>"
+ },
+ {
+  "name": "width-22",
+  "svg": "<svg width=\"Inf\" height=\"16\"></svg>"
+ },
+ {
+  "name": "rect-23",
+  "svg": "<svg width=\"16\" height=\"16\"><rect width=\"Inf\" height=\"1\"/></svg>"
+ },
+ {
+  "name": "width-24",
+  "svg": "<svg width=\"0x1\" height=\"16\"></svg>"
+ },
+ {
+  "name": "rect-25",
+  "svg": "<svg width=\"16\" height=\"16\"><rect width=\"0x1\" height=\"1\"/></svg>"
+ },
+ {
+  "name": "width-26",
+  "svg": "<svg width=\"1px\" height=\"16\"></svg>"
+ },
+ {
+  "name": "rect-27",
+  "svg": "<svg width=\"16\" height=\"16\"><rect width=\"1px\" height=\"1\"/></svg>"
+ },
+ {
+  "name": "width-28",
+  "svg": "<svg width=\"1PX\" height=\"16\"></svg>"
+ },
+ {
+  "name": "rect-29",
+  "svg": "<svg width=\"16\" height=\"16\"><rect width=\"1PX\" height=\"1\"/></svg>"
+ },
+ {
+  "name": "width-30",
+  "svg": "<svg width=\"1in\" height=\"16\"></svg>"
+ },
+ {
+  "name": "rect-31",
+  "svg": "<svg width=\"16\" height=\"16\"><rect width=\"1in\" height=\"1\"/></svg>"
+ },
+ {
+  "name": "width-32",
+  "svg": "<svg width=\"1cm\" height=\"16\"></svg>"
+ },
+ {
+  "name": "rect-33",
+  "svg": "<svg width=\"16\" height=\"16\"><rect width=\"1cm\" height=\"1\"/></svg>"
+ },
+ {
+  "name": "width-34",
+  "svg": "<svg width=\"1mm\" height=\"16\"></svg>"
+ },
+ {
+  "name": "rect-35",
+  "svg": "<svg width=\"16\" height=\"16\"><rect width=\"1mm\" height=\"1\"/></svg>"
+ },
+ {
+  "name": "width-36",
+  "svg": "<svg width=\"1pt\" height=\"16\"></svg>"
+ },
+ {
+  "name": "rect-37",
+  "svg": "<svg width=\"16\" height=\"16\"><rect width=\"1pt\" height=\"1\"/></svg>"
+ },
+ {
+  "name": "width-38",
+  "svg": "<svg width=\"1pc\" height=\"16\"></svg>"
+ },
+ {
+  "name": "rect-39",
+  "svg": "<svg width=\"16\" height=\"16\"><rect width=\"1pc\" height=\"1\"/></svg>"
+ },
+ {
+  "name": "width-40",
+  "svg": "<svg width=\"1q\" height=\"16\"></svg>"
+ },
+ {
+  "name": "rect-41",
+  "svg": "<svg width=\"16\" height=\"16\"><rect width=\"1q\" height=\"1\"/></svg>"
+ },
+ {
+  "name": "width-42",
+  "svg": "<svg width=\"1 px\" height=\"16\"></svg>"
+ },
+ {
+  "name": "rect-43",
+  "svg": "<svg width=\"16\" height=\"16\"><rect width=\"1 px\" height=\"1\"/></svg>"
+ },
+ {
+  "name": "width-44",
+  "svg": "<svg width=\"1%\" height=\"16\"></svg>"
+ },
+ {
+  "name": "rect-45",
+  "svg": "<svg width=\"16\" height=\"16\"><rect width=\"1%\" height=\"1\"/></svg>"
+ },
+ {
+  "name": "width-46",
+  "svg": "<svg width=\"1em\" height=\"16\"></svg>"
+ },
+ {
+  "name": "rect-47",
+  "svg": "<svg width=\"16\" height=\"16\"><rect width=\"1em\" height=\"1\"/></svg>"
+ },
+ {
+  "name": "width-48",
+  "svg": "<svg width=\"1ex\" height=\"16\"></svg>"
+ },
+ {
+  "name": "rect-49",
+  "svg": "<svg width=\"16\" height=\"16\"><rect width=\"1ex\" height=\"1\"/></svg>"
+ },
+ {
+  "name": "width-50",
+  "svg": "<svg width=\" 1px \" height=\"16\"></svg>"
+ },
+ {
+  "name": "rect-51",
+  "svg": "<svg width=\"16\" height=\"16\"><rect width=\" 1px \" height=\"1\"/></svg>"
+ },
+ {
+  "name": "width-52",
+  "parts": [
+   "<svg width=\"",
+   [
+    "9",
+    513
+   ],
+   "\" height=\"16\"></svg>"
+  ]
+ },
+ {
+  "name": "rect-53",
+  "parts": [
+   "<svg width=\"16\" height=\"16\"><rect width=\"",
+   [
+    "9",
+    513
+   ],
+   "\" height=\"1\"/></svg>"
+  ]
+ },
+ {
+  "name": "root-54",
+  "svg": "<svg ></svg>"
+ },
+ {
+  "name": "nested-55",
+  "svg": "<svg width=\"16\" height=\"16\"><svg /></svg>"
+ },
+ {
+  "name": "root-56",
+  "svg": "<svg width=\"16\"></svg>"
+ },
+ {
+  "name": "nested-57",
+  "svg": "<svg width=\"16\" height=\"16\"><svg width=\"16\"/></svg>"
+ },
+ {
+  "name": "root-58",
+  "svg": "<svg height=\"16\"></svg>"
+ },
+ {
+  "name": "nested-59",
+  "svg": "<svg width=\"16\" height=\"16\"><svg height=\"16\"/></svg>"
+ },
+ {
+  "name": "root-60",
+  "svg": "<svg viewBox=\"0 0 16 16\"></svg>"
+ },
+ {
+  "name": "nested-61",
+  "svg": "<svg width=\"16\" height=\"16\"><svg viewBox=\"0 0 16 16\"/></svg>"
+ },
+ {
+  "name": "root-62",
+  "svg": "<svg viewBox=\"0 0 16 16\" width=\"8\"></svg>"
+ },
+ {
+  "name": "nested-63",
+  "svg": "<svg width=\"16\" height=\"16\"><svg viewBox=\"0 0 16 16\" width=\"8\"/></svg>"
+ },
+ {
+  "name": "root-64",
+  "svg": "<svg viewBox=\"0 0 16 16\" height=\"8\"></svg>"
+ },
+ {
+  "name": "nested-65",
+  "svg": "<svg width=\"16\" height=\"16\"><svg viewBox=\"0 0 16 16\" height=\"8\"/></svg>"
+ },
+ {
+  "name": "root-66",
+  "svg": "<svg viewBox=\"0 0 0 1\"></svg>"
+ },
+ {
+  "name": "nested-67",
+  "svg": "<svg width=\"16\" height=\"16\"><svg viewBox=\"0 0 0 1\"/></svg>"
+ },
+ {
+  "name": "root-68",
+  "svg": "<svg viewBox=\"0 0 -1 1\"></svg>"
+ },
+ {
+  "name": "nested-69",
+  "svg": "<svg width=\"16\" height=\"16\"><svg viewBox=\"0 0 -1 1\"/></svg>"
+ },
+ {
+  "name": "root-70",
+  "svg": "<svg viewBox=\"0,0,1,1,\"></svg>"
+ },
+ {
+  "name": "nested-71",
+  "svg": "<svg width=\"16\" height=\"16\"><svg viewBox=\"0,0,1,1,\"/></svg>"
+ },
+ {
+  "name": "root-72",
+  "svg": "<svg viewBox=\"0 0 1+1\"></svg>"
+ },
+ {
+  "name": "nested-73",
+  "svg": "<svg width=\"16\" height=\"16\"><svg viewBox=\"0 0 1+1\"/></svg>"
+ },
+ {
+  "name": "root-74",
+  "svg": "<svg viewBox=\"0 0 1px 1\"></svg>"
+ },
+ {
+  "name": "nested-75",
+  "svg": "<svg width=\"16\" height=\"16\"><svg viewBox=\"0 0 1px 1\"/></svg>"
+ },
+ {
+  "name": "root-76",
+  "svg": "<svg viewBox=\"0 0 1e308 1\" width=\"1e-308\" height=\"1\"></svg>"
+ },
+ {
+  "name": "nested-77",
+  "svg": "<svg width=\"16\" height=\"16\"><svg viewBox=\"0 0 1e308 1\" width=\"1e-308\" height=\"1\"/></svg>"
+ },
+ {
+  "name": "root-78",
+  "svg": "<svg viewBox=\"1e308 0 1 1\" width=\"16\" height=\"16\"></svg>"
+ },
+ {
+  "name": "nested-79",
+  "svg": "<svg width=\"16\" height=\"16\"><svg viewBox=\"1e308 0 1 1\" width=\"16\" height=\"16\"/></svg>"
+ },
+ {
+  "name": "root-80",
+  "svg": "<svg viewBox=\"0 0 1 1e308\" width=\"1e308\"></svg>"
+ },
+ {
+  "name": "nested-81",
+  "svg": "<svg width=\"16\" height=\"16\"><svg viewBox=\"0 0 1 1e308\" width=\"1e308\"/></svg>"
+ },
+ {
+  "name": "root-82",
+  "svg": "<svg version=\"2\" width=\"1\" height=\"1\"></svg>"
+ },
+ {
+  "name": "nested-83",
+  "svg": "<svg width=\"16\" height=\"16\"><svg version=\"2\" width=\"1\" height=\"1\"/></svg>"
+ },
+ {
+  "name": "root-84",
+  "svg": "<svg x=\"1\" width=\"1\" height=\"1\"></svg>"
+ },
+ {
+  "name": "nested-85",
+  "svg": "<svg width=\"16\" height=\"16\"><svg x=\"1\" width=\"1\" height=\"1\"/></svg>"
+ },
+ {
+  "name": "aspect-86",
+  "svg": "<svg width=\"16\" height=\"16\" preserveAspectRatio=\"none\"></svg>"
+ },
+ {
+  "name": "aspect-87",
+  "svg": "<svg width=\"16\" height=\"16\" preserveAspectRatio=\"none slice\"></svg>"
+ },
+ {
+  "name": "aspect-88",
+  "svg": "<svg width=\"16\" height=\"16\" preserveAspectRatio=\"xMinYMin\"></svg>"
+ },
+ {
+  "name": "aspect-89",
+  "svg": "<svg width=\"16\" height=\"16\" preserveAspectRatio=\"xMaxYMax slice\"></svg>"
+ },
+ {
+  "name": "aspect-90",
+  "svg": "<svg width=\"16\" height=\"16\" preserveAspectRatio=\"xMidYMid meet\"></svg>"
+ },
+ {
+  "name": "aspect-91",
+  "svg": "<svg width=\"16\" height=\"16\" preserveAspectRatio=\"defer\"></svg>"
+ },
+ {
+  "name": "aspect-92",
+  "svg": "<svg width=\"16\" height=\"16\" preserveAspectRatio=\"bad\"></svg>"
+ },
+ {
+  "name": "aspect-93",
+  "svg": "<svg width=\"16\" height=\"16\" preserveAspectRatio=\"bad foo bar\"></svg>"
+ },
+ {
+  "name": "aspect-94",
+  "svg": "<svg width=\"16\" height=\"16\" preserveAspectRatio=\"none foo bar\"></svg>"
+ },
+ {
+  "name": "aspect-95",
+  "svg": "<svg width=\"16\" height=\"16\" preserveAspectRatio=\"none foo\"></svg>"
+ },
+ {
+  "name": "aspect-96",
+  "parts": [
+   "<svg width=\"16\" height=\"16\" preserveAspectRatio=\"xMidYMid",
+   [
+    " ",
+    131
+   ],
+   "\"></svg>"
+  ]
+ },
+ {
+  "name": "rect-rx-97",
+  "svg": "<svg width=\"16\" height=\"16\"><rect rx=\"auto\"/></svg>"
+ },
+ {
+  "name": "rect-rx-98",
+  "svg": "<svg width=\"16\" height=\"16\"><rect rx=\"AUTO\"/></svg>"
+ },
+ {
+  "name": "rect-rx-99",
+  "svg": "<svg width=\"16\" height=\"16\"><rect rx=\"-1\"/></svg>"
+ },
+ {
+  "name": "rect-rx-100",
+  "svg": "<svg width=\"16\" height=\"16\"><rect rx=\"0\"/></svg>"
+ },
+ {
+  "name": "rect-rx-101",
+  "svg": "<svg width=\"16\" height=\"16\"><rect rx=\"1px\"/></svg>"
+ },
+ {
+  "name": "rect-rx-102",
+  "svg": "<svg width=\"16\" height=\"16\"><rect rx=\"1 px\"/></svg>"
+ },
+ {
+  "name": "rect-rx-103",
+  "svg": "<svg width=\"16\" height=\"16\"><rect rx=\"1%\"/></svg>"
+ },
+ {
+  "name": "rect-ry-104",
+  "svg": "<svg width=\"16\" height=\"16\"><rect ry=\"auto\"/></svg>"
+ },
+ {
+  "name": "rect-ry-105",
+  "svg": "<svg width=\"16\" height=\"16\"><rect ry=\"AUTO\"/></svg>"
+ },
+ {
+  "name": "rect-ry-106",
+  "svg": "<svg width=\"16\" height=\"16\"><rect ry=\"-1\"/></svg>"
+ },
+ {
+  "name": "rect-ry-107",
+  "svg": "<svg width=\"16\" height=\"16\"><rect ry=\"0\"/></svg>"
+ },
+ {
+  "name": "rect-ry-108",
+  "svg": "<svg width=\"16\" height=\"16\"><rect ry=\"1px\"/></svg>"
+ },
+ {
+  "name": "rect-ry-109",
+  "svg": "<svg width=\"16\" height=\"16\"><rect ry=\"1 px\"/></svg>"
+ },
+ {
+  "name": "rect-ry-110",
+  "svg": "<svg width=\"16\" height=\"16\"><rect ry=\"1%\"/></svg>"
+ },
+ {
+  "name": "circle-r-111",
+  "svg": "<svg width=\"16\" height=\"16\"><circle r=\"auto\"/></svg>"
+ },
+ {
+  "name": "circle-r-112",
+  "svg": "<svg width=\"16\" height=\"16\"><circle r=\"AUTO\"/></svg>"
+ },
+ {
+  "name": "circle-r-113",
+  "svg": "<svg width=\"16\" height=\"16\"><circle r=\"-1\"/></svg>"
+ },
+ {
+  "name": "circle-r-114",
+  "svg": "<svg width=\"16\" height=\"16\"><circle r=\"0\"/></svg>"
+ },
+ {
+  "name": "circle-r-115",
+  "svg": "<svg width=\"16\" height=\"16\"><circle r=\"1px\"/></svg>"
+ },
+ {
+  "name": "circle-r-116",
+  "svg": "<svg width=\"16\" height=\"16\"><circle r=\"1 px\"/></svg>"
+ },
+ {
+  "name": "circle-r-117",
+  "svg": "<svg width=\"16\" height=\"16\"><circle r=\"1%\"/></svg>"
+ },
+ {
+  "name": "ellipse-rx-118",
+  "svg": "<svg width=\"16\" height=\"16\"><ellipse rx=\"auto\"/></svg>"
+ },
+ {
+  "name": "ellipse-rx-119",
+  "svg": "<svg width=\"16\" height=\"16\"><ellipse rx=\"AUTO\"/></svg>"
+ },
+ {
+  "name": "ellipse-rx-120",
+  "svg": "<svg width=\"16\" height=\"16\"><ellipse rx=\"-1\"/></svg>"
+ },
+ {
+  "name": "ellipse-rx-121",
+  "svg": "<svg width=\"16\" height=\"16\"><ellipse rx=\"0\"/></svg>"
+ },
+ {
+  "name": "ellipse-rx-122",
+  "svg": "<svg width=\"16\" height=\"16\"><ellipse rx=\"1px\"/></svg>"
+ },
+ {
+  "name": "ellipse-rx-123",
+  "svg": "<svg width=\"16\" height=\"16\"><ellipse rx=\"1 px\"/></svg>"
+ },
+ {
+  "name": "ellipse-rx-124",
+  "svg": "<svg width=\"16\" height=\"16\"><ellipse rx=\"1%\"/></svg>"
+ },
+ {
+  "name": "ellipse-ry-125",
+  "svg": "<svg width=\"16\" height=\"16\"><ellipse ry=\"auto\"/></svg>"
+ },
+ {
+  "name": "ellipse-ry-126",
+  "svg": "<svg width=\"16\" height=\"16\"><ellipse ry=\"AUTO\"/></svg>"
+ },
+ {
+  "name": "ellipse-ry-127",
+  "svg": "<svg width=\"16\" height=\"16\"><ellipse ry=\"-1\"/></svg>"
+ },
+ {
+  "name": "ellipse-ry-128",
+  "svg": "<svg width=\"16\" height=\"16\"><ellipse ry=\"0\"/></svg>"
+ },
+ {
+  "name": "ellipse-ry-129",
+  "svg": "<svg width=\"16\" height=\"16\"><ellipse ry=\"1px\"/></svg>"
+ },
+ {
+  "name": "ellipse-ry-130",
+  "svg": "<svg width=\"16\" height=\"16\"><ellipse ry=\"1 px\"/></svg>"
+ },
+ {
+  "name": "ellipse-ry-131",
+  "svg": "<svg width=\"16\" height=\"16\"><ellipse ry=\"1%\"/></svg>"
+ },
+ {
+  "name": "line-x1-132",
+  "svg": "<svg width=\"16\" height=\"16\"><line x1=\"auto\"/></svg>"
+ },
+ {
+  "name": "line-x1-133",
+  "svg": "<svg width=\"16\" height=\"16\"><line x1=\"AUTO\"/></svg>"
+ },
+ {
+  "name": "line-x1-134",
+  "svg": "<svg width=\"16\" height=\"16\"><line x1=\"-1\"/></svg>"
+ },
+ {
+  "name": "line-x1-135",
+  "svg": "<svg width=\"16\" height=\"16\"><line x1=\"0\"/></svg>"
+ },
+ {
+  "name": "line-x1-136",
+  "svg": "<svg width=\"16\" height=\"16\"><line x1=\"1px\"/></svg>"
+ },
+ {
+  "name": "line-x1-137",
+  "svg": "<svg width=\"16\" height=\"16\"><line x1=\"1 px\"/></svg>"
+ },
+ {
+  "name": "line-x1-138",
+  "svg": "<svg width=\"16\" height=\"16\"><line x1=\"1%\"/></svg>"
+ },
+ {
+  "name": "line-y2-139",
+  "svg": "<svg width=\"16\" height=\"16\"><line y2=\"auto\"/></svg>"
+ },
+ {
+  "name": "line-y2-140",
+  "svg": "<svg width=\"16\" height=\"16\"><line y2=\"AUTO\"/></svg>"
+ },
+ {
+  "name": "line-y2-141",
+  "svg": "<svg width=\"16\" height=\"16\"><line y2=\"-1\"/></svg>"
+ },
+ {
+  "name": "line-y2-142",
+  "svg": "<svg width=\"16\" height=\"16\"><line y2=\"0\"/></svg>"
+ },
+ {
+  "name": "line-y2-143",
+  "svg": "<svg width=\"16\" height=\"16\"><line y2=\"1px\"/></svg>"
+ },
+ {
+  "name": "line-y2-144",
+  "svg": "<svg width=\"16\" height=\"16\"><line y2=\"1 px\"/></svg>"
+ },
+ {
+  "name": "line-y2-145",
+  "svg": "<svg width=\"16\" height=\"16\"><line y2=\"1%\"/></svg>"
+ },
+ {
+  "name": "geometry-before-later-schema",
+  "svg": "<svg width=\"16\" height=\"16\"><rect width=\"bad\"/><circle bad=\"1\"/></svg>"
+ },
+ {
+  "name": "child-before-root-viewport",
+  "svg": "<svg width=\"bad\" height=\"16\"><rect width=\"bad\"/></svg>"
+ },
+ {
+  "name": "mathjax-148",
+  "svg": "<svg width=\"2ex\" height=\"3ex\" style=\"vertical-align: -1ex\"></svg>"
+ },
+ {
+  "name": "mathjax-149",
+  "svg": "<svg width=\"2ex\" height=\"3ex\" style=\"vertical-align: 0\"></svg>"
+ },
+ {
+  "name": "mathjax-150",
+  "svg": "<svg width=\"2ex\" height=\"3ex\" style=\"vertical-align: bad\"></svg>"
+ },
+ {
+  "name": "mathjax-151",
+  "svg": "<svg width=\"2ex\" height=\"3ex\" style=\"vertical-align: 1ex;vertical-align: 0\"></svg>"
+ }
+]

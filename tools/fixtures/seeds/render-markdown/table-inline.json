@@ -1,0 +1,32 @@
+{
+  "description": "Single-paragraph table-cell inline paint per width/header/alignment.",
+  "segments": [
+    {
+      "prefix": "cell",
+      "const": {},
+      "axes": [
+        {"fields": ["Family"], "values": [["sans"], ["mono"], ["hand"]], "labels": ["sans", "mono", "hand"]},
+        {"fields": ["FontSize"], "values": [[12], [16], [22]], "labels": ["12", "16", "22"]},
+        {"fields": ["Header"], "values": [[false], [true]], "labels": ["False", "True"]},
+        {"fields": ["Align"], "values": [[""], ["center"], ["right"]], "labels": ["", "center", "right"]},
+        {"fields": ["Width"], "values": [[40], [200]], "labels": ["40", "200"]}
+      ],
+      "snippets": [
+        ["0", "plain words"],
+        ["1", "**bold** and *italic*"],
+        ["2", "`code`"],
+        ["3", "a `code` end"],
+        ["4", "~~deleted~~"],
+        ["5", "[link](https://example.com \"title\")"],
+        ["6", "<code></code>"],
+        ["7", "<code> </code>"],
+        ["8", "first<br />second"],
+        ["9", "漢字と中文"],
+        ["10", "emoji 😀"],
+        ["11", "symbol ☀"],
+        ["12", "ab­cd"],
+        ["13", "[<code>ab cd</code>](https://example.com \"code\")"]
+      ]
+    }
+  ]
+}

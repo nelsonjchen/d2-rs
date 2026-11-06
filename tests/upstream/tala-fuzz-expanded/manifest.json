@@ -1,0 +1,351 @@
+{
+  "source": "Locally generated deterministic expansion of the pinned D2 v0.9.0 FuzzAutolayout tuple format; these records are not upstream corpus entries.",
+  "generator": "scripts/check-go-fuzz-corpus.py invokes tools/engine-oracle/fuzz.go copied from the pinned test generator and compares both engines on the same generated GraphJSON.",
+  "parameters": [
+    "int64 seed",
+    "byte maxNodes",
+    "byte connectionIterations",
+    "byte compactionPercent",
+    "byte nodeSubsetPercent",
+    "byte minConnectionPercent",
+    "byte maxConnectionPercent"
+  ],
+  "records": [
+    {
+      "record": "generated-01",
+      "values": [
+        4,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "seed": 4,
+      "sha256": "bb78bb6ba9d9691a992583ccdc2a7055837ddb1efba9275c290c06e8483bbe07"
+    },
+    {
+      "record": "generated-02",
+      "values": [
+        5,
+        1,
+        1,
+        10,
+        10,
+        0,
+        0
+      ],
+      "seed": 5,
+      "sha256": "6570097d3275affa4cfab12a447dad593a077b175bbfe50e58dfaa14d5224cbd"
+    },
+    {
+      "record": "generated-03",
+      "values": [
+        7,
+        3,
+        2,
+        20,
+        20,
+        5,
+        10
+      ],
+      "seed": 7,
+      "sha256": "a870f2e45f4b87fb276d3315be7ee75070b59e4d9decda23abf71f19b27bcdaf"
+    },
+    {
+      "record": "generated-04",
+      "values": [
+        8,
+        6,
+        3,
+        30,
+        30,
+        10,
+        20
+      ],
+      "seed": 8,
+      "sha256": "5e59c2b3f45764f3755fd7b15d285f04971d9b98be4f84c1e18e6b239f71a5e7"
+    },
+    {
+      "record": "generated-05",
+      "values": [
+        9,
+        9,
+        4,
+        40,
+        40,
+        15,
+        25
+      ],
+      "seed": 9,
+      "sha256": "3b7401963b8c8a9fdfa60a043581541b157ec98bc8a4633016b61e8e5d7b787d"
+    },
+    {
+      "record": "generated-06",
+      "values": [
+        10,
+        12,
+        5,
+        50,
+        50,
+        20,
+        30
+      ],
+      "seed": 10,
+      "sha256": "062a17424e28bad681214136caafe1c54b4303c4a399463159a6e4c20c625403"
+    },
+    {
+      "record": "generated-07",
+      "values": [
+        13,
+        15,
+        0,
+        60,
+        60,
+        25,
+        35
+      ],
+      "seed": 13,
+      "sha256": "4ca62173fa7ebd250e53e27682b0f8ef3c8959f741435a4e2c3fc15a2ef3ac82"
+    },
+    {
+      "record": "generated-08",
+      "values": [
+        17,
+        18,
+        1,
+        70,
+        70,
+        30,
+        40
+      ],
+      "seed": 17,
+      "sha256": "d742f1e32a6ac8494a22c2557efd58918bfb10de3762090f23cf3dc1088857fe"
+    },
+    {
+      "record": "generated-09",
+      "values": [
+        23,
+        21,
+        2,
+        80,
+        80,
+        35,
+        45
+      ],
+      "seed": 23,
+      "sha256": "f60aba7b3d019c7c0434b9b33b00a8319f7af4d02648bc9749b08b8c05db2ffb"
+    },
+    {
+      "record": "generated-10",
+      "values": [
+        42,
+        24,
+        3,
+        0,
+        20,
+        40,
+        50
+      ],
+      "seed": 42,
+      "sha256": "3a0fb145a852c3b7f9358e8d98a1eb4a76657dcbd5134a546a6fffb9b9b033d7"
+    },
+    {
+      "record": "generated-11",
+      "values": [
+        99,
+        27,
+        4,
+        10,
+        40,
+        45,
+        55
+      ],
+      "seed": 99,
+      "sha256": "726cad89e8d654f42b98e74383da258f2679c3758be4f760a73bd08cf0f7d774"
+    },
+    {
+      "record": "generated-12",
+      "values": [
+        123,
+        28,
+        5,
+        20,
+        60,
+        50,
+        60
+      ],
+      "seed": 123,
+      "sha256": "581d21aee227f617d1b65aef5670fd4ae01aa4ec17d9a9a859cab4d666de202a"
+    },
+    {
+      "record": "generated-13",
+      "values": [
+        -1,
+        0,
+        5,
+        80,
+        80,
+        50,
+        80
+      ],
+      "seed": -1,
+      "sha256": "2b1fae4cec7b65ee8a00298b0f003e22066c54baa856845bb3d38f8615a0b7c9"
+    },
+    {
+      "record": "generated-14",
+      "values": [
+        -7,
+        5,
+        4,
+        70,
+        70,
+        40,
+        89
+      ],
+      "seed": -7,
+      "sha256": "56d93580f55b41cc0bc76d78d0cf9f133fc3e7e773930c770b574b956abcf94c"
+    },
+    {
+      "record": "generated-15",
+      "values": [
+        -42,
+        10,
+        3,
+        60,
+        60,
+        30,
+        60
+      ],
+      "seed": -42,
+      "sha256": "7d87c214426e07c3b5e5b07bab0b655c489f541e3c43c221c2517f02bd22cc21"
+    },
+    {
+      "record": "generated-16",
+      "values": [
+        -987654321,
+        14,
+        2,
+        50,
+        50,
+        20,
+        70
+      ],
+      "seed": -987654321,
+      "sha256": "16b039e18310c9e4cf00e79ebf9218236fb1a9486bea515bfe677b414784d447"
+    },
+    {
+      "record": "generated-17",
+      "values": [
+        2026,
+        19,
+        1,
+        40,
+        40,
+        10,
+        80
+      ],
+      "seed": 2026,
+      "sha256": "16da142709ee9be0cd12e21f8f63f7e9155f2fd6c3e278eafd09837fbd591444"
+    },
+    {
+      "record": "generated-18",
+      "values": [
+        123456789,
+        25,
+        0,
+        30,
+        30,
+        0,
+        90
+      ],
+      "seed": 123456789,
+      "sha256": "5ae578b570f0087786752d1d5478444712171cb92d8e203327a26114bbcd96ee"
+    },
+    {
+      "record": "generated-19",
+      "values": [
+        9223372036854775807,
+        26,
+        5,
+        20,
+        20,
+        15,
+        75
+      ],
+      "seed": 9223372036854775807,
+      "sha256": "890ea08c4ba7dd1f8a6cd15a1f1d204bcc1dfee476e26d0f17500573c2d4c772"
+    },
+    {
+      "record": "generated-20",
+      "values": [
+        -9223372036854775808,
+        27,
+        4,
+        10,
+        10,
+        25,
+        65
+      ],
+      "seed": -9223372036854775808,
+      "sha256": "ea92b66e0d1dfd30a7876de5a2b30bcabd690059fd33b729b6c50f9a3ff76120"
+    },
+    {
+      "record": "generated-21",
+      "values": [
+        3141592653,
+        11,
+        3,
+        20,
+        50,
+        5,
+        85
+      ],
+      "seed": 3141592653,
+      "sha256": "6412b43bea2bf44e5c4f36a76834100a8056ddc941c42d3f8ac7c80be6301b42"
+    },
+    {
+      "record": "generated-22",
+      "values": [
+        2718281828,
+        16,
+        2,
+        0,
+        70,
+        35,
+        55
+      ],
+      "seed": 2718281828,
+      "sha256": "aca52a3c3880e8ace213145982f8f9749f7d470ef05297e7712ce0cd2c97c3dd"
+    },
+    {
+      "record": "generated-23",
+      "values": [
+        0,
+        22,
+        1,
+        5,
+        15,
+        49,
+        41
+      ],
+      "seed": 0,
+      "sha256": "854710b7387b13a4480c6f139e89e99abdbde39a0b5d711e0b445905ca6faffa"
+    },
+    {
+      "record": "generated-24",
+      "values": [
+        8675309,
+        8,
+        0,
+        80,
+        10,
+        50,
+        0
+      ],
+      "seed": 8675309,
+      "sha256": "7fff507ec838ffe9c90643267f3340cf0a5481392b933bec547a756f648f0b1c"
+    }
+  ]
+}

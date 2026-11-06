@@ -1,0 +1,31 @@
+directions: {
+  grid-rows: 3
+
+  r: right {
+    direction: right
+    1 -> 2 -> 3
+    2 -> 4
+  }
+  l: left {
+    direction: left
+    1 -> 2 -> 3
+    2 -> 4
+  }
+  v: "" {
+    grid-columns: 2
+    grid-gap: 0
+    u: up {
+      direction: up
+      1 -> 2 -> 3
+      2 -> 4
+    }
+    d: down {
+      direction: down
+      1 -> 2 -> 3
+      2 -> 4
+    }
+  }
+}
+
+directions.l.2 -> outside
+directions.l.1 -> another

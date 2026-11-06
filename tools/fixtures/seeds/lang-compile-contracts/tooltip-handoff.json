@@ -1,0 +1,910 @@
+[
+ {
+  "name": "direct-top-left",
+  "source": "a: {tooltip: Tip {near: top-left}}"
+ },
+ {
+  "name": "dotted-top-left",
+  "source": "a.tooltip: Tip\na.tooltip.near: top-left"
+ },
+ {
+  "name": "quoted-top-left",
+  "source": "a: {\"tooltip\": \"Tip\" {\"near\": \"top-left\"}}"
+ },
+ {
+  "name": "near-before-text-top-left",
+  "source": "a.tooltip.near: top-left\na.tooltip: Tip"
+ },
+ {
+  "name": "map-only-top-left",
+  "source": "a.tooltip.near: top-left"
+ },
+ {
+  "name": "null-near-top-left",
+  "source": "a: {tooltip: Tip {near: top-left}}\na.tooltip.near: null"
+ },
+ {
+  "name": "null-tooltip-top-left",
+  "source": "a: {tooltip: Tip {near: top-left}}\na.tooltip: null"
+ },
+ {
+  "name": "empty-tooltip-top-left",
+  "source": "a: {tooltip: \"\" {near: top-left}}"
+ },
+ {
+  "name": "class-top-left",
+  "source": "classes: {tip: {tooltip: Tip {near: top-left}}}\na.class: tip"
+ },
+ {
+  "name": "class-near-only-top-left",
+  "source": "classes: {tip: {tooltip.near: top-left}}\na: {class: tip; tooltip: Tip}"
+ },
+ {
+  "name": "class-null-near-top-left",
+  "source": "classes: {tip: {tooltip: Tip {near: top-left}}}\na: {class: tip; tooltip.near: null}"
+ },
+ {
+  "name": "class-null-tooltip-top-left",
+  "source": "classes: {tip: {tooltip: Tip {near: top-left}}}\na: {class: tip; tooltip: null}"
+ },
+ {
+  "name": "class-override-top-left",
+  "source": "classes: {tip: {tooltip: Tip {near: top-left}}}\na: {class: tip; tooltip.near: top-center}"
+ },
+ {
+  "name": "class-text-override-top-left",
+  "source": "classes: {tip: {tooltip: Tip {near: top-left}}}\na: {class: tip; tooltip: Other}"
+ },
+ {
+  "name": "class-chain-top-left",
+  "source": "classes: {base: {tooltip: Tip {near: top-left}}; derived: {class: base}}\na.class: derived"
+ },
+ {
+  "name": "nested-top-left",
+  "source": "group: {a: {tooltip: Tip {near: top-left}}}"
+ },
+ {
+  "name": "grid-top-left",
+  "source": "group: {grid-columns: 1; a: {tooltip: Tip {near: top-left}}}"
+ },
+ {
+  "name": "glob-top-left",
+  "source": "a\nb\n*.tooltip: Tip\n*.tooltip.near: top-left"
+ },
+ {
+  "name": "both-top-left",
+  "source": "a: {tooltip: Tip {near: top-left}; link: https://example.com}"
+ },
+ {
+  "name": "unicode-top-left",
+  "source": "a: {tooltip: \"héllo 世界 😀\" {near: top-left}}"
+ },
+ {
+  "name": "markdown-top-left",
+  "source": "a: {tooltip: \"**bold** and `code`\" {near: top-left}}"
+ },
+ {
+  "name": "no-tooltip-with-link-top-left",
+  "source": "a: {tooltip.near: top-left; link: https://example.com}"
+ },
+ {
+  "name": "direct-top-center",
+  "source": "a: {tooltip: Tip {near: top-center}}"
+ },
+ {
+  "name": "dotted-top-center",
+  "source": "a.tooltip: Tip\na.tooltip.near: top-center"
+ },
+ {
+  "name": "quoted-top-center",
+  "source": "a: {\"tooltip\": \"Tip\" {\"near\": \"top-center\"}}"
+ },
+ {
+  "name": "near-before-text-top-center",
+  "source": "a.tooltip.near: top-center\na.tooltip: Tip"
+ },
+ {
+  "name": "map-only-top-center",
+  "source": "a.tooltip.near: top-center"
+ },
+ {
+  "name": "null-near-top-center",
+  "source": "a: {tooltip: Tip {near: top-center}}\na.tooltip.near: null"
+ },
+ {
+  "name": "null-tooltip-top-center",
+  "source": "a: {tooltip: Tip {near: top-center}}\na.tooltip: null"
+ },
+ {
+  "name": "empty-tooltip-top-center",
+  "source": "a: {tooltip: \"\" {near: top-center}}"
+ },
+ {
+  "name": "class-top-center",
+  "source": "classes: {tip: {tooltip: Tip {near: top-center}}}\na.class: tip"
+ },
+ {
+  "name": "class-near-only-top-center",
+  "source": "classes: {tip: {tooltip.near: top-center}}\na: {class: tip; tooltip: Tip}"
+ },
+ {
+  "name": "class-null-near-top-center",
+  "source": "classes: {tip: {tooltip: Tip {near: top-center}}}\na: {class: tip; tooltip.near: null}"
+ },
+ {
+  "name": "class-null-tooltip-top-center",
+  "source": "classes: {tip: {tooltip: Tip {near: top-center}}}\na: {class: tip; tooltip: null}"
+ },
+ {
+  "name": "class-override-top-center",
+  "source": "classes: {tip: {tooltip: Tip {near: top-center}}}\na: {class: tip; tooltip.near: top-center}"
+ },
+ {
+  "name": "class-text-override-top-center",
+  "source": "classes: {tip: {tooltip: Tip {near: top-center}}}\na: {class: tip; tooltip: Other}"
+ },
+ {
+  "name": "class-chain-top-center",
+  "source": "classes: {base: {tooltip: Tip {near: top-center}}; derived: {class: base}}\na.class: derived"
+ },
+ {
+  "name": "nested-top-center",
+  "source": "group: {a: {tooltip: Tip {near: top-center}}}"
+ },
+ {
+  "name": "grid-top-center",
+  "source": "group: {grid-columns: 1; a: {tooltip: Tip {near: top-center}}}"
+ },
+ {
+  "name": "glob-top-center",
+  "source": "a\nb\n*.tooltip: Tip\n*.tooltip.near: top-center"
+ },
+ {
+  "name": "both-top-center",
+  "source": "a: {tooltip: Tip {near: top-center}; link: https://example.com}"
+ },
+ {
+  "name": "unicode-top-center",
+  "source": "a: {tooltip: \"héllo 世界 😀\" {near: top-center}}"
+ },
+ {
+  "name": "markdown-top-center",
+  "source": "a: {tooltip: \"**bold** and `code`\" {near: top-center}}"
+ },
+ {
+  "name": "no-tooltip-with-link-top-center",
+  "source": "a: {tooltip.near: top-center; link: https://example.com}"
+ },
+ {
+  "name": "direct-top-right",
+  "source": "a: {tooltip: Tip {near: top-right}}"
+ },
+ {
+  "name": "dotted-top-right",
+  "source": "a.tooltip: Tip\na.tooltip.near: top-right"
+ },
+ {
+  "name": "quoted-top-right",
+  "source": "a: {\"tooltip\": \"Tip\" {\"near\": \"top-right\"}}"
+ },
+ {
+  "name": "near-before-text-top-right",
+  "source": "a.tooltip.near: top-right\na.tooltip: Tip"
+ },
+ {
+  "name": "map-only-top-right",
+  "source": "a.tooltip.near: top-right"
+ },
+ {
+  "name": "null-near-top-right",
+  "source": "a: {tooltip: Tip {near: top-right}}\na.tooltip.near: null"
+ },
+ {
+  "name": "null-tooltip-top-right",
+  "source": "a: {tooltip: Tip {near: top-right}}\na.tooltip: null"
+ },
+ {
+  "name": "empty-tooltip-top-right",
+  "source": "a: {tooltip: \"\" {near: top-right}}"
+ },
+ {
+  "name": "class-top-right",
+  "source": "classes: {tip: {tooltip: Tip {near: top-right}}}\na.class: tip"
+ },
+ {
+  "name": "class-near-only-top-right",
+  "source": "classes: {tip: {tooltip.near: top-right}}\na: {class: tip; tooltip: Tip}"
+ },
+ {
+  "name": "class-null-near-top-right",
+  "source": "classes: {tip: {tooltip: Tip {near: top-right}}}\na: {class: tip; tooltip.near: null}"
+ },
+ {
+  "name": "class-null-tooltip-top-right",
+  "source": "classes: {tip: {tooltip: Tip {near: top-right}}}\na: {class: tip; tooltip: null}"
+ },
+ {
+  "name": "class-override-top-right",
+  "source": "classes: {tip: {tooltip: Tip {near: top-right}}}\na: {class: tip; tooltip.near: top-center}"
+ },
+ {
+  "name": "class-text-override-top-right",
+  "source": "classes: {tip: {tooltip: Tip {near: top-right}}}\na: {class: tip; tooltip: Other}"
+ },
+ {
+  "name": "class-chain-top-right",
+  "source": "classes: {base: {tooltip: Tip {near: top-right}}; derived: {class: base}}\na.class: derived"
+ },
+ {
+  "name": "nested-top-right",
+  "source": "group: {a: {tooltip: Tip {near: top-right}}}"
+ },
+ {
+  "name": "grid-top-right",
+  "source": "group: {grid-columns: 1; a: {tooltip: Tip {near: top-right}}}"
+ },
+ {
+  "name": "glob-top-right",
+  "source": "a\nb\n*.tooltip: Tip\n*.tooltip.near: top-right"
+ },
+ {
+  "name": "both-top-right",
+  "source": "a: {tooltip: Tip {near: top-right}; link: https://example.com}"
+ },
+ {
+  "name": "unicode-top-right",
+  "source": "a: {tooltip: \"héllo 世界 😀\" {near: top-right}}"
+ },
+ {
+  "name": "markdown-top-right",
+  "source": "a: {tooltip: \"**bold** and `code`\" {near: top-right}}"
+ },
+ {
+  "name": "no-tooltip-with-link-top-right",
+  "source": "a: {tooltip.near: top-right; link: https://example.com}"
+ },
+ {
+  "name": "direct-center-left",
+  "source": "a: {tooltip: Tip {near: center-left}}"
+ },
+ {
+  "name": "dotted-center-left",
+  "source": "a.tooltip: Tip\na.tooltip.near: center-left"
+ },
+ {
+  "name": "quoted-center-left",
+  "source": "a: {\"tooltip\": \"Tip\" {\"near\": \"center-left\"}}"
+ },
+ {
+  "name": "near-before-text-center-left",
+  "source": "a.tooltip.near: center-left\na.tooltip: Tip"
+ },
+ {
+  "name": "map-only-center-left",
+  "source": "a.tooltip.near: center-left"
+ },
+ {
+  "name": "null-near-center-left",
+  "source": "a: {tooltip: Tip {near: center-left}}\na.tooltip.near: null"
+ },
+ {
+  "name": "null-tooltip-center-left",
+  "source": "a: {tooltip: Tip {near: center-left}}\na.tooltip: null"
+ },
+ {
+  "name": "empty-tooltip-center-left",
+  "source": "a: {tooltip: \"\" {near: center-left}}"
+ },
+ {
+  "name": "class-center-left",
+  "source": "classes: {tip: {tooltip: Tip {near: center-left}}}\na.class: tip"
+ },
+ {
+  "name": "class-near-only-center-left",
+  "source": "classes: {tip: {tooltip.near: center-left}}\na: {class: tip; tooltip: Tip}"
+ },
+ {
+  "name": "class-null-near-center-left",
+  "source": "classes: {tip: {tooltip: Tip {near: center-left}}}\na: {class: tip; tooltip.near: null}"
+ },
+ {
+  "name": "class-null-tooltip-center-left",
+  "source": "classes: {tip: {tooltip: Tip {near: center-left}}}\na: {class: tip; tooltip: null}"
+ },
+ {
+  "name": "class-override-center-left",
+  "source": "classes: {tip: {tooltip: Tip {near: center-left}}}\na: {class: tip; tooltip.near: top-center}"
+ },
+ {
+  "name": "class-text-override-center-left",
+  "source": "classes: {tip: {tooltip: Tip {near: center-left}}}\na: {class: tip; tooltip: Other}"
+ },
+ {
+  "name": "class-chain-center-left",
+  "source": "classes: {base: {tooltip: Tip {near: center-left}}; derived: {class: base}}\na.class: derived"
+ },
+ {
+  "name": "nested-center-left",
+  "source": "group: {a: {tooltip: Tip {near: center-left}}}"
+ },
+ {
+  "name": "grid-center-left",
+  "source": "group: {grid-columns: 1; a: {tooltip: Tip {near: center-left}}}"
+ },
+ {
+  "name": "glob-center-left",
+  "source": "a\nb\n*.tooltip: Tip\n*.tooltip.near: center-left"
+ },
+ {
+  "name": "both-center-left",
+  "source": "a: {tooltip: Tip {near: center-left}; link: https://example.com}"
+ },
+ {
+  "name": "unicode-center-left",
+  "source": "a: {tooltip: \"héllo 世界 😀\" {near: center-left}}"
+ },
+ {
+  "name": "markdown-center-left",
+  "source": "a: {tooltip: \"**bold** and `code`\" {near: center-left}}"
+ },
+ {
+  "name": "no-tooltip-with-link-center-left",
+  "source": "a: {tooltip.near: center-left; link: https://example.com}"
+ },
+ {
+  "name": "direct-center-right",
+  "source": "a: {tooltip: Tip {near: center-right}}"
+ },
+ {
+  "name": "dotted-center-right",
+  "source": "a.tooltip: Tip\na.tooltip.near: center-right"
+ },
+ {
+  "name": "quoted-center-right",
+  "source": "a: {\"tooltip\": \"Tip\" {\"near\": \"center-right\"}}"
+ },
+ {
+  "name": "near-before-text-center-right",
+  "source": "a.tooltip.near: center-right\na.tooltip: Tip"
+ },
+ {
+  "name": "map-only-center-right",
+  "source": "a.tooltip.near: center-right"
+ },
+ {
+  "name": "null-near-center-right",
+  "source": "a: {tooltip: Tip {near: center-right}}\na.tooltip.near: null"
+ },
+ {
+  "name": "null-tooltip-center-right",
+  "source": "a: {tooltip: Tip {near: center-right}}\na.tooltip: null"
+ },
+ {
+  "name": "empty-tooltip-center-right",
+  "source": "a: {tooltip: \"\" {near: center-right}}"
+ },
+ {
+  "name": "class-center-right",
+  "source": "classes: {tip: {tooltip: Tip {near: center-right}}}\na.class: tip"
+ },
+ {
+  "name": "class-near-only-center-right",
+  "source": "classes: {tip: {tooltip.near: center-right}}\na: {class: tip; tooltip: Tip}"
+ },
+ {
+  "name": "class-null-near-center-right",
+  "source": "classes: {tip: {tooltip: Tip {near: center-right}}}\na: {class: tip; tooltip.near: null}"
+ },
+ {
+  "name": "class-null-tooltip-center-right",
+  "source": "classes: {tip: {tooltip: Tip {near: center-right}}}\na: {class: tip; tooltip: null}"
+ },
+ {
+  "name": "class-override-center-right",
+  "source": "classes: {tip: {tooltip: Tip {near: center-right}}}\na: {class: tip; tooltip.near: top-center}"
+ },
+ {
+  "name": "class-text-override-center-right",
+  "source": "classes: {tip: {tooltip: Tip {near: center-right}}}\na: {class: tip; tooltip: Other}"
+ },
+ {
+  "name": "class-chain-center-right",
+  "source": "classes: {base: {tooltip: Tip {near: center-right}}; derived: {class: base}}\na.class: derived"
+ },
+ {
+  "name": "nested-center-right",
+  "source": "group: {a: {tooltip: Tip {near: center-right}}}"
+ },
+ {
+  "name": "grid-center-right",
+  "source": "group: {grid-columns: 1; a: {tooltip: Tip {near: center-right}}}"
+ },
+ {
+  "name": "glob-center-right",
+  "source": "a\nb\n*.tooltip: Tip\n*.tooltip.near: center-right"
+ },
+ {
+  "name": "both-center-right",
+  "source": "a: {tooltip: Tip {near: center-right}; link: https://example.com}"
+ },
+ {
+  "name": "unicode-center-right",
+  "source": "a: {tooltip: \"héllo 世界 😀\" {near: center-right}}"
+ },
+ {
+  "name": "markdown-center-right",
+  "source": "a: {tooltip: \"**bold** and `code`\" {near: center-right}}"
+ },
+ {
+  "name": "no-tooltip-with-link-center-right",
+  "source": "a: {tooltip.near: center-right; link: https://example.com}"
+ },
+ {
+  "name": "direct-bottom-left",
+  "source": "a: {tooltip: Tip {near: bottom-left}}"
+ },
+ {
+  "name": "dotted-bottom-left",
+  "source": "a.tooltip: Tip\na.tooltip.near: bottom-left"
+ },
+ {
+  "name": "quoted-bottom-left",
+  "source": "a: {\"tooltip\": \"Tip\" {\"near\": \"bottom-left\"}}"
+ },
+ {
+  "name": "near-before-text-bottom-left",
+  "source": "a.tooltip.near: bottom-left\na.tooltip: Tip"
+ },
+ {
+  "name": "map-only-bottom-left",
+  "source": "a.tooltip.near: bottom-left"
+ },
+ {
+  "name": "null-near-bottom-left",
+  "source": "a: {tooltip: Tip {near: bottom-left}}\na.tooltip.near: null"
+ },
+ {
+  "name": "null-tooltip-bottom-left",
+  "source": "a: {tooltip: Tip {near: bottom-left}}\na.tooltip: null"
+ },
+ {
+  "name": "empty-tooltip-bottom-left",
+  "source": "a: {tooltip: \"\" {near: bottom-left}}"
+ },
+ {
+  "name": "class-bottom-left",
+  "source": "classes: {tip: {tooltip: Tip {near: bottom-left}}}\na.class: tip"
+ },
+ {
+  "name": "class-near-only-bottom-left",
+  "source": "classes: {tip: {tooltip.near: bottom-left}}\na: {class: tip; tooltip: Tip}"
+ },
+ {
+  "name": "class-null-near-bottom-left",
+  "source": "classes: {tip: {tooltip: Tip {near: bottom-left}}}\na: {class: tip; tooltip.near: null}"
+ },
+ {
+  "name": "class-null-tooltip-bottom-left",
+  "source": "classes: {tip: {tooltip: Tip {near: bottom-left}}}\na: {class: tip; tooltip: null}"
+ },
+ {
+  "name": "class-override-bottom-left",
+  "source": "classes: {tip: {tooltip: Tip {near: bottom-left}}}\na: {class: tip; tooltip.near: top-center}"
+ },
+ {
+  "name": "class-text-override-bottom-left",
+  "source": "classes: {tip: {tooltip: Tip {near: bottom-left}}}\na: {class: tip; tooltip: Other}"
+ },
+ {
+  "name": "class-chain-bottom-left",
+  "source": "classes: {base: {tooltip: Tip {near: bottom-left}}; derived: {class: base}}\na.class: derived"
+ },
+ {
+  "name": "nested-bottom-left",
+  "source": "group: {a: {tooltip: Tip {near: bottom-left}}}"
+ },
+ {
+  "name": "grid-bottom-left",
+  "source": "group: {grid-columns: 1; a: {tooltip: Tip {near: bottom-left}}}"
+ },
+ {
+  "name": "glob-bottom-left",
+  "source": "a\nb\n*.tooltip: Tip\n*.tooltip.near: bottom-left"
+ },
+ {
+  "name": "both-bottom-left",
+  "source": "a: {tooltip: Tip {near: bottom-left}; link: https://example.com}"
+ },
+ {
+  "name": "unicode-bottom-left",
+  "source": "a: {tooltip: \"héllo 世界 😀\" {near: bottom-left}}"
+ },
+ {
+  "name": "markdown-bottom-left",
+  "source": "a: {tooltip: \"**bold** and `code`\" {near: bottom-left}}"
+ },
+ {
+  "name": "no-tooltip-with-link-bottom-left",
+  "source": "a: {tooltip.near: bottom-left; link: https://example.com}"
+ },
+ {
+  "name": "direct-bottom-center",
+  "source": "a: {tooltip: Tip {near: bottom-center}}"
+ },
+ {
+  "name": "dotted-bottom-center",
+  "source": "a.tooltip: Tip\na.tooltip.near: bottom-center"
+ },
+ {
+  "name": "quoted-bottom-center",
+  "source": "a: {\"tooltip\": \"Tip\" {\"near\": \"bottom-center\"}}"
+ },
+ {
+  "name": "near-before-text-bottom-center",
+  "source": "a.tooltip.near: bottom-center\na.tooltip: Tip"
+ },
+ {
+  "name": "map-only-bottom-center",
+  "source": "a.tooltip.near: bottom-center"
+ },
+ {
+  "name": "null-near-bottom-center",
+  "source": "a: {tooltip: Tip {near: bottom-center}}\na.tooltip.near: null"
+ },
+ {
+  "name": "null-tooltip-bottom-center",
+  "source": "a: {tooltip: Tip {near: bottom-center}}\na.tooltip: null"
+ },
+ {
+  "name": "empty-tooltip-bottom-center",
+  "source": "a: {tooltip: \"\" {near: bottom-center}}"
+ },
+ {
+  "name": "class-bottom-center",
+  "source": "classes: {tip: {tooltip: Tip {near: bottom-center}}}\na.class: tip"
+ },
+ {
+  "name": "class-near-only-bottom-center",
+  "source": "classes: {tip: {tooltip.near: bottom-center}}\na: {class: tip; tooltip: Tip}"
+ },
+ {
+  "name": "class-null-near-bottom-center",
+  "source": "classes: {tip: {tooltip: Tip {near: bottom-center}}}\na: {class: tip; tooltip.near: null}"
+ },
+ {
+  "name": "class-null-tooltip-bottom-center",
+  "source": "classes: {tip: {tooltip: Tip {near: bottom-center}}}\na: {class: tip; tooltip: null}"
+ },
+ {
+  "name": "class-override-bottom-center",
+  "source": "classes: {tip: {tooltip: Tip {near: bottom-center}}}\na: {class: tip; tooltip.near: top-center}"
+ },
+ {
+  "name": "class-text-override-bottom-center",
+  "source": "classes: {tip: {tooltip: Tip {near: bottom-center}}}\na: {class: tip; tooltip: Other}"
+ },
+ {
+  "name": "class-chain-bottom-center",
+  "source": "classes: {base: {tooltip: Tip {near: bottom-center}}; derived: {class: base}}\na.class: derived"
+ },
+ {
+  "name": "nested-bottom-center",
+  "source": "group: {a: {tooltip: Tip {near: bottom-center}}}"
+ },
+ {
+  "name": "grid-bottom-center",
+  "source": "group: {grid-columns: 1; a: {tooltip: Tip {near: bottom-center}}}"
+ },
+ {
+  "name": "glob-bottom-center",
+  "source": "a\nb\n*.tooltip: Tip\n*.tooltip.near: bottom-center"
+ },
+ {
+  "name": "both-bottom-center",
+  "source": "a: {tooltip: Tip {near: bottom-center}; link: https://example.com}"
+ },
+ {
+  "name": "unicode-bottom-center",
+  "source": "a: {tooltip: \"héllo 世界 😀\" {near: bottom-center}}"
+ },
+ {
+  "name": "markdown-bottom-center",
+  "source": "a: {tooltip: \"**bold** and `code`\" {near: bottom-center}}"
+ },
+ {
+  "name": "no-tooltip-with-link-bottom-center",
+  "source": "a: {tooltip.near: bottom-center; link: https://example.com}"
+ },
+ {
+  "name": "direct-bottom-right",
+  "source": "a: {tooltip: Tip {near: bottom-right}}"
+ },
+ {
+  "name": "dotted-bottom-right",
+  "source": "a.tooltip: Tip\na.tooltip.near: bottom-right"
+ },
+ {
+  "name": "quoted-bottom-right",
+  "source": "a: {\"tooltip\": \"Tip\" {\"near\": \"bottom-right\"}}"
+ },
+ {
+  "name": "near-before-text-bottom-right",
+  "source": "a.tooltip.near: bottom-right\na.tooltip: Tip"
+ },
+ {
+  "name": "map-only-bottom-right",
+  "source": "a.tooltip.near: bottom-right"
+ },
+ {
+  "name": "null-near-bottom-right",
+  "source": "a: {tooltip: Tip {near: bottom-right}}\na.tooltip.near: null"
+ },
+ {
+  "name": "null-tooltip-bottom-right",
+  "source": "a: {tooltip: Tip {near: bottom-right}}\na.tooltip: null"
+ },
+ {
+  "name": "empty-tooltip-bottom-right",
+  "source": "a: {tooltip: \"\" {near: bottom-right}}"
+ },
+ {
+  "name": "class-bottom-right",
+  "source": "classes: {tip: {tooltip: Tip {near: bottom-right}}}\na.class: tip"
+ },
+ {
+  "name": "class-near-only-bottom-right",
+  "source": "classes: {tip: {tooltip.near: bottom-right}}\na: {class: tip; tooltip: Tip}"
+ },
+ {
+  "name": "class-null-near-bottom-right",
+  "source": "classes: {tip: {tooltip: Tip {near: bottom-right}}}\na: {class: tip; tooltip.near: null}"
+ },
+ {
+  "name": "class-null-tooltip-bottom-right",
+  "source": "classes: {tip: {tooltip: Tip {near: bottom-right}}}\na: {class: tip; tooltip: null}"
+ },
+ {
+  "name": "class-override-bottom-right",
+  "source": "classes: {tip: {tooltip: Tip {near: bottom-right}}}\na: {class: tip; tooltip.near: top-center}"
+ },
+ {
+  "name": "class-text-override-bottom-right",
+  "source": "classes: {tip: {tooltip: Tip {near: bottom-right}}}\na: {class: tip; tooltip: Other}"
+ },
+ {
+  "name": "class-chain-bottom-right",
+  "source": "classes: {base: {tooltip: Tip {near: bottom-right}}; derived: {class: base}}\na.class: derived"
+ },
+ {
+  "name": "nested-bottom-right",
+  "source": "group: {a: {tooltip: Tip {near: bottom-right}}}"
+ },
+ {
+  "name": "grid-bottom-right",
+  "source": "group: {grid-columns: 1; a: {tooltip: Tip {near: bottom-right}}}"
+ },
+ {
+  "name": "glob-bottom-right",
+  "source": "a\nb\n*.tooltip: Tip\n*.tooltip.near: bottom-right"
+ },
+ {
+  "name": "both-bottom-right",
+  "source": "a: {tooltip: Tip {near: bottom-right}; link: https://example.com}"
+ },
+ {
+  "name": "unicode-bottom-right",
+  "source": "a: {tooltip: \"héllo 世界 😀\" {near: bottom-right}}"
+ },
+ {
+  "name": "markdown-bottom-right",
+  "source": "a: {tooltip: \"**bold** and `code`\" {near: bottom-right}}"
+ },
+ {
+  "name": "no-tooltip-with-link-bottom-right",
+  "source": "a: {tooltip.near: bottom-right; link: https://example.com}"
+ },
+ {
+  "name": "unset",
+  "source": "a.tooltip: Tip"
+ },
+ {
+  "name": "plain",
+  "source": "a"
+ },
+ {
+  "name": "repeated-near",
+  "source": "a.tooltip: Tip {near: top-left}\na.tooltip.near: bottom-right"
+ },
+ {
+  "name": "quoted-key-root-tooltip",
+  "source": "\"tooltip\": {child}"
+ },
+ {
+  "name": "quoted-key-nested-tooltip",
+  "source": "a: {\"tooltip\": {child}}"
+ },
+ {
+  "name": "quoted-key-root-near",
+  "source": "\"near\": {child}"
+ },
+ {
+  "name": "quoted-key-nested-near",
+  "source": "a: {\"near\": {child}}"
+ },
+ {
+  "name": "quoted-key-root-style",
+  "source": "\"style\": {child}"
+ },
+ {
+  "name": "quoted-key-nested-style",
+  "source": "a: {\"style\": {child}}"
+ },
+ {
+  "name": "quoted-key-root-shape",
+  "source": "\"shape\": {child}"
+ },
+ {
+  "name": "quoted-key-nested-shape",
+  "source": "a: {\"shape\": {child}}"
+ },
+ {
+  "name": "quoted-key-root-label",
+  "source": "\"label\": {child}"
+ },
+ {
+  "name": "quoted-key-nested-label",
+  "source": "a: {\"label\": {child}}"
+ },
+ {
+  "name": "quoted-key-root-width",
+  "source": "\"width\": {child}"
+ },
+ {
+  "name": "quoted-key-nested-width",
+  "source": "a: {\"width\": {child}}"
+ },
+ {
+  "name": "quoted-key-root-height",
+  "source": "\"height\": {child}"
+ },
+ {
+  "name": "quoted-key-nested-height",
+  "source": "a: {\"height\": {child}}"
+ },
+ {
+  "name": "quoted-key-root-top",
+  "source": "\"top\": {child}"
+ },
+ {
+  "name": "quoted-key-nested-top",
+  "source": "a: {\"top\": {child}}"
+ },
+ {
+  "name": "quoted-key-root-left",
+  "source": "\"left\": {child}"
+ },
+ {
+  "name": "quoted-key-nested-left",
+  "source": "a: {\"left\": {child}}"
+ },
+ {
+  "name": "quoted-key-root-icon",
+  "source": "\"icon\": {child}"
+ },
+ {
+  "name": "quoted-key-nested-icon",
+  "source": "a: {\"icon\": {child}}"
+ },
+ {
+  "name": "quoted-key-root-link",
+  "source": "\"link\": {child}"
+ },
+ {
+  "name": "quoted-key-nested-link",
+  "source": "a: {\"link\": {child}}"
+ },
+ {
+  "name": "quoted-key-root-direction",
+  "source": "\"direction\": {child}"
+ },
+ {
+  "name": "quoted-key-nested-direction",
+  "source": "a: {\"direction\": {child}}"
+ },
+ {
+  "name": "quoted-key-root-constraint",
+  "source": "\"constraint\": {child}"
+ },
+ {
+  "name": "quoted-key-nested-constraint",
+  "source": "a: {\"constraint\": {child}}"
+ },
+ {
+  "name": "quoted-key-root-grid-rows",
+  "source": "\"grid-rows\": {child}"
+ },
+ {
+  "name": "quoted-key-nested-grid-rows",
+  "source": "a: {\"grid-rows\": {child}}"
+ },
+ {
+  "name": "quoted-key-root-grid-columns",
+  "source": "\"grid-columns\": {child}"
+ },
+ {
+  "name": "quoted-key-nested-grid-columns",
+  "source": "a: {\"grid-columns\": {child}}"
+ },
+ {
+  "name": "quoted-key-root-grid-gap",
+  "source": "\"grid-gap\": {child}"
+ },
+ {
+  "name": "quoted-key-nested-grid-gap",
+  "source": "a: {\"grid-gap\": {child}}"
+ },
+ {
+  "name": "quoted-key-root-language",
+  "source": "\"language\": {child}"
+ },
+ {
+  "name": "quoted-key-nested-language",
+  "source": "a: {\"language\": {child}}"
+ },
+ {
+  "name": "quoted-key-root-classes",
+  "source": "\"classes\": {child}"
+ },
+ {
+  "name": "quoted-key-nested-classes",
+  "source": "a: {\"classes\": {child}}"
+ },
+ {
+  "name": "quoted-key-root-vars",
+  "source": "\"vars\": {child}"
+ },
+ {
+  "name": "quoted-key-nested-vars",
+  "source": "a: {\"vars\": {child}}"
+ },
+ {
+  "name": "quoted-key-root-d2-config",
+  "source": "\"d2-config\": {child}"
+ },
+ {
+  "name": "quoted-key-nested-d2-config",
+  "source": "a: {\"d2-config\": {child}}"
+ },
+ {
+  "name": "quoted-key-root-layers",
+  "source": "\"layers\": {child}"
+ },
+ {
+  "name": "quoted-key-nested-layers",
+  "source": "a: {\"layers\": {child}}"
+ },
+ {
+  "name": "quoted-key-root-scenarios",
+  "source": "\"scenarios\": {child}"
+ },
+ {
+  "name": "quoted-key-nested-scenarios",
+  "source": "a: {\"scenarios\": {child}}"
+ },
+ {
+  "name": "quoted-key-root-steps",
+  "source": "\"steps\": {child}"
+ },
+ {
+  "name": "quoted-key-nested-steps",
+  "source": "a: {\"steps\": {child}}"
+ },
+ {
+  "name": "quoted-key-root-class",
+  "source": "\"class\": {child}"
+ },
+ {
+  "name": "quoted-key-nested-class",
+  "source": "a: {\"class\": {child}}"
+ }
+]

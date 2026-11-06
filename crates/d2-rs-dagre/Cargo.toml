@@ -1,0 +1,27 @@
+[package]
+name = "d2-rs-dagre"
+description = "Rust port of D2's Dagre layout adapter and the dagro layout engine."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+readme = "../../README.md"
+
+[features]
+default = []
+oracle-fixtures = []
+diagnostic-traces = ["dep:serde_json"]
+
+[dependencies]
+d2-rs-core.workspace = true
+thiserror.workspace = true
+serde_json = { workspace = true, optional = true }
+
+[dev-dependencies]
+serde_json.workspace = true
+d2-rs-testdata.workspace = true
+
+[lints]
+workspace = true

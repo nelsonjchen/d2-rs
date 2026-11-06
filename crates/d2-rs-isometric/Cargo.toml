@@ -1,0 +1,47 @@
+[package]
+name = "d2-rs-isometric"
+description = "Rust port of D2's isometric renderer (d2renderers/d2isometric)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+readme = "../../README.md"
+
+[features]
+diagnostic-traces = []
+# Oracle tier: tests that read Go-oracle artifacts regenerated into
+# oracle-cache/fixtures by scripts/regen-fixtures.py (docs/FIXTURES.md).
+oracle-fixtures = []
+
+[[example]]
+name = "isometric-mesh"
+required-features = ["diagnostic-traces"]
+
+[dependencies]
+d2-rs-core.workspace = true
+d2-rs-target.workspace = true
+d2-rs-language.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+d2-rs-render.workspace = true
+d2-rs-scene.workspace = true
+d2-rs-fontface.workspace = true
+base64.workspace = true
+d2-rs-text.workspace = true
+d2-rs-raster.workspace = true
+sha2.workspace = true
+d2-rs-scenebuild.workspace = true
+d2-rs-math.workspace = true
+d2-rs-export.workspace = true
+gif.workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+web-time = "1.1.0"
+
+[dev-dependencies]
+d2-rs-testdata.workspace = true
+
+[lints]
+workspace = true

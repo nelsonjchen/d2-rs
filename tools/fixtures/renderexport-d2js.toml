@@ -1,0 +1,178 @@
+# Public d2js / d2lib API fixtures for crates/d2-rs-wasm (and d2-rs-lib's
+# URL decoder test). See docs/FIXTURES.md.
+#
+# `d2js-public` and `d2js-sources` replay the committed request lists in
+# tools/d2js-capture/inputs (plus the generated URL-codec grid,
+# scripts/url_codec_cases.py) through the pinned upstream d2js built by
+# `d2js-node-package` (renderexport-target.toml). Font options are referenced
+# by upstream path (+ byte patch), never inlined. `d2lib-sequence-*`,
+# `wasm-d2lib-targets` and `wasm-tala-boundaries` observe d2lib.Compile
+# directly, as the original Go probes did; the `wasm-*-master` recipes run the
+# upstream d2js/d2wasm tests (GOOS=js) through their scoreboards' hooks.
+# Recovered Go panic stacks are canonicalized (goroutine N, 0x? words, $D2/
+# and $GOROOT/ prefixes): their readers compare the first line only.
+#
+# Regenerate:  uv run --no-project python scripts/regen-fixtures.py --only 'd2js-*' --only 'd2lib-sequence-*' --only 'wasm-*'
+# Test:        cargo test -p d2-rs-wasm -p d2-rs-lib --features d2-rs-wasm/oracle-fixtures,d2-rs-lib/oracle-fixtures
+
+[[recipe]]
+name = "d2js-public"
+kind = "command"
+description = "Public d2js compile/render/codec/ELK-request/option-boundary responses"
+after = ["d2js-node-package"]
+upstream = true
+argv = ["{python}", "scripts/d2js_public_fixtures.py"]
+outputs = [
+  "crates/d2-rs-wasm/tests/fixtures/public-graph-inheritance-source-v090.json",
+  "crates/d2-rs-wasm/tests/fixtures/public-graph-class-context-source-v090.json",
+  "crates/d2-rs-wasm/tests/fixtures/public-graph-data-source-v090.json",
+  "crates/d2-rs-wasm/tests/fixtures/public-graph-objects-source-v090.json",
+  "crates/d2-rs-wasm/tests/fixtures/public-graph-edge-storage-source-v090.json",
+  "crates/d2-rs-wasm/tests/fixtures/public-graph-roots-source-v090.json",
+  "crates/d2-rs-wasm/tests/fixtures/public-render-options-source-v090.json",
+  "crates/d2-rs-wasm/tests/fixtures/sequence-span-export-source-v090.json",
+  "crates/d2-rs-wasm/tests/fixtures/root-structured-source-v090.json",
+  "crates/d2-rs-wasm/tests/fixtures/request-unicode-source-v090.json",
+  "crates/d2-rs-wasm/tests/fixtures/url-codec-source-v090.json",
+  "crates/d2-rs-wasm/tests/fixtures/public-option-boundaries-source-v090.json",
+  "crates/d2-rs-wasm/tests/fixtures/public-font-registry-source-v090.json",
+]
+key_deps.files = ["scripts/fixture_recipe.py", "scripts/url_codec_cases.py", "tools/d2js-capture/d2js.mjs",
+                  "tools/d2js-capture/public.mjs", "tools/d2js-capture/inputs/graph-*.json",
+                  "tools/d2js-capture/inputs/render-options.json", "tools/d2js-capture/inputs/sequence-span.json",
+                  "tools/d2js-capture/inputs/root-structured.json", "tools/d2js-capture/inputs/request-unicode.json",
+                  "tools/d2js-capture/inputs/option-boundaries.json", "tools/d2js-capture/inputs/font-registry.json"]
+# Only the font files are read from the tree directly; d2js itself is keyed by `after`.
+key_deps.upstream_paths = ["d2renderers/d2fonts/ttf"]
+key_deps.go_toolchain = true
+
+[[recipe]]
+name = "d2js-sources"
+kind = "command"
+description = "Source compile/render targets, diagnostics, animation/scale SVG roots, typed errors, sequence faults and raw-argument responses from d2js"
+after = ["d2js-node-package", "d2js-target", "d2lib-sequence-targets"]
+argv = ["{python}", "scripts/d2js_sources_fixtures.py"]
+outputs = [
+  "crates/d2-rs-wasm/tests/fixtures/target-icons-c4-source-v090.json",
+  "crates/d2-rs-wasm/tests/fixtures/legend-target-source-v090.json",
+  "crates/d2-rs-wasm/tests/fixtures/target-diagram-expanded-source-v090.json",
+  "crates/d2-rs-wasm/tests/fixtures/class-row-target-source-v090.json",
+  "crates/d2-rs-wasm/tests/fixtures/target-row-collections-source-v090.json",
+  "crates/d2-rs-wasm/tests/fixtures/sql-column-target-source-v090.json",
+  "crates/d2-rs-wasm/tests/fixtures/public-compiler-diagnostics-source-v090.json",
+  "crates/d2-rs-wasm/tests/fixtures/animation-single-board-source-v090.json",
+  "crates/d2-rs-wasm/tests/fixtures/animation-multi-board-source-v090.json",
+  "crates/d2-rs-wasm/tests/fixtures/svg-scale-render-source-v090.json",
+  "crates/d2-rs-wasm/tests/fixtures/svg-scale-presence-source-v090.json",
+  "crates/d2-rs-wasm/tests/fixtures/public-error-types-source-v090.json",
+  "crates/d2-rs-wasm/tests/fixtures/sequence-api-fault-source-v090.json",
+  "crates/d2-rs-wasm/tests/fixtures/elk-request-source-v090.json",
+  "crates/d2-rs-wasm/tests/fixtures/legacy-string-arguments-source-v090.json",
+]
+key_deps.files = ["scripts/fixture_recipe.py", "tools/d2js-capture/d2js.mjs", "tools/d2js-capture/sources.mjs",
+                  "tools/d2js-capture/inputs/target-icons-c4.json", "tools/d2js-capture/inputs/legend-target.json",
+                  "tools/d2js-capture/inputs/target-diagram-expanded.json", "tools/d2js-capture/inputs/class-row-target.json",
+                  "tools/d2js-capture/inputs/target-row-collections.json", "tools/d2js-capture/inputs/sql-column-target.json",
+                  "tools/d2js-capture/inputs/public-compiler-diagnostics.json", "tools/d2js-capture/inputs/animation-*.json",
+                  "tools/d2js-capture/inputs/svg-scale-render.json", "tools/d2js-capture/inputs/elk-request.json",
+                  "tools/d2js-capture/inputs/sequence-actor-label-policy.json"]
+
+[[recipe]]
+name = "d2lib-sequence-targets"
+kind = "go-test-hook"
+description = "d2lib.Compile target/raw-route/error/panic records for sequence and grid-extraction sources"
+package = "d2lib"
+hooks = ["tools/fixtures/hooks/d2lib-sequence-targets/d2rs_sequence_targets_test.go"]
+test = "TestD2RSCaptureSequenceTargets"
+inputs = ["tools/d2js-capture/inputs/sequence-actor-label-policy.json", "tools/d2js-capture/inputs/sequence-target-expanded.json",
+          "tools/d2js-capture/inputs/sequence-grid-fault.json", "tools/d2js-capture/inputs/sequence-outside-actor.json",
+          "tools/d2js-capture/inputs/target-projection-label.json"]
+outputs = ["tools/d2lib-sequence-targets/actor-label-policy.json", "tools/d2lib-sequence-targets/target-expanded.json",
+           "tools/d2lib-sequence-targets/grid-fault.json", "tools/d2lib-sequence-targets/outside-actor.json",
+           "tools/d2lib-sequence-targets/projection-label.json"]
+
+[[recipe]]
+name = "d2lib-sequence-fixtures"
+kind = "command"
+description = "Sequence actor-label policy, expanded/grid-fault/outside-actor targets and the flipt projection target"
+after = ["d2lib-sequence-targets"]
+argv = ["{python}", "scripts/d2lib_sequence_fixtures.py"]
+outputs = [
+  "crates/d2-rs-wasm/tests/fixtures/sequence-actor-label-policy-source-v090.json",
+  "crates/d2-rs-wasm/tests/fixtures/sequence-target-export-expanded-source-v090.json",
+  "crates/d2-rs-wasm/tests/fixtures/sequence-grid-fault-source-v090.json",
+  "crates/d2-rs-wasm/tests/fixtures/sequence-outside-actor-source-v090.json",
+  "crates/d2-rs-wasm/tests/fixtures/target-projection-label-source-v090.json",
+]
+key_deps.files = ["scripts/fixture_recipe.py", "tools/d2js-capture/inputs/sequence-actor-label-policy.json",
+                  "tools/d2js-capture/inputs/sequence-target-expanded.json", "tools/d2js-capture/inputs/sequence-grid-fault.json",
+                  "tools/d2js-capture/inputs/sequence-outside-actor.json", "tools/d2js-capture/inputs/target-projection-label.json"]
+
+[[recipe]]
+name = "wasm-d2lib-targets"
+kind = "go-test-hook"
+description = "d2lib.Compile edge identities, per-board sketch measurements and render-option SVG roots/rough paths"
+package = "d2lib"
+hooks = ["tools/fixtures/hooks/wasm-d2lib-targets/d2rs_wasm_targets_test.go"]
+test = "TestD2RSCaptureWasmTargets"
+inputs = ["tools/d2js-capture/inputs/compiled-edge-identity.json", "tools/d2js-capture/inputs/sketch-render-options.json"]
+outputs = [
+  "crates/d2-rs-wasm/tests/fixtures/compiled-edge-identity-v090.json",
+  "crates/d2-rs-wasm/tests/fixtures/sketch-precedence-source-v090.json",
+  "crates/d2-rs-wasm/tests/fixtures/render-options-source-v090.json",
+]
+
+[[recipe]]
+name = "wasm-tala-boundaries"
+kind = "go-test-hook"
+description = "d2lib.Compile seed plans, TALA invocation counts and canceled/expired layout-context errors (dagre, ELK, TALA)"
+package = "d2layouts/d2talalayout"
+hooks = ["tools/fixtures/hooks/wasm-tala-boundaries/d2rs_tala_boundaries_test.go"]
+test = "TestD2RSCaptureTalaBoundaries"
+inputs = ["tools/d2js-capture/inputs/tala-seed-config.json", "tools/d2js-capture/inputs/tala-deferred-seeds.json",
+          "tools/d2js-capture/inputs/tala-seed-nesting.json", "tools/d2js-capture/inputs/layout-context.json",
+          "tools/d2js-capture/inputs/tala-raw-label-graphs.json"]
+outputs = [
+  "crates/d2-rs-wasm/tests/fixtures/tala-seed-config-source-v090.json",
+  "crates/d2-rs-wasm/tests/fixtures/tala-deferred-seeds-source-v090.json",
+  "crates/d2-rs-wasm/tests/fixtures/tala-seed-nesting-source-v090.json",
+  "crates/d2-rs-wasm/tests/fixtures/layout-context-admission-master.json",
+  "crates/d2-rs-wasm/tests/fixtures/tala-raw-label-seed-failures-source-v090.json",
+]
+timeout = 3600
+
+[[recipe]]
+name = "wasm-render-admission-master"
+kind = "command"
+description = "Original d2js/d2wasm render admission tests (GOOS=js): requests and Go responses"
+upstream = true
+argv = ["{python}", "scripts/wasm_oracle_fixtures.py", "scoreboard", "--script", "scripts/wasm-admission-scoreboard.py",
+        "--output", "crates/d2-rs-wasm/tests/fixtures/render-admission-master.json"]
+outputs = ["crates/d2-rs-wasm/tests/fixtures/render-admission-master.json"]
+key_deps.files = ["scripts/fixture_recipe.py", "scripts/upstream_overlay.py", "scripts/references.py", "scripts/cli-scoreboard.py",
+                  "scripts/wasm-admission-scoreboard.py", "tools/wasm-admission-scoreboard/hook_test.go"]
+key_deps.go_toolchain = true
+
+[[recipe]]
+name = "wasm-isometric-master"
+kind = "command"
+description = "Original d2js/d2wasm isometric compile/render tests (GOOS=js): requests and Go responses"
+upstream = true
+argv = ["{python}", "scripts/wasm_oracle_fixtures.py", "scoreboard", "--script", "scripts/wasm-isometric-scoreboard.py",
+        "--output", "crates/d2-rs-wasm/tests/fixtures/isometric-master.json"]
+outputs = ["crates/d2-rs-wasm/tests/fixtures/isometric-master.json"]
+key_deps.files = ["scripts/fixture_recipe.py", "scripts/upstream_overlay.py", "scripts/references.py", "scripts/cli-scoreboard.py",
+                  "scripts/wasm-admission-scoreboard.py", "scripts/wasm-isometric-scoreboard.py", "tools/wasm-isometric-scoreboard/hook_test.go"]
+key_deps.go_toolchain = true
+
+[[recipe]]
+name = "wasm-render-regressions-master"
+kind = "command"
+description = "Retained root-structured/raw-ASCII render and completion regression inputs re-evaluated by d2wasm at the pin (GOOS=js)"
+upstream = true
+after = ["d2js-public", "d2js-target"]
+argv = ["{python}", "scripts/wasm_oracle_fixtures.py", "legacy", "--output", "crates/d2-rs-wasm/tests/fixtures/render-regressions-master.json"]
+outputs = ["crates/d2-rs-wasm/tests/fixtures/render-regressions-master.json"]
+key_deps.files = ["scripts/fixture_recipe.py", "scripts/upstream_overlay.py", "scripts/references.py", "scripts/cli-scoreboard.py",
+                  "scripts/wasm-admission-scoreboard.py", "tools/wasm-admission-scoreboard/legacy_test.go"]
+key_deps.go_toolchain = true

@@ -1,0 +1,11 @@
+[
+{"name": "dagre/quoted-keyword-class", "source": "classes: {c: {style.fill: red}}\n\"layers\": {inner: {class: c}}\n", "options": {"layout": "dagre"}},
+{"name": "dagre/substituted-class-board", "source": "classes: {c: {style.fill: red}}\nvars: {template: {child: {class: c}}}\na: { ...${template} }\nscenarios: {s: {classes.c.style.fill: blue}}\n", "options": {"layout": "dagre"}},
+{"name": "dagre/legend-class", "source": "classes: {c: {label: Class; style.fill: red}}\nvars: {d2-legend: Legend {x: {class: c}}}\na\n", "options": {"layout": "dagre"}},
+{"name": "elk/quoted-keyword-class", "source": "classes: {c: {style.fill: red}}\n\"layers\": {inner: {class: c}}\n", "options": {"layout": "elk"}},
+{"name": "elk/substituted-class-board", "source": "classes: {c: {style.fill: red}}\nvars: {template: {child: {class: c}}}\na: { ...${template} }\nscenarios: {s: {classes.c.style.fill: blue}}\n", "options": {"layout": "elk"}},
+{"name": "elk/legend-class", "source": "classes: {c: {label: Class; style.fill: red}}\nvars: {d2-legend: Legend {x: {class: c}}}\na\n", "options": {"layout": "elk"}},
+{"name": "tala/quoted-keyword-class", "source": "classes: {c: {style.fill: red}}\n\"layers\": {inner: {class: c}}\n", "options": {"layout": "tala"}},
+{"name": "tala/substituted-class-board", "source": "classes: {c: {style.fill: red}}\nvars: {template: {child: {class: c}}}\na: { ...${template} }\nscenarios: {s: {classes.c.style.fill: blue}}\n", "options": {"layout": "tala"}},
+{"name": "tala/legend-class", "source": "classes: {c: {label: Class; style.fill: red}}\nvars: {d2-legend: Legend {x: {class: c}}}\na\n", "options": {"layout": "tala"}}
+]

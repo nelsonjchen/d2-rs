@@ -1,0 +1,27 @@
+# Large empty shapes place mixed color/outline text in separate output bands.
+# Effect-bound recording must still see every glyph before band culling.
+direction: down
+plain: "😀 plain text ✨ 🇺🇸"
+plain.width: 1100
+plain.height: 720
+faded: "😇 faded text ✨ 🇯🇵"
+faded: {
+  width: 1100
+  height: 720
+  style.opacity: 0.4
+}
+shadowed: "🥰 shadowed text ✨ 🇬🇧"
+shadowed: {
+  width: 1100
+  height: 720
+  style.shadow: true
+}
+gradient: "🙃 gradient text ✨ 🇨🇦"
+gradient: {
+  width: 1100
+  height: 720
+  style.fill: "linear-gradient(#f69d3c, #3f87a6)"
+}
+plain -> faded: "😉 first edge"
+faded -> shadowed: "🙂 second edge"
+shadowed -> gradient: "😊 third edge"

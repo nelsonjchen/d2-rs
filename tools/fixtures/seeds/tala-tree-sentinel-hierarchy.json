@@ -1,0 +1,843 @@
+{
+ "description": "Retained branching-tree sentinel inside a container must keep the container out of automatic hierarchy discovery (hierarchy/eligibility.go Candidates/isEligibleContainer). Witness: tests/regressions/e2e/tala-container-children-unplaced.d2.",
+ "source": "finally -> another\nanother -> of\nfinally -> trees\nfinally: {\n\ta -> tree\n\ta -> root\n}\n",
+ "graph": {
+  "nodes": [
+   {
+    "external_id": "finally",
+    "size": {
+     "width": 117.0,
+     "height": 81.0
+    },
+    "declared_size": {
+     "width": 117.0,
+     "height": 81.0
+    },
+    "d2_authored_geometry": {
+     "object_id": [
+      102,
+      105,
+      110,
+      97,
+      108,
+      108,
+      121
+     ],
+     "width": null,
+     "height": null,
+     "top": null,
+     "left": null,
+     "attributes": {
+      "attributes": {
+       "label_dimensions": [
+        72,
+        36
+       ],
+       "style": {}
+      },
+      "label_position": null,
+      "icon_position": null
+     }
+    },
+    "label_size": {
+     "width": 72.0,
+     "height": 36.0
+    },
+    "font_size": 28,
+    "label_position": "UNSET",
+    "parent": null,
+    "locked_position": null,
+    "constrained_x": null,
+    "constrained_y": null,
+    "near": null,
+    "fixed_width": false,
+    "fixed_height": false,
+    "direction": null,
+    "force_hierarchy": false,
+    "grid_rows": null,
+    "grid_columns": null,
+    "canvas_position": null,
+    "content_insets": {
+     "top": 60.0,
+     "right": 60.0,
+     "bottom": 60.0,
+     "left": 60.0
+    },
+    "layout_margins": {
+     "top": 0.0,
+     "right": 0.0,
+     "bottom": 0.0,
+     "left": 0.0
+    },
+    "external_label": null,
+    "icon_position": null,
+    "has_icon": false,
+    "label_aware_grid": false,
+    "packed_grid": false,
+    "content_alignment": "Padding",
+    "port_spread": 0.0,
+    "person": false,
+    "is_3d": false,
+    "is_multiple": false,
+    "shape": "rectangle"
+   },
+   {
+    "external_id": "finally.a",
+    "size": {
+     "width": 53.0,
+     "height": 66.0
+    },
+    "declared_size": {
+     "width": 53.0,
+     "height": 66.0
+    },
+    "d2_authored_geometry": {
+     "object_id": [
+      97
+     ],
+     "width": null,
+     "height": null,
+     "top": null,
+     "left": null,
+     "attributes": {
+      "attributes": {
+       "label_dimensions": [
+        8,
+        21
+       ],
+       "style": {}
+      },
+      "label_position": null,
+      "icon_position": null
+     }
+    },
+    "label_size": {
+     "width": 8.0,
+     "height": 21.0
+    },
+    "font_size": 16,
+    "label_position": "UNSET",
+    "parent": 0,
+    "locked_position": null,
+    "constrained_x": null,
+    "constrained_y": null,
+    "near": null,
+    "fixed_width": false,
+    "fixed_height": false,
+    "direction": null,
+    "force_hierarchy": false,
+    "grid_rows": null,
+    "grid_columns": null,
+    "canvas_position": null,
+    "content_insets": {
+     "top": 60.0,
+     "right": 60.0,
+     "bottom": 60.0,
+     "left": 60.0
+    },
+    "layout_margins": {
+     "top": 0.0,
+     "right": 0.0,
+     "bottom": 0.0,
+     "left": 0.0
+    },
+    "external_label": null,
+    "icon_position": null,
+    "has_icon": false,
+    "label_aware_grid": false,
+    "packed_grid": false,
+    "content_alignment": "Padding",
+    "port_spread": 12.0,
+    "person": false,
+    "is_3d": false,
+    "is_multiple": false,
+    "shape": "rectangle"
+   },
+   {
+    "external_id": "finally.tree",
+    "size": {
+     "width": 74.0,
+     "height": 66.0
+    },
+    "declared_size": {
+     "width": 74.0,
+     "height": 66.0
+    },
+    "d2_authored_geometry": {
+     "object_id": [
+      116,
+      114,
+      101,
+      101
+     ],
+     "width": null,
+     "height": null,
+     "top": null,
+     "left": null,
+     "attributes": {
+      "attributes": {
+       "label_dimensions": [
+        29,
+        21
+       ],
+       "style": {}
+      },
+      "label_position": null,
+      "icon_position": null
+     }
+    },
+    "label_size": {
+     "width": 29.0,
+     "height": 21.0
+    },
+    "font_size": 16,
+    "label_position": "UNSET",
+    "parent": 0,
+    "locked_position": null,
+    "constrained_x": null,
+    "constrained_y": null,
+    "near": null,
+    "fixed_width": false,
+    "fixed_height": false,
+    "direction": null,
+    "force_hierarchy": false,
+    "grid_rows": null,
+    "grid_columns": null,
+    "canvas_position": null,
+    "content_insets": {
+     "top": 60.0,
+     "right": 60.0,
+     "bottom": 60.0,
+     "left": 60.0
+    },
+    "layout_margins": {
+     "top": 0.0,
+     "right": 0.0,
+     "bottom": 0.0,
+     "left": 0.0
+    },
+    "external_label": null,
+    "icon_position": null,
+    "has_icon": false,
+    "label_aware_grid": false,
+    "packed_grid": false,
+    "content_alignment": "Padding",
+    "port_spread": 12.0,
+    "person": false,
+    "is_3d": false,
+    "is_multiple": false,
+    "shape": "rectangle"
+   },
+   {
+    "external_id": "finally.root",
+    "size": {
+     "width": 75.0,
+     "height": 66.0
+    },
+    "declared_size": {
+     "width": 75.0,
+     "height": 66.0
+    },
+    "d2_authored_geometry": {
+     "object_id": [
+      114,
+      111,
+      111,
+      116
+     ],
+     "width": null,
+     "height": null,
+     "top": null,
+     "left": null,
+     "attributes": {
+      "attributes": {
+       "label_dimensions": [
+        30,
+        21
+       ],
+       "style": {}
+      },
+      "label_position": null,
+      "icon_position": null
+     }
+    },
+    "label_size": {
+     "width": 30.0,
+     "height": 21.0
+    },
+    "font_size": 16,
+    "label_position": "UNSET",
+    "parent": 0,
+    "locked_position": null,
+    "constrained_x": null,
+    "constrained_y": null,
+    "near": null,
+    "fixed_width": false,
+    "fixed_height": false,
+    "direction": null,
+    "force_hierarchy": false,
+    "grid_rows": null,
+    "grid_columns": null,
+    "canvas_position": null,
+    "content_insets": {
+     "top": 60.0,
+     "right": 60.0,
+     "bottom": 60.0,
+     "left": 60.0
+    },
+    "layout_margins": {
+     "top": 0.0,
+     "right": 0.0,
+     "bottom": 0.0,
+     "left": 0.0
+    },
+    "external_label": null,
+    "icon_position": null,
+    "has_icon": false,
+    "label_aware_grid": false,
+    "packed_grid": false,
+    "content_alignment": "Padding",
+    "port_spread": 12.0,
+    "person": false,
+    "is_3d": false,
+    "is_multiple": false,
+    "shape": "rectangle"
+   },
+   {
+    "external_id": "another",
+    "size": {
+     "width": 103.0,
+     "height": 66.0
+    },
+    "declared_size": {
+     "width": 103.0,
+     "height": 66.0
+    },
+    "d2_authored_geometry": {
+     "object_id": [
+      97,
+      110,
+      111,
+      116,
+      104,
+      101,
+      114
+     ],
+     "width": null,
+     "height": null,
+     "top": null,
+     "left": null,
+     "attributes": {
+      "attributes": {
+       "label_dimensions": [
+        58,
+        21
+       ],
+       "style": {}
+      },
+      "label_position": null,
+      "icon_position": null
+     }
+    },
+    "label_size": {
+     "width": 58.0,
+     "height": 21.0
+    },
+    "font_size": 16,
+    "label_position": "UNSET",
+    "parent": null,
+    "locked_position": null,
+    "constrained_x": null,
+    "constrained_y": null,
+    "near": null,
+    "fixed_width": false,
+    "fixed_height": false,
+    "direction": null,
+    "force_hierarchy": false,
+    "grid_rows": null,
+    "grid_columns": null,
+    "canvas_position": null,
+    "content_insets": {
+     "top": 60.0,
+     "right": 60.0,
+     "bottom": 60.0,
+     "left": 60.0
+    },
+    "layout_margins": {
+     "top": 0.0,
+     "right": 0.0,
+     "bottom": 0.0,
+     "left": 0.0
+    },
+    "external_label": null,
+    "icon_position": null,
+    "has_icon": false,
+    "label_aware_grid": false,
+    "packed_grid": false,
+    "content_alignment": "Padding",
+    "port_spread": 12.0,
+    "person": false,
+    "is_3d": false,
+    "is_multiple": false,
+    "shape": "rectangle"
+   },
+   {
+    "external_id": "of",
+    "size": {
+     "width": 60.0,
+     "height": 66.0
+    },
+    "declared_size": {
+     "width": 60.0,
+     "height": 66.0
+    },
+    "d2_authored_geometry": {
+     "object_id": [
+      111,
+      102
+     ],
+     "width": null,
+     "height": null,
+     "top": null,
+     "left": null,
+     "attributes": {
+      "attributes": {
+       "label_dimensions": [
+        15,
+        21
+       ],
+       "style": {}
+      },
+      "label_position": null,
+      "icon_position": null
+     }
+    },
+    "label_size": {
+     "width": 15.0,
+     "height": 21.0
+    },
+    "font_size": 16,
+    "label_position": "UNSET",
+    "parent": null,
+    "locked_position": null,
+    "constrained_x": null,
+    "constrained_y": null,
+    "near": null,
+    "fixed_width": false,
+    "fixed_height": false,
+    "direction": null,
+    "force_hierarchy": false,
+    "grid_rows": null,
+    "grid_columns": null,
+    "canvas_position": null,
+    "content_insets": {
+     "top": 60.0,
+     "right": 60.0,
+     "bottom": 60.0,
+     "left": 60.0
+    },
+    "layout_margins": {
+     "top": 0.0,
+     "right": 0.0,
+     "bottom": 0.0,
+     "left": 0.0
+    },
+    "external_label": null,
+    "icon_position": null,
+    "has_icon": false,
+    "label_aware_grid": false,
+    "packed_grid": false,
+    "content_alignment": "Padding",
+    "port_spread": 12.0,
+    "person": false,
+    "is_3d": false,
+    "is_multiple": false,
+    "shape": "rectangle"
+   },
+   {
+    "external_id": "trees",
+    "size": {
+     "width": 82.0,
+     "height": 66.0
+    },
+    "declared_size": {
+     "width": 82.0,
+     "height": 66.0
+    },
+    "d2_authored_geometry": {
+     "object_id": [
+      116,
+      114,
+      101,
+      101,
+      115
+     ],
+     "width": null,
+     "height": null,
+     "top": null,
+     "left": null,
+     "attributes": {
+      "attributes": {
+       "label_dimensions": [
+        37,
+        21
+       ],
+       "style": {}
+      },
+      "label_position": null,
+      "icon_position": null
+     }
+    },
+    "label_size": {
+     "width": 37.0,
+     "height": 21.0
+    },
+    "font_size": 16,
+    "label_position": "UNSET",
+    "parent": null,
+    "locked_position": null,
+    "constrained_x": null,
+    "constrained_y": null,
+    "near": null,
+    "fixed_width": false,
+    "fixed_height": false,
+    "direction": null,
+    "force_hierarchy": false,
+    "grid_rows": null,
+    "grid_columns": null,
+    "canvas_position": null,
+    "content_insets": {
+     "top": 60.0,
+     "right": 60.0,
+     "bottom": 60.0,
+     "left": 60.0
+    },
+    "layout_margins": {
+     "top": 0.0,
+     "right": 0.0,
+     "bottom": 0.0,
+     "left": 0.0
+    },
+    "external_label": null,
+    "icon_position": null,
+    "has_icon": false,
+    "label_aware_grid": false,
+    "packed_grid": false,
+    "content_alignment": "Padding",
+    "port_spread": 12.0,
+    "person": false,
+    "is_3d": false,
+    "is_multiple": false,
+    "shape": "rectangle"
+   }
+  ],
+  "edges": [
+   {
+    "source": 0,
+    "target": 4
+   },
+   {
+    "source": 4,
+    "target": 5
+   },
+   {
+    "source": 0,
+    "target": 6
+   },
+   {
+    "source": 1,
+    "target": 2
+   },
+   {
+    "source": 1,
+    "target": 3
+   }
+  ],
+  "edge_indices": [
+   0,
+   0,
+   0,
+   0,
+   0
+  ],
+  "edge_arrows": [
+   {
+    "source": false,
+    "target": true
+   },
+   {
+    "source": false,
+    "target": true
+   },
+   {
+    "source": false,
+    "target": true
+   },
+   {
+    "source": false,
+    "target": true
+   },
+   {
+    "source": false,
+    "target": true
+   }
+  ],
+  "edge_arrowheads": [
+   {
+    "source": null,
+    "target": null
+   },
+   {
+    "source": null,
+    "target": null
+   },
+   {
+    "source": null,
+    "target": null
+   },
+   {
+    "source": null,
+    "target": null
+   },
+   {
+    "source": null,
+    "target": null
+   }
+  ],
+  "edge_labels": [
+   null,
+   null,
+   null,
+   null,
+   null
+  ],
+  "edge_label_percentage_presence": [
+   null,
+   null,
+   null,
+   null,
+   null
+  ],
+  "edge_arrowhead_labels": [
+   {
+    "source": null,
+    "target": null
+   },
+   {
+    "source": null,
+    "target": null
+   },
+   {
+    "source": null,
+    "target": null
+   },
+   {
+    "source": null,
+    "target": null
+   },
+   {
+    "source": null,
+    "target": null
+   }
+  ],
+  "edge_styles": [
+   {
+    "opacity": null,
+    "stroke": null,
+    "stroke_width": null,
+    "stroke_dash": null,
+    "border_radius": null,
+    "animated": null,
+    "font_color": null,
+    "font": null,
+    "underline": null,
+    "text_transform": null,
+    "fill": null,
+    "filled": null
+   },
+   {
+    "opacity": null,
+    "stroke": null,
+    "stroke_width": null,
+    "stroke_dash": null,
+    "border_radius": null,
+    "animated": null,
+    "font_color": null,
+    "font": null,
+    "underline": null,
+    "text_transform": null,
+    "fill": null,
+    "filled": null
+   },
+   {
+    "opacity": null,
+    "stroke": null,
+    "stroke_width": null,
+    "stroke_dash": null,
+    "border_radius": null,
+    "animated": null,
+    "font_color": null,
+    "font": null,
+    "underline": null,
+    "text_transform": null,
+    "fill": null,
+    "filled": null
+   },
+   {
+    "opacity": null,
+    "stroke": null,
+    "stroke_width": null,
+    "stroke_dash": null,
+    "border_radius": null,
+    "animated": null,
+    "font_color": null,
+    "font": null,
+    "underline": null,
+    "text_transform": null,
+    "fill": null,
+    "filled": null
+   },
+   {
+    "opacity": null,
+    "stroke": null,
+    "stroke_width": null,
+    "stroke_dash": null,
+    "border_radius": null,
+    "animated": null,
+    "font_color": null,
+    "font": null,
+    "underline": null,
+    "text_transform": null,
+    "fill": null,
+    "filled": null
+   }
+  ],
+  "edge_links": [
+   null,
+   null,
+   null,
+   null,
+   null
+  ],
+  "edge_tooltips": [
+   null,
+   null,
+   null,
+   null,
+   null
+  ],
+  "edge_is_curves": [
+   false,
+   false,
+   false,
+   false,
+   false
+  ],
+  "edge_table_columns": [
+   {
+    "source": null,
+    "target": null
+   },
+   {
+    "source": null,
+    "target": null
+   },
+   {
+    "source": null,
+    "target": null
+   },
+   {
+    "source": null,
+    "target": null
+   },
+   {
+    "source": null,
+    "target": null
+   }
+  ],
+  "d2_edge_validation": [
+   {
+    "attributes": {
+     "label_dimensions": [
+      0,
+      0
+     ],
+     "style": {}
+    },
+    "label_position": null,
+    "label_percentage": null,
+    "source_arrowhead": null,
+    "target_arrowhead": null,
+    "endpoints_reversed": false
+   },
+   {
+    "attributes": {
+     "label_dimensions": [
+      0,
+      0
+     ],
+     "style": {}
+    },
+    "label_position": null,
+    "label_percentage": null,
+    "source_arrowhead": null,
+    "target_arrowhead": null,
+    "endpoints_reversed": false
+   },
+   {
+    "attributes": {
+     "label_dimensions": [
+      0,
+      0
+     ],
+     "style": {}
+    },
+    "label_position": null,
+    "label_percentage": null,
+    "source_arrowhead": null,
+    "target_arrowhead": null,
+    "endpoints_reversed": false
+   },
+   {
+    "attributes": {
+     "label_dimensions": [
+      0,
+      0
+     ],
+     "style": {}
+    },
+    "label_position": null,
+    "label_percentage": null,
+    "source_arrowhead": null,
+    "target_arrowhead": null,
+    "endpoints_reversed": false
+   },
+   {
+    "attributes": {
+     "label_dimensions": [
+      0,
+      0
+     ],
+     "style": {}
+    },
+    "label_position": null,
+    "label_percentage": null,
+    "source_arrowhead": null,
+    "target_arrowhead": null,
+    "endpoints_reversed": false
+   }
+  ],
+  "table_column_counts": [
+   null,
+   null,
+   null,
+   null,
+   null,
+   null,
+   null
+  ],
+  "direction": "down",
+  "explicit_direction": null,
+  "root_hierarchy": false
+ }
+}

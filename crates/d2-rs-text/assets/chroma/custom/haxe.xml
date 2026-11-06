@@ -1,0 +1,1741 @@
+<lexer>
+  <config>
+    <name>Haxe</name>
+    <alias>hx</alias>
+    <alias>haxe</alias>
+    <alias>hxsl</alias>
+    <filename>*.hx</filename>
+    <filename>*.hxsl</filename>
+    <mime_type>text/haxe</mime_type>
+    <mime_type>text/x-haxe</mime_type>
+    <mime_type>text/x-hx</mime_type>
+    <dot_all>true</dot_all>
+  </config>
+  <rules>
+    <state name="abstract">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+          <push state="abstract-body"/>
+          <push state="abstract-relation"/>
+          <push state="abstract-opaque"/>
+          <push state="type-param-constraint"/>
+          <push state="type-name"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="abstract-body">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="\{">
+        <token type="Punctuation"/>
+        <push state="#pop" state="class-body"/>
+      </rule>
+    </state>
+    <state name="abstract-opaque">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="\(">
+        <token type="Punctuation"/>
+        <push state="#pop" state="parenthesis-close" state="type"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="abstract-relation">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="(?:to|from)">
+        <token type="KeywordDeclaration"/>
+        <push state="type"/>
+      </rule>
+      <rule pattern=",">
+        <token type="Punctuation"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="array-access">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+          <push state="array-access-close"/>
+          <push state="expr"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="array-access-close">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="\]">
+        <token type="Punctuation"/>
+        <pop depth="1"/>
+      </rule>
+    </state>
+    <state name="array-decl">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="\]">
+        <token type="Punctuation"/>
+        <pop depth="1"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+          <push state="array-decl-sep"/>
+          <push state="expr"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="array-decl-sep">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="\]">
+        <token type="Punctuation"/>
+        <pop depth="1"/>
+      </rule>
+      <rule pattern=",">
+        <token type="Punctuation"/>
+        <push state="#pop" state="array-decl"/>
+      </rule>
+    </state>
+    <state name="assign">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="=">
+        <token type="Operator"/>
+        <push state="#pop" state="expr"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="block">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="\}">
+        <token type="Punctuation"/>
+        <pop depth="1"/>
+      </rule>
+      <rule>
+        <mutators>
+          <push state="expr-statement"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="bracket">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="(?!(?:\$\s*[a-z]\b|\$(?!(?:_*[a-z]\w*|_+[0-9]\w*|_*[A-Z]\w*|_+|\$\w+))))(?!(?:function|class|static|var|if|else|while|do|for|break|return|continue|extends|implements|import|switch|case|default|public|private|try|untyped|catch|new|this|throw|extern|enum|in|interface|cast|override|dynamic|typedef|package|inline|using|null|true|false|abstract)\b)(?:_*[a-z]\w*|_+[0-9]\w*|_*[A-Z]\w*|_+|\$\w+)">
+        <token type="Name"/>
+        <push state="#pop" state="bracket-check"/>
+      </rule>
+      <rule pattern="&#39;">
+        <token type="LiteralStringSingle"/>
+        <push state="#pop" state="bracket-check" state="string-single"/>
+      </rule>
+      <rule pattern="&#34;">
+        <token type="LiteralStringDouble"/>
+        <push state="#pop" state="bracket-check" state="string-double"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+          <push state="block"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="bracket-check">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern=":">
+        <token type="Punctuation"/>
+        <push state="#pop" state="object-sep" state="expr"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+          <push state="block"/>
+          <push state="optional-semicolon"/>
+          <push state="expr-chain"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="bracket-close">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="\}">
+        <token type="Punctuation"/>
+        <pop depth="1"/>
+      </rule>
+    </state>
+    <state name="bracket-open">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="\{">
+        <token type="Punctuation"/>
+        <pop depth="1"/>
+      </rule>
+    </state>
+    <state name="call">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="\)">
+        <token type="Punctuation"/>
+        <pop depth="1"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+          <push state="call-sep"/>
+          <push state="expr"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="call-sep">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="\)">
+        <token type="Punctuation"/>
+        <pop depth="1"/>
+      </rule>
+      <rule pattern=",">
+        <token type="Punctuation"/>
+        <push state="#pop" state="call"/>
+      </rule>
+    </state>
+    <state name="case">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern=":">
+        <token type="Punctuation"/>
+        <pop depth="1"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+          <push state="case-sep"/>
+          <push state="case-guard"/>
+          <push state="expr"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="case-block">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="(?!(?:case|default)\b|\})">
+        <token type="Keyword"/>
+        <push state="expr-statement"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="case-guard">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="(?:if)\b">
+        <token type="Keyword"/>
+        <push state="#pop" state="parenthesis" state="parenthesis-open"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="case-sep">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern=":">
+        <token type="Punctuation"/>
+        <pop depth="1"/>
+      </rule>
+      <rule pattern=",">
+        <token type="Punctuation"/>
+        <push state="#pop" state="case"/>
+      </rule>
+    </state>
+    <state name="cast">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="\(">
+        <token type="Punctuation"/>
+        <push state="#pop" state="parenthesis-close" state="cast-type" state="expr"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+          <push state="expr"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="cast-type">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern=",">
+        <token type="Punctuation"/>
+        <push state="#pop" state="type"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="catch">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="(?:catch)\b">
+        <token type="Keyword"/>
+        <push state="expr" state="function-param" state="parenthesis-open"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="class">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+          <push state="class-body"/>
+          <push state="bracket-open"/>
+          <push state="extends"/>
+          <push state="type-param-constraint"/>
+          <push state="type-name"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="class-body">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule>
+        <include state="meta"/>
+      </rule>
+      <rule pattern="\}">
+        <token type="Punctuation"/>
+        <pop depth="1"/>
+      </rule>
+      <rule pattern="(?:static|public|private|override|dynamic|inline|macro)\b">
+        <token type="KeywordDeclaration"/>
+      </rule>
+      <rule>
+        <mutators>
+          <push state="class-member"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="class-member">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="(var)\b">
+        <token type="KeywordDeclaration"/>
+        <push state="#pop" state="optional-semicolon" state="var"/>
+      </rule>
+      <rule pattern="(function)\b">
+        <token type="KeywordDeclaration"/>
+        <push state="#pop" state="optional-semicolon" state="class-method"/>
+      </rule>
+    </state>
+    <state name="class-method">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="(?:_*[a-z]\w*|_+[0-9]\w*|_*[A-Z]\w*|_+|\$\w+)">
+        <token type="NameFunction"/>
+        <push state="#pop" state="optional-expr" state="flag" state="function-param" state="parenthesis-open" state="type-param-constraint"/>
+      </rule>
+    </state>
+    <state name="colon">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern=":">
+        <token type="Punctuation"/>
+        <pop depth="1"/>
+      </rule>
+    </state>
+    <state name="comma">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern=",">
+        <token type="Punctuation"/>
+        <pop depth="1"/>
+      </rule>
+    </state>
+    <state name="do">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+          <push state="do-while"/>
+          <push state="expr"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="do-while">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="(?:while)\b">
+        <token type="Keyword"/>
+        <push state="#pop" state="parenthesis" state="parenthesis-open"/>
+      </rule>
+    </state>
+    <state name="dollar">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="\{">
+        <token type="Punctuation"/>
+        <push state="#pop" state="expr-chain" state="bracket-close" state="expr"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+          <push state="expr-chain"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="else">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="(?:else)\b">
+        <token type="Keyword"/>
+        <push state="#pop" state="expr"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="enum">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+          <push state="enum-body"/>
+          <push state="bracket-open"/>
+          <push state="type-param-constraint"/>
+          <push state="type-name"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="enum-body">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule>
+        <include state="meta"/>
+      </rule>
+      <rule pattern="\}">
+        <token type="Punctuation"/>
+        <pop depth="1"/>
+      </rule>
+      <rule pattern="(?!(?:function|class|static|var|if|else|while|do|for|break|return|continue|extends|implements|import|switch|case|default|public|private|try|untyped|catch|new|this|throw|extern|enum|in|interface|cast|override|dynamic|typedef|package|inline|using|null|true|false|abstract)\b)(?:_*[a-z]\w*|_+[0-9]\w*|_*[A-Z]\w*|_+|\$\w+)">
+        <token type="Name"/>
+        <push state="enum-member" state="type-param-constraint"/>
+      </rule>
+    </state>
+    <state name="enum-member">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="\(">
+        <token type="Punctuation"/>
+        <push state="#pop" state="semicolon" state="flag" state="function-param"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+          <push state="semicolon"/>
+          <push state="flag"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="expr">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="@">
+        <token type="NameDecorator"/>
+        <push state="#pop" state="optional-expr" state="meta-body" state="meta-ident" state="meta-colon"/>
+      </rule>
+      <rule pattern="(?:\+\+|\-\-|~(?!/)|!|\-)">
+        <token type="Operator"/>
+      </rule>
+      <rule pattern="\(">
+        <token type="Punctuation"/>
+        <push state="#pop" state="expr-chain" state="parenthesis"/>
+      </rule>
+      <rule pattern="(?:static|public|private|override|dynamic|inline)\b">
+        <token type="KeywordDeclaration"/>
+      </rule>
+      <rule pattern="(?:function)\b">
+        <token type="KeywordDeclaration"/>
+        <push state="#pop" state="expr-chain" state="function-local"/>
+      </rule>
+      <rule pattern="\{">
+        <token type="Punctuation"/>
+        <push state="#pop" state="expr-chain" state="bracket"/>
+      </rule>
+      <rule pattern="(?:true|false|null)\b">
+        <token type="KeywordConstant"/>
+        <push state="#pop" state="expr-chain"/>
+      </rule>
+      <rule pattern="(?:this)\b">
+        <token type="Keyword"/>
+        <push state="#pop" state="expr-chain"/>
+      </rule>
+      <rule pattern="(?:cast)\b">
+        <token type="Keyword"/>
+        <push state="#pop" state="expr-chain" state="cast"/>
+      </rule>
+      <rule pattern="(?:try)\b">
+        <token type="Keyword"/>
+        <push state="#pop" state="catch" state="expr"/>
+      </rule>
+      <rule pattern="(?:var)\b">
+        <token type="KeywordDeclaration"/>
+        <push state="#pop" state="var"/>
+      </rule>
+      <rule pattern="(?:new)\b">
+        <token type="Keyword"/>
+        <push state="#pop" state="expr-chain" state="new"/>
+      </rule>
+      <rule pattern="(?:switch)\b">
+        <token type="Keyword"/>
+        <push state="#pop" state="switch"/>
+      </rule>
+      <rule pattern="(?:if)\b">
+        <token type="Keyword"/>
+        <push state="#pop" state="if"/>
+      </rule>
+      <rule pattern="(?:do)\b">
+        <token type="Keyword"/>
+        <push state="#pop" state="do"/>
+      </rule>
+      <rule pattern="(?:while)\b">
+        <token type="Keyword"/>
+        <push state="#pop" state="while"/>
+      </rule>
+      <rule pattern="(?:for)\b">
+        <token type="Keyword"/>
+        <push state="#pop" state="for"/>
+      </rule>
+      <rule pattern="(?:untyped|throw)\b">
+        <token type="Keyword"/>
+      </rule>
+      <rule pattern="(?:return)\b">
+        <token type="Keyword"/>
+        <push state="#pop" state="optional-expr"/>
+      </rule>
+      <rule pattern="(?:macro)\b">
+        <token type="Keyword"/>
+        <push state="#pop" state="macro"/>
+      </rule>
+      <rule pattern="(?:continue|break)\b">
+        <token type="Keyword"/>
+        <pop depth="1"/>
+      </rule>
+      <rule pattern="(?:\$\s*[a-z]\b|\$(?!(?:_*[a-z]\w*|_+[0-9]\w*|_*[A-Z]\w*|_+|\$\w+)))">
+        <token type="Name"/>
+        <push state="#pop" state="dollar"/>
+      </rule>
+      <rule pattern="(?!(?:function|class|static|var|if|else|while|do|for|break|return|continue|extends|implements|import|switch|case|default|public|private|try|untyped|catch|new|this|throw|extern|enum|in|interface|cast|override|dynamic|typedef|package|inline|using|null|true|false|abstract)\b)(?:_*[a-z]\w*|_+[0-9]\w*|_*[A-Z]\w*|_+|\$\w+)">
+        <token type="Name"/>
+        <push state="#pop" state="expr-chain"/>
+      </rule>
+      <rule pattern="\.[0-9]+">
+        <token type="LiteralNumberFloat"/>
+        <push state="#pop" state="expr-chain"/>
+      </rule>
+      <rule pattern="[0-9]+[eE][+\-]?[0-9]+">
+        <token type="LiteralNumberFloat"/>
+        <push state="#pop" state="expr-chain"/>
+      </rule>
+      <rule pattern="[0-9]+\.[0-9]*[eE][+\-]?[0-9]+">
+        <token type="LiteralNumberFloat"/>
+        <push state="#pop" state="expr-chain"/>
+      </rule>
+      <rule pattern="[0-9]+\.[0-9]+">
+        <token type="LiteralNumberFloat"/>
+        <push state="#pop" state="expr-chain"/>
+      </rule>
+      <rule pattern="[0-9]+\.(?!(?:_*[a-z]\w*|_+[0-9]\w*|_*[A-Z]\w*|_+|\$\w+)|\.\.)">
+        <token type="LiteralNumberFloat"/>
+        <push state="#pop" state="expr-chain"/>
+      </rule>
+      <rule pattern="0x[0-9a-fA-F]+">
+        <token type="LiteralNumberHex"/>
+        <push state="#pop" state="expr-chain"/>
+      </rule>
+      <rule pattern="[0-9]+">
+        <token type="LiteralNumberInteger"/>
+        <push state="#pop" state="expr-chain"/>
+      </rule>
+      <rule pattern="&#39;">
+        <token type="LiteralStringSingle"/>
+        <push state="#pop" state="expr-chain" state="string-single-interpol"/>
+      </rule>
+      <rule pattern="&#34;">
+        <token type="LiteralStringDouble"/>
+        <push state="#pop" state="expr-chain" state="string-double"/>
+      </rule>
+      <rule pattern="~/(\\\\|\\/|[^/\n])*/[gimsu]*">
+        <token type="LiteralStringRegex"/>
+        <push state="#pop" state="expr-chain"/>
+      </rule>
+      <rule pattern="\[">
+        <token type="Punctuation"/>
+        <push state="#pop" state="expr-chain" state="array-decl"/>
+      </rule>
+    </state>
+    <state name="expr-chain">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="(?:\+\+|\-\-)">
+        <token type="Operator"/>
+      </rule>
+      <rule pattern="(?:%=|&amp;=|\|=|\^=|\+=|\-=|\*=|/=|&lt;&lt;=|&gt;\s*&gt;\s*=|&gt;\s*&gt;\s*&gt;\s*=|==|!=|&lt;=|&gt;\s*=|&amp;&amp;|\|\||&lt;&lt;|&gt;&gt;&gt;|&gt;\s*&gt;|\.\.\.|&lt;|&gt;|%|&amp;|\||\^|\+|\*|/|\-|=&gt;|=)">
+        <token type="Operator"/>
+        <push state="#pop" state="expr"/>
+      </rule>
+      <rule pattern="(?:in)\b">
+        <token type="Keyword"/>
+        <push state="#pop" state="expr"/>
+      </rule>
+      <rule pattern="\?">
+        <token type="Operator"/>
+        <push state="#pop" state="expr" state="ternary" state="expr"/>
+      </rule>
+      <rule pattern="(\.)((?!(?:function|class|static|var|if|else|while|do|for|break|return|continue|extends|implements|import|switch|case|default|public|private|try|untyped|catch|new|this|throw|extern|enum|in|interface|cast|override|dynamic|typedef|package|inline|using|null|true|false|abstract)\b)(?:_*[a-z]\w*|_+[0-9]\w*|_*[A-Z]\w*|_+|\$\w+))">
+        <bygroups>
+          <token type="Punctuation"/>
+          <token type="Name"/>
+        </bygroups>
+      </rule>
+      <rule pattern="\[">
+        <token type="Punctuation"/>
+        <push state="array-access"/>
+      </rule>
+      <rule pattern="\(">
+        <token type="Punctuation"/>
+        <push state="call"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="expr-statement">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+          <push state="optional-semicolon"/>
+          <push state="expr"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="extends">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="(?:extends|implements)\b">
+        <token type="KeywordDeclaration"/>
+        <push state="type"/>
+      </rule>
+      <rule pattern=",">
+        <token type="Punctuation"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="flag">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern=":">
+        <token type="Punctuation"/>
+        <push state="#pop" state="type"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="for">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="\(">
+        <token type="Punctuation"/>
+        <push state="#pop" state="expr" state="parenthesis"/>
+      </rule>
+    </state>
+    <state name="function-local">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="(?!(?:function|class|static|var|if|else|while|do|for|break|return|continue|extends|implements|import|switch|case|default|public|private|try|untyped|catch|new|this|throw|extern|enum|in|interface|cast|override|dynamic|typedef|package|inline|using|null|true|false|abstract)\b)(?:_*[a-z]\w*|_+[0-9]\w*|_*[A-Z]\w*|_+|\$\w+)">
+        <token type="NameFunction"/>
+        <push state="#pop" state="optional-expr" state="flag" state="function-param" state="parenthesis-open" state="type-param-constraint"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+          <push state="optional-expr"/>
+          <push state="flag"/>
+          <push state="function-param"/>
+          <push state="parenthesis-open"/>
+          <push state="type-param-constraint"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="function-param">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="\)">
+        <token type="Punctuation"/>
+        <pop depth="1"/>
+      </rule>
+      <rule pattern="\?">
+        <token type="Punctuation"/>
+      </rule>
+      <rule pattern="(?!(?:function|class|static|var|if|else|while|do|for|break|return|continue|extends|implements|import|switch|case|default|public|private|try|untyped|catch|new|this|throw|extern|enum|in|interface|cast|override|dynamic|typedef|package|inline|using|null|true|false|abstract)\b)(?:_*[a-z]\w*|_+[0-9]\w*|_*[A-Z]\w*|_+|\$\w+)">
+        <token type="Name"/>
+        <push state="#pop" state="function-param-sep" state="assign" state="flag"/>
+      </rule>
+    </state>
+    <state name="function-param-sep">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="\)">
+        <token type="Punctuation"/>
+        <pop depth="1"/>
+      </rule>
+      <rule pattern=",">
+        <token type="Punctuation"/>
+        <push state="#pop" state="function-param"/>
+      </rule>
+    </state>
+    <state name="ident">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="(?:_*[a-z]\w*|_+[0-9]\w*|_*[A-Z]\w*|_+|\$\w+)">
+        <token type="Name"/>
+        <pop depth="1"/>
+      </rule>
+    </state>
+    <state name="ident-or-string">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="(?!(?:function|class|static|var|if|else|while|do|for|break|return|continue|extends|implements|import|switch|case|default|public|private|try|untyped|catch|new|this|throw|extern|enum|in|interface|cast|override|dynamic|typedef|package|inline|using|null|true|false|abstract)\b)(?:_*[a-z]\w*|_+[0-9]\w*|_*[A-Z]\w*|_+|\$\w+)">
+        <token type="Name"/>
+        <pop depth="1"/>
+      </rule>
+      <rule pattern="&#39;">
+        <token type="LiteralStringSingle"/>
+        <push state="#pop" state="string-single"/>
+      </rule>
+      <rule pattern="&#34;">
+        <token type="LiteralStringDouble"/>
+        <push state="#pop" state="string-double"/>
+      </rule>
+    </state>
+    <state name="if">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="\(">
+        <token type="Punctuation"/>
+        <push state="#pop" state="else" state="optional-semicolon" state="expr" state="parenthesis"/>
+      </rule>
+    </state>
+    <state name="import">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="(?:_*[a-z]\w*|_+[0-9]\w*|_*[A-Z]\w*|_+|\$\w+)">
+        <token type="NameNamespace"/>
+      </rule>
+      <rule pattern="\*">
+        <token type="Keyword"/>
+      </rule>
+      <rule pattern="\.">
+        <token type="Punctuation"/>
+        <push state="import-ident"/>
+      </rule>
+      <rule pattern="in">
+        <token type="KeywordNamespace"/>
+        <push state="ident"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="import-ident">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="\*">
+        <token type="Keyword"/>
+        <pop depth="1"/>
+      </rule>
+      <rule pattern="(?:_*[a-z]\w*|_+[0-9]\w*|_*[A-Z]\w*|_+|\$\w+)">
+        <token type="NameNamespace"/>
+        <pop depth="1"/>
+      </rule>
+    </state>
+    <state name="macro">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule>
+        <include state="meta"/>
+      </rule>
+      <rule pattern=":">
+        <token type="Punctuation"/>
+        <push state="#pop" state="type"/>
+      </rule>
+      <rule pattern="(?:extern|private)\b">
+        <token type="KeywordDeclaration"/>
+      </rule>
+      <rule pattern="(?:abstract)\b">
+        <token type="KeywordDeclaration"/>
+        <push state="#pop" state="optional-semicolon" state="abstract"/>
+      </rule>
+      <rule pattern="(?:class|interface)\b">
+        <token type="KeywordDeclaration"/>
+        <push state="#pop" state="optional-semicolon" state="macro-class"/>
+      </rule>
+      <rule pattern="(?:enum)\b">
+        <token type="KeywordDeclaration"/>
+        <push state="#pop" state="optional-semicolon" state="enum"/>
+      </rule>
+      <rule pattern="(?:typedef)\b">
+        <token type="KeywordDeclaration"/>
+        <push state="#pop" state="optional-semicolon" state="typedef"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+          <push state="expr"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="macro-class">
+      <rule pattern="\{">
+        <token type="Punctuation"/>
+        <push state="#pop" state="class-body"/>
+      </rule>
+      <rule>
+        <include state="class"/>
+      </rule>
+    </state>
+    <state name="meta">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="@">
+        <token type="NameDecorator"/>
+        <push state="meta-body" state="meta-ident" state="meta-colon"/>
+      </rule>
+    </state>
+    <state name="meta-body">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="\(">
+        <token type="NameDecorator"/>
+        <push state="#pop" state="meta-call"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="meta-call">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="\)">
+        <token type="NameDecorator"/>
+        <pop depth="1"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+          <push state="meta-call-sep"/>
+          <push state="expr"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="meta-call-sep">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="\)">
+        <token type="NameDecorator"/>
+        <pop depth="1"/>
+      </rule>
+      <rule pattern=",">
+        <token type="Punctuation"/>
+        <push state="#pop" state="meta-call"/>
+      </rule>
+    </state>
+    <state name="meta-colon">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern=":">
+        <token type="NameDecorator"/>
+        <pop depth="1"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="meta-ident">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="(?:_*[a-z]\w*|_+[0-9]\w*|_*[A-Z]\w*|_+|\$\w+)">
+        <token type="NameDecorator"/>
+        <pop depth="1"/>
+      </rule>
+    </state>
+    <state name="new">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+          <push state="call"/>
+          <push state="parenthesis-open"/>
+          <push state="type"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="object">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="\}">
+        <token type="Punctuation"/>
+        <pop depth="1"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+          <push state="object-sep"/>
+          <push state="expr"/>
+          <push state="colon"/>
+          <push state="ident-or-string"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="object-sep">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="\}">
+        <token type="Punctuation"/>
+        <pop depth="1"/>
+      </rule>
+      <rule pattern=",">
+        <token type="Punctuation"/>
+        <push state="#pop" state="object"/>
+      </rule>
+    </state>
+    <state name="optional-expr">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule>
+        <include state="expr"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="optional-semicolon">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern=";">
+        <token type="Punctuation"/>
+        <pop depth="1"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="package">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="(?:_*[a-z]\w*|_+[0-9]\w*|_*[A-Z]\w*|_+|\$\w+)">
+        <token type="NameNamespace"/>
+      </rule>
+      <rule pattern="\.">
+        <token type="Punctuation"/>
+        <push state="import-ident"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="parenthesis">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+          <push state="parenthesis-close"/>
+          <push state="flag"/>
+          <push state="expr"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="parenthesis-close">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="\)">
+        <token type="Punctuation"/>
+        <pop depth="1"/>
+      </rule>
+    </state>
+    <state name="parenthesis-open">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="\(">
+        <token type="Punctuation"/>
+        <pop depth="1"/>
+      </rule>
+    </state>
+    <state name="preproc-error">
+      <rule pattern="\s+">
+        <token type="CommentPreproc"/>
+      </rule>
+      <rule pattern="&#39;">
+        <token type="LiteralStringSingle"/>
+        <push state="#pop" state="string-single"/>
+      </rule>
+      <rule pattern="&#34;">
+        <token type="LiteralStringDouble"/>
+        <push state="#pop" state="string-double"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="preproc-expr">
+      <rule pattern="\s+">
+        <token type="CommentPreproc"/>
+      </rule>
+      <rule pattern="\!">
+        <token type="CommentPreproc"/>
+      </rule>
+      <rule pattern="\(">
+        <token type="CommentPreproc"/>
+        <push state="#pop" state="preproc-parenthesis"/>
+      </rule>
+      <rule pattern="(?:_*[a-z]\w*|_+[0-9]\w*|_*[A-Z]\w*|_+|\$\w+)">
+        <token type="CommentPreproc"/>
+        <pop depth="1"/>
+      </rule>
+      <rule pattern="\.[0-9]+">
+        <token type="LiteralNumberFloat"/>
+      </rule>
+      <rule pattern="[0-9]+[eE][+\-]?[0-9]+">
+        <token type="LiteralNumberFloat"/>
+      </rule>
+      <rule pattern="[0-9]+\.[0-9]*[eE][+\-]?[0-9]+">
+        <token type="LiteralNumberFloat"/>
+      </rule>
+      <rule pattern="[0-9]+\.[0-9]+">
+        <token type="LiteralNumberFloat"/>
+      </rule>
+      <rule pattern="[0-9]+\.(?!(?:_*[a-z]\w*|_+[0-9]\w*|_*[A-Z]\w*|_+|\$\w+)|\.\.)">
+        <token type="LiteralNumberFloat"/>
+      </rule>
+      <rule pattern="0x[0-9a-fA-F]+">
+        <token type="LiteralNumberHex"/>
+      </rule>
+      <rule pattern="[0-9]+">
+        <token type="LiteralNumberInteger"/>
+      </rule>
+      <rule pattern="&#39;">
+        <token type="LiteralStringSingle"/>
+        <push state="#pop" state="string-single"/>
+      </rule>
+      <rule pattern="&#34;">
+        <token type="LiteralStringDouble"/>
+        <push state="#pop" state="string-double"/>
+      </rule>
+    </state>
+    <state name="preproc-expr-chain">
+      <rule pattern="\s+">
+        <token type="CommentPreproc"/>
+      </rule>
+      <rule pattern="(?:%=|&amp;=|\|=|\^=|\+=|\-=|\*=|/=|&lt;&lt;=|&gt;\s*&gt;\s*=|&gt;\s*&gt;\s*&gt;\s*=|==|!=|&lt;=|&gt;\s*=|&amp;&amp;|\|\||&lt;&lt;|&gt;&gt;&gt;|&gt;\s*&gt;|\.\.\.|&lt;|&gt;|%|&amp;|\||\^|\+|\*|/|\-|=&gt;|=)">
+        <token type="CommentPreproc"/>
+        <push state="#pop" state="preproc-expr-in-parenthesis"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="preproc-expr-in-parenthesis">
+      <rule pattern="\s+">
+        <token type="CommentPreproc"/>
+      </rule>
+      <rule pattern="\!">
+        <token type="CommentPreproc"/>
+      </rule>
+      <rule pattern="\(">
+        <token type="CommentPreproc"/>
+        <push state="#pop" state="preproc-expr-chain" state="preproc-parenthesis"/>
+      </rule>
+      <rule pattern="(?:_*[a-z]\w*|_+[0-9]\w*|_*[A-Z]\w*|_+|\$\w+)">
+        <token type="CommentPreproc"/>
+        <push state="#pop" state="preproc-expr-chain"/>
+      </rule>
+      <rule pattern="\.[0-9]+">
+        <token type="LiteralNumberFloat"/>
+        <push state="#pop" state="preproc-expr-chain"/>
+      </rule>
+      <rule pattern="[0-9]+[eE][+\-]?[0-9]+">
+        <token type="LiteralNumberFloat"/>
+        <push state="#pop" state="preproc-expr-chain"/>
+      </rule>
+      <rule pattern="[0-9]+\.[0-9]*[eE][+\-]?[0-9]+">
+        <token type="LiteralNumberFloat"/>
+        <push state="#pop" state="preproc-expr-chain"/>
+      </rule>
+      <rule pattern="[0-9]+\.[0-9]+">
+        <token type="LiteralNumberFloat"/>
+        <push state="#pop" state="preproc-expr-chain"/>
+      </rule>
+      <rule pattern="[0-9]+\.(?!(?:_*[a-z]\w*|_+[0-9]\w*|_*[A-Z]\w*|_+|\$\w+)|\.\.)">
+        <token type="LiteralNumberFloat"/>
+        <push state="#pop" state="preproc-expr-chain"/>
+      </rule>
+      <rule pattern="0x[0-9a-fA-F]+">
+        <token type="LiteralNumberHex"/>
+        <push state="#pop" state="preproc-expr-chain"/>
+      </rule>
+      <rule pattern="[0-9]+">
+        <token type="LiteralNumberInteger"/>
+        <push state="#pop" state="preproc-expr-chain"/>
+      </rule>
+      <rule pattern="&#39;">
+        <token type="LiteralStringSingle"/>
+        <push state="#pop" state="preproc-expr-chain" state="string-single"/>
+      </rule>
+      <rule pattern="&#34;">
+        <token type="LiteralStringDouble"/>
+        <push state="#pop" state="preproc-expr-chain" state="string-double"/>
+      </rule>
+    </state>
+    <state name="preproc-parenthesis">
+      <rule pattern="\s+">
+        <token type="CommentPreproc"/>
+      </rule>
+      <rule pattern="\)">
+        <token type="CommentPreproc"/>
+        <pop depth="1"/>
+      </rule>
+      <rule>
+        <mutators>
+          <push state="preproc-expr-in-parenthesis"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="prop-get-set">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="\(">
+        <token type="Punctuation"/>
+        <push state="#pop" state="parenthesis-close" state="prop-get-set-opt" state="comma" state="prop-get-set-opt"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="prop-get-set-opt">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="(?:default|null|never|dynamic|get|set)\b">
+        <token type="Keyword"/>
+        <pop depth="1"/>
+      </rule>
+      <rule pattern="(?!(?:function|class|static|var|if|else|while|do|for|break|return|continue|extends|implements|import|switch|case|default|public|private|try|untyped|catch|new|this|throw|extern|enum|in|interface|cast|override|dynamic|typedef|package|inline|using|null|true|false|abstract)\b)(?:_*[a-z]\w*|_+[0-9]\w*|_*[A-Z]\w*|_+|\$\w+)">
+        <token type="Text"/>
+        <pop depth="1"/>
+      </rule>
+    </state>
+    <state name="root">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule>
+        <include state="meta"/>
+      </rule>
+      <rule pattern="(?:package)\b">
+        <token type="KeywordNamespace"/>
+        <push state="semicolon" state="package"/>
+      </rule>
+      <rule pattern="(?:import)\b">
+        <token type="KeywordNamespace"/>
+        <push state="semicolon" state="import"/>
+      </rule>
+      <rule pattern="(?:using)\b">
+        <token type="KeywordNamespace"/>
+        <push state="semicolon" state="using"/>
+      </rule>
+      <rule pattern="(?:extern|private)\b">
+        <token type="KeywordDeclaration"/>
+      </rule>
+      <rule pattern="(?:abstract)\b">
+        <token type="KeywordDeclaration"/>
+        <push state="abstract"/>
+      </rule>
+      <rule pattern="(?:class|interface)\b">
+        <token type="KeywordDeclaration"/>
+        <push state="class"/>
+      </rule>
+      <rule pattern="(?:enum)\b">
+        <token type="KeywordDeclaration"/>
+        <push state="enum"/>
+      </rule>
+      <rule pattern="(?:typedef)\b">
+        <token type="KeywordDeclaration"/>
+        <push state="typedef"/>
+      </rule>
+      <rule pattern="(?=.)">
+        <token type="Text"/>
+        <push state="expr-statement"/>
+      </rule>
+    </state>
+    <state name="semicolon">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern=";">
+        <token type="Punctuation"/>
+        <pop depth="1"/>
+      </rule>
+    </state>
+    <state name="spaces">
+      <rule pattern="\s+">
+        <token type="Text"/>
+      </rule>
+      <rule pattern="//[^\n\r]*">
+        <token type="CommentSingle"/>
+      </rule>
+      <rule pattern="/\*.*?\*/">
+        <token type="CommentMultiline"/>
+      </rule>
+      <rule pattern="(#)(if|elseif|else|end|error)\b">
+        <token type="CommentPreproc"/>
+        <haxe-preproc></haxe-preproc>
+      </rule>
+    </state>
+    <state name="string-double">
+      <rule pattern="&#34;">
+        <token type="LiteralStringDouble"/>
+        <pop depth="1"/>
+      </rule>
+      <rule pattern="\\.">
+        <token type="LiteralStringEscape"/>
+      </rule>
+      <rule pattern=".">
+        <token type="LiteralStringDouble"/>
+      </rule>
+    </state>
+    <state name="string-interpol-close">
+      <rule pattern="\$(?:_*[a-z]\w*|_+[0-9]\w*|_*[A-Z]\w*|_+|\$\w+)">
+        <token type="LiteralStringInterpol"/>
+      </rule>
+      <rule pattern="\}">
+        <token type="LiteralStringInterpol"/>
+        <pop depth="1"/>
+      </rule>
+    </state>
+    <state name="string-single">
+      <rule pattern="&#39;">
+        <token type="LiteralStringSingle"/>
+        <pop depth="1"/>
+      </rule>
+      <rule pattern="\\.">
+        <token type="LiteralStringEscape"/>
+      </rule>
+      <rule pattern=".">
+        <token type="LiteralStringSingle"/>
+      </rule>
+    </state>
+    <state name="string-single-interpol">
+      <rule pattern="\$\{">
+        <token type="LiteralStringInterpol"/>
+        <push state="string-interpol-close" state="expr"/>
+      </rule>
+      <rule pattern="\$\$">
+        <token type="LiteralStringEscape"/>
+      </rule>
+      <rule pattern="\$(?=(?:_*[a-z]\w*|_+[0-9]\w*|_*[A-Z]\w*|_+|\$\w+))">
+        <token type="LiteralStringInterpol"/>
+        <push state="ident"/>
+      </rule>
+      <rule>
+        <include state="string-single"/>
+      </rule>
+    </state>
+    <state name="switch">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+          <push state="switch-body"/>
+          <push state="bracket-open"/>
+          <push state="expr"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="switch-body">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="(?:case|default)\b">
+        <token type="Keyword"/>
+        <push state="case-block" state="case"/>
+      </rule>
+      <rule pattern="\}">
+        <token type="Punctuation"/>
+        <pop depth="1"/>
+      </rule>
+    </state>
+    <state name="ternary">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern=":">
+        <token type="Operator"/>
+        <pop depth="1"/>
+      </rule>
+    </state>
+    <state name="type">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="\?">
+        <token type="Punctuation"/>
+      </rule>
+      <rule pattern="(?:_*[a-z]\w*|_+[0-9]\w*|_*[A-Z]\w*|_+|\$\w+)">
+        <token type="Name"/>
+        <push state="#pop" state="type-check" state="type-full-name"/>
+      </rule>
+      <rule pattern="\{">
+        <token type="Punctuation"/>
+        <push state="#pop" state="type-check" state="type-struct"/>
+      </rule>
+      <rule pattern="\(">
+        <token type="Punctuation"/>
+        <push state="#pop" state="type-check" state="type-parenthesis"/>
+      </rule>
+    </state>
+    <state name="type-check">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="-&gt;">
+        <token type="Punctuation"/>
+        <push state="#pop" state="type"/>
+      </rule>
+      <rule pattern="&lt;(?!=)">
+        <token type="Punctuation"/>
+        <push state="type-param"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="type-full-name">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="\.">
+        <token type="Punctuation"/>
+        <push state="ident"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="type-name">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="_*[A-Z]\w*">
+        <token type="Name"/>
+        <pop depth="1"/>
+      </rule>
+    </state>
+    <state name="type-param">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+          <push state="type-param-sep"/>
+          <push state="type-param-type"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="type-param-constraint">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="&lt;(?!=)">
+        <token type="Punctuation"/>
+        <push state="#pop" state="type-param-constraint-sep" state="type-param-constraint-flag" state="type-name"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="type-param-constraint-flag">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern=":">
+        <token type="Punctuation"/>
+        <push state="#pop" state="type-param-constraint-flag-type"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="type-param-constraint-flag-type">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="\(">
+        <token type="Punctuation"/>
+        <push state="#pop" state="type-param-constraint-flag-type-sep" state="type"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+          <push state="type"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="type-param-constraint-flag-type-sep">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="\)">
+        <token type="Punctuation"/>
+        <pop depth="1"/>
+      </rule>
+      <rule pattern=",">
+        <token type="Punctuation"/>
+        <push state="type"/>
+      </rule>
+    </state>
+    <state name="type-param-constraint-sep">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="&gt;">
+        <token type="Punctuation"/>
+        <pop depth="1"/>
+      </rule>
+      <rule pattern=",">
+        <token type="Punctuation"/>
+        <push state="#pop" state="type-param-constraint-sep" state="type-param-constraint-flag" state="type-name"/>
+      </rule>
+    </state>
+    <state name="type-param-sep">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="&gt;">
+        <token type="Punctuation"/>
+        <pop depth="1"/>
+      </rule>
+      <rule pattern=",">
+        <token type="Punctuation"/>
+        <push state="#pop" state="type-param"/>
+      </rule>
+    </state>
+    <state name="type-param-type">
+      <rule pattern="\.[0-9]+">
+        <token type="LiteralNumberFloat"/>
+        <pop depth="1"/>
+      </rule>
+      <rule pattern="[0-9]+[eE][+\-]?[0-9]+">
+        <token type="LiteralNumberFloat"/>
+        <pop depth="1"/>
+      </rule>
+      <rule pattern="[0-9]+\.[0-9]*[eE][+\-]?[0-9]+">
+        <token type="LiteralNumberFloat"/>
+        <pop depth="1"/>
+      </rule>
+      <rule pattern="[0-9]+\.[0-9]+">
+        <token type="LiteralNumberFloat"/>
+        <pop depth="1"/>
+      </rule>
+      <rule pattern="[0-9]+\.(?!(?:_*[a-z]\w*|_+[0-9]\w*|_*[A-Z]\w*|_+|\$\w+)|\.\.)">
+        <token type="LiteralNumberFloat"/>
+        <pop depth="1"/>
+      </rule>
+      <rule pattern="0x[0-9a-fA-F]+">
+        <token type="LiteralNumberHex"/>
+        <pop depth="1"/>
+      </rule>
+      <rule pattern="[0-9]+">
+        <token type="LiteralNumberInteger"/>
+        <pop depth="1"/>
+      </rule>
+      <rule pattern="&#39;">
+        <token type="LiteralStringSingle"/>
+        <push state="#pop" state="string-single"/>
+      </rule>
+      <rule pattern="&#34;">
+        <token type="LiteralStringDouble"/>
+        <push state="#pop" state="string-double"/>
+      </rule>
+      <rule pattern="~/(\\\\|\\/|[^/\n])*/[gim]*">
+        <token type="LiteralStringRegex"/>
+        <pop depth="1"/>
+      </rule>
+      <rule pattern="\[">
+        <token type="Operator"/>
+        <push state="#pop" state="array-decl"/>
+      </rule>
+      <rule>
+        <include state="type"/>
+      </rule>
+    </state>
+    <state name="type-parenthesis">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+          <push state="parenthesis-close"/>
+          <push state="type"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="type-struct">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="\}">
+        <token type="Punctuation"/>
+        <pop depth="1"/>
+      </rule>
+      <rule pattern="\?">
+        <token type="Punctuation"/>
+      </rule>
+      <rule pattern="&gt;">
+        <token type="Punctuation"/>
+        <push state="comma" state="type"/>
+      </rule>
+      <rule pattern="(?!(?:function|class|static|var|if|else|while|do|for|break|return|continue|extends|implements|import|switch|case|default|public|private|try|untyped|catch|new|this|throw|extern|enum|in|interface|cast|override|dynamic|typedef|package|inline|using|null|true|false|abstract)\b)(?:_*[a-z]\w*|_+[0-9]\w*|_*[A-Z]\w*|_+|\$\w+)">
+        <token type="Name"/>
+        <push state="#pop" state="type-struct-sep" state="type" state="colon"/>
+      </rule>
+      <rule>
+        <include state="class-body"/>
+      </rule>
+    </state>
+    <state name="type-struct-sep">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="\}">
+        <token type="Punctuation"/>
+        <pop depth="1"/>
+      </rule>
+      <rule pattern=",">
+        <token type="Punctuation"/>
+        <push state="#pop" state="type-struct"/>
+      </rule>
+    </state>
+    <state name="typedef">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+          <push state="typedef-body"/>
+          <push state="type-param-constraint"/>
+          <push state="type-name"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="typedef-body">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="=">
+        <token type="Operator"/>
+        <push state="#pop" state="optional-semicolon" state="type"/>
+      </rule>
+    </state>
+    <state name="using">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="(?:_*[a-z]\w*|_+[0-9]\w*|_*[A-Z]\w*|_+|\$\w+)">
+        <token type="NameNamespace"/>
+      </rule>
+      <rule pattern="\.">
+        <token type="Punctuation"/>
+        <push state="import-ident"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="var">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="(?!(?:function|class|static|var|if|else|while|do|for|break|return|continue|extends|implements|import|switch|case|default|public|private|try|untyped|catch|new|this|throw|extern|enum|in|interface|cast|override|dynamic|typedef|package|inline|using|null|true|false|abstract)\b)(?:_*[a-z]\w*|_+[0-9]\w*|_*[A-Z]\w*|_+|\$\w+)">
+        <token type="Text"/>
+        <push state="#pop" state="var-sep" state="assign" state="flag" state="prop-get-set"/>
+      </rule>
+    </state>
+    <state name="var-sep">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern=",">
+        <token type="Punctuation"/>
+        <push state="#pop" state="var"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="while">
+      <rule>
+        <include state="spaces"/>
+      </rule>
+      <rule pattern="\(">
+        <token type="Punctuation"/>
+        <push state="#pop" state="expr" state="parenthesis"/>
+      </rule>
+    </state>
+  </rules>
+</lexer>

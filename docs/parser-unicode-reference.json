@@ -1,0 +1,13 @@
+{
+  "go_toolchain": "go1.27.0",
+  "unicode_version": "17.0.0",
+  "ranges": {
+    "digit": 72,
+    "letter_or_digit": 736,
+    "print": 741
+  },
+  "simple_lowercase_mappings": 1488,
+  "classification": "Go letter/digit union, digits, printability and simple lowercase across all Unicode code points",
+  "oracle_sha256": "a325f74a09e165c342be43425e4ac0036de55576cd4280c794a193bb84269777",
+  "rust_table_sha256": "cdb0b33c513b9dffc8381f8ee16df8f4b5aec7aa9e4b8ed885a879c00137c4e7"
+}

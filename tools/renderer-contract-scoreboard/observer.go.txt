@@ -1,0 +1,38 @@
+// SPDX-License-Identifier: MPL-2.0
+// Test observer template. Original results and assertions remain active.
+package PACKAGE
+
+import (
+    "crypto/sha256"
+    "encoding/json"
+    "fmt"
+    "os"
+    "path/filepath"
+    "sync"
+    "testing"
+    EXTRA_IMPORTS
+)
+
+var d2rsMu sync.Mutex
+var d2rsCounts = map[string]int{}
+
+func d2rsRecord(t *testing.T, request, output any, err error) {
+    t.Helper()
+    root := os.Getenv("D2RS_RENDERER_CONTRACT_DUMP")
+    if root == "" { return }
+    d2rsMu.Lock()
+    defer d2rsMu.Unlock()
+    n := d2rsCounts[t.Name()]
+    d2rsCounts[t.Name()] = n+1
+    name := fmt.Sprintf("%s#%d", t.Name(), n)
+    message := ""
+    if err != nil { message = err.Error() }
+    row := map[string]any{"name": name, "test": t.Name(), "package": "PACKAGE_PATH",
+        "request": request, "got": map[string]any{"output": output, "error": message}}
+    data, encodeErr := json.Marshal(row)
+    if encodeErr != nil { t.Fatal(encodeErr) }
+    key := fmt.Sprintf("%x", sha256.Sum256([]byte(name)))
+    if e := os.WriteFile(filepath.Join(root, key+".json"), data, 0600); e != nil { t.Fatal(e) }
+}
+
+WRAPPERS

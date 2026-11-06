@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: MPL-2.0
+"class.name": {
+  shape: class
+  "i.d": int
+  parent: Record
+}
+"table.name": {
+  shape: sql_table
+  "i.d": int
+  parent: int
+}
+"class.name"."i.d" -> "class.name".parent: class loop
+"table.name"."i.d" -> "table.name".parent: table loop
+"class.name"."i.d" -> "table.name"."i.d": cross

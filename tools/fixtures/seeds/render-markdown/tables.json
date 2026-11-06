@@ -1,0 +1,43 @@
+{
+  "description": "Table documents with legacy cells (formerly also markdown-table-natural).",
+  "segments": [
+    {
+      "prefix": "table",
+      "const": {},
+      "axes": [
+        {"fields": ["Family"], "values": [["sans"], ["mono"], ["hand"]], "labels": ["sans", "mono", "hand"]},
+        {"fields": ["FontSize"], "values": [[12], [16], [22]], "labels": ["12", "16", "22"]}
+      ],
+      "snippets": [
+        ["00", "| head |\n| - |\n| cell text |"],
+        ["01", "| A | BBB |\n| - | - |\n| longer body | x |"],
+        ["02", "| first | second |\n| :- | -: |\n| text | abcdef |"],
+        ["03", "| A | B |\n| :-: | :-: |\n| alpha beta | gamma |"],
+        ["04", "| **bold** | *italic* |\n| - | - |\n| a **bold** word | before *em* after |"],
+        ["05", "| `code` | A |\n| - | - |\n| before `chip` after | x |"],
+        ["06", "| [head](https://example.com) |\n| - |\n| [cell](https://example.com \"title\") |"],
+        ["07", "| head |\n| - |"],
+        ["08", "| | |\n| - | - |\n| | |"],
+        ["09", "| A | B |\n| - | - |\n| | nonempty |\n| other | |"],
+        ["10", "| one |\n| - |\n| line<br>break |"],
+        ["11", "| 一 | 漢字 |\n| - | - |\n| 日本語 | emoji 😀 |"],
+        ["12", "| a\\|b |\n| - |\n| value\\|other |"],
+        ["13", "| `x|y` | z |\n| - | - |\n| `a|b` | c |"],
+        ["14", "| h |\n| - |\n| <span>a</span> b |"],
+        ["15", "| header |\n| - |\n| ~~deleted~~ **strong** `code` |"],
+        ["16", "paragraph\n\n| head |\n| - |\n| cell |"],
+        ["17", "| head |\n| - |\n| cell |\n\nfollowing paragraph"],
+        ["18", "| a |\n| - |\n| b |\n\n| c |\n| - |\n| d |"],
+        ["19", "<table><tr><th>one</th><th>two</th></tr><tr><td>a <b>bold</b> word</td><td>x</td></tr></table>"],
+        ["20", "<table><thead><tr><td>header</td></tr></thead><tbody><tr><td>body</td></tr></tbody></table>"],
+        ["21", "<table><tbody><tr><td></td></tr><tr><td>body</td></tr></tbody></table>"],
+        ["22", "<table><thead><tr><th></th></tr></thead><tbody><tr><td></td></tr></tbody></table>"],
+        ["23", "<table><thead><tr><th>a</th></tr></thead><tbody><tr><td>b</td></tr></tbody><tfoot><tr><td>footer</td></tr></tfoot></table>"],
+        ["24", "<table><tr><td><p>first</p><p>second</p></td></tr></table>"],
+        ["25", "<table><tr><td>one<br>two</td></tr></table>"],
+        ["26", "<table><tr><th><em>em</em> <code>x</code></th></tr><tr><td><strong>a</strong><em>b</em><code>c</code></td></tr></table>"],
+        ["27", "<table><tr><td> </td></tr></table>"]
+      ]
+    }
+  ]
+}

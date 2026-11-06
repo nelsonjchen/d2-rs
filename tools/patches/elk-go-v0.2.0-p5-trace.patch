@@ -1,0 +1,147 @@
+diff --git a/internal/layered/p5edges/orthogonal_edge_router.go b/internal/layered/p5edges/orthogonal_edge_router.go
+--- a/internal/layered/p5edges/orthogonal_edge_router.go
++++ b/internal/layered/p5edges/orthogonal_edge_router.go
+@@ -89,6 +89,7 @@
+ 	leftLayerIndex := -1
+ 	nextLayerIndex := 0
+ 	for {
++		layerStartX := xPosition
+ 		var rightLayer *layered.LayerID
+ 		var rightNodes []layered.LNodeID
+ 		if nextLayerIndex < len(graph.Layers) {
+@@ -124,6 +125,7 @@
+ 		} else if !leftExternal && !rightExternal {
+ 			xPosition += nodeNodeSpacing
+ 		}
++		traceOrthogonalLayer(arena, graphID, leftLayer, leftLayerIndex, layerStartX, startPosition, slots, leftExternal, rightExternal, rightLayer != nil, nodeNodeSpacing, edgeEdgeSpacing, edgeNodeSpacing, xPosition)
+ 		leftLayer, leftNodes, leftLayerIndex = rightLayer, rightNodes, rightLayerIndex
+ 		if rightLayer == nil {
+ 			break
+diff --git a/internal/layered/p5edges/diagnostic_trace.go b/internal/layered/p5edges/diagnostic_trace.go
+new file mode 100644
+--- /dev/null
++++ b/internal/layered/p5edges/diagnostic_trace.go
+@@ -0,0 +1,102 @@
++// Copyright (c) 2015 Kiel University and others.
++//
++// This program and the accompanying materials are made available under the
++// terms of the Eclipse Public License 2.0 which is available at
++// https://www.eclipse.org/legal/epl-2.0/.
++//
++// SPDX-License-Identifier: EPL-2.0
++
++//go:build d2elkdiagnostic
++
++package p5edges
++
++import (
++	"encoding/json"
++	"fmt"
++	"os"
++
++	basegraph "github.com/d2lang/elk-go/internal/graph"
++	"github.com/d2lang/elk-go/internal/layered"
++)
++
++type tracedOrthogonalNode struct {
++	StableID string  `json:"stable_id"`
++	X        float64 `json:"x"`
++	Y        float64 `json:"y"`
++	Width    float64 `json:"width"`
++	Height   float64 `json:"height"`
++	MarginL  float64 `json:"margin_left"`
++	MarginR  float64 `json:"margin_right"`
++}
++
++func traceOrthogonalLayer(
++	arena *layered.LGraphArena,
++	graphID layered.LGraphID,
++	layerID *layered.LayerID,
++	layerIndex int,
++	layerStartX, routeStartX float64,
++	slots int,
++	leftExternal, rightExternal bool,
++	hasRightLayer bool,
++	nodeNodeSpacing, edgeEdgeSpacing, edgeNodeSpacing, nextX float64,
++) {
++	if os.Getenv("D2_ELK_TRACE") == "" {
++		return
++	}
++	nodes := make([]tracedOrthogonalNode, 0)
++	layerNumber := -1
++	layerWidth := 0.0
++	if layerID != nil {
++		layerNumber = int(*layerID)
++		layer := arena.Layer(*layerID)
++		layerWidth = layer.Size.X
++		for _, nodeID := range layer.Nodes {
++			node := arena.Node(nodeID)
++			stableID := fmt.Sprintf("lnode:%d", nodeID)
++			if origin, found := basegraph.TryGet(&node.Properties, layered.OriginalElement); found && origin.Kind == layered.OriginNode {
++				stableID = fmt.Sprintf("node:%d", origin.Node)
++			}
++			nodes = append(nodes, tracedOrthogonalNode{
++				StableID: stableID,
++				X:        node.Position.X, Y: node.Position.Y,
++				Width: node.Size.X, Height: node.Size.Y,
++				MarginL: node.Margin.Left, MarginR: node.Margin.Right,
++			})
++		}
++	}
++	routingWidth := 0.0
++	if slots > 0 {
++		routingWidth = float64(slots-1) * edgeEdgeSpacing
++		if layerID != nil {
++			routingWidth += edgeNodeSpacing
++		}
++		if hasRightLayer {
++			routingWidth += edgeNodeSpacing
++		}
++		if routingWidth < nodeNodeSpacing && !leftExternal && !rightExternal {
++			routingWidth = nodeNodeSpacing
++		}
++	} else if !leftExternal && !rightExternal {
++		routingWidth = nodeNodeSpacing
++	}
++	encoded, err := json.Marshal(struct {
++		Stage         string                 `json:"stage"`
++		Graph         int                    `json:"graph"`
++		Layer         int                    `json:"layer"`
++		LayerIndex    int                    `json:"layer_index"`
++		LayerStartX   float64                `json:"layer_start_x"`
++		LayerWidth    float64                `json:"layer_width"`
++		RouteStartX   float64                `json:"route_start_x"`
++		Slots         int                    `json:"slots"`
++		LeftExternal  bool                   `json:"left_external"`
++		RightExternal bool                   `json:"right_external"`
++		RoutingWidth  float64                `json:"routing_width"`
++		NextX         float64                `json:"next_x"`
++		Nodes         []tracedOrthogonalNode `json:"nodes"`
++	}{"p5-orthogonal-layer", int(graphID), layerNumber, layerIndex, layerStartX, layerWidth, routeStartX, slots, leftExternal, rightExternal, routingWidth, nextX, nodes})
++	if err != nil {
++		fmt.Fprintln(os.Stderr, "elk trace encoding failed:", err)
++		return
++	}
++	fmt.Fprintln(os.Stderr, string(encoded))
++}
+diff --git a/internal/layered/p5edges/diagnostic_trace_off.go b/internal/layered/p5edges/diagnostic_trace_off.go
+new file mode 100644
+--- /dev/null
++++ b/internal/layered/p5edges/diagnostic_trace_off.go
+@@ -0,0 +1,16 @@
++// Copyright (c) 2015 Kiel University and others.
++//
++// This program and the accompanying materials are made available under the
++// terms of the Eclipse Public License 2.0 which is available at
++// https://www.eclipse.org/legal/epl-2.0/.
++//
++// SPDX-License-Identifier: EPL-2.0
++
++//go:build !d2elkdiagnostic
++
++package p5edges
++
++import "github.com/d2lang/elk-go/internal/layered"
++
++func traceOrthogonalLayer(*layered.LGraphArena, layered.LGraphID, *layered.LayerID, int, float64, float64, int, bool, bool, bool, float64, float64, float64, float64) {
++}

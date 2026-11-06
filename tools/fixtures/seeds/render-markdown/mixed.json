@@ -1,0 +1,29 @@
+{
+  "description": "Mixed paragraph/table/list documents.",
+  "segments": [
+    {
+      "prefix": "mixed",
+      "const": {},
+      "axes": [
+        {"fields": ["Family"], "values": [["sans"], ["mono"], ["hand"]], "labels": ["sans", "mono", "hand"]},
+        {"fields": ["FontSize"], "values": [[12], [16], [22]], "labels": ["12", "16", "22"]}
+      ],
+      "snippets": [
+        ["00", "intro\n\n| h | v |\n| - | - |\n| a | b |"],
+        ["01", "| h |\n| - |\n| a |\n\noutro"],
+        ["02", "first paragraph\n\nsecond `code` paragraph\n\n| h |\n| - |\n| a |"],
+        ["03", "| h |\n| - |\n| a |\n\n| two |\n| - |\n| b |"],
+        ["04", "first **bold** paragraph with several words\n\n| h | v |\n| - | - |\n| [a](https://example.com \"title\") | `b` |\n\nlast *italic* paragraph"],
+        ["05", "<p>one<br>two</p>\n\n| h |\n| - |\n| a |"],
+        ["06", "- one\n- two\n\n| h |\n| - |\n| a |"],
+        ["07", "| h |\n| - |\n| a |\n\n- one\n- two"],
+        ["08", "intro\n\n# heading\n\n| h | v |\n| - | - |\n| a | b |\n\noutro"],
+        ["09", "intro\n\n## heading\n\n| h | v |\n| - | - |\n| a | b |\n\noutro"],
+        ["10", "intro\n\n### heading\n\n| h | v |\n| - | - |\n| a | b |\n\noutro"],
+        ["11", "intro\n\n#### heading\n\n| h | v |\n| - | - |\n| a | b |\n\noutro"],
+        ["12", "intro\n\n##### heading\n\n| h | v |\n| - | - |\n| a | b |\n\noutro"],
+        ["13", "intro\n\n###### heading\n\n| h | v |\n| - | - |\n| a | b |\n\noutro"]
+      ]
+    }
+  ]
+}

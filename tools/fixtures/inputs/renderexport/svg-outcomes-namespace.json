@@ -1,0 +1,206 @@
+[
+ {
+  "name": "xml-correct",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g xmlns:xml=\"http://www.w3.org/XML/1998/namespace\"/></svg>"
+ },
+ {
+  "name": "xml-wrong",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g xmlns:xml=\"wrong\"/></svg>"
+ },
+ {
+  "name": "xml-empty",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g xmlns:xml=\"\"/></svg>"
+ },
+ {
+  "name": "xmlns-reserved",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g xmlns:xmlns=\"urn:test\"/></svg>"
+ },
+ {
+  "name": "reserved-uri",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g xmlns:x=\"http://www.w3.org/2000/xmlns/\"/></svg>"
+ },
+ {
+  "name": "reserved-xml-uri",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g xmlns:x=\"http://www.w3.org/XML/1998/namespace\"/></svg>"
+ },
+ {
+  "name": "upper-xml",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g xmlns:XML=\"urn:a\"/></svg>"
+ },
+ {
+  "name": "mixed-xml",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g xmlns:xMl=\"urn:a\"/></svg>"
+ },
+ {
+  "name": "xml-start",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g xmlns:xmltest=\"urn:a\"/></svg>"
+ },
+ {
+  "name": "empty-prefix",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g xmlns:x=\"\"/></svg>"
+ },
+ {
+  "name": "ordinary-valid",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g xmlns:x=\"urn:a\"/></svg>"
+ },
+ {
+  "name": "duplicate-prefix",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g xmlns:x=\"urn:a\" xmlns:x=\"urn:b\"/></svg>"
+ },
+ {
+  "name": "duplicate-default",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g xmlns=\"http://www.w3.org/2000/svg\" xmlns=\"http://www.w3.org/2000/svg\"/></svg>"
+ },
+ {
+  "name": "default-empty",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g xmlns=\"\"/></svg>"
+ },
+ {
+  "name": "duplicate-width",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><rect width=\"1\" width=\"2\"/></svg>"
+ },
+ {
+  "name": "duplicate-data",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g data-info=\"1\" data-info=\"2\"/></svg>"
+ },
+ {
+  "name": "duplicate-xml-space",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g xml:space=\"default\" xml:space=\"preserve\"/></svg>"
+ },
+ {
+  "name": "duplicate-metadata",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g xmlns:i=\"http://www.inkscape.org/namespaces/inkscape\" i:label=\"a\" i:label=\"b\"/></svg>"
+ },
+ {
+  "name": "event-before-duplicate",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g onload=\"x\" id=\"a\" id=\"a\"/></svg>"
+ },
+ {
+  "name": "duplicate-before-event",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g id=\"a\" id=\"a\" onload=\"x\"/></svg>"
+ },
+ {
+  "name": "unknown-before-duplicate",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g foo=\"a\" foo=\"b\"/></svg>"
+ },
+ {
+  "name": "alias-unsupported",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g xmlns:x=\"urn:a\" xmlns:y=\"urn:a\" x:foo=\"a\" y:foo=\"b\"/></svg>"
+ },
+ {
+  "name": "xlink-alias",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><use xmlns:x=\"http://www.w3.org/1999/xlink\" xmlns:y=\"http://www.w3.org/1999/xlink\" x:href=\"#x\" y:href=\"#x\"/></svg>"
+ },
+ {
+  "name": "metadata-alias",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g xmlns:x=\"http://www.inkscape.org/namespaces/inkscape\" xmlns:y=\"http://www.inkscape.org/namespaces/inkscape\" x:label=\"a\" y:label=\"b\"/></svg>"
+ },
+ {
+  "name": "undeclared-element",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><x:g/></svg>"
+ },
+ {
+  "name": "undeclared-attribute",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g x:foo=\"a\"/></svg>"
+ },
+ {
+  "name": "nested-scope-restore",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g xmlns:x=\"http://www.w3.org/2000/svg\"><x:g/></g><x:g/></svg>"
+ },
+ {
+  "name": "nested-scope-shadow",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g xmlns:x=\"http://www.w3.org/2000/svg\"><g xmlns:x=\"urn:a\"><x:g/></g></g></svg>"
+ },
+ {
+  "name": "empty-scope-restore",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g xmlns:x=\"urn:a\"/><x:g/></svg>"
+ },
+ {
+  "name": "reserved-binding-before-event",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g xmlns:xml=\"wrong\" onload=\"x\"/></svg>"
+ },
+ {
+  "name": "event-before-reserved-binding",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g onload=\"x\" xmlns:xml=\"wrong\"/></svg>"
+ },
+ {
+  "name": "metadata-before-namespace",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><metadata/><x:g/></svg>"
+ },
+ {
+  "name": "namespace-before-duplicate-id",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><x:g/><g id=\"a\"/><g id=\"a\"/></svg>"
+ },
+ {
+  "name": "duplicate-id-before-namespace",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g id=\"a\"/><g id=\"a\"/><x:g/></svg>"
+ },
+ {
+  "name": "text-before-namespace",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g>bad</g><x:g/></svg>"
+ },
+ {
+  "name": "namespace-before-text",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><x:g/><g>bad</g></svg>"
+ },
+ {
+  "name": "comment-before-namespace",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><style><!--hi--></style><x:g/></svg>"
+ },
+ {
+  "name": "namespace-before-comment",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><x:g/><style><!--hi--></style></svg>"
+ },
+ {
+  "name": "declaration-before-event-pi",
+  "svg": "<?xml version=\"1.0\"?><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g onload=\"x\"/><?test hi?></svg>"
+ },
+ {
+  "name": "declaration-before-pi-event",
+  "svg": "<?xml version=\"1.0\"?><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><?test hi?><g onload=\"x\"/></svg>"
+ },
+ {
+  "name": "declaration-before-event-duplicate",
+  "svg": "<?xml version=\"1.0\"?><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g onload=\"x\"/><g id=\"a\" id=\"b\"/></svg>"
+ },
+ {
+  "name": "matrix-duplicate-attr",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><rect width=\"1\" width=\"2\"/></svg>"
+ },
+ {
+  "name": "matrix-unknown-namespace",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><x:g/></svg>"
+ },
+ {
+  "name": "matrix-wrong-xmlns-xml",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g xmlns:xml=\"wrong\"/></svg>"
+ },
+ {
+  "name": "matrix-reserved-xmlns",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g xmlns:xmlns=\"wrong\"/></svg>"
+ },
+ {
+  "name": "matrix-duplicate-xmlns",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g xmlns:x=\"foo\" xmlns:x=\"bar\"/></svg>"
+ },
+ {
+  "name": "matrix-namespace-attr-alias",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g xmlns:x=\"urn:a\" xmlns:y=\"urn:a\" x:foo=\"1\" y:foo=\"2\"/></svg>"
+ },
+ {
+  "name": "matrix-wrong-xmlns-uri",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g xmlns:x=\"http://www.w3.org/XML/1998/namespace\"/></svg>"
+ },
+ {
+  "name": "matrix-default-xmlns-reserved",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g xmlns=\"http://www.w3.org/2000/xmlns/\"/></svg>"
+ },
+ {
+  "name": "matrix-root-duplicate-xmlns",
+  "svg": "<svg xmlns=\"urn:wrong\" xmlns=\"http://www.w3.org/2000/svg\"/>"
+ },
+ {
+  "name": "xmlns-element-default-exception",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><xmlns/></svg>"
+ }
+]

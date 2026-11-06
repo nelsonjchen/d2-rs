@@ -1,0 +1,17 @@
+{
+  "id":"root",
+  "layoutOptions":{"elk.algorithm":"layered","elk.direction":"RIGHT","elk.hierarchyHandling":"INCLUDE_CHILDREN","elk.layered.considerModelOrder.strategy":"NONE","elk.randomSeed":1,"elk.layered.thoroughness":8},
+  "children":[
+    {"id":"G","x":0,"y":0,"width":120,"height":80,"children":[
+      {"id":"a","x":0,"y":0,"width":30,"height":30},
+      {"id":"b","x":0,"y":0,"width":30,"height":30},
+      {"id":"c","x":0,"y":0,"width":30,"height":30},
+      {"id":"d","x":0,"y":0,"width":30,"height":30}
+    ]},
+    {"id":"z","x":0,"y":0,"width":30,"height":30}
+  ],
+  "edges":[
+    {"id":"e0","sources":["a"],"targets":["d"],"container":"G"},
+    {"id":"e1","sources":["b"],"targets":["c"],"container":"G"}
+  ]
+}

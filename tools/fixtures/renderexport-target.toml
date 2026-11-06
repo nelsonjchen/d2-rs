@@ -1,0 +1,66 @@
+# Raw d2target fixtures (renderexport area): d2target JSON decoding and raw
+# target rendering through the pinned upstream d2js, read by d2-rs-render,
+# d2-rs-export and d2-rs-wasm. See docs/FIXTURES.md.
+#
+# `d2js-node-package` builds upstream d2js at the pin as a Node ESM package
+# (index.js/worker/platform from d2js/js/src, GOOS=js d2.wasm, the toolchain's
+# wasm_exec.js) into the cache; Node recipes `after` it import it from there.
+#
+# Regenerate:  uv run --no-project python scripts/regen-fixtures.py --only 'd2js-*' --only 'd2-target-json*'
+# Test:        cargo test -p d2-rs-render -p d2-rs-export -p d2-rs-wasm --features oracle-fixtures
+
+[[recipe]]
+name = "d2js-node-package"
+kind = "command"
+description = "Upstream d2js Node package (d2.wasm + original JS loader) at the pin"
+upstream = true
+argv = ["{python}", "scripts/d2js_node_package.py"]
+outputs = [
+  "tools/d2js-node/package/index.js",
+  "tools/d2js-node/package/worker.js",
+  "tools/d2js-node/package/platform.js",
+  "tools/d2js-node/package/package.json",
+  "tools/d2js-node/package/wasm_exec.js",
+  "tools/d2js-node/package/d2.wasm",
+]
+key_deps.files = ["scripts/fixture_recipe.py"]
+key_deps.go_toolchain = true
+
+[[recipe]]
+name = "d2js-target"
+kind = "command"
+description = "Raw-target render/ASCII/legend/font/paint/SDK outcomes and compiled shape arrays from d2js"
+after = ["d2js-node-package"]
+argv = ["{python}", "scripts/d2js_target_fixtures.py"]
+outputs = [
+  "crates/d2-rs-render/tests/fixtures/public-target-fonts-v090.json",
+  "crates/d2-rs-render/tests/fixtures/public-target-mono-fonts-v090.json",
+  "crates/d2-rs-render/tests/fixtures/public-target-paint-v090.json",
+  "crates/d2-rs-render/tests/fixtures/target-legend-source-v090.json",
+  "crates/d2-rs-export/tests/fixtures/target-ascii-source-v090.json",
+  "crates/d2-rs-wasm/tests/fixtures/raw-target-render-v090.json",
+  "crates/d2-rs-wasm/tests/fixtures/target-sdk-source-v090.json",
+  "crates/d2-rs-wasm/tests/fixtures/target-shape-arrays-source-v090.json",
+]
+key_deps.files = ["scripts/fixture_recipe.py", "tools/d2js-capture/d2js.mjs", "tools/d2js-capture/target.mjs",
+                  "tools/d2js-capture/inputs/single-backslash-latex.d2", "tools/d2js-capture/inputs/target-shape-arrays.json"]
+
+[[recipe]]
+name = "d2-target-json-probe"
+kind = "go-test-hook"
+description = "Raw d2target JSON decode/encode/hash results for the committed decoder inputs"
+package = "d2target"
+hooks = ["tools/fixtures/hooks/d2-target-json-probe/d2rs_target_json_test.go"]
+test = "TestD2RSCaptureTargetJSON"
+inputs = ["tools/fixtures/hooks/d2-target-json-probe/cases.json"]
+outputs = ["tools/d2-target-json-probe/results.json"]
+key_deps.upstream_paths = ["d2target", "lib", "d2renderers/d2fonts", "d2renderers/internal", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "d2-target-json"
+kind = "command"
+description = "Decoder outcome, metadata projection and exact hash-input digests per raw input"
+after = ["d2-target-json-probe"]
+argv = ["{python}", "scripts/d2_target_json_fixture.py"]
+outputs = ["crates/d2-rs-render/tests/fixtures/public-target-json-v090.json"]
+key_deps.files = ["scripts/fixture_recipe.py", "tools/fixtures/hooks/d2-target-json-probe/cases.json"]

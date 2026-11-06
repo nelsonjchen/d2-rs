@@ -1,0 +1,82 @@
+[
+  {
+    "name": "text-legendFalse",
+    "source": "x: \"\" {shape: text}\n"
+  },
+  {
+    "name": "text-legendTrue",
+    "source": "vars: {d2-legend: {x: \"\" {shape: text}}}\n"
+  },
+  {
+    "name": "image-legendFalse",
+    "source": "x: {shape: image}\n"
+  },
+  {
+    "name": "image-legendTrue",
+    "source": "vars: {d2-legend: {x: {shape: image}}}\n"
+  },
+  {
+    "name": "near-legendFalse",
+    "source": "x: {near: missing}\n"
+  },
+  {
+    "name": "near-legendTrue",
+    "source": "vars: {d2-legend: {x: {near: missing}}}\n"
+  },
+  {
+    "name": "position-legendFalse",
+    "source": "x: {shape: hierarchy; top: 1; left: 2}\n"
+  },
+  {
+    "name": "position-legendTrue",
+    "source": "vars: {d2-legend: {x: {shape: hierarchy; top: 1; left: 2}}}\n"
+  },
+  {
+    "name": "sql-label-legendFalse",
+    "source": "x: \"a\\nb\" {shape: sql_table}\n"
+  },
+  {
+    "name": "sql-label-legendTrue",
+    "source": "vars: {d2-legend: {x: \"a\\nb\" {shape: sql_table}}}\n"
+  },
+  {
+    "name": "circle-legendFalse",
+    "source": "x: {shape: circle; width: 50; height: 60}\n"
+  },
+  {
+    "name": "circle-legendTrue",
+    "source": "vars: {d2-legend: {x: {shape: circle; width: 50; height: 60}}}\n"
+  },
+  {
+    "name": "opacity-legendFalse",
+    "source": "x: {style.opacity: 2}\n"
+  },
+  {
+    "name": "opacity-legendTrue",
+    "source": "vars: {d2-legend: {x: {style.opacity: 2}}}\n"
+  },
+  {
+    "name": "shape-legendFalse",
+    "source": "x: {shape: bogus}\n"
+  },
+  {
+    "name": "shape-legendTrue",
+    "source": "vars: {d2-legend: {x: {shape: bogus}}}\n"
+  },
+  {
+    "name": "edge-style-legendFalse",
+    "source": "a -> b: {style.opacity: 2}\n"
+  },
+  {
+    "name": "edge-style-legendTrue",
+    "source": "vars: {d2-legend: {a -> b: {style.opacity: 2}}}\n"
+  },
+  {
+    "name": "nested-legendFalse",
+    "source": "vars: {d2-legend: {x: \"\" {shape: text}}}\n"
+  },
+  {
+    "name": "nested-legendTrue",
+    "source": "vars: {d2-legend: {vars: {d2-legend: {x: \"\" {shape: text}}}}}\n"
+  }
+]

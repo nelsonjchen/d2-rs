@@ -1,0 +1,80 @@
+[
+ {
+  "input": "a: {\nshape: person\n\n}\n"
+ },
+ {
+  "input": "a: {\nshape: person\nwidth: 130\n}\n"
+ },
+ {
+  "input": "a: {\nshape: person\nheight: 130\n}\n"
+ },
+ {
+  "input": "a: {\nshape: person\nwidth: 20\n}\n"
+ },
+ {
+  "input": "a: {\nshape: person\nheight: 20\n}\n"
+ },
+ {
+  "input": "a: {\nshape: person\nwidth: 130\nheight: 20\n}\n"
+ },
+ {
+  "input": "a: {\nshape: person\nwidth: 0\nheight: 130\n}\n"
+ },
+ {
+  "input": "a: {\nshape: person\nwidth: 130\nheight: 0\n}\n"
+ },
+ {
+  "input": "a: {\nshape: oval\n\n}\n"
+ },
+ {
+  "input": "a: {\nshape: oval\nwidth: 130\n}\n"
+ },
+ {
+  "input": "a: {\nshape: oval\nheight: 130\n}\n"
+ },
+ {
+  "input": "a: {\nshape: oval\nwidth: 20\n}\n"
+ },
+ {
+  "input": "a: {\nshape: oval\nheight: 20\n}\n"
+ },
+ {
+  "input": "a: {\nshape: oval\nwidth: 130\nheight: 20\n}\n"
+ },
+ {
+  "input": "a: {\nshape: oval\nwidth: 0\nheight: 130\n}\n"
+ },
+ {
+  "input": "a: {\nshape: oval\nwidth: 130\nheight: 0\n}\n"
+ },
+ {
+  "input": "a: {\nshape: circle\n\n}\n"
+ },
+ {
+  "input": "a: {\nshape: circle\nwidth: 130\n}\n"
+ },
+ {
+  "input": "a: {\nshape: circle\nheight: 130\n}\n"
+ },
+ {
+  "input": "a: {\nshape: circle\nwidth: 20\n}\n"
+ },
+ {
+  "input": "a: {\nshape: circle\nheight: 20\n}\n"
+ },
+ {
+  "input": "a: {\nshape: PeRsOn\nwidth: 130\n}\n"
+ },
+ {
+  "input": "a: {\nshape: OvAl\nwidth: 130\n}\n"
+ },
+ {
+  "input": "a: {\nshape: CiRcLe\nwidth: 130\n}\n"
+ },
+ {
+  "input": "a: {\nshape: SQL_Table\nwidth: 130\n}\n"
+ },
+ {
+  "input": "a: {\nshape: Class\nwidth: 130\n}\n"
+ }
+]

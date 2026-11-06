@@ -1,0 +1,18 @@
+[
+{"name": "ordinary", "input": "a -> b\nlayers: {one: {c -> d}}", "compile_options": {"layout": "dagre"}, "options": {"pad": 20, "animateInterval": 500, "target": "*"}},
+{"name": "folder-root", "input": "layers: {one: {a -> b}}", "compile_options": {"layout": "dagre"}, "options": {"pad": 20, "animateInterval": 500, "target": "*"}},
+{"name": "nested-folder", "input": "layers: {one: {layers: {two: {a -> b}}}}", "compile_options": {"layout": "dagre"}, "options": {"pad": 20, "animateInterval": 500, "target": "*"}},
+{"name": "empty", "input": "", "compile_options": {"layout": "dagre"}, "options": {"pad": 20, "animateInterval": 500, "target": "*"}},
+{"name": "empty-folders", "input": "layers: {one: {layers: {two: {}}}}", "compile_options": {"layout": "dagre"}, "options": {"pad": 20, "animateInterval": 500, "target": "*"}},
+{"name": "wrapper-order", "input": "steps: {s: {step}}\nscenarios: {c: {scenario}}\nlayers: {l: {layer}}\nroot", "compile_options": {"layout": "dagre"}, "options": {"pad": 20, "animateInterval": 500, "target": "*"}},
+{"name": "folder-wrapper-order", "input": "steps: {s: {step}}\nscenarios: {c: {scenario}}\nlayers: {l: {layer}}", "compile_options": {"layout": "dagre"}, "options": {"pad": 20, "animateInterval": 500, "target": "*"}},
+{"name": "root-border", "input": "style: {stroke-width: 12; double-border: true}\na -> b\nlayers: {one: {c -> d}}", "compile_options": {"layout": "dagre"}, "options": {"pad": 20, "animateInterval": 500, "target": "*"}},
+{"name": "shadow", "input": "a: {style.shadow: true}\na -> b\nlayers: {one: {c: {width: 320; height: 180}}}", "compile_options": {"layout": "dagre"}, "options": {"pad": 20, "animateInterval": 500, "target": "*"}},
+{"name": "equation", "input": "formula: {\n  equation: |latex\n    \\begin{equation} \\label{eq1}\n    \\begin{split}\n    A & = \\frac{\\\\pi r^2}{2} \\\\\n     & = \\frac{1}{2} \\pi r^2\n    \\end{split}\n    \\end{equation}\n  |\n}\n\n\nlayers: {one: {c: {width: 320; height: 180}}}", "compile_options": {"layout": "dagre"}, "options": {"pad": 20, "animateInterval": 500, "target": "*"}},
+{"name": "markdown", "input": "a: |md\n # Heading\n - first\n - second\n|\nlayers: {one: {a -> b}}", "compile_options": {"layout": "dagre"}, "options": {"pad": 20, "animateInterval": 500, "target": "*"}},
+{"name": "sketch", "input": "a -> b: message\nlayers: {one: {c -> d}}", "compile_options": {"layout": "dagre", "sketch": true}, "options": {"pad": 20, "animateInterval": 500, "target": "*", "sketch": true}},
+{"name": "selected-subtree", "input": "root\nlayers: {one: {a -> b; layers: {two: {c -> d}}}; ignored: {z: {width: 900; height: 800}}}", "compile_options": {"layout": "dagre"}, "options": {"pad": 20, "animateInterval": 500, "target": "layers.one.*"}},
+{"name": "quoted", "input": "layers: {\"one.dot\": {a -> b; layers: {\"two.dot\": {c -> d}}}}", "compile_options": {"layout": "dagre"}, "options": {"pad": 20, "animateInterval": 500, "target": "*"}},
+{"name": "quoted-selected", "input": "layers: {\"one.dot\": {a -> b; layers: {\"two.dot\": {c -> d}}}; ignored: {z: {width: 900}}}", "compile_options": {"layout": "dagre"}, "options": {"pad": 20, "animateInterval": 500, "target": "layers.\"one.dot\".*"}},
+{"name": "zero-pad", "input": "a -> b\nlayers: {one: {c -> d}}", "compile_options": {"layout": "dagre"}, "options": {"pad": 0, "animateInterval": 500, "target": "*"}}
+]

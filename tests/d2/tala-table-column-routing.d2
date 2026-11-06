@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: MPL-2.0
+# Column-to-column and column-to-object edges with retained table geometry.
+users: {
+  shape: sql_table
+  left: 0
+  top: 0
+  width: 160
+  height: 160
+  id: int {constraint: primary_key}
+  name: text
+}
+orders: {
+  shape: sql_table
+  left: 360
+  top: 220
+  width: 160
+  height: 160
+  id: int {constraint: primary_key}
+  user_id: int
+}
+sink: {left: 640; top: 0; width: 80; height: 80}
+users.id -> orders.user_id
+orders.id -> sink

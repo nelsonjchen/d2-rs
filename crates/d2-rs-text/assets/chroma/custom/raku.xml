@@ -1,0 +1,1141 @@
+<lexer>
+  <config>
+    <name>Raku</name>
+    <alias>perl6</alias>
+    <alias>pl6</alias>
+    <alias>raku</alias>
+    <filename>*.pl</filename>
+    <filename>*.pm</filename>
+    <filename>*.nqp</filename>
+    <filename>*.p6</filename>
+    <filename>*.6pl</filename>
+    <filename>*.p6l</filename>
+    <filename>*.pl6</filename>
+    <filename>*.6pm</filename>
+    <filename>*.p6m</filename>
+    <filename>*.pm6</filename>
+    <filename>*.t</filename>
+    <filename>*.raku</filename>
+    <filename>*.rakumod</filename>
+    <filename>*.rakutest</filename>
+    <filename>*.rakudoc</filename>
+    <mime_type>text/x-perl6</mime_type>
+    <mime_type>application/x-perl6</mime_type>
+    <mime_type>text/x-raku</mime_type>
+    <mime_type>application/x-raku</mime_type>
+    <dot_all>true</dot_all>
+  </config>
+  <rules>
+    <state name="&lt;&lt;">
+      <rule pattern="&gt;&gt;(?!\s*(?:\d+|\.(?:Int|Numeric)|[$@%]\*?[\w&#39;:-]+|\s+\[))">
+        <token type="Punctuation"/>
+        <pop depth="1"/>
+      </rule>
+      <rule>
+        <include state="ww"/>
+      </rule>
+    </state>
+    <state name="Q">
+      <rule>
+        <include state="escape-qq"/>
+      </rule>
+      <rule pattern=".+?">
+        <token type="LiteralString"/>
+      </rule>
+    </state>
+    <state name="Q-closure">
+      <rule>
+        <include state="escape-qq"/>
+      </rule>
+      <rule>
+        <include state="closure"/>
+      </rule>
+      <rule pattern=".+?">
+        <token type="LiteralString"/>
+      </rule>
+    </state>
+    <state name="Q-variable">
+      <rule>
+        <include state="escape-qq"/>
+      </rule>
+      <rule>
+        <include state="qq-variable"/>
+      </rule>
+      <rule pattern=".+?">
+        <token type="LiteralString"/>
+      </rule>
+    </state>
+    <state name="closure">
+      <rule pattern="(?&lt;!(?&lt;!\\)\\){">
+        <token type="Punctuation"/>
+        <raku-replace delimiter="}" token="Punctuation" state="root" pop="false" push="true"></raku-replace>
+      </rule>
+    </state>
+    <state name="colon-pair">
+      <rule pattern="(?&lt;!:)(?&lt;colon&gt;:)(?&lt;key&gt;\w[\w&#39;-]*)(?&lt;opening_delimiters&gt;(?:&lt;&lt;|&lt;|«|\(|\[|\{))">
+        <raku-emitter name="colonPair-LiteralString"></raku-emitter>
+        <raku-brackets class="1"></raku-brackets>
+      </rule>
+      <rule pattern="(:)(\d+)(\w[\w&#39;-]*)">
+        <bygroups>
+          <token type="Punctuation"/>
+          <usingself state="number"/>
+          <token type="LiteralString"/>
+        </bygroups>
+      </rule>
+      <rule pattern="(:)(!?)(\w[\w&#39;-]*)">
+        <bygroups>
+          <token type="Punctuation"/>
+          <token type="Operator"/>
+          <token type="LiteralString"/>
+        </bygroups>
+      </rule>
+      <rule pattern="\s+">
+        <token type="Text"/>
+      </rule>
+    </state>
+    <state name="colon-pair-attribute">
+      <rule pattern="(?&lt;!:)(?&lt;colon&gt;:)(?&lt;key&gt;\w[\w&#39;-]*)(?&lt;opening_delimiters&gt;(?:&lt;&lt;|&lt;|«|\(|\[|\{))">
+        <raku-emitter name="colonPair-NameAttribute"></raku-emitter>
+        <raku-brackets class="1"></raku-brackets>
+      </rule>
+      <rule pattern="(:)(\d+)(\w[\w&#39;-]*)">
+        <bygroups>
+          <token type="Punctuation"/>
+          <usingself state="number"/>
+          <token type="NameAttribute"/>
+        </bygroups>
+      </rule>
+      <rule pattern="(:)(!?)(\w[\w&#39;-]*)">
+        <bygroups>
+          <token type="Punctuation"/>
+          <token type="Operator"/>
+          <token type="NameAttribute"/>
+        </bygroups>
+      </rule>
+      <rule pattern="\s+">
+        <token type="Text"/>
+      </rule>
+    </state>
+    <state name="colon-pair-attribute-keyvalue">
+      <rule pattern="(?&lt;!:)(?&lt;colon&gt;:)(?&lt;key&gt;\w[\w&#39;-]*)(?&lt;opening_delimiters&gt;(?:&lt;&lt;|&lt;|«|\(|\[|\{))">
+        <raku-emitter name="colonPair-NameAttribute"></raku-emitter>
+        <raku-brackets class="1"></raku-brackets>
+      </rule>
+    </state>
+    <state name="common">
+      <rule pattern="^#![^\n]*$">
+        <token type="CommentHashbang"/>
+      </rule>
+      <rule>
+        <include state="pod"/>
+      </rule>
+      <rule pattern="#`(?&lt;opening_delimiters&gt;(?&lt;delimiter&gt;[\(&lt;\[\{«༺༼᚛‘‚‛“„‟‹⁅⁽₍∈∉∊∕∼≃≒≔≤≦≨≪≮≰≲≴≶≸≺≼≾⊀⊂⊄⊆⊈⊊⊏⊑⊘⊢⊦⊨⊩⊫⊰⊲⊴⊶⋉⋋⋐⋖⋘⋚⋜⋞⋠⋢⋤⋦⋨⋪⋬⋰⋲⋳⋴⋶⋷⌈⌊〈⎴❨❪❬❮❰❲❴⟃⟅⟕⟝⟢⟤⟦⟨⟪⦃⦅⦇⦉⦋⦍⦏⦑⦓⦕⦗⧀⧄⧏⧑⧔⧘⧚⧸⧼⨫⨭⨴⨼⩤⩹⩽⩿⪁⪃⪋⪑⪓⪕⪗⪙⪛⪡⪦⪨⪪⪬⪯⪳⪻⪽⪿⫁⫃⫅⫍⫏⫑⫓⫕⫬⫷⫹⸂⸄⸉⸌⸜⸠〈《「『【〔〖〘〚〝﴾︗︵︷︹︻︽︿﹁﹃﹇﹙﹛﹝（＜［｛｟｢])\k&lt;delimiter&gt;*)">
+        <token type="CommentMultiline"/>
+        <raku-brackets class="5"></raku-brackets>
+      </rule>
+      <rule pattern="#[^\n]*$">
+        <token type="CommentSingle"/>
+      </rule>
+      <rule pattern="(?&lt;=(?:^|\(|=|:|~~|\[|{|,|=&gt;)\s*)(/)(?!\]|\))((?:\\\\|\\/|.)*?)((?&lt;!(?&lt;!\\)\\)/(?!&#39;|&#34;))">
+        <bygroups>
+          <token type="Punctuation"/>
+          <usingself state="regex"/>
+          <token type="Punctuation"/>
+        </bygroups>
+      </rule>
+      <rule>
+        <include state="variable"/>
+      </rule>
+      <rule pattern="::\?\w+(?::[_UD])?">
+        <token type="NameVariableGlobal"/>
+      </rule>
+      <rule pattern="\b(v)(\d+)((?:\.(?:\*|[\d\w]+))*)(\+)?">
+        <bygroups>
+          <token type="Keyword"/>
+          <token type="LiteralNumberInteger"/>
+          <token type="NameEntity"/>
+          <token type="Operator"/>
+        </bygroups>
+      </rule>
+      <rule>
+        <include state="number"/>
+      </rule>
+      <rule pattern="(&gt;&gt;)(\S+?)(&lt;&lt;)">
+        <bygroups>
+          <token type="Operator"/>
+          <usingself state="root"/>
+          <token type="Operator"/>
+        </bygroups>
+      </rule>
+      <rule pattern="(»)(\S+?)(«)">
+        <bygroups>
+          <token type="Operator"/>
+          <usingself state="root"/>
+          <token type="Operator"/>
+        </bygroups>
+      </rule>
+      <rule pattern="(&lt;&lt;)(\S+?)(&lt;&lt;)">
+        <bygroups>
+          <token type="Operator"/>
+          <usingself state="root"/>
+          <token type="Operator"/>
+        </bygroups>
+      </rule>
+      <rule pattern="(«)(\S+?)(«)">
+        <bygroups>
+          <token type="Operator"/>
+          <usingself state="root"/>
+          <token type="Operator"/>
+        </bygroups>
+      </rule>
+      <rule pattern="(&gt;&gt;)(\S+?)(&gt;&gt;)">
+        <bygroups>
+          <token type="Operator"/>
+          <usingself state="root"/>
+          <token type="Operator"/>
+        </bygroups>
+      </rule>
+      <rule pattern="(»)(\S+?)(»)">
+        <bygroups>
+          <token type="Operator"/>
+          <usingself state="root"/>
+          <token type="Operator"/>
+        </bygroups>
+      </rule>
+      <rule pattern="(?&lt;!(?:\d+|\.(?:Int|Numeric)|[$@%]\*?[\w&#39;:-]+\s+|[\])}]\s+)\s*)(&lt;&lt;)(?!(?:(?!&gt;&gt;)[^\n])+?[},;] *\n)(?!(?:(?!&gt;&gt;).)+?&gt;&gt;\S+?&gt;&gt;)">
+        <token type="Punctuation"/>
+        <push state="&lt;&lt;"/>
+      </rule>
+      <rule pattern="(?&lt;!(?:\d+|\.(?:Int|Numeric)|[$@%]\*?[\w&#39;:-]+\s+|[\])}]\s+)\s*)(«)(?![^»]+?[},;] *\n)(?![^»]+?»\S+?»)">
+        <token type="Punctuation"/>
+        <push state="«"/>
+      </rule>
+      <rule pattern="(?&lt;=\[\\?)&lt;(?=\])">
+        <token type="Operator"/>
+      </rule>
+      <rule pattern="(?&lt;=[$@%&amp;]?\w[\w&#39;:-]* +)(&lt;=?)( *[^ ]+? *)(&gt;=?)(?= *[$@%&amp;]?\w[\w&#39;:-]*)">
+        <bygroups>
+          <token type="Operator"/>
+          <usingself state="root"/>
+          <token type="Operator"/>
+        </bygroups>
+      </rule>
+      <rule pattern="(?&lt;!(?:\d+|\.(?:Int|Numeric)|[$@%]\*?[\w&#39;:-]+\s+|[\])}]\s+)\s*)(&lt;)((?:(?![,;)}] *(?:#[^\n]+)?\n)[^&lt;&gt;])+?)(&gt;)(?!\s*(?:\d+|\.(?:Int|Numeric)|[$@%]\*?\w[\w&#39;:-]*[^(]|\s+\[))">
+        <bygroups>
+          <token type="Punctuation"/>
+          <token type="LiteralString"/>
+          <token type="Punctuation"/>
+        </bygroups>
+      </rule>
+      <rule pattern="C?X::[&#39;\w:-]+">
+        <token type="NameException"/>
+      </rule>
+      <rule>
+        <include state="metaoperator"/>
+      </rule>
+      <rule pattern="(\w[\w&#39;-]*)(\s*)(=&gt;)">
+        <bygroups>
+          <token type="LiteralString"/>
+          <token type="Text"/>
+          <token type="Operator"/>
+        </bygroups>
+      </rule>
+      <rule>
+        <include state="colon-pair"/>
+      </rule>
+      <rule pattern="(?&lt;=(?:^|\s)(?:regex|token|rule)(\s+))(?:(?!(?&lt;!:)(?&lt;colon&gt;:)(?&lt;key&gt;\w[\w&#39;-]*)(?&lt;opening_delimiters&gt;(?:&lt;&lt;|&lt;|«|\(|\[|\{)))(?:::|[\w&#39;:-]))+(?=(:[&#39;\w-]+(?:&lt;&lt;|&lt;|«|\(|\[|\{).+?(?:&gt;&gt;|&gt;|»|\)|\]|\}))?\s*[({])">
+        <token type="NameFunction"/>
+        <push state="token" state="name-adverb"/>
+      </rule>
+      <rule pattern="(?&lt;=^|\b|\s)(?&lt;!\.)(ss|S|s|TR|tr)\b(\s*)">
+        <bygroups>
+          <token type="Keyword"/>
+          <token type="Text"/>
+        </bygroups>
+        <push state="substitution"/>
+      </rule>
+      <rule pattern="(?&lt;![&#39;\w:-])(hidden-from-backtrace|dynamic-scope|DEPRECATED|supersede|return-rw|submethod|whenever|constant|required|dynamic|without|succeed|default|returns|CONTROL|require|proceed|grammar|default|augment|export|import|return|subset|repeat|unless|orwith|module|supply|gather|method|native|symbol|cached|ENTER|while|nodal|class|start|FIRST|react|given|CHECK|multi|BEGIN|CLOSE|elsif|until|token|proto|regex|CATCH|where|built|LEAVE|state|role|repr|temp|NEXT|anon|does|POST|else|LAST|KEEP|rule|unit|QUIT|also|enum|when|need|with|INIT|UNDO|make|pure|made|loop|PRE|let|but|END|DOC|sub|our|--&gt;|raw|has|try|for|use|is|my|if|no|rw|of|-&gt;)(?![&#39;\w:-])">
+        <token type="Keyword"/>
+      </rule>
+      <rule pattern="(?&lt;![&#39;\w:-])(CompUnit::Repository::Installation|CompUnit::PrecompilationRepository|Metamodel::MROBasedMethodDispatch|Telemetry::Instrument::ThreadPool|Metamodel::PrivateMethodContainer|CompUnit::Repository::FileSystem|IO::Socket::Async::ListenSocket|Metamodel::MultipleInheritance|Telemetry::Instrument::Thread|Metamodel::AttributeContainer|Encoding::GlobalLexerRegistry|Telemetry::Instrument::Usage|Metamodel::MethodContainer|Metamodel::ConcreteRoleHOW|Metamodel::CurriedRoleHOW|IO::Notification::Change|Metamodel::RoleContainer|Lock::ConditionVariable|Metamodel::Finalization|Metamodel::DefiniteHOW|Metamodel::RolePunning|Distribution::Resource|Pod::Block::Declarator|PositionalBindFailover|CurrentThreadScheduler|Metamodel::Documenting|Metamodel::Versioning|Distribution::Locally|Metamodel::Primitives|Supplier::Preserving|CompUnit::Repository|Pod::Block::Comment|Routine::WrapHandle|Metamodel::ClassHOW|Metamodel::Trusting|Metamodel::Stashing|ThreadPoolScheduler|Metamodel::EnumHOW|Distribution::Hash|Telemetry::Sampler|MONKEY-SEE-NO-EVAL|Distribution::Path|Pod::Block::Named|Pod::Block::Table|Metamodel::Naming|Telemetry::Period|IO::Socket::Async|Metamodel::Mixins|Pod::Block::Para|IO::Path::Cygwin|IO::Notification|IO::Socket::INET|IO::Spec::Cygwin|Backtrace::Frame|Metamodel::C3MRO|Pod::Block::Code|IO::Path::Parts|IO::Spec::Win32|IO::Path::Win32|precompilation|IO::Spec::Unix|IO::Path::Unix|IO::CatHandle|IO::Spec::QNX|MONKEY-TYPING|HyperWhatever|IO::Path::QNX|IO::ArgFiles|Cancellation|Pod::Heading|experimental|WhateverCode|Distribution|PseudoStash|Enumeration|MONKEY-GUTS|CX::Proceed|StrDistance|Proc::Async|Associative|IO::Special|Lock::Async|CX::Succeed|CX::Return|NativeCall|Pod::Block|IO::Socket|WrapHandle|ComplexStr|Positional|IO::Handle|ValueObjAt|Parameter|Attribute|Pod::Item|Scheduler|QuantHash|Signature|Telemetry|CallFrame|Exception|Backtrace|Semaphore|atomicint|Submethod|variables|Encoding|Variable|CX::Redo|CX::Next|CX::Last|CX::Emit|longlong|Sequence|CX::Done|Systemic|Junction|Iterator|Iterable|IO::Spec|IO::Pipe|IO::Path|CompUnit|DateTime|Duration|CX::Take|Callable|CX::Warn|compiler|Supplier|Whatever|Rational|Promise|Channel|SetHash|Failure|Pointer|newline|Version|MixHash|Instant|Stringy|Grammar|Complex|Dateish|BagHash|Capture|worries|RaceSeq|Routine|Numeric|uint64|NumStr|Supply|CArray|RatStr|Thread|Scalar|Distro|IntStr|uint16|uint32|Cursor|Method|strict|Kernel|Endian|size_t|FatRat|int16|False|Order|Proxy|ObjAt|num64|num32|Block|Range|uint8|Baggy|Array|int32|Regex|int64|Empty|Order|fatal|Match|Stash|Macro|Label|trace|Setty|Bool|int8|Slip|True|Lock|Code|Real|long|soft|Raku|Cool|Proc|Date|isms|Perl|Pair|More|List|Less|Blob|Same|Test|NFKD|UInt|NFKC|Hash|Mixy|utf8|Set|Rat|NFC|Mix|NFD|Seq|Int|Bag|AST|int|Any|Nil|Str|Buf|Uni|str|Sub|lib|Tap|Map|nqp|Num|IO|Mu|VM)(?::[_UD])?(?![&#39;\w:-])">
+        <token type="KeywordType"/>
+      </rule>
+      <rule pattern="(?&lt;![&#39;\w:-])(with-lock-hidden-from-recursion-check|protect-or-queue-on-recursion|IO::Notification\.watch-path|configure_type_checking|next-interesting-index|skip-at-least-pull-one|find_method_qualified|install_method_cache|publish_method_cache|private_method_table|private_method_names|first-date-in-month|set_export_callback|set_mixin_attribute|setup_finalization|delete-by-compiler|add_private_method|explicitly-manage|configure_destroy|setup_mixin_cache|native-descriptor|alternative-names|offset-in-minutes|is-initial-thread|new-from-daycount|uncaught_handler|atomic-fetch-add|weekday-of-month|atomic-dec-fetch|roles_to_compose|atomic-fetch-dec|atomic-inc-fetch|atomic-fetch-sub|atomic-fetch-inc|set_composalizer|export_callback|enum_from_value|set-instruments|mixin_attribute|offset-in-hours|categorize-list|push-until-lazy|calling-package|ARGS-TO-CAPTURE|enum_value_list|add_enum_value|generate_mixin|new-from-pairs|precomp-target|base-repeating|qualifier-type|verbose-config|source-package|compose_values|GENERATE-USAGE|child-typename|days-in-month|skip-at-least|add_attribute|classify-list|write-uint128|store-repo-id|sub_signature|atomic-assign|eval-lives-ok|push-at-least|trim-trailing|type_captures|redispatcher|composalizer|package-kind|write-uint64|package-name|day-of-month|read-uint128|excludes-min|permutations|replace-with|truncated-to|write-uint32|excludes-max|atomic-fetch|trim-leading|nativesizeof|method_table|did-you-mean|compose_type|write-int128|routine-type|combinations|full-barrier|write-uint16|add_fallback|total-memory|set_is_mixin|push-exactly|app_lifetime|eval-dies-ok|accepts_type|distribution|is-leap-year|postcirumfix|load-repo-id|subst-mutate|has_accessor|done-testing|whole-second|bind-stdout|bind-stderr|read-int128|in-timezone|invalid-str|declaration|day-of-year|day-of-week|denominator|starts-with|read-uint16|is-absolute|in-timezone|read-uint32|socket-port|socket-host|read-uint64|create_type|DISTROnames|sleep-until|sleep-timer|is-relative|precompiled|replacement|target-name|KERNELnames|try_acquire|write-uint8|week-number|write-ubits|precomp-ext|named_names|placeholder|write-num64|throws-like|set_package|write-num32|constraints|enum_values|parse-names|from-slurpy|parent-name|compute_mro|free-memory|set_package|close-stdin|annotations|find_method|flush_cache|next-handle|coerce_type|add_trustee|schedule-on|write-int64|write-int32|write-int16|read-int16|set_hidden|fails-like|out-buffer|roundrobin|write-bits|nextcallee|EXISTS-POS|EXISTS-KEY|from-posix|workaround|bind-stdin|parse-base|add_parent|add_method|archetypes|write-int8|nativecast|positional|child-name|short-name|yyyy-mm-dd|is-setting|is-routine|watch-path|usage-name|reallocate|zip-latest|ASSIGN-KEY|count-only|ASSIGN-POS|destroyers|read-uint8|categorize|slurp-rest|build-date|is_trusted|quaternary|type_check|read-ubits|store-file|read-num64|DELETE-POS|DELETE-KEY|candidates|DEPRECATED|attributes|dd-mm-yyyy|store-unit|read-num32|int-bounds|read-int64|read-int32|normalize|grabpairs|subbuf-rw|read-int8|read-bits|trait_mod|canonpath|splitpath|is-approx|is-deeply|is-hidden|cpu-usage|substr-eq|uninstall|skip-rest|substr-rw|signature|load-unit|shortname|cpu-cores|readchars|misplaced|backtrace|multiness|get_value|bool-only|from-loop|from-list|set_value|formatter|add_stash|postmatch|secondary|construct|enclosing|pickpairs|week-year|scheduler|peer-port|peer-host|ends-with|callframe|numerator|return-rw|on-switch|operation|parsefile|extension|WHEREFORE|parameter|base_type|antipairs|exception|condition|bind-udp|short-id|wordcase|EVALFILE|exitcode|packages|expected|antipair|trailing|BIND-KEY|bail-out|allocate|BIND-POS|FALLBACK|compiler|os-error|optional|truncate|filename|path-sep|on-close|RUN-MAIN|samecase|samemark|samewith|reserved|basename|archname|encoding|nextwith|nextsame|contains|codename|set_name|required|contents|repeated|add_role|new_type|prematch|relative|set_auth|interval|classify|addendum|composer|tertiary|print-nl|print-to|throttle|timezone|variable|modified|DEFINITE|to-posix|readonly|minpairs|assuming|hardware|write-to|maxpairs|pull-one|push-all|lives-ok|hh-mm-ss|lastcall|sink-all|hostname|iterator|uniprops|skip-one|uniparse|is-prime|accessed|uninames|splitdir|unimatch|curupdir|DateTime|daycount|infinite|typename|absolute|cicumfix|subparse|undefine|invocant|callwith|callsame|definite|dies-ok|headers|instead|prepend|Instant|abs2rel|install|duckmap|is_type|dynamic|acosech|does-ok|indices|private|earlier|acotanh|postfix|is-lazy|acquire|produce|actions|illegal|Promise|allowed|promise|polymod|protect|VMnames|version|Version|dir-sep|dirname|ACCEPTS|unshift|unpolar|devnull|DESTROY|encoder|delayed|univals|periods|defined|payload|uniprop|uniname|leading|default|deepmap|decoder|backend|parents|rebless|primary|receive|BagHash|channel|rel2abs|release|package|repo-id|content|connect|take-rw|symlink|resolve|feature|summary|restore|subtest|rethrow|returns|subname|reverse|CALL-ME|Stringy|Numeric|message|rootdir|compose|handles|methods|migrate|Complex|comment|handled|command|flatmap|collate|nodemap|MixHash|started|set_api|cleanup|sprintf|caption|set_ver|Capture|set_why|capture|snapper|SetHash|sibling|catfile|catpath|ceiling|signals|cglobal|changed|Channel|trusts|narrow|signal|freeze|format|catdir|slurpy|source|splice|chunks|squish|stable|set_rw|closed|cmp-ok|serial|second|nl-out|can-ok|status|handle|column|minute|minmax|stderr|stdout|rotate|method|rolish|cancel|config|offset|rindex|finish|subbuf|substr|return|broken|resume|result|opened|suffix|lookup|Supply|target|Bridge|report|osname|loaded|rename|bounds|remove|expmod|tmpdir|cosech|toggle|reduce|pairup|listen|params|parent|trying|twigil|reason|cotanh|CREATE|curdir|decode|AT-POS|AT-KEY|unicmp|unique|endian|hidden|unival|unlike|unlink|phaser|delete|encode|unlock|unpack|unwrap|use-ok|values|volume|is-win|prompt|append|adverb|action|is-int|indent|acotan|isa-ok|acosec|printf|prefix|accept|invert|first|scope|infix|yield|indir|eager|acosh|index|isNaN|posix|elems|after|allof|hyper|polar|write|words|anyof|WHICH|WHERE|arity|Array|watch|asech|value|hides|asinh|USAGE|radix|updir|keyof|Range|range|unset|later|atan2|level|atanh|await|lines|enums|Baggy|trans|parts|batch|total|bless|today|block|cross|throw|count|break|ready|loads|cotan|reals|parse|event|local|log10|BUILD|TWEAK|pairs|subst|bytes|cache|match|merge|cosec|cando|STORE|mixin|start|srand|spurt|mkdir|split|spawn|month|files|multi|slurp|named|sleep|cause|right|sigil|rmdir|shift|chars|print|chdir|child|roots|shell|rotor|round|share|shape|chmod|chomp|Setty|flush|flunk|floor|clone|close|codes|nl-in|flat|kept|sech|coll|pred|seek|self|send|acos|done|year|nice|code|NFKD|NFKC|yada|does|proc|none|flip|isnt|comb|chrs|poll|norm|plus|wrap|push|chop|plan|arch|note|when|nude|what|roll|WHAT|role|next|args|sign|from|diag|need|emit|sinh|sink|full|skip|week|getc|gist|asec|warn|conj|name|Slip|slip|find|wait|item|snap|hour|join|keep|asin|sort|move|open|file|SPEC|grab|desc|mode|caps|ords|orig|sqrt|Mixy|quit|grep|fail|repo|race|raku|rand|meta|copy|keys|pack|kill|kxxv|Hash|lang|last|lazy|atan|Pair|pair|redo|read|cosh|make|MAIN|succ|pick|made|like|recv|line|auth|perl|tail|take|lock|type|tanh|link|exit|Real|List|tclc|tell|term|EVAL|then|hash|list|Bool|time|path|head|live|base|todo|load|trim|Date|bits|tree|pass|one|Str|abs|HOW|cue|bag|eof|Bag|nok|tap|tan|end|zip|Seq|Set|udp|log|lsb|sum|Map|set|NFD|map|isa|exp|ast|raw|say|max|act|vow|NFC|can|cos|Rat|min|key|Mix|mix|cis|add|utc|day|ord|sec|VAR|mro|ver|pid|cas|pos|msb|val|all|EOF|got|old|put|pop|get|sin|new|Int|chr|Num|now|die|run|not|WHO|how|WHY|why|api|rwx|dir|any|fmt|kv|to|ok|IO|so|id|fc|at|of|im|re|in|do|rw|lc|tc|uc|r|e|x|T|z|t|f|l|s|d|w)(?![&#39;\w-])">
+        <token type="NameBuiltin"/>
+      </rule>
+      <rule pattern="(?&lt;=(?:^|\s)(?:class|grammar|role|does|but|is|subset|of)\s+)(?:(?!(?&lt;!:)(?&lt;colon&gt;:)(?&lt;key&gt;\w[\w&#39;-]*)(?&lt;opening_delimiters&gt;(?:&lt;&lt;|&lt;|«|\(|\[|\{)))(?:::|[\w&#39;:-]))+">
+        <token type="NameClass"/>
+        <push state="name-adverb"/>
+      </rule>
+      <rule pattern="(?&lt;=(?:^|\s)(?:sub|method|multi sub|multi)\s+)!?(?:(?!(?&lt;!:)(?&lt;colon&gt;:)(?&lt;key&gt;\w[\w&#39;-]*)(?&lt;opening_delimiters&gt;(?:&lt;&lt;|&lt;|«|\(|\[|\{)))(?:::|[\w&#39;:-]))+(?=(:[&#39;\w-]+(?:&lt;&lt;|&lt;|«|\(|\[|\{).+?(?:&gt;&gt;|&gt;|»|\)|\]|\}))?\s*[({])">
+        <token type="NameFunction"/>
+        <push state="name-adverb"/>
+      </rule>
+      <rule pattern="(?&lt;=\bconstant\s+)(?:(?!(?&lt;!:)(?&lt;colon&gt;:)(?&lt;key&gt;\w[\w&#39;-]*)(?&lt;opening_delimiters&gt;(?:&lt;&lt;|&lt;|«|\(|\[|\{)))(?:::|[\w&#39;:-]))+">
+        <token type="NameConstant"/>
+        <push state="name-adverb"/>
+      </rule>
+      <rule pattern="(?&lt;=\b(?:use|module|package)\s+)(?:(?!(?&lt;!:)(?&lt;colon&gt;:)(?&lt;key&gt;\w[\w&#39;-]*)(?&lt;opening_delimiters&gt;(?:&lt;&lt;|&lt;|«|\(|\[|\{)))(?:::|[\w&#39;:-]))+">
+        <token type="NameNamespace"/>
+        <push state="name-adverb"/>
+      </rule>
+      <rule>
+        <include state="operator"/>
+      </rule>
+      <rule>
+        <include state="single-quote"/>
+      </rule>
+      <rule pattern="(?&lt;!(?&lt;!\\)\\)&#34;">
+        <token type="Punctuation"/>
+        <push state="double-quotes"/>
+      </rule>
+      <rule pattern="(?&lt;=^|\b|\s)(ms|m|rx)\b(\s*)">
+        <bygroups>
+          <token type="Keyword"/>
+          <token type="Text"/>
+        </bygroups>
+        <push state="rx"/>
+      </rule>
+      <rule pattern="(?&lt;=^|\b|\s)(?&lt;keyword&gt;(?:qq|q|Q))(?&lt;adverbs&gt;(?::?(?:heredoc|to|qq|ww|q|w|s|a|h|f|c|b|to|v|x))*)(?&lt;ws&gt;\s*)(?&lt;opening_delimiters&gt;(?&lt;delimiter&gt;[^0-9a-zA-Z:\s])\k&lt;delimiter&gt;*)">
+        <raku-emitter name="quote"></raku-emitter>
+        <raku-brackets class="0"></raku-brackets>
+      </rule>
+      <rule pattern="\b(?:(?!(?&lt;!:)(?&lt;colon&gt;:)(?&lt;key&gt;\w[\w&#39;-]*)(?&lt;opening_delimiters&gt;(?:&lt;&lt;|&lt;|«|\(|\[|\{)))(?:::|[\w&#39;:-]))+(?=(:[&#39;\w-]+(?:&lt;&lt;|&lt;|«|\(|\[|\{).+?(?:&gt;&gt;|&gt;|»|\)|\]|\}))?\()">
+        <token type="NameFunction"/>
+        <push state="name-adverb"/>
+      </rule>
+      <rule pattern="(?&lt;!\.\.[?^*+]?)(?&lt;=(?:\.[?^*+&amp;]?)|self!)(?:(?!(?&lt;!:)(?&lt;colon&gt;:)(?&lt;key&gt;\w[\w&#39;-]*)(?&lt;opening_delimiters&gt;(?:&lt;&lt;|&lt;|«|\(|\[|\{)))(?:::|[\w&#39;:-]))+(?=(:[&#39;\w-]+(?:&lt;&lt;|&lt;|«|\(|\[|\{).+?(?:&gt;&gt;|&gt;|»|\)|\]|\}))?\b)">
+        <token type="NameFunction"/>
+        <push state="name-adverb"/>
+      </rule>
+      <rule pattern="(?:(?!(?&lt;!:)(?&lt;colon&gt;:)(?&lt;key&gt;\w[\w&#39;-]*)(?&lt;opening_delimiters&gt;(?:&lt;&lt;|&lt;|«|\(|\[|\{)))(?:::|[\w&#39;:-]))+(?=\s+\W?[&#39;\w:-]+:\W)">
+        <token type="NameFunction"/>
+        <push state="name-adverb"/>
+      </rule>
+      <rule pattern="(?&lt;=\W)(?:∅|i|e|𝑒|tau|τ|pi|π|Inf|∞)(?=\W)">
+        <token type="NameConstant"/>
+      </rule>
+      <rule pattern="(｢)([^｣]*)(｣)">
+        <bygroups>
+          <token type="Punctuation"/>
+          <token type="LiteralString"/>
+          <token type="Punctuation"/>
+        </bygroups>
+      </rule>
+      <rule pattern="(?&lt;=^ *)\b(?:(?!(?&lt;!:)(?&lt;colon&gt;:)(?&lt;key&gt;\w[\w&#39;-]*)(?&lt;opening_delimiters&gt;(?:&lt;&lt;|&lt;|«|\(|\[|\{)))(?:::|[\w&#39;:-]))+(?=:\s*(?:for|while|loop))">
+        <token type="NameLabel"/>
+      </rule>
+      <rule pattern="(?&lt;=\b(?:my|our|constant|let|temp)\s+)\\(?:(?!(?&lt;!:)(?&lt;colon&gt;:)(?&lt;key&gt;\w[\w&#39;-]*)(?&lt;opening_delimiters&gt;(?:&lt;&lt;|&lt;|«|\(|\[|\{)))(?:::|[\w&#39;:-]))+">
+        <token type="NameVariable"/>
+        <push state="name-adverb"/>
+      </rule>
+      <rule pattern="(?:(?!(?&lt;!:)(?&lt;colon&gt;:)(?&lt;key&gt;\w[\w&#39;-]*)(?&lt;opening_delimiters&gt;(?:&lt;&lt;|&lt;|«|\(|\[|\{)))(?:::|[\w&#39;:-]))+">
+        <token type="Name"/>
+        <push state="name-adverb"/>
+      </rule>
+    </state>
+    <state name="double-quotes">
+      <rule pattern="(?&lt;!(?&lt;!\\)\\)&#34;">
+        <token type="Punctuation"/>
+        <pop depth="1"/>
+      </rule>
+      <rule>
+        <include state="qq"/>
+      </rule>
+    </state>
+    <state name="escape-c-name">
+      <rule pattern="(?&lt;!(?&lt;!\\)\\)(\\[c|C])(\[)(.+?)(\])">
+        <bygroups>
+          <token type="LiteralStringEscape"/>
+          <token type="Punctuation"/>
+          <token type="LiteralString"/>
+          <token type="Punctuation"/>
+        </bygroups>
+      </rule>
+    </state>
+    <state name="escape-char">
+      <rule pattern="(?&lt;!(?&lt;!\\)\\)(\\[abfrnrt])">
+        <token type="LiteralStringEscape"/>
+      </rule>
+    </state>
+    <state name="escape-hexadecimal">
+      <rule pattern="(?&lt;!(?&lt;!\\)\\)(\\[x|X])(\[)([0-9a-fA-F]+)(\])">
+        <bygroups>
+          <token type="LiteralStringEscape"/>
+          <token type="Punctuation"/>
+          <token type="LiteralNumberHex"/>
+          <token type="Punctuation"/>
+        </bygroups>
+      </rule>
+      <rule pattern="(\\[x|X])([0-9a-fA-F]+)">
+        <bygroups>
+          <token type="LiteralStringEscape"/>
+          <token type="LiteralNumberHex"/>
+        </bygroups>
+      </rule>
+    </state>
+    <state name="escape-qq">
+      <rule pattern="(?&lt;!(?&lt;!\\)\\)(\\qq)(\[)(.+?)(\])">
+        <bygroups>
+          <token type="LiteralStringEscape"/>
+          <token type="Punctuation"/>
+          <usingself state="qq"/>
+          <token type="Punctuation"/>
+        </bygroups>
+      </rule>
+    </state>
+    <state name="escape-single-quote">
+      <rule pattern="(?&lt;!(?&lt;!\\)\\)(\\)([&#39;\\])">
+        <bygroups>
+          <token type="LiteralStringEscape"/>
+          <token type="LiteralStringSingle"/>
+        </bygroups>
+      </rule>
+    </state>
+    <state name="metaoperator">
+      <rule pattern="\b([RZX]+)\b(\[)([^\s\]]+?)(\])">
+        <bygroups>
+          <token type="OperatorWord"/>
+          <token type="Punctuation"/>
+          <usingself state="root"/>
+          <token type="Punctuation"/>
+        </bygroups>
+      </rule>
+      <rule pattern="\b([RZX]+)\b([^\s\]]+)">
+        <bygroups>
+          <token type="OperatorWord"/>
+          <usingself state="operator"/>
+        </bygroups>
+      </rule>
+    </state>
+    <state name="name-adverb">
+      <rule>
+        <include state="colon-pair-attribute-keyvalue"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="number">
+      <rule pattern="0_?[0-7]+(_[0-7]+)*">
+        <token type="LiteralNumberOct"/>
+      </rule>
+      <rule pattern="0x[0-9A-Fa-f]+(_[0-9A-Fa-f]+)*">
+        <token type="LiteralNumberHex"/>
+      </rule>
+      <rule pattern="0b[01]+(_[01]+)*">
+        <token type="LiteralNumberBin"/>
+      </rule>
+      <rule pattern="(?i)(\d*(_\d*)*\.\d+(_\d*)*|\d+(_\d*)*\.\d+(_\d*)*)(e[+-]?\d+)?">
+        <token type="LiteralNumberFloat"/>
+      </rule>
+      <rule pattern="(?i)\d+(_\d*)*e[+-]?\d+(_\d*)*">
+        <token type="LiteralNumberFloat"/>
+      </rule>
+      <rule pattern="(?&lt;=\d+)i">
+        <token type="NameConstant"/>
+      </rule>
+      <rule pattern="\d+(_\d+)*">
+        <token type="LiteralNumberInteger"/>
+      </rule>
+    </state>
+    <state name="operator">
+      <rule pattern="(?&lt;=^|\b|\s)(notandthen|andthen|\(elem\)|minmax|orelse|before|unicmp|\(cont\)|after|extra|\(&gt;=\)|\(==\)|coll|\(&lt;=\)|fff\^|\^fff|\(\|\)|eqv|and|\(&gt;\)|cmp|\(&lt;\)|xor|div|gcd|lcm|but|min|max|leg|mod|fff|\^ff|ff\^|\(\^\)|\(-\)|not|\(\+\)|\(\.\)|\(&amp;\)|eq|xx|ne|gt|so|ff|ge|le|TR|or|lt|o|x|X|R|Z|S)(?=$|\b|\s)">
+        <token type="OperatorWord"/>
+      </rule>
+      <rule pattern="(\^…\^|\^fff\^|\^\.\.\.\^|\^ff\^|&lt;&lt;==|==&gt;&gt;|\^\.\.\^|\^\.\.\.|\.\.\.\^|…\^|\^…|⊂|&lt;=&gt;|===|∌|∋|≢|≡|∉|∈|≅|=~=|=:=|≥|≤|≠|⊖|∖|⊎|∪|⊍|∩|⊄|⊆|⊈|⊃|…|\.\.\.|⊅|⊇|⊉|∘|\.\.\^|\^\.\.|!!!|::=|»\.|&gt;&gt;\.|\?\?\?|−|==&gt;|&lt;==|⁺|⁻|\?\?|\?\||\|\||--|\^\^|//|\+\+|!!|~~|\*\*|&gt;=|÷|&lt;=|==|=&gt;|×|&lt;&lt;|«|&gt;&gt;|»|¯|!=|:=|\.&amp;|\.=|\.\^|\.\?|\.\+|\.\*|\+\^|\.\.|~\^|\?\^|\?\^|&amp;&amp;|%%|~\^|~\||\+\^|\+\||\?&amp;|~&gt;|~&lt;|~&amp;|\+&gt;|\+&lt;|\+&amp;|\?|:|/|~|\^|&amp;|\^|\.|%|\?|\*|\+|!|,|=|&lt;|&gt;|-|\|)">
+        <token type="Operator"/>
+      </rule>
+    </state>
+    <state name="pod">
+      <rule pattern="(#[|=])\s">
+        <token type="Keyword"/>
+        <push state="pod-single"/>
+      </rule>
+      <rule pattern="(?&lt;keyword&gt;#[|=])(?&lt;opening_delimiters&gt;(?&lt;delimiter&gt;[\(&lt;\[\{«༺༼᚛‘‚‛“„‟‹⁅⁽₍∈∉∊∕∼≃≒≔≤≦≨≪≮≰≲≴≶≸≺≼≾⊀⊂⊄⊆⊈⊊⊏⊑⊘⊢⊦⊨⊩⊫⊰⊲⊴⊶⋉⋋⋐⋖⋘⋚⋜⋞⋠⋢⋤⋦⋨⋪⋬⋰⋲⋳⋴⋶⋷⌈⌊〈⎴❨❪❬❮❰❲❴⟃⟅⟕⟝⟢⟤⟦⟨⟪⦃⦅⦇⦉⦋⦍⦏⦑⦓⦕⦗⧀⧄⧏⧑⧔⧘⧚⧸⧼⨫⨭⨴⨼⩤⩹⩽⩿⪁⪃⪋⪑⪓⪕⪗⪙⪛⪡⪦⪨⪪⪬⪯⪳⪻⪽⪿⫁⫃⫅⫍⫏⫑⫓⫕⫬⫷⫹⸂⸄⸉⸌⸜⸠〈《「『【〔〖〘〚〝﴾︗︵︷︹︻︽︿﹁﹃﹇﹙﹛﹝（＜［｛｟｢])\k&lt;delimiter&gt;*)(?&lt;value&gt;)(?&lt;closing_delimiters&gt;)">
+        <raku-groups>
+          <group name="closing_delimiters">
+            <token type="Punctuation"/>
+          </group>
+          <group name="delimiter">
+            <token type="Ignore"/>
+          </group>
+          <group name="keyword">
+            <token type="Keyword"/>
+          </group>
+          <group name="opening_delimiters">
+            <token type="Punctuation"/>
+          </group>
+          <group name="value">
+            <usingself state="pod-declaration"/>
+          </group>
+        </raku-groups>
+        <raku-brackets class="4"></raku-brackets>
+      </rule>
+      <rule>
+        <include state="pod-blocks"/>
+      </rule>
+    </state>
+    <state name="pod-begin">
+      <rule>
+        <include state="pod-blocks"/>
+      </rule>
+      <rule>
+        <include state="pre-pod-formatter"/>
+      </rule>
+      <rule pattern=".+?">
+        <token type="LiteralStringDoc"/>
+      </rule>
+    </state>
+    <state name="pod-blocks">
+      <rule pattern="(?&lt;=^ *)(?&lt;ws&gt; *)(?&lt;keyword&gt;=begin)(?&lt;ws2&gt; +)(?&lt;name&gt;code)(?&lt;config&gt;[^\n]*)(?&lt;value&gt;.*?)(?&lt;ws3&gt;^\k&lt;ws&gt;)(?&lt;end_keyword&gt;=end)(?&lt;ws4&gt; +)\k&lt;name&gt;">
+        <raku-emitter name="podCode"></raku-emitter>
+      </rule>
+      <rule pattern="(?&lt;=^ *)(?&lt;ws&gt; *)(?&lt;keyword&gt;=begin)(?&lt;ws2&gt; +)(?!code)(?&lt;name&gt;\w[\w&#39;-]*)(?&lt;config&gt;[^\n]*)(?&lt;value&gt;)(?&lt;closing_delimiters&gt;)">
+        <raku-groups>
+          <group name="closing_delimiters">
+            <token type="Keyword"/>
+          </group>
+          <group name="config">
+            <raku-emitter name="podConfig"></raku-emitter>
+          </group>
+          <group name="keyword">
+            <token type="Keyword"/>
+          </group>
+          <group name="name">
+            <token type="Keyword"/>
+          </group>
+          <group name="value">
+            <usingself state="pod-begin"/>
+          </group>
+          <group name="ws">
+            <token type="Comment"/>
+          </group>
+          <group name="ws2">
+            <token type="LiteralStringDoc"/>
+          </group>
+        </raku-groups>
+        <raku-brackets class="2"></raku-brackets>
+      </rule>
+      <rule pattern="(?&lt;=^ *)(?&lt;ws&gt; *)(?&lt;keyword&gt;=(?:for|defn))(?&lt;ws2&gt; +)(?&lt;name&gt;\w[\w&#39;-]*)(?&lt;config&gt;[^\n]*\n)">
+        <bygroups>
+          <token type="Comment"/>
+          <token type="Keyword"/>
+          <token type="LiteralStringDoc"/>
+          <token type="Keyword"/>
+          <raku-emitter name="podConfig"></raku-emitter>
+        </bygroups>
+        <push state="pod-paragraph"/>
+      </rule>
+      <rule pattern="(?&lt;=^ *)(?&lt;ws&gt; *)(?&lt;keyword&gt;=config)(?&lt;ws2&gt; +)(?&lt;name&gt;\w[\w&#39;-]*)(?&lt;config&gt;[^\n]*\n)">
+        <bygroups>
+          <token type="Comment"/>
+          <token type="Keyword"/>
+          <token type="LiteralStringDoc"/>
+          <token type="Keyword"/>
+          <raku-emitter name="podConfig"></raku-emitter>
+        </bygroups>
+      </rule>
+      <rule pattern="(?&lt;=^ *)(?&lt;ws&gt; *)(?&lt;keyword&gt;=alias)(?&lt;ws2&gt; +)(?&lt;name&gt;\w[\w&#39;-]*)(?&lt;value&gt;[^\n]*\n)">
+        <bygroups>
+          <token type="Comment"/>
+          <token type="Keyword"/>
+          <token type="LiteralStringDoc"/>
+          <token type="Keyword"/>
+          <token type="LiteralStringDoc"/>
+        </bygroups>
+      </rule>
+      <rule pattern="(?&lt;=^ *)(?&lt;ws&gt; *)(?&lt;keyword&gt;=encoding)(?&lt;ws2&gt; +)(?&lt;name&gt;[^\n]+)">
+        <bygroups>
+          <token type="Comment"/>
+          <token type="Keyword"/>
+          <token type="LiteralStringDoc"/>
+          <token type="Name"/>
+        </bygroups>
+      </rule>
+      <rule pattern="(?&lt;=^ *)(?&lt;ws&gt; *)(?&lt;keyword&gt;=(?:para|table|pod))(?&lt;config&gt;(?&lt;!\n\s*)[^\n]*\n)">
+        <bygroups>
+          <token type="Comment"/>
+          <token type="Keyword"/>
+          <raku-emitter name="podConfig"></raku-emitter>
+        </bygroups>
+        <push state="pod-paragraph"/>
+      </rule>
+      <rule pattern="(?&lt;=^ *)(?&lt;ws&gt; *)(?&lt;keyword&gt;=head\d+)(?&lt;ws2&gt; *)(?&lt;config&gt;#?)">
+        <bygroups>
+          <token type="Comment"/>
+          <token type="Keyword"/>
+          <token type="GenericHeading"/>
+          <token type="Keyword"/>
+        </bygroups>
+        <push state="pod-heading"/>
+      </rule>
+      <rule pattern="(?&lt;=^ *)(?&lt;ws&gt; *)(?&lt;keyword&gt;=(?:item\d*|comment|data|[A-Z]+))(?&lt;ws2&gt; *)(?&lt;config&gt;#?)">
+        <bygroups>
+          <token type="Comment"/>
+          <token type="Keyword"/>
+          <token type="LiteralStringDoc"/>
+          <token type="Keyword"/>
+        </bygroups>
+        <push state="pod-paragraph"/>
+      </rule>
+      <rule pattern="(?&lt;=^ *)(?&lt;ws&gt; *)(?&lt;keyword&gt;=finish)(?&lt;config&gt;[^\n]*)">
+        <bygroups>
+          <token type="Comment"/>
+          <token type="Keyword"/>
+          <raku-emitter name="podConfig"></raku-emitter>
+        </bygroups>
+        <push state="pod-finish"/>
+      </rule>
+      <rule pattern="(?&lt;=^ *)(?&lt;ws&gt; *)(?&lt;name&gt;=\w[\w&#39;-]*)(?&lt;ws2&gt; *)(?&lt;config&gt;#?)">
+        <bygroups>
+          <token type="Comment"/>
+          <token type="Name"/>
+          <token type="LiteralStringDoc"/>
+          <token type="Keyword"/>
+        </bygroups>
+        <push state="pod-paragraph"/>
+      </rule>
+      <rule pattern="(?&lt;=^ *)(?&lt;keyword&gt; *=)(?&lt;ws&gt; *)(?&lt;config&gt;(?::\w[\w&#39;-]*(?:(?:&lt;&lt;|&lt;|«|\(|\[|\{).+?(?:&gt;&gt;|&gt;|»|\)|\]|\})) *)*\n)">
+        <bygroups>
+          <token type="Keyword"/>
+          <token type="LiteralStringDoc"/>
+          <raku-emitter name="podConfig"></raku-emitter>
+        </bygroups>
+      </rule>
+    </state>
+    <state name="pod-declaration">
+      <rule>
+        <include state="pre-pod-formatter"/>
+      </rule>
+      <rule pattern=".+?">
+        <token type="LiteralStringDoc"/>
+      </rule>
+    </state>
+    <state name="pod-finish">
+      <rule pattern="\z">
+        <pop depth="1"/>
+      </rule>
+      <rule>
+        <include state="pre-pod-formatter"/>
+      </rule>
+      <rule pattern=".+?">
+        <token type="LiteralStringDoc"/>
+      </rule>
+    </state>
+    <state name="pod-formatter">
+      <rule pattern="&gt;">
+        <token type="Punctuation"/>
+        <pop depth="1"/>
+      </rule>
+      <rule>
+        <include state="pre-pod-formatter"/>
+      </rule>
+      <rule pattern=".+?">
+        <token type="LiteralStringOther"/>
+      </rule>
+    </state>
+    <state name="pod-heading">
+      <rule pattern="\n *\n|\n(?=^ *=)">
+        <token type="GenericHeading"/>
+        <pop depth="1"/>
+      </rule>
+      <rule>
+        <include state="pre-pod-formatter"/>
+      </rule>
+      <rule pattern=".+?">
+        <token type="GenericHeading"/>
+      </rule>
+    </state>
+    <state name="pod-paragraph">
+      <rule pattern="\n *\n|\n(?=^ *=)">
+        <token type="LiteralStringDoc"/>
+        <pop depth="1"/>
+      </rule>
+      <rule>
+        <include state="pre-pod-formatter"/>
+      </rule>
+      <rule pattern=".+?">
+        <token type="LiteralStringDoc"/>
+      </rule>
+    </state>
+    <state name="pod-single">
+      <rule pattern="\n">
+        <token type="LiteralStringDoc"/>
+        <pop depth="1"/>
+      </rule>
+      <rule>
+        <include state="pre-pod-formatter"/>
+      </rule>
+      <rule pattern=".+?">
+        <token type="LiteralStringDoc"/>
+      </rule>
+    </state>
+    <state name="pre-pod-formatter">
+      <rule pattern="(?&lt;keyword&gt;[CBIUDTKRPAELZVMSXN])(?&lt;opening_delimiters&gt;&lt;+|«)">
+        <bygroups>
+          <token type="Keyword"/>
+          <token type="Punctuation"/>
+        </bygroups>
+        <raku-brackets class="3"></raku-brackets>
+      </rule>
+    </state>
+    <state name="qq">
+      <rule>
+        <include state="qq-variable"/>
+      </rule>
+      <rule>
+        <include state="closure"/>
+      </rule>
+      <rule>
+        <include state="escape-char"/>
+      </rule>
+      <rule>
+        <include state="escape-hexadecimal"/>
+      </rule>
+      <rule>
+        <include state="escape-c-name"/>
+      </rule>
+      <rule>
+        <include state="escape-qq"/>
+      </rule>
+      <rule pattern=".+?">
+        <token type="LiteralStringDouble"/>
+      </rule>
+    </state>
+    <state name="qq-variable">
+      <rule pattern="(?&lt;!(?&lt;!\\)\\)(?:[$@%&amp;]+[.^:?=!~]?(?:(?!(?&lt;!:)(?&lt;colon&gt;:)(?&lt;key&gt;\w[\w&#39;-]*)(?&lt;opening_delimiters&gt;(?:&lt;&lt;|&lt;|«|\(|\[|\{)))(?:::|[\w&#39;:-]))+|[$@%&amp;]+\*(?:(?!(?&lt;!:)(?&lt;colon&gt;:)(?&lt;key&gt;\w[\w&#39;-]*)(?&lt;opening_delimiters&gt;(?:&lt;&lt;|&lt;|«|\(|\[|\{)))(?:::|[\w&#39;:-]))+)(?=(:[&#39;\w-]+(?:&lt;&lt;|&lt;|«|\(|\[|\{).+?(?:&gt;&gt;|&gt;|»|\)|\]|\}))?)">
+        <token type="NameVariable"/>
+        <push state="qq-variable-extras" state="name-adverb"/>
+      </rule>
+    </state>
+    <state name="qq-variable-extras">
+      <rule pattern="(?&lt;operator&gt;\.)(?&lt;method_name&gt;(?:(?!(?&lt;!:)(?&lt;colon&gt;:)(?&lt;key&gt;\w[\w&#39;-]*)(?&lt;opening_delimiters&gt;(?:&lt;&lt;|&lt;|«|\(|\[|\{)))(?:::|[\w&#39;:-]))+)(?=(:[&#39;\w-]+(?:&lt;&lt;|&lt;|«|\(|\[|\{).+?(?:&gt;&gt;|&gt;|»|\)|\]|\}))?\()">
+        <raku-groups>
+          <group name="method_name">
+            <token type="NameFunction"/>
+          </group>
+          <group name="operator">
+            <token type="Operator"/>
+          </group>
+        </raku-groups>
+        <push state="name-adverb"/>
+      </rule>
+      <rule pattern="\(">
+        <token type="Punctuation"/>
+        <raku-replace delimiter=")" token="Punctuation" state="root" pop="false" push="true"></raku-replace>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="regex">
+      <rule pattern="\A\z"/>
+      <rule>
+        <include state="regex-escape-class"/>
+      </rule>
+      <rule>
+        <include state="regex-character-escape"/>
+      </rule>
+      <rule pattern="([$@])((?&lt;!(?&lt;!\\)\\)\()">
+        <bygroups>
+          <token type="Keyword"/>
+          <token type="Punctuation"/>
+        </bygroups>
+        <raku-replace delimiter=")" token="Punctuation" state="root" pop="false" push="true"></raku-replace>
+      </rule>
+      <rule pattern="\$(?=/)">
+        <token type="NameEntity"/>
+      </rule>
+      <rule pattern="\$(?=\z|\s|[^&lt;(\w*!.])">
+        <token type="NameEntity"/>
+      </rule>
+      <rule>
+        <include state="variable"/>
+      </rule>
+      <rule>
+        <include state="escape-c-name"/>
+      </rule>
+      <rule>
+        <include state="escape-hexadecimal"/>
+      </rule>
+      <rule>
+        <include state="number"/>
+      </rule>
+      <rule>
+        <include state="single-quote"/>
+      </rule>
+      <rule pattern="(?&lt;!(?&lt;!\\)\\)(:)(my|our|state|constant|temp|let)">
+        <bygroups>
+          <token type="Operator"/>
+          <token type="KeywordDeclaration"/>
+        </bygroups>
+        <raku-replace delimiter=";" token="Punctuation" state="root" pop="false" push="true"></raku-replace>
+      </rule>
+      <rule pattern="(?&lt;!(?&lt;!\\)\\)(&lt;)([?!.]*)((?&lt;!(?&lt;!\\)\\){)">
+        <bygroups>
+          <token type="Punctuation"/>
+          <token type="Operator"/>
+          <token type="Punctuation"/>
+        </bygroups>
+        <raku-replace delimiter="}&gt;" token="Punctuation" state="root" pop="false" push="true"></raku-replace>
+      </rule>
+      <rule>
+        <include state="closure"/>
+      </rule>
+      <rule pattern="(:)(\w+)">
+        <bygroups>
+          <token type="Punctuation"/>
+          <token type="NameAttribute"/>
+        </bygroups>
+      </rule>
+      <rule pattern="\|\||\||&amp;&amp;|&amp;|\.\.|\*\*|%%|%|:|!|&lt;&lt;|«|&gt;&gt;|»|\+|\*\*|\*|\?|=|~|&lt;~~&gt;">
+        <token type="Operator"/>
+      </rule>
+      <rule pattern="\^\^|\^|\$\$|\$">
+        <token type="NameEntity"/>
+      </rule>
+      <rule pattern="\.">
+        <token type="NameEntity"/>
+      </rule>
+      <rule pattern="#[^\n]*\n">
+        <token type="CommentSingle"/>
+      </rule>
+      <rule pattern="(?&lt;!(?&lt;!\\)\\)(&lt;)(\s*)([?!.]+)(\s*)(after|before)">
+        <bygroups>
+          <token type="Punctuation"/>
+          <token type="Text"/>
+          <token type="Operator"/>
+          <token type="Text"/>
+          <token type="OperatorWord"/>
+        </bygroups>
+        <raku-replace delimiter="&gt;" token="Punctuation" state="regex" pop="false" push="true"></raku-replace>
+      </rule>
+      <rule pattern="(?&lt;!(?&lt;!\\)\\)(&lt;)([|!?.]*)(wb|ww|ws|w)(&gt;)">
+        <bygroups>
+          <token type="Punctuation"/>
+          <token type="Operator"/>
+          <token type="OperatorWord"/>
+          <token type="Punctuation"/>
+        </bygroups>
+      </rule>
+      <rule pattern="(?&lt;!(?&lt;!\\)\\)(&lt;)([?!.]*)([$@]\w[\w:-]*)(&gt;)">
+        <bygroups>
+          <token type="Punctuation"/>
+          <token type="Operator"/>
+          <token type="NameVariable"/>
+          <token type="Punctuation"/>
+        </bygroups>
+      </rule>
+      <rule pattern="(?&lt;!(?&lt;!\\)\\)&lt;\(|\)&gt;">
+        <token type="Operator"/>
+      </rule>
+      <rule pattern="(?&lt;!(?&lt;!\\)\\)(&lt;)(\w[\w:-]*)(=\.?)">
+        <bygroups>
+          <token type="Punctuation"/>
+          <token type="NameVariable"/>
+          <token type="Operator"/>
+        </bygroups>
+        <push state="regex-variable"/>
+      </rule>
+      <rule pattern="(?&lt;!(?&lt;!\\)\\)(&lt;)([|!?.&amp;]*)(\w(?:(?!:\s)[\w&#39;:-])*)">
+        <bygroups>
+          <token type="Punctuation"/>
+          <token type="Operator"/>
+          <token type="NameFunction"/>
+        </bygroups>
+        <push state="regex-function"/>
+      </rule>
+      <rule pattern="(?&lt;!(?&lt;!\\)\\)&lt;">
+        <token type="Punctuation"/>
+        <push state="regex-property"/>
+      </rule>
+      <rule pattern="(?&lt;!(?&lt;!\\)\\)&#34;">
+        <token type="Punctuation"/>
+        <push state="double-quotes"/>
+      </rule>
+      <rule pattern="(?&lt;!(?&lt;!\\)\\)(?:\]|\))">
+        <token type="Punctuation"/>
+        <pop depth="1"/>
+      </rule>
+      <rule pattern="(?&lt;!(?&lt;!\\)\\)(?:\[|\()">
+        <token type="Punctuation"/>
+        <push state="regex"/>
+      </rule>
+      <rule pattern=".+?">
+        <token type="LiteralStringRegex"/>
+      </rule>
+    </state>
+    <state name="regex-character-class">
+      <rule pattern="(?&lt;!(?&lt;!\\)\\)\]">
+        <token type="Punctuation"/>
+        <pop depth="1"/>
+      </rule>
+      <rule>
+        <include state="regex-escape-class"/>
+      </rule>
+      <rule>
+        <include state="escape-c-name"/>
+      </rule>
+      <rule>
+        <include state="escape-hexadecimal"/>
+      </rule>
+      <rule>
+        <include state="regex-character-escape"/>
+      </rule>
+      <rule>
+        <include state="number"/>
+      </rule>
+      <rule pattern="\.\.">
+        <token type="Operator"/>
+      </rule>
+      <rule pattern=".+?">
+        <token type="LiteralStringRegex"/>
+      </rule>
+    </state>
+    <state name="regex-character-escape">
+      <rule pattern="(?&lt;!(?&lt;!\\)\\)(\\)(.)">
+        <bygroups>
+          <token type="LiteralStringEscape"/>
+          <token type="LiteralStringRegex"/>
+        </bygroups>
+      </rule>
+    </state>
+    <state name="regex-class-builtin">
+      <rule pattern="\b(?:alnum|alpha|blank|cntrl|digit|graph|lower|print|punct|space|upper|xdigit|same|ident)\b">
+        <token type="NameBuiltin"/>
+      </rule>
+    </state>
+    <state name="regex-escape-class">
+      <rule pattern="(?i)\\n|\\t|\\h|\\v|\\s|\\d|\\w">
+        <token type="LiteralStringEscape"/>
+      </rule>
+    </state>
+    <state name="regex-function">
+      <rule pattern="(?&lt;!(?&lt;!\\)\\)&gt;">
+        <token type="Punctuation"/>
+        <pop depth="1"/>
+      </rule>
+      <rule pattern="\(">
+        <token type="Punctuation"/>
+        <raku-replace delimiter=")&gt;" token="Punctuation" state="root" pop="true" push="true"></raku-replace>
+      </rule>
+      <rule pattern="\s+">
+        <token type="LiteralStringRegex"/>
+        <raku-replace delimiter="&gt;" token="Punctuation" state="regex" pop="true" push="true"></raku-replace>
+      </rule>
+      <rule pattern=":">
+        <token type="Punctuation"/>
+        <raku-replace delimiter="&gt;" token="Punctuation" state="root" pop="true" push="true"></raku-replace>
+      </rule>
+    </state>
+    <state name="regex-property">
+      <rule pattern="(?&lt;!(?&lt;!\\)\\)&gt;">
+        <token type="Punctuation"/>
+        <pop depth="1"/>
+      </rule>
+      <rule>
+        <include state="regex-class-builtin"/>
+      </rule>
+      <rule>
+        <include state="variable"/>
+      </rule>
+      <rule>
+        <include state="regex-starting-operators"/>
+      </rule>
+      <rule>
+        <include state="colon-pair-attribute"/>
+      </rule>
+      <rule pattern="(?&lt;!(?&lt;!\\)\\)\[">
+        <token type="Punctuation"/>
+        <push state="regex-character-class"/>
+      </rule>
+      <rule pattern="\+|\-">
+        <token type="Operator"/>
+      </rule>
+      <rule pattern="@[\w&#39;:-]+">
+        <token type="NameVariable"/>
+      </rule>
+      <rule pattern=".+?">
+        <token type="LiteralStringRegex"/>
+      </rule>
+    </state>
+    <state name="regex-starting-operators">
+      <rule pattern="(?&lt;=&lt;)[|!?.]+">
+        <token type="Operator"/>
+      </rule>
+    </state>
+    <state name="regex-variable">
+      <rule>
+        <include state="regex-starting-operators"/>
+      </rule>
+      <rule pattern="(&amp;)?(\w(?:(?!:\s)[\w&#39;:-])*)(?=\()">
+        <bygroups>
+          <token type="Operator"/>
+          <token type="NameFunction"/>
+        </bygroups>
+        <mutators>
+          <pop depth="1"/>
+          <push state="regex-function"/>
+        </mutators>
+      </rule>
+      <rule pattern="(&amp;)?(\w[\w&#39;:-]*)(&gt;)">
+        <bygroups>
+          <token type="Operator"/>
+          <token type="NameFunction"/>
+          <token type="Punctuation"/>
+        </bygroups>
+        <pop depth="1"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+          <push state="regex-property"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="root">
+      <rule pattern="\A\z"/>
+      <rule>
+        <include state="common"/>
+      </rule>
+      <rule pattern="{">
+        <token type="Punctuation"/>
+        <push state="root"/>
+      </rule>
+      <rule pattern="\(">
+        <token type="Punctuation"/>
+        <push state="root"/>
+      </rule>
+      <rule pattern="[)}]">
+        <token type="Punctuation"/>
+        <pop depth="1"/>
+      </rule>
+      <rule pattern=";">
+        <token type="Punctuation"/>
+      </rule>
+      <rule pattern="\[|\]">
+        <token type="Operator"/>
+      </rule>
+      <rule pattern=".+?">
+        <token type="Text"/>
+      </rule>
+    </state>
+    <state name="rx">
+      <rule>
+        <include state="colon-pair-attribute"/>
+      </rule>
+      <rule pattern="(?&lt;opening_delimiters&gt;(?&lt;delimiter&gt;[^\w:\s])\k&lt;delimiter&gt;*)">
+        <raku-groups>
+          <group name="delimiter">
+            <token type="Ignore"/>
+          </group>
+          <group name="opening_delimiters">
+            <token type="Punctuation"/>
+          </group>
+        </raku-groups>
+        <raku-brackets class="6"></raku-brackets>
+      </rule>
+    </state>
+    <state name="single-quote">
+      <rule pattern="(?&lt;!(?&lt;!\\)\\)&#39;">
+        <token type="Punctuation"/>
+        <push state="single-quote-inner"/>
+      </rule>
+    </state>
+    <state name="single-quote-inner">
+      <rule pattern="(?&lt;!(?&lt;!(?&lt;!\\)\\)\\)&#39;">
+        <token type="Punctuation"/>
+        <pop depth="1"/>
+      </rule>
+      <rule>
+        <include state="escape-single-quote"/>
+      </rule>
+      <rule>
+        <include state="escape-qq"/>
+      </rule>
+      <rule pattern="(?:\\\\|\\[^\\]|[^&#39;\\])+?">
+        <token type="LiteralStringSingle"/>
+      </rule>
+    </state>
+    <state name="substitution">
+      <rule>
+        <include state="colon-pair-attribute"/>
+      </rule>
+      <rule pattern="(?&lt;opening_delimiters&gt;(?&lt;delimiter&gt;[\(&lt;\[\{«༺༼᚛‘‚‛“„‟‹⁅⁽₍∈∉∊∕∼≃≒≔≤≦≨≪≮≰≲≴≶≸≺≼≾⊀⊂⊄⊆⊈⊊⊏⊑⊘⊢⊦⊨⊩⊫⊰⊲⊴⊶⋉⋋⋐⋖⋘⋚⋜⋞⋠⋢⋤⋦⋨⋪⋬⋰⋲⋳⋴⋶⋷⌈⌊〈⎴❨❪❬❮❰❲❴⟃⟅⟕⟝⟢⟤⟦⟨⟪⦃⦅⦇⦉⦋⦍⦏⦑⦓⦕⦗⧀⧄⧏⧑⧔⧘⧚⧸⧼⨫⨭⨴⨼⩤⩹⩽⩿⪁⪃⪋⪑⪓⪕⪗⪙⪛⪡⪦⪨⪪⪬⪯⪳⪻⪽⪿⫁⫃⫅⫍⫏⫑⫓⫕⫬⫷⫹⸂⸄⸉⸌⸜⸠〈《「『【〔〖〘〚〝﴾︗︵︷︹︻︽︿﹁﹃﹇﹙﹛﹝（＜［｛｟｢])\k&lt;delimiter&gt;*)">
+        <raku-groups>
+          <group name="delimiter">
+            <token type="Ignore"/>
+          </group>
+          <group name="opening_delimiters">
+            <token type="Punctuation"/>
+          </group>
+        </raku-groups>
+        <raku-brackets class="6"></raku-brackets>
+      </rule>
+      <rule pattern="(?&lt;opening_delimiters&gt;[^\w:\s])">
+        <token type="Punctuation"/>
+        <raku-brackets class="7"></raku-brackets>
+      </rule>
+    </state>
+    <state name="token">
+      <rule pattern="\(">
+        <token type="Punctuation"/>
+        <raku-replace delimiter=")" token="Punctuation" state="root" pop="false" push="true"></raku-replace>
+      </rule>
+      <rule pattern="{">
+        <token type="Punctuation"/>
+        <raku-replace delimiter="}" token="Punctuation" state="regex" pop="true" push="true"></raku-replace>
+      </rule>
+      <rule pattern="\s*">
+        <token type="Text"/>
+      </rule>
+      <rule>
+        <mutators>
+          <pop depth="1"/>
+        </mutators>
+      </rule>
+    </state>
+    <state name="variable">
+      <rule pattern="[$@%&amp;]+[.^:?=!~]?(?:(?!(?&lt;!:)(?&lt;colon&gt;:)(?&lt;key&gt;\w[\w&#39;-]*)(?&lt;opening_delimiters&gt;(?:&lt;&lt;|&lt;|«|\(|\[|\{)))(?:::|[\w&#39;:-]))+">
+        <token type="NameVariable"/>
+        <push state="name-adverb"/>
+      </rule>
+      <rule pattern="[$@%&amp;]+\*(?:(?!(?&lt;!:)(?&lt;colon&gt;:)(?&lt;key&gt;\w[\w&#39;-]*)(?&lt;opening_delimiters&gt;(?:&lt;&lt;|&lt;|«|\(|\[|\{)))(?:::|[\w&#39;:-]))+">
+        <token type="NameVariableGlobal"/>
+        <push state="name-adverb"/>
+      </rule>
+      <rule pattern="[$@]&lt;[^&gt;]+&gt;">
+        <token type="NameVariable"/>
+      </rule>
+      <rule pattern="\$[/!¢]">
+        <token type="NameVariable"/>
+      </rule>
+      <rule pattern="[$@%]">
+        <token type="NameVariable"/>
+      </rule>
+    </state>
+    <state name="ww">
+      <rule>
+        <include state="single-quote"/>
+      </rule>
+      <rule>
+        <include state="qq"/>
+      </rule>
+    </state>
+    <state name="«">
+      <rule pattern="»(?!\s*(?:\d+|\.(?:Int|Numeric)|[$@%]\*?[\w&#39;:-]+|\s+\[))">
+        <token type="Punctuation"/>
+        <pop depth="1"/>
+      </rule>
+      <rule>
+        <include state="ww"/>
+      </rule>
+    </state>
+  </rules>
+</lexer>

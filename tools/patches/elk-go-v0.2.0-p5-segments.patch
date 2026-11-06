@@ -1,0 +1,153 @@
+diff --git a/internal/layered/p5edges/orthogonal/generator.go b/internal/layered/p5edges/orthogonal/generator.go
+--- a/internal/layered/p5edges/orthogonal/generator.go
++++ b/internal/layered/p5edges/orthogonal/generator.go
+@@ -79,3 +79,4 @@ func (generator *Generator) RouteEdges(
+ 	BreakNonCriticalCycles(segments, random)
+ 	TopologicalNumbering(segments)
++	traceOrthogonalSegments(arena, graphID, "numbered", segments)
+ 
+diff --git a/internal/layered/p5edges/orthogonal/diagnostic_segments_trace.go b/internal/layered/p5edges/orthogonal/diagnostic_segments_trace.go
+new file mode 100644
+--- /dev/null
++++ b/internal/layered/p5edges/orthogonal/diagnostic_segments_trace.go
+@@ -0,0 +1,120 @@
++// Copyright (c) 2010, 2020 Kiel University and others.
++//
++// This program and the accompanying materials are made available under the
++// terms of the Eclipse Public License 2.0 which is available at
++// https://www.eclipse.org/legal/epl-2.0/.
++//
++// SPDX-License-Identifier: EPL-2.0
++
++//go:build d2elkdiagnostic
++
++package orthogonal
++
++import (
++	"encoding/json"
++	"fmt"
++	"math"
++	"os"
++
++	basegraph "github.com/d2lang/elk-go/internal/graph"
++	"github.com/d2lang/elk-go/internal/layered"
++)
++
++type tracedP5Port struct {
++	StableID     string   `json:"stable_id"`
++	Side         uint8    `json:"side"`
++	PositionBits string   `json:"position_bits"`
++	Incoming     []int    `json:"incoming_edges"`
++	Outgoing     []int    `json:"outgoing_edges"`
++}
++
++type tracedP5Dependency struct {
++	Target int    `json:"target"`
++	Kind   uint8  `json:"kind"`
++	Weight int    `json:"weight"`
++}
++
++type tracedP5Segment struct {
++	Index            int                  `json:"index"`
++	RoutingSlot      int                  `json:"routing_slot"`
++	StartBits        string               `json:"start_bits"`
++	EndBits          string               `json:"end_bits"`
++	IncomingBits     []string             `json:"incoming_bits"`
++	OutgoingBits     []string             `json:"outgoing_bits"`
++	Ports            []tracedP5Port       `json:"ports"`
++	OutgoingDeps     []tracedP5Dependency `json:"outgoing_dependencies"`
++}
++
++func traceOrthogonalSegments(arena *layered.LGraphArena, graphID layered.LGraphID, stage string, segments []*HyperEdgeSegment) {
++	if os.Getenv("D2_ELK_TRACE") == "" {
++		return
++	}
++	indices := make(map[*HyperEdgeSegment]int, len(segments))
++	for index, segment := range segments {
++		indices[segment] = index
++	}
++	floatBits := func(value float64) string { return fmt.Sprintf("%016x", math.Float64bits(value)) }
++	coordinateBits := func(values []float64) []string {
++		result := make([]string, len(values))
++		for index, value := range values {
++			result[index] = floatBits(value)
++		}
++		return result
++	}
++	result := make([]tracedP5Segment, len(segments))
++	for index, segment := range segments {
++		ports := make([]tracedP5Port, 0, len(segment.Ports))
++		for _, portID := range segment.Ports {
++			port := arena.Port(portID)
++			nodeID := *port.Node
++			node := arena.Node(nodeID)
++			nodeStableID := fmt.Sprintf("lnode:%d", nodeID)
++			if origin, found := basegraph.TryGet(&node.Properties, layered.OriginalElement); found && origin.Kind == layered.OriginNode {
++				nodeStableID = fmt.Sprintf("node:%d", origin.Node)
++			}
++			portOrder := -1
++			for order, candidate := range node.Ports {
++				if candidate == portID {
++					portOrder = order
++					break
++				}
++			}
++			incoming := make([]int, len(port.IncomingEdges))
++			for edgeIndex, edgeID := range port.IncomingEdges {
++				incoming[edgeIndex] = int(edgeID)
++			}
++			outgoing := make([]int, len(port.OutgoingEdges))
++			for edgeIndex, edgeID := range port.OutgoingEdges {
++				outgoing[edgeIndex] = int(edgeID)
++			}
++			ports = append(ports, tracedP5Port{
++				StableID: fmt.Sprintf("%s/port:%d", nodeStableID, portOrder),
++				Side: uint8(port.Side), PositionBits: floatBits(segment.strategy.portPosition(arena, portID)),
++				Incoming: incoming, Outgoing: outgoing,
++			})
++		}
++		dependencies := make([]tracedP5Dependency, 0, len(segment.OutgoingDependencies))
++		for _, dependency := range segment.OutgoingDependencies {
++			dependencies = append(dependencies, tracedP5Dependency{
++				Target: indices[dependency.Target], Kind: uint8(dependency.Type), Weight: dependency.Weight,
++			})
++		}
++		result[index] = tracedP5Segment{
++			Index: index, RoutingSlot: segment.RoutingSlot,
++			StartBits: floatBits(segment.Start), EndBits: floatBits(segment.End),
++			IncomingBits: coordinateBits(segment.IncomingCoordinates),
++			OutgoingBits: coordinateBits(segment.OutgoingCoordinates),
++			Ports: ports, OutgoingDeps: dependencies,
++		}
++	}
++	encoded, err := json.Marshal(struct {
++		Stage string             `json:"stage"`
++		Graph int                `json:"graph"`
++		Segments []tracedP5Segment `json:"segments"`
++	}{"p5-orthogonal-segments-" + stage, int(graphID), result})
++	if err != nil {
++		fmt.Fprintln(os.Stderr, "elk trace encoding failed:", err)
++		return
++	}
++	fmt.Fprintln(os.Stderr, string(encoded))
++}
+diff --git a/internal/layered/p5edges/orthogonal/diagnostic_segments_trace_off.go b/internal/layered/p5edges/orthogonal/diagnostic_segments_trace_off.go
+new file mode 100644
+--- /dev/null
++++ b/internal/layered/p5edges/orthogonal/diagnostic_segments_trace_off.go
+@@ -0,0 +1,15 @@
++// Copyright (c) 2010, 2020 Kiel University and others.
++//
++// This program and the accompanying materials are made available under the
++// terms of the Eclipse Public License 2.0 which is available at
++// https://www.eclipse.org/legal/epl-2.0/.
++//
++// SPDX-License-Identifier: EPL-2.0
++
++//go:build !d2elkdiagnostic
++
++package orthogonal
++
++import "github.com/d2lang/elk-go/internal/layered"
++
++func traceOrthogonalSegments(*layered.LGraphArena, layered.LGraphID, string, []*HyperEdgeSegment) {}

@@ -1,0 +1,30 @@
+without: {
+  tableEx: {
+  }
+  mdEx: |md
+    You will live a long, healthy, happy life and make bags of money.
+  |
+}
+with: {
+  tableEx: {
+    shape: sql_table
+    a: b
+  }
+  classEx: {
+    shape: class
+    a: b
+  }
+  codeEx: |go
+    a := 1
+  | {
+  }
+  mdEx: |md
+    # This is for all ill-treated fellows
+    You will live a long, healthy, happy life and make bags of money.
+  | {
+  }
+}
+without.tableEx -> with.tableEx
+without.classEx -> with.classEx
+without.codeEx -> with.codeEx
+without.mdEx -> with.mdEx

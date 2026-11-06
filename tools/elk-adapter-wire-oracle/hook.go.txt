@@ -1,0 +1,10 @@
+// SPDX-License-Identifier: MPL-2.0
+
+// Recipe-only overlay file (tools/elk-adapter-wire-oracle), added to
+// d2layouts/d2elklayout next to an overlaid layout.go that calls the hook. Not
+// part of any upstream build.
+package d2elklayout
+
+// D2RSWireHook, when set, receives every marshalled ELK request just before
+// elk.LayoutJSON.
+var D2RSWireHook func(raw []byte)

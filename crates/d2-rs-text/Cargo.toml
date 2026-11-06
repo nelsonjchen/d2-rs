@@ -1,0 +1,36 @@
+[package]
+name = "d2-rs-text"
+description = "Rust port of D2's text measurement, Markdown and code highlighting."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "../../README.md"
+
+[features]
+# Oracle tier: tests that read Go-oracle artifacts regenerated into
+# oracle-cache/fixtures by scripts/regen-fixtures.py (docs/FIXTURES.md).
+oracle-fixtures = []
+
+[dependencies]
+base64.workspace = true
+serde_json.workspace = true
+d2-rs-core.workspace = true
+d2-rs-goflate.workspace = true
+fancy-regex = "=0.19.2"
+regex.workspace = true
+roxmltree.workspace = true
+serde = { workspace = true, features = ["rc"] }
+ttf-parser.workspace = true
+unicode-segmentation.workspace = true
+unicode-width.workspace = true
+
+[dev-dependencies]
+d2-rs-testdata.workspace = true
+flate2.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,6 @@
+[
+{"name": "font/invalid-collection", "source": "a\n", "options": {"fontRegular": "AAAAAAAAAAAAAAAAAAAAAA=="}},
+{"name": "font/restore-valid", "source": "a\n", "options": {"fontRegular": {"$upstream_font_base64": "d2renderers/d2fonts/ttf/SourceSansPro-Regular.ttf"}}},
+{"name": "font/checksum-GDEF", "source": "a: {\n", "options": {"fontRegular": {"$upstream_font_base64": "d2renderers/d2fonts/ttf/SourceSansPro-Regular.ttf", "set_bytes": {"440": 1}}}},
+{"name": "font/restore-after-checksum", "source": "a\n", "options": {"fontRegular": {"$upstream_font_base64": "d2renderers/d2fonts/ttf/SourceSansPro-Regular.ttf"}}}
+]

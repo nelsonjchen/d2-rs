@@ -1,0 +1,302 @@
+[
+ {
+  "name": "valid",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><rect width=\"12\" height=\"12\"/></svg>"
+ },
+ {
+  "name": "missing-g-close",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g></svg>"
+ },
+ {
+  "name": "mismatched-close",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g></rect></svg>"
+ },
+ {
+  "name": "duplicate-attr",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><rect width=\"1\" width=\"2\"/></svg>"
+ },
+ {
+  "name": "missing-equal",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><rect width \"1\"/></svg>"
+ },
+ {
+  "name": "unquoted-attr",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><rect width=1/></svg>"
+ },
+ {
+  "name": "missing-quote",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><rect width=\"1/></svg>"
+ },
+ {
+  "name": "attr-unknown-entity",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><rect width=\"&foo;\"/></svg>"
+ },
+ {
+  "name": "attr-amp",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><rect width=\"&\"/></svg>"
+ },
+ {
+  "name": "attr-numeric-overflow",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><rect width=\"&#99999999999999999;\"/></svg>"
+ },
+ {
+  "name": "attr-invalid-scalar",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><rect width=\"&#xD800;\"/></svg>"
+ },
+ {
+  "name": "attr-invalid-control",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><rect width=\"&#0;\"/></svg>"
+ },
+ {
+  "name": "attr-angle",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><rect data-test=\"<hi>\"/></svg>"
+ },
+ {
+  "name": "attr-no-space",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><rect width=\"1\"height=\"1\"/></svg>"
+ },
+ {
+  "name": "text-unknown-entity",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><title>&foo;</title></svg>"
+ },
+ {
+  "name": "text-raw-amp",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><title>&</title></svg>"
+ },
+ {
+  "name": "text-invalid-scalar",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><title>&#x110000;</title></svg>"
+ },
+ {
+  "name": "text-invalid-control",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><title>&#1;</title></svg>"
+ },
+ {
+  "name": "text-invalid-numeric",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><title>&#xGG;</title></svg>"
+ },
+ {
+  "name": "text-cdata-tail",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><title>x]]>y</title></svg>"
+ },
+ {
+  "name": "unclosed-cdata",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><![CDATA[hello</svg>"
+ },
+ {
+  "name": "unclosed-comment",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><!--hi</svg>"
+ },
+ {
+  "name": "bad-comment",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><!--a--b--></svg>"
+ },
+ {
+  "name": "incomplete-comment",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><!-hi></svg>"
+ },
+ {
+  "name": "invalid-cdata",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><![CAT[hi]]></svg>"
+ },
+ {
+  "name": "unknown-namespace",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><x:g/></svg>"
+ },
+ {
+  "name": "wrong-xmlns-xml",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g xmlns:xml=\"wrong\"/></svg>"
+ },
+ {
+  "name": "reserved-xmlns",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g xmlns:xmlns=\"wrong\"/></svg>"
+ },
+ {
+  "name": "duplicate-xmlns",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g xmlns:x=\"foo\" xmlns:x=\"bar\"/></svg>"
+ },
+ {
+  "name": "namespace-attr-alias",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g xmlns:x=\"urn:a\" xmlns:y=\"urn:a\" x:foo=\"1\" y:foo=\"2\"/></svg>"
+ },
+ {
+  "name": "leading-digit",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><1g/></svg>"
+ },
+ {
+  "name": "too-many-colons",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><a:b:c/></svg>"
+ },
+ {
+  "name": "unclosed-pi",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><?test hi</svg>"
+ },
+ {
+  "name": "empty-pi",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><??></svg>"
+ },
+ {
+  "name": "invalid-pi",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><?1test hi?></svg>"
+ },
+ {
+  "name": "unknown-directive",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><!FOO></svg>"
+ },
+ {
+  "name": "unclosed-directive",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><!FOO</svg>"
+ },
+ {
+  "name": "earlier-event-later-mismatch",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g onload=\"x\"/><g></rect></svg>"
+ },
+ {
+  "name": "root-unclosed",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\">"
+ },
+ {
+  "name": "root-mismatch",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"></g>"
+ },
+ {
+  "name": "root-incomplete",
+  "svg": "<svg"
+ },
+ {
+  "name": "root-bad-empty",
+  "svg": "<svg / x>"
+ },
+ {
+  "name": "root-invalid-name",
+  "svg": "<1svg/>"
+ },
+ {
+  "name": "comment-only",
+  "svg": "<!--hi-->"
+ },
+ {
+  "name": "declaration-only",
+  "svg": "<?xml version=\"1.0\"?>"
+ },
+ {
+  "name": "trailing-garbage",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"></svg>bad"
+ },
+ {
+  "name": "trailing-close",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"></svg></svg>"
+ },
+ {
+  "name": "leading-text",
+  "svg": "bad<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"></svg>"
+ },
+ {
+  "name": "numeric-plus",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><title>&#+1;</title></svg>"
+ },
+ {
+  "name": "numeric-hex-plus",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><title>&#x+41;</title></svg>"
+ },
+ {
+  "name": "numeric-empty",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><title>&#;</title></svg>"
+ },
+ {
+  "name": "numeric-hex-empty",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><title>&#x;</title></svg>"
+ },
+ {
+  "name": "numeric-space",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><title>&#32 ;</title></svg>"
+ },
+ {
+  "name": "numeric-noncharacter",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><title>&#xFFFF;</title></svg>"
+ },
+ {
+  "name": "numeric-surrogate-low",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><title>&#xDFFF;</title></svg>"
+ },
+ {
+  "name": "numeric-max",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><title>&#x10FFFF;</title></svg>"
+ },
+ {
+  "name": "numeric-tab",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><title>&#x9;</title></svg>"
+ },
+ {
+  "name": "literal-tab",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><title>\t</title></svg>"
+ },
+ {
+  "name": "literal-control",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><title>\u0001</title></svg>"
+ },
+ {
+  "name": "comment-control",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><!--\u0001--></svg>"
+ },
+ {
+  "name": "comment-ending-hyphen",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><!--hi---></svg>"
+ },
+ {
+  "name": "cdata-control",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><![CDATA[\u0001]]></svg>"
+ },
+ {
+  "name": "cdata-entity-literal",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><title><![CDATA[&#0;]]></title></svg>"
+ },
+ {
+  "name": "quoted-cdata-tail",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g data-info=\"]]>\"/></svg>"
+ },
+ {
+  "name": "closing-prefix-alias",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><a:g xmlns:a=\"urn:a\" xmlns:b=\"urn:a\"></b:g></svg>"
+ },
+ {
+  "name": "wrong-xmlns-uri",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g xmlns:x=\"http://www.w3.org/XML/1998/namespace\"/></svg>"
+ },
+ {
+  "name": "default-xmlns-reserved",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g xmlns=\"http://www.w3.org/2000/xmlns/\"/></svg>"
+ },
+ {
+  "name": "attr-two-colons",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g a:b:c=\"x\"/></svg>"
+ },
+ {
+  "name": "attr-invalid-scalar-nul",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g data-info=\"&#0;\"/></svg>"
+ },
+ {
+  "name": "unclosed-child-after-valid",
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\"><g/><g></svg>"
+ },
+ {
+  "name": "root-unknown-prefix",
+  "svg": "<x:svg/>"
+ },
+ {
+  "name": "root-reserved-prefix",
+  "svg": "<xml:svg/>"
+ },
+ {
+  "name": "root-wrong-namespace",
+  "svg": "<svg xmlns=\"urn:wrong\"/>"
+ },
+ {
+  "name": "root-duplicate-xmlns",
+  "svg": "<svg xmlns=\"urn:wrong\" xmlns=\"http://www.w3.org/2000/svg\"/>"
+ },
+ {
+  "name": "root-valid-prefix",
+  "svg": "<x:svg xmlns:x=\"http://www.w3.org/2000/svg\"/>"
+ }
+]

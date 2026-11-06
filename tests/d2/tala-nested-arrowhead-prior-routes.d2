@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: MPL-2.0
+# Nested ancestor filtering, opposing routes and arrowhead label obstacles.
+direction: right
+group: {
+  a: {left: 0; top: 0; width: 80; height: 80}
+  b: {left: 220; top: 140; width: 80; height: 80}
+  c: {left: 220; top: 0; width: 80; height: 80}
+  a -> c: {
+    source-arrowhead.label: out
+    target-arrowhead.label: in
+  }
+  a -> b: {
+    source-arrowhead.label: out
+    target-arrowhead.label: data
+  }
+  b -> a: {
+    source-arrowhead.label: reply
+    target-arrowhead.label: in
+  }
+}
+outside: {left: 600; top: 0; width: 80; height: 80}
+group.b -> outside: {
+  source-arrowhead.label: export
+  target-arrowhead.label: import
+}

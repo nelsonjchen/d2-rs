@@ -1,0 +1,122 @@
+[
+ {
+  "name": "node-font-0",
+  "source": "a: {style.font: \"mono\"}\n"
+ },
+ {
+  "name": "node-font-1",
+  "source": "a: {style.font: \"MONO\"}\n"
+ },
+ {
+  "name": "node-font-2",
+  "source": "a: {style.font: \"default\"}\n"
+ },
+ {
+  "name": "node-font-3",
+  "source": "a: {style.font: \"DEFAULT\"}\n"
+ },
+ {
+  "name": "node-font-4",
+  "source": "a: {style.font: \"sans\"}\n"
+ },
+ {
+  "name": "node-font-5",
+  "source": "a: {style.font: \"serif\"}\n"
+ },
+ {
+  "name": "node-font-6",
+  "source": "a: {style.font: \"Mono \"}\n"
+ },
+ {
+  "name": "node-font-7",
+  "source": "a: {style.font: \"\"}\n"
+ },
+ {
+  "name": "node-fill-pattern-0",
+  "source": "a: {style.fill-pattern: \"none\"}\n"
+ },
+ {
+  "name": "node-fill-pattern-1",
+  "source": "a: {style.fill-pattern: \"NONE\"}\n"
+ },
+ {
+  "name": "node-fill-pattern-2",
+  "source": "a: {style.fill-pattern: \"dots\"}\n"
+ },
+ {
+  "name": "node-fill-pattern-3",
+  "source": "a: {style.fill-pattern: \"DOTS\"}\n"
+ },
+ {
+  "name": "node-fill-pattern-4",
+  "source": "a: {style.fill-pattern: \"lines\"}\n"
+ },
+ {
+  "name": "node-fill-pattern-5",
+  "source": "a: {style.fill-pattern: \"grain\"}\n"
+ },
+ {
+  "name": "node-fill-pattern-6",
+  "source": "a: {style.fill-pattern: \"paper\"}\n"
+ },
+ {
+  "name": "node-fill-pattern-7",
+  "source": "a: {style.fill-pattern: \"random\"}\n"
+ },
+ {
+  "name": "node-fill-pattern-8",
+  "source": "a: {style.fill-pattern: \" dots\"}\n"
+ },
+ {
+  "name": "node-fill-pattern-9",
+  "source": "a: {style.fill-pattern: \"\"}\n"
+ },
+ {
+  "name": "node-text-transform-0",
+  "source": "a: {style.text-transform: \"none\"}\n"
+ },
+ {
+  "name": "node-text-transform-1",
+  "source": "a: {style.text-transform: \"NONE\"}\n"
+ },
+ {
+  "name": "node-text-transform-2",
+  "source": "a: {style.text-transform: \"uppercase\"}\n"
+ },
+ {
+  "name": "node-text-transform-3",
+  "source": "a: {style.text-transform: \"UPPERCASE\"}\n"
+ },
+ {
+  "name": "node-text-transform-4",
+  "source": "a: {style.text-transform: \"lowercase\"}\n"
+ },
+ {
+  "name": "node-text-transform-5",
+  "source": "a: {style.text-transform: \"capitalize\"}\n"
+ },
+ {
+  "name": "node-text-transform-6",
+  "source": "a: {style.text-transform: \"titlecase\"}\n"
+ },
+ {
+  "name": "node-text-transform-7",
+  "source": "a: {style.text-transform: \" capitalize\"}\n"
+ },
+ {
+  "name": "node-text-transform-8",
+  "source": "a: {style.text-transform: \"\"}\n"
+ },
+ {
+  "name": "used-class",
+  "source": "classes: {bad: {style.font: serif}}\na: {class: bad; style.font: mono}\n"
+ },
+ {
+  "name": "unused-class",
+  "source": "classes: {bad: {style.font: serif}}\na\n"
+ },
+ {
+  "name": "board",
+  "source": "layers: {child: {a: {style.fill-pattern: random}}}\na\n"
+ }
+]

@@ -1,0 +1,69 @@
+{
+  "description": "Natural paragraph layouts (LayoutMarkdown) per snippet x family x size.",
+  "segments": [
+    {
+      "prefix": "paragraph",
+      "const": {},
+      "axes": [
+        {"fields": ["Family"], "values": [["sans"], ["mono"], ["hand"]], "labels": ["sans", "mono", "hand"]},
+        {"fields": ["FontSize"], "values": [[12], [16], [22]], "labels": ["12", "16", "22"]}
+      ],
+      "snippets": [
+        ["00", "**key, type, target**\n**cardinality, identities**"],
+        ["01", "hello world end"],
+        ["02", "**one two** *three four* end"],
+        ["03", "a**bc**def gh"],
+        ["04", "[long linked words](https://example.com) end"],
+        ["05", "`long code words` end"],
+        ["06", "before `abc` after"],
+        ["07", "~~one two three~~ end"],
+        ["08", "<code>a<b>b c</b>d</code> tail"],
+        ["09", "`ab` `cd`"],
+        ["10", "abcd­efgh ij"],
+        ["11", "ab cd ef"],
+        ["12", "甲乙丙丁，天地。"],
+        ["13", "abcdéfgh end"],
+        ["14", "αβγδε words"],
+        ["15", "a  \nb"],
+        ["16", "a<br/>b words"],
+        ["17", "left  **bold**  right"],
+        ["18", "**foo**\n*bar*"],
+        ["19", "abcdefghijklmno"]
+      ]
+    },
+    {
+      "prefix": "natural-extra",
+      "const": {},
+      "axes": [
+        {"fields": ["Family"], "values": [["sans"], ["mono"], ["hand"]], "labels": ["sans", "mono", "hand"]},
+        {"fields": ["FontSize"], "values": [[12], [16], [22]], "labels": ["12", "16", "22"]}
+      ],
+      "snippets": [
+        ["00", "[plain](https://example.com)"],
+        ["01", "[*italic **bold***](https://example.com)"],
+        ["02", "[**bold *italic***](https://example.com)"],
+        ["03", "[**`code`**](https://example.com)"],
+        ["04", "a **b** c"],
+        ["05", "**a _b_ c**"],
+        ["06", "_a **b** c_"],
+        ["07", "<b>one <em>two</em> three</b>"],
+        ["08", "<em>one <b>two</b> three</em>"],
+        ["09", "<code>a<em>b c</em>d</code> tail"],
+        ["10", "before <code>two words</code> after"],
+        ["11", "<code></code> tail"],
+        ["12", "a<br/><br/>b"],
+        ["13", "a<br/>\n<b>b</b>"],
+        ["14", "![alt](missing.png) tail"],
+        ["15", "before ![alt](missing.png) after"],
+        ["16", "a&nbsp;b c"],
+        ["17", "a &amp; b"],
+        ["18", "~~one~~ two ~~three~~"],
+        ["19", "a  \n**b**\nend"],
+        ["20", "first paragraph\n\n**second** paragraph"],
+        ["21", "**a**\n**b**\n*c*"],
+        ["22", "<code>甲乙</code> end"],
+        ["23", "left\t**bold**\tright"]
+      ]
+    }
+  ]
+}

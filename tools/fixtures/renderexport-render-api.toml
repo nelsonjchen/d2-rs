@@ -1,0 +1,134 @@
+# Scoreboard-capture fixtures for crates/d2-rs-render (renderexport area):
+# original pinned upstream tests (lib/color, lib/svg, d2themes, d2svg,
+# d2sketch) run with call-recording hooks, read by the
+# crates/d2-rs-render/examples/*-scoreboard.rs tests and target admission
+# tests under `oracle-fixtures`. See docs/FIXTURES.md.
+#
+# scripts/render_scoreboard_fixtures.py runs a scoreboard's capture_original()
+# against the runner's upstream tree through a go overlay
+# (scripts/upstream_overlay.py) and keeps the cases its verify() accepts.
+#
+# Regenerate:  uv run --no-project python scripts/regen-fixtures.py --only 'render-api-*'
+# Test:        cargo test -p d2-rs-render --features oracle-fixtures
+
+[defaults]
+kind = "command"
+upstream = true
+timeout = 1800
+
+[defaults.key_deps]
+files = [
+  "scripts/fixture_recipe.py", "scripts/references.py", "scripts/upstream_overlay.py",
+  "scripts/render_scoreboard_fixtures.py", "scripts/cli-scoreboard.py",
+]
+go_toolchain = true
+
+[[recipe]]
+name = "render-api-color"
+description = "Original lib/color gradient tests: ParseGradient/GradientToSVG/ValidColor calls and results"
+outputs = ["crates/d2-rs-render/tests/fixtures/color-api.json"]
+argv = ["{python}", "scripts/render_scoreboard_fixtures.py", "--script", "scripts/color-scoreboard.py",
+        "--output", "crates/d2-rs-render/tests/fixtures/color-api.json"]
+key_deps.files = ["scripts/color-scoreboard.py", "tools/color-scoreboard"]
+key_deps.upstream_paths = ["lib/color", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "render-api-svg"
+description = "Original lib/svg attribute/IRI/XML tests: calls and results"
+outputs = ["crates/d2-rs-render/tests/fixtures/svg-api.json"]
+argv = ["{python}", "scripts/render_scoreboard_fixtures.py", "--script", "scripts/svg-api-scoreboard.py",
+        "--output", "crates/d2-rs-render/tests/fixtures/svg-api.json"]
+key_deps.files = ["scripts/svg-api-scoreboard.py", "tools/svg-api-scoreboard"]
+key_deps.upstream_paths = ["lib/svg", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "render-api-themes"
+description = "Original d2themes ThemableElement tests: render calls and results"
+outputs = ["crates/d2-rs-render/tests/fixtures/themes-api.json"]
+argv = ["{python}", "scripts/render_scoreboard_fixtures.py", "--script", "scripts/themes-api-scoreboard.py",
+        "--output", "crates/d2-rs-render/tests/fixtures/themes-api.json", "--drop", "test"]
+key_deps.files = ["scripts/themes-api-scoreboard.py", "scripts/asset-policy-scoreboard.py",
+                  "scripts/language-scoreboard.py", "tools/themes-api-scoreboard"]
+key_deps.upstream_paths = ["d2themes", "lib", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "render-api-svg-admission"
+description = "Original d2svg paint-admission tests: Render/RenderMultiboard targets, errors and output hashes"
+outputs = ["crates/d2-rs-render/tests/fixtures/svg-admission-api.json"]
+argv = ["{python}", "scripts/render_scoreboard_fixtures.py", "--script", "scripts/svg-admission-scoreboard.py",
+        "--output", "crates/d2-rs-render/tests/fixtures/svg-admission-api.json", "--digest-output", "--format", "compact"]
+key_deps.files = ["scripts/svg-admission-scoreboard.py", "tools/svg-admission-scoreboard"]
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "d2layouts/d2sequence", "d2ast", "d2format",
+                           "d2graph", "d2parser", "internal", "lib", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "render-api-svg-structural"
+description = "Original d2svg JSON-target structural validation tests"
+outputs = ["crates/d2-rs-render/tests/fixtures/svg-structural-api.json"]
+argv = ["{python}", "scripts/render_scoreboard_fixtures.py", "--script", "scripts/svg-admission-scoreboard.py",
+        "--suite", "structural", "--output", "crates/d2-rs-render/tests/fixtures/svg-structural-api.json", "--digest-output"]
+key_deps.files = ["scripts/svg-admission-scoreboard.py", "tools/svg-admission-scoreboard"]
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "d2layouts/d2sequence", "d2ast", "d2format",
+                           "d2graph", "d2parser", "internal", "lib", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "render-api-svg-labels"
+description = "Original d2svg class/clip-path/ID/SQL escaping and LaTeX admission tests"
+outputs = ["crates/d2-rs-render/tests/fixtures/svg-labels-api.json"]
+argv = ["{python}", "scripts/render_scoreboard_fixtures.py", "--script", "scripts/svg-admission-scoreboard.py",
+        "--suite", "labels", "--output", "crates/d2-rs-render/tests/fixtures/svg-labels-api.json", "--digest-output"]
+key_deps.files = ["scripts/svg-admission-scoreboard.py", "tools/svg-admission-scoreboard"]
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "d2layouts/d2sequence", "d2ast", "d2format",
+                           "d2graph", "d2parser", "internal", "lib", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "render-api-svg-font"
+description = "Original d2svg registered-font Render and ThemeCSS admission tests"
+outputs = ["crates/d2-rs-render/tests/fixtures/svg-font-api.json"]
+argv = ["{python}", "scripts/render_scoreboard_fixtures.py", "--script", "scripts/svg-font-scoreboard.py",
+        "--output", "crates/d2-rs-render/tests/fixtures/svg-font-api.json"]
+key_deps.files = ["scripts/svg-font-scoreboard.py", "scripts/svg-admission-scoreboard.py",
+                  "scripts/svg-isometric-scoreboard.py", "tools/svg-font-scoreboard"]
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "d2layouts/d2sequence", "d2ast", "d2format",
+                           "d2graph", "d2parser", "internal", "lib", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "render-api-renderer-admission-sketch"
+description = "Original d2sketch conflicting-attribute Connection tests (renderer-admission sketch suite)"
+outputs = ["crates/d2-rs-render/tests/fixtures/renderer-admission-sketch.json"]
+argv = ["{python}", "scripts/render_scoreboard_fixtures.py", "--script", "scripts/renderer-admission-scoreboard.py",
+        "--package", "d2renderers/d2sketch", "--output", "crates/d2-rs-render/tests/fixtures/renderer-admission-sketch.json"]
+key_deps.files = ["scripts/renderer-admission-scoreboard.py", "tools/renderer-contract-scoreboard"]
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "d2layouts/d2sequence", "d2ast", "d2format",
+                           "d2graph", "d2parser", "internal", "lib", "go.mod", "go.sum"]
+
+# Finite exponent-boundary witnesses for canonicalGradientStopPosition plus
+# the radial counterpart of the constructed-ID escaping test; requests are the
+# hand-written seed list.
+[[recipe]]
+name = "render-api-color-positions"
+kind = "go-test-hook"
+description = "lib/color ParseGradient position boundaries and GradientToSVG of a constructed radial gradient"
+outputs = ["crates/d2-rs-render/tests/fixtures/color-positions-api.json"]
+inputs = ["tools/fixtures/seeds/render-color/positions.json"]
+package = "lib/color"
+hooks = ["tools/fixtures/hooks/render-color-positions/d2rs_color_positions_test.go"]
+test = "TestD2RSColorPositions"
+key_deps.upstream_paths = ["lib/color", "go.mod", "go.sum"]
+
+# Public d2js raw-target renders (after the d2js-node-package build in
+# renderexport-target.toml).
+[[recipe]]
+name = "render-d2js-public-target"
+kind = "command"
+upstream = false
+description = "d2js compile/mutate/render of eight inputs x four target mutations plus fractional-route precision controls"
+after = ["d2js-node-package"]
+argv = ["{python}", "scripts/render_d2js_fixtures.py"]
+outputs = [
+  "crates/d2-rs-render/tests/fixtures/public-target-v090.json",
+  "crates/d2-rs-render/tests/fixtures/public-target-precision-v090.json",
+]
+key_deps.go_toolchain = false
+key_deps.files = ["scripts/fixture_recipe.py", "scripts/render_d2js_fixtures.py", "tools/d2js-capture/d2js.mjs",
+                  "tools/d2js-capture/render-public-target.mjs", "tools/d2js-capture/inputs/single-backslash-latex.d2"]

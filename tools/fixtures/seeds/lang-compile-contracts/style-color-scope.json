@@ -1,0 +1,146 @@
+[
+ {
+  "name": "fill-node",
+  "source": "a: {style.fill: \"rgb(1,2,3)\"}\n"
+ },
+ {
+  "name": "fill-edge",
+  "source": "a -> b: {style.fill: \"rgb(1,2,3)\"}\n"
+ },
+ {
+  "name": "fill-used-class",
+  "source": "classes: {bad: {style.fill: \"rgb(1,2,3)\"}}\na: {class: bad; style.fill: red}\n"
+ },
+ {
+  "name": "fill-unused-class",
+  "source": "classes: {bad: {style.fill: \"rgb(1,2,3)\"}}\na\n"
+ },
+ {
+  "name": "fill-edge-class",
+  "source": "classes: {bad: {style.fill: \"rgb(1,2,3)\"}}\na -> b: {class: bad; style.fill: red}\n"
+ },
+ {
+  "name": "fill-arrowhead",
+  "source": "a -> b: {target-arrowhead.style.fill: \"rgb(1,2,3)\"}\n"
+ },
+ {
+  "name": "fill-icon",
+  "source": "a: {icon: https://example.com/icon.svg {style.fill: \"rgb(1,2,3)\"}}\n"
+ },
+ {
+  "name": "fill-icon-no-primary",
+  "source": "a: {icon: {style.fill: \"rgb(1,2,3)\"}}\n"
+ },
+ {
+  "name": "fill-legend",
+  "source": "vars: {d2-legend: {a: {style.fill: \"rgb(1,2,3)\"}}}\na\n"
+ },
+ {
+  "name": "fill-board",
+  "source": "layers: {child: {a: {style.fill: \"rgb(1,2,3)\"}}}\na\n"
+ },
+ {
+  "name": "fill-deleted",
+  "source": "a: {style.fill: \"rgb(1,2,3)\"}\na:null\n"
+ },
+ {
+  "name": "fill-overwrite",
+  "source": "a: {style.fill: \"rgb(1,2,3)\"}\na.style.fill:red\n"
+ },
+ {
+  "name": "stroke-node",
+  "source": "a: {style.stroke: \"rgb(1,2,3)\"}\n"
+ },
+ {
+  "name": "stroke-edge",
+  "source": "a -> b: {style.stroke: \"rgb(1,2,3)\"}\n"
+ },
+ {
+  "name": "stroke-used-class",
+  "source": "classes: {bad: {style.stroke: \"rgb(1,2,3)\"}}\na: {class: bad; style.stroke: red}\n"
+ },
+ {
+  "name": "stroke-unused-class",
+  "source": "classes: {bad: {style.stroke: \"rgb(1,2,3)\"}}\na\n"
+ },
+ {
+  "name": "stroke-edge-class",
+  "source": "classes: {bad: {style.stroke: \"rgb(1,2,3)\"}}\na -> b: {class: bad; style.stroke: red}\n"
+ },
+ {
+  "name": "stroke-arrowhead",
+  "source": "a -> b: {target-arrowhead.style.stroke: \"rgb(1,2,3)\"}\n"
+ },
+ {
+  "name": "stroke-icon",
+  "source": "a: {icon: https://example.com/icon.svg {style.stroke: \"rgb(1,2,3)\"}}\n"
+ },
+ {
+  "name": "stroke-icon-no-primary",
+  "source": "a: {icon: {style.stroke: \"rgb(1,2,3)\"}}\n"
+ },
+ {
+  "name": "stroke-legend",
+  "source": "vars: {d2-legend: {a: {style.stroke: \"rgb(1,2,3)\"}}}\na\n"
+ },
+ {
+  "name": "stroke-board",
+  "source": "layers: {child: {a: {style.stroke: \"rgb(1,2,3)\"}}}\na\n"
+ },
+ {
+  "name": "stroke-deleted",
+  "source": "a: {style.stroke: \"rgb(1,2,3)\"}\na:null\n"
+ },
+ {
+  "name": "stroke-overwrite",
+  "source": "a: {style.stroke: \"rgb(1,2,3)\"}\na.style.stroke:red\n"
+ },
+ {
+  "name": "font-color-node",
+  "source": "a: {style.font-color: \"rgb(1,2,3)\"}\n"
+ },
+ {
+  "name": "font-color-edge",
+  "source": "a -> b: {style.font-color: \"rgb(1,2,3)\"}\n"
+ },
+ {
+  "name": "font-color-used-class",
+  "source": "classes: {bad: {style.font-color: \"rgb(1,2,3)\"}}\na: {class: bad; style.font-color: red}\n"
+ },
+ {
+  "name": "font-color-unused-class",
+  "source": "classes: {bad: {style.font-color: \"rgb(1,2,3)\"}}\na\n"
+ },
+ {
+  "name": "font-color-edge-class",
+  "source": "classes: {bad: {style.font-color: \"rgb(1,2,3)\"}}\na -> b: {class: bad; style.font-color: red}\n"
+ },
+ {
+  "name": "font-color-arrowhead",
+  "source": "a -> b: {target-arrowhead.style.font-color: \"rgb(1,2,3)\"}\n"
+ },
+ {
+  "name": "font-color-icon",
+  "source": "a: {icon: https://example.com/icon.svg {style.font-color: \"rgb(1,2,3)\"}}\n"
+ },
+ {
+  "name": "font-color-icon-no-primary",
+  "source": "a: {icon: {style.font-color: \"rgb(1,2,3)\"}}\n"
+ },
+ {
+  "name": "font-color-legend",
+  "source": "vars: {d2-legend: {a: {style.font-color: \"rgb(1,2,3)\"}}}\na\n"
+ },
+ {
+  "name": "font-color-board",
+  "source": "layers: {child: {a: {style.font-color: \"rgb(1,2,3)\"}}}\na\n"
+ },
+ {
+  "name": "font-color-deleted",
+  "source": "a: {style.font-color: \"rgb(1,2,3)\"}\na:null\n"
+ },
+ {
+  "name": "font-color-overwrite",
+  "source": "a: {style.font-color: \"rgb(1,2,3)\"}\na.style.font-color:red\n"
+ }
+]

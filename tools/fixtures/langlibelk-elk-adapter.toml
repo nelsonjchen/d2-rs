@@ -1,0 +1,46 @@
+# D2 ELK adapter fixtures for crates/d2-rs-elk (bends.rs, margins.rs,
+# shape_trace.rs): synthetic d2graph geometry through the pinned
+# d2layouts/d2elklayout deleteBends and margin-shrinking block, and the
+# exported d2graph.Edge.TraceToShape. Unlike the elk-go recipes these depend
+# on the D2 pin, so they build in the runner's patched upstream tree
+# (scripts/check-elk-adapter.py; arm64, see scripts/elk_oracle.py).
+#
+# Regenerate:  uv run --no-project python scripts/regen-fixtures.py --only 'elk-adapter-*'
+# Test:        cargo test -p d2-rs-elk --features oracle-fixtures
+
+[defaults]
+kind = "command"
+upstream = true
+timeout = 1800
+
+[defaults.key_deps]
+files = [
+  "scripts/fixture_recipe.py",
+  "scripts/elk_oracle.py",
+  "scripts/elk_cases/adapter.py",
+]
+go_toolchain = true
+
+[[recipe]]
+name = "elk-adapter-delete-bends"
+description = "deleteBends routes and bend collision index counts over synthetic shapes, columns, ladders and seeded collisions"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_delete_bends.json"]
+argv = ["{python}", "scripts/check-elk-adapter.py", "delete-bends"]
+key_deps.files = ["tools/fixtures/hooks/elk-adapter-delete-bends/d2rs_delete_bends_test.go"]
+key_deps.upstream_paths = ["d2layouts/d2elklayout", "d2graph", "d2target", "lib/geo", "lib/shape"]
+
+[[recipe]]
+name = "elk-adapter-margin-shrink"
+description = "Margin-shrinking block of d2elklayout.Layout over band controls and seeded nested graphs"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_margin_shrink.json"]
+argv = ["{python}", "scripts/check-elk-adapter.py", "margin-shrink"]
+key_deps.files = ["tools/fixtures/hooks/elk-adapter-margin-shrink/d2rs_margin_shrink_test.go.tmpl"]
+key_deps.upstream_paths = ["d2layouts/d2elklayout", "d2graph", "lib/geo"]
+
+[[recipe]]
+name = "elk-adapter-trace-to-shape"
+description = "d2graph.Edge.TraceToShape over shapes, outside labels/icons, near-boundary and seeded routes"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_trace_to_shape.json"]
+argv = ["{python}", "scripts/check-elk-adapter.py", "trace-to-shape"]
+key_deps.files = ["tools/elk-trace-shape-oracle/main.go"]
+key_deps.upstream_paths = ["d2graph", "lib/geo", "lib/shape", "lib/label"]

@@ -1,0 +1,46 @@
+// Flat transport preserves board pointer identities, nil slices and non-finite
+// route values. The original caller's graph is never mutated.
+func d2rsGraph(root *TARGET.Diagram) any {
+    if root == nil { return nil }
+    nodes := []*TARGET.Diagram{root}
+    ids := map[*TARGET.Diagram]int{root:0}
+    records := []any{}
+    for n:=0; n<len(nodes); n++ {
+        d := nodes[n]
+        edges := map[string]any{}
+        for _, group := range []struct{name string; children []*TARGET.Diagram}{
+            {"layers",d.Layers},{"scenarios",d.Scenarios},{"steps",d.Steps},
+        } {
+            var children []any
+            if group.children != nil { children = []any{} }
+            for _, child := range group.children {
+                if child == nil { children=append(children,nil); continue }
+                id,ok := ids[child]
+                if !ok { id=len(nodes); ids[child]=id; nodes=append(nodes,child) }
+                children=append(children,id)
+            }
+            edges[group.name]=children
+        }
+        copy := *d
+        copy.Layers,copy.Scenarios,copy.Steps=nil,nil,nil
+        var floats []any
+        copy.Connections=append([]TARGET.Connection(nil),d.Connections...)
+        if d.Connections!=nil && copy.Connections==nil {copy.Connections=[]TARGET.Connection{}}
+        for c:=range copy.Connections {
+            copy.Connections[c].Route=append([]*geo.Point(nil),d.Connections[c].Route...)
+            for p,point:=range copy.Connections[c].Route {
+                if point==nil {continue}
+                value:=*point
+                copy.Connections[c].Route[p]=&value
+                for _,axis:=range []struct{name string; value *float64}{{"x",&value.X},{"y",&value.Y}} {
+                    if math.IsNaN(*axis.value)||math.IsInf(*axis.value,0) {
+                        floats=append(floats,map[string]any{"connection":c,"point":p,"axis":axis.name,"bits":fmt.Sprintf("%016x",math.Float64bits(*axis.value))})
+                        *axis.value=0
+                    }
+                }
+            }
+        }
+        records=append(records,map[string]any{"diagram":copy,"edges":edges,"floats":floats})
+    }
+    return records
+}

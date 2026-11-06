@@ -1,0 +1,66 @@
+<lexer>
+  <config>
+    <name>HTTP</name>
+    <alias>http</alias>
+    <dot_all>true</dot_all>
+    <not_multiline>true</not_multiline>
+  </config>
+  <rules>
+    <state name="content">
+      <rule pattern=".+">
+        <token type="Generic"/>
+      </rule>
+    </state>
+    <state name="headers">
+      <rule pattern="([^\s:]+)( *)(:)( *)([^\r\n]+)(\r?\n|\Z)">
+        <bygroups>
+          <token type="Name"/>
+          <token type="Text"/>
+          <token type="Operator"/>
+          <token type="Text"/>
+          <token type="Literal"/>
+          <token type="Text"/>
+        </bygroups>
+      </rule>
+      <rule pattern="([\t ]+)([^\r\n]+)(\r?\n|\Z)">
+        <bygroups>
+          <token type="Text"/>
+          <token type="Literal"/>
+          <token type="Text"/>
+        </bygroups>
+      </rule>
+      <rule pattern="\r?\n">
+        <token type="Text"/>
+        <push state="content"/>
+      </rule>
+    </state>
+    <state name="root">
+      <rule pattern="(GET|POST|PUT|DELETE|HEAD|OPTIONS|TRACE|PATCH|CONNECT)( +)([^ ]+)( +)(HTTP)(/)([123](?:\.[01])?)(\r?\n|\Z)">
+        <bygroups>
+          <token type="NameFunction"/>
+          <token type="Text"/>
+          <token type="NameNamespace"/>
+          <token type="Text"/>
+          <token type="KeywordReserved"/>
+          <token type="Operator"/>
+          <token type="LiteralNumber"/>
+          <token type="Text"/>
+        </bygroups>
+        <push state="headers"/>
+      </rule>
+      <rule pattern="(HTTP)(/)([123](?:\.[01])?)( +)(\d{3})( *)([^\r\n]*)(\r?\n|\Z)">
+        <bygroups>
+          <token type="KeywordReserved"/>
+          <token type="Operator"/>
+          <token type="LiteralNumber"/>
+          <token type="Text"/>
+          <token type="LiteralNumber"/>
+          <token type="Text"/>
+          <token type="NameException"/>
+          <token type="Text"/>
+        </bygroups>
+        <push state="headers"/>
+      </rule>
+    </state>
+  </rules>
+</lexer>

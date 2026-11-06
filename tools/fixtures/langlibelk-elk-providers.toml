@@ -1,0 +1,97 @@
+# elk-go (github.com/d2lang/elk-go, third-party Go port of ELK) provider
+# fixtures for crates/d2-rs-elk: Mr.Tree, Radial, SPoRE and Force/Stress.
+#
+# scripts/check-elk-providers.py builds tools/elk-oracle (elk.LayoutJSON) in a
+# minimal module requiring only elk-go at the version pinned in
+# reference-manifest.json `dependencies`, runs each case from scripts/elk_cases
+# in its own process with a 3-second deadline and records exit status,
+# stderr and raw output. The D2 pin does not matter, so these recipes do not
+# use the upstream checkout.
+#
+# Regenerate:  uv run --no-project python scripts/regen-fixtures.py --only 'elk-provider-*'
+# Test:        cargo test -p d2-rs-elk --features oracle-fixtures
+
+[defaults]
+kind = "command"
+timeout = 1800
+
+[defaults.key_deps]
+files = [
+  "scripts/fixture_recipe.py",
+  "scripts/elk_oracle.py",
+  "tools/elk-oracle/main.go",
+  "tools/oracle/go.mod",
+  "tools/oracle/go.sum",
+]
+go_modules = ["github.com/d2lang/elk-go"]
+go_toolchain = true
+
+[[recipe]]
+name = "elk-provider-mrtree"
+description = "Mr.Tree shapes, directions, weighting/routing/compaction options and provider errors"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_mrtree.json"]
+argv = ["{python}", "scripts/check-elk-providers.py", "mrtree"]
+key_deps.files = ["scripts/elk_cases/mrtree.py"]
+
+[[recipe]]
+name = "elk-provider-mrtree-expanded"
+description = "Mr.Tree seeded fractional graphs with ports/labels, recursive dispatch and fixed sizes"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_mrtree_expanded.json"]
+argv = ["{python}", "scripts/check-elk-providers.py", "mrtree-expanded"]
+key_deps.files = ["scripts/elk_cases/mrtree.py"]
+
+[[recipe]]
+name = "elk-provider-radial"
+description = "Radial shapes, option profiles, seeded varied graphs, ports/labels/hierarchy and tree errors"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_radial.json"]
+argv = ["{python}", "scripts/check-elk-providers.py", "radial"]
+key_deps.files = ["scripts/elk_cases/radial.py"]
+
+[[recipe]]
+name = "elk-provider-radial-expanded"
+description = "Radial optimizer/sorter/wedge, compactor, rotation and margin controls"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_radial_expanded.json"]
+argv = ["{python}", "scripts/check-elk-providers.py", "radial-expanded"]
+key_deps.files = ["scripts/elk_cases/radial.py"]
+
+[[recipe]]
+name = "elk-provider-radial-fractional"
+description = "Radial seeded fractional trees"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_radial_fractional.json"]
+argv = ["{python}", "scripts/check-elk-providers.py", "radial-fractional"]
+key_deps.files = ["scripts/elk_cases/radial.py"]
+
+[[recipe]]
+name = "elk-provider-spore"
+description = "SPoRE overlap removal/compaction, underlying providers, iterations and cost functions"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_spore.json"]
+argv = ["{python}", "scripts/check-elk-providers.py", "spore"]
+key_deps.files = ["scripts/elk_cases/spore.py"]
+
+[[recipe]]
+name = "elk-provider-spore-expanded"
+description = "SPoRE seeded fractional graphs, delegation, nesting and delegated errors"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_spore_expanded.json"]
+argv = ["{python}", "scripts/check-elk-providers.py", "spore-expanded"]
+key_deps.files = ["scripts/elk_cases/spore.py"]
+
+[[recipe]]
+name = "elk-provider-spore-root-transfer"
+description = "Root size transfer of a two-node Layered graph: minimum and fixed graph sizes, padding, direction"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_spore_root_transfer.json"]
+argv = ["{python}", "scripts/check-elk-providers.py", "spore-root-transfer"]
+key_deps.files = ["scripts/elk_cases/spore.py"]
+
+[[recipe]]
+name = "elk-provider-force-stress"
+description = "Force and Stress shapes, options and seeded varied graphs"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_force_stress.json"]
+argv = ["{python}", "scripts/check-elk-providers.py", "force-stress"]
+key_deps.files = ["scripts/elk_cases/stress.py"]
+
+[[recipe]]
+name = "elk-provider-force-stress-expanded"
+description = "Force/Stress nested sizes, child algorithms, seeds and weighted graphs; deadline expiries kept unqualified"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_force_stress_expanded.json"]
+argv = ["{python}", "scripts/check-elk-providers.py", "force-stress-expanded"]
+key_deps.files = ["scripts/elk_cases/stress.py"]

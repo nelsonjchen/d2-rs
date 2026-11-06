@@ -1,0 +1,425 @@
+[
+ {
+  "path": "pinned/d2compiler/compile_test.go#L3736C10-field-text.d2",
+  "text": "a: \"ok\" {\n\tshape: text\n}\nb: \" \\n \" {\n\tshape: text\n}\nc: \"\" {\n\tshape: text\n}\nd: \"\" {\n\tshape: circle\n}\ne: \" \\n \"\nf: |md  |\ng: |md\n\n|\n"
+ },
+ {
+  "path": "pinned/d2compiler/compile_test.go#L3736C10-field-text.d2",
+  "text": "a: \"ok\" {\n\tshape: text\n}\nb: \" \\n \" {\n\tshape: text\n}\nc: \"\" {\n\tshape: text\n}\nd: \"\" {\n\tshape: circle\n}\ne: \" \\n \"\nf: |md  |\ng: |md\n\n|\n",
+  "utf16": true
+ },
+ {
+  "path": "pinned/d2compiler/compile_test.go#L3793C10-field-text.d2",
+  "text": "x: {\n  shape: hierarchy\n  a -> b\n\ta.top: 20\n\ta.left: 20\n}\n"
+ },
+ {
+  "path": "pinned/d2compiler/compile_test.go#L3793C10-field-text.d2",
+  "text": "x: {\n  shape: hierarchy\n  a -> b\n\ta.top: 20\n\ta.left: 20\n}\n",
+  "utf16": true
+ },
+ {
+  "path": "pinned/d2compiler/compile_test.go#L4091C10-field-text.d2",
+  "text": "x: {\n  shape: sql_table\n  label: hello\\nworld\n}\n\ny: \"hello\\nworld\" {\n  shape: sql_table\n\thi: there\n}\n"
+ },
+ {
+  "path": "pinned/d2compiler/compile_test.go#L4091C10-field-text.d2",
+  "text": "x: {\n  shape: sql_table\n  label: hello\\nworld\n}\n\ny: \"hello\\nworld\" {\n  shape: sql_table\n\thi: there\n}\n",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "x: \"\" {shape: text}"
+ },
+ {
+  "path": "late.d2",
+  "text": "x: \"\" {shape: text}",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "x: {shape: text; label: \" \"}"
+ },
+ {
+  "path": "late.d2",
+  "text": "x: {shape: text; label: \" \"}",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "\"\": {shape: text}"
+ },
+ {
+  "path": "late.d2",
+  "text": "\"\": {shape: text}",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "shape: text"
+ },
+ {
+  "path": "late.d2",
+  "text": "shape: text",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "x: |md\n\n| {shape: text}"
+ },
+ {
+  "path": "late.d2",
+  "text": "x: |md\n\n| {shape: text}",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "x: |\n\n| {shape: text}"
+ },
+ {
+  "path": "late.d2",
+  "text": "x: |\n\n| {shape: text}",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "x: \"\" {shape: text; style.opacity: 2}"
+ },
+ {
+  "path": "late.d2",
+  "text": "x: \"\" {shape: text; style.opacity: 2}",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "x: \"\" {shape: text; near: nope}"
+ },
+ {
+  "path": "late.d2",
+  "text": "x: \"\" {shape: text; near: nope}",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "x: \"\" {shape: text; near: \"[\"; style.opacity: 2}"
+ },
+ {
+  "path": "late.d2",
+  "text": "x: \"\" {shape: text; near: \"[\"; style.opacity: 2}",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "x: {shape: sql_table; label: \"a\\nb\"}"
+ },
+ {
+  "path": "late.d2",
+  "text": "x: {shape: sql_table; label: \"a\\nb\"}",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "x: {shape: sql_table; label: \"a\\nb\"; style.opacity: 2}"
+ },
+ {
+  "path": "late.d2",
+  "text": "x: {shape: sql_table; label: \"a\\nb\"; style.opacity: 2}",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "x: {shape: sql_table; id: \"\" {shape: text}}"
+ },
+ {
+  "path": "late.d2",
+  "text": "x: {shape: sql_table; id: \"\" {shape: text}}",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "x: {shape: class; id: \"\" {shape: text}}"
+ },
+ {
+  "path": "late.d2",
+  "text": "x: {shape: class; id: \"\" {shape: text}}",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "classes: {a: {shape: text; label: \"\"}}; x.class: a; y.class: a"
+ },
+ {
+  "path": "late.d2",
+  "text": "classes: {a: {shape: text; label: \"\"}}; x.class: a; y.class: a",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "classes: {a: {shape: text; label: \"\"}}; x: {class: a; shape: bogus}"
+ },
+ {
+  "path": "late.d2",
+  "text": "classes: {a: {shape: text; label: \"\"}}; x: {class: a; shape: bogus}",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "classes: {a: {shape: text; label: \"\"}}; x: {class: a; shape: rectangle}"
+ },
+ {
+  "path": "late.d2",
+  "text": "classes: {a: {shape: text; label: \"\"}}; x: {class: a; shape: rectangle}",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "x: {shape: hierarchy; y: \"\" {shape: text; left: 2; top: 1}}"
+ },
+ {
+  "path": "late.d2",
+  "text": "x: {shape: hierarchy; y: \"\" {shape: text; left: 2; top: 1}}",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "shape: hierarchy; x: {top: 1; left: 2}"
+ },
+ {
+  "path": "late.d2",
+  "text": "shape: hierarchy; x: {top: 1; left: 2}",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "grid-rows: 1; x: {top: 1; left: 2}"
+ },
+ {
+  "path": "late.d2",
+  "text": "grid-rows: 1; x: {top: 1; left: 2}",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "x: {shape: hierarchy; grid-rows: 1; y: {left: 1; top: 2}}"
+ },
+ {
+  "path": "late.d2",
+  "text": "x: {shape: hierarchy; grid-rows: 1; y: {left: 1; top: 2}}",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "x: {shape: sequence_diagram; a: {left: 2; top: 1}}"
+ },
+ {
+  "path": "late.d2",
+  "text": "x: {shape: sequence_diagram; a: {left: 2; top: 1}}",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "x: {shape: sequence_diagram; a; g: {a: \"\" {shape: text}; b: \"\" {shape: text}}}"
+ },
+ {
+  "path": "late.d2",
+  "text": "x: {shape: sequence_diagram; a; g: {a: \"\" {shape: text}; b: \"\" {shape: text}}}",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "a: {x -> _.z}; y: \"\" {shape: text}; z: \"\" {shape: text}"
+ },
+ {
+  "path": "late.d2",
+  "text": "a: {x -> _.z}; y: \"\" {shape: text}; z: \"\" {shape: text}",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "a: {x -> _.z}; y: \"\" {shape: text}; z: \"\" {shape: text; near: nope}"
+ },
+ {
+  "path": "late.d2",
+  "text": "a: {x -> _.z}; y: \"\" {shape: text}; z: \"\" {shape: text; near: nope}",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "x: {near: top-left; y}; x -> x.y"
+ },
+ {
+  "path": "late.d2",
+  "text": "x: {near: top-left; y}; x -> x.y",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "x: {grid-rows: 1; near: top-left; y}; x -> x.y"
+ },
+ {
+  "path": "late.d2",
+  "text": "x: {grid-rows: 1; near: top-left; y}; x -> x.y",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "x: {grid-rows: 1; y: {z}}; x.y -> x.y.z"
+ },
+ {
+  "path": "late.d2",
+  "text": "x: {grid-rows: 1; y: {z}}; x.y -> x.y.z",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "x: {shape: sequence_diagram; y}; x -> x.y"
+ },
+ {
+  "path": "late.d2",
+  "text": "x: {shape: sequence_diagram; y}; x -> x.y",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "x: \"\" {shape: text; style.opacity: 2; near: nope}; x -> x.y"
+ },
+ {
+  "path": "late.d2",
+  "text": "x: \"\" {shape: text; style.opacity: 2; near: nope}; x -> x.y",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "x: {shape: hierarchy; y: {top: NaN; left: 2}}"
+ },
+ {
+  "path": "late.d2",
+  "text": "x: {shape: hierarchy; y: {top: NaN; left: 2}}",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "shape: class; a: \"\" {shape: text}"
+ },
+ {
+  "path": "late.d2",
+  "text": "shape: class; a: \"\" {shape: text}",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "shape: class; a -> b"
+ },
+ {
+  "path": "late.d2",
+  "text": "shape: class; a -> b",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "shape: class; grid-rows: 1; a -> b"
+ },
+ {
+  "path": "late.d2",
+  "text": "shape: class; grid-rows: 1; a -> b",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "vars: {d2-legend: {x: \"\" {shape: text}}}"
+ },
+ {
+  "path": "late.d2",
+  "text": "vars: {d2-legend: {x: \"\" {shape: text}}}",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "x: \"\" {shape: text}; layers: {l: {y: \"\" {shape: text}}}"
+ },
+ {
+  "path": "late.d2",
+  "text": "x: \"\" {shape: text}; layers: {l: {y: \"\" {shape: text}}}",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "classes: {a: {shape: text; label: \"\"}}; scenarios: {s: {x.class: a}}"
+ },
+ {
+  "path": "late.d2",
+  "text": "classes: {a: {shape: text; label: \"\"}}; scenarios: {s: {x.class: a}}",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "classes: {a: {shape: text; label: \"\"}}; layers: {s: {x.class: a}}"
+ },
+ {
+  "path": "late.d2",
+  "text": "classes: {a: {shape: text; label: \"\"}}; layers: {s: {x.class: a}}",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "x: \"\" {shape: text; near: y}; y: {near: top-left}"
+ },
+ {
+  "path": "late.d2",
+  "text": "x: \"\" {shape: text; near: y}; y: {near: top-left}",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "x: {near: \"[\"}; y: \"\" {shape: text}"
+ },
+ {
+  "path": "late.d2",
+  "text": "x: {near: \"[\"}; y: \"\" {shape: text}",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "x: {near: a}; y: \"\" {shape: text}; x.near: \"[\""
+ },
+ {
+  "path": "late.d2",
+  "text": "x: {near: a}; y: \"\" {shape: text}; x.near: \"[\"",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "x: {shape: ſql_table; label: \"a\\nb\"; y: \"\" {shape: text}}"
+ },
+ {
+  "path": "late.d2",
+  "text": "x: {shape: ſql_table; label: \"a\\nb\"; y: \"\" {shape: text}}",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "🌿; x: \"\" {shape: text}"
+ },
+ {
+  "path": "late.d2",
+  "text": "🌿; x: \"\" {shape: text}",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "x: \"\" {shape: text; label: \"\\u0085\"}"
+ },
+ {
+  "path": "late.d2",
+  "text": "x: \"\" {shape: text; label: \"\\u0085\"}",
+  "utf16": true
+ },
+ {
+  "path": "late.d2",
+  "text": "classes: {a: {foo: {shape: text; label: \"\"}}}; x.class: a"
+ },
+ {
+  "path": "late.d2",
+  "text": "classes: {a: {foo: {shape: text; label: \"\"}}}; x.class: a",
+  "utf16": true
+ }
+]

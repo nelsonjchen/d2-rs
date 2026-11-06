@@ -1,0 +1,430 @@
+# d2-rs-isometric oracle fixtures (renderexport area). See docs/FIXTURES.md.
+#
+# The *-api recipes run a scoreboard's original-test capture: upstream
+# d2isometricimg / d2svg test bodies with call replacements plus the
+# scoreboard hook, against the runner's upstream tree through a go overlay
+# (scripts/upstream_overlay.py; the tree itself is never written). The
+# scoreboard's own verify() gates the capture; cargo test does the comparison.
+# shape and solid keep only the witness operations of the original fixtures
+# (tools/fixtures/seeds/isometric-{shape,solid}-select.json); the full
+# solid capture is about 170 MB, over the 128 MiB per-file budget.
+#
+# Regenerate:  uv run --no-project python scripts/regen-fixtures.py --only 'isometric-*' --jobs 4
+# Test:        cargo test -p d2-rs-isometric --features oracle-fixtures
+
+[defaults]
+kind = "command"
+timeout = 1800
+
+[defaults.key_deps]
+files = [
+  "scripts/fixture_recipe.py",
+  "scripts/references.py",
+]
+
+[[recipe]]
+name = "isometric-artwork-api"
+description = "Original d2isometricimg artwork tests: requests and Go results"
+upstream = true
+outputs = ["crates/d2-rs-isometric/tests/fixtures/artwork-api.json"]
+argv = ["{python}", "scripts/isometric_oracle_fixtures.py", "api", "--script", "scripts/isometric-artwork-scoreboard.py", "--output", "crates/d2-rs-isometric/tests/fixtures/artwork-api.json", "--format", "compact"]
+key_deps.files = ["scripts/upstream_overlay.py", "scripts/isometric-geometry-scoreboard.py", "scripts/isometric-scene-scoreboard.py", "scripts/cli-scoreboard.py", "scripts/asset-policy-scoreboard.py", "scripts/imageasset-scoreboard.py", "scripts/language-scoreboard.py", "scripts/isometric-artwork-scoreboard.py", "tools/isometric-artwork-scoreboard", "tools/isometric-solid-scoreboard"]
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "lib", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "isometric-caption-api"
+description = "Original d2isometricimg caption tests: requests and Go results"
+upstream = true
+outputs = ["crates/d2-rs-isometric/tests/fixtures/caption-api.json"]
+argv = ["{python}", "scripts/isometric_oracle_fixtures.py", "api", "--script", "scripts/isometric-caption-scoreboard.py", "--output", "crates/d2-rs-isometric/tests/fixtures/caption-api.json", "--format", "compact"]
+key_deps.files = ["scripts/upstream_overlay.py", "scripts/isometric-geometry-scoreboard.py", "scripts/isometric-scene-scoreboard.py", "scripts/cli-scoreboard.py", "scripts/asset-policy-scoreboard.py", "scripts/imageasset-scoreboard.py", "scripts/language-scoreboard.py", "scripts/isometric-caption-scoreboard.py", "tools/isometric-caption-scoreboard"]
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "lib", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "isometric-contact-api"
+description = "Original d2isometricimg contact tests: requests and Go results"
+upstream = true
+outputs = ["crates/d2-rs-isometric/tests/fixtures/contact-api.json"]
+argv = ["{python}", "scripts/isometric_oracle_fixtures.py", "api", "--script", "scripts/isometric-contact-scoreboard.py", "--output", "crates/d2-rs-isometric/tests/fixtures/contact-api.json", "--format", "compact"]
+key_deps.files = ["scripts/upstream_overlay.py", "scripts/isometric-geometry-scoreboard.py", "scripts/isometric-scene-scoreboard.py", "scripts/cli-scoreboard.py", "scripts/asset-policy-scoreboard.py", "scripts/imageasset-scoreboard.py", "scripts/language-scoreboard.py", "scripts/isometric-contact-scoreboard.py", "tools/isometric-contact-scoreboard"]
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "lib", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "isometric-coverage-api"
+description = "Original d2isometricimg coverage tests: requests and Go results"
+upstream = true
+outputs = ["crates/d2-rs-isometric/tests/fixtures/coverage-api.json"]
+argv = ["{python}", "scripts/isometric_oracle_fixtures.py", "api", "--script", "scripts/isometric-coverage-scoreboard.py", "--output", "crates/d2-rs-isometric/tests/fixtures/coverage-api.json", "--format", "compact"]
+key_deps.files = ["scripts/upstream_overlay.py", "scripts/isometric-geometry-scoreboard.py", "scripts/isometric-scene-scoreboard.py", "scripts/cli-scoreboard.py", "scripts/asset-policy-scoreboard.py", "scripts/imageasset-scoreboard.py", "scripts/language-scoreboard.py", "scripts/isometric-coverage-scoreboard.py", "tools/isometric-coverage-scoreboard", "tools/isometric-content-scoreboard/scenejson.go"]
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "lib", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "isometric-geometry-api"
+description = "Original d2isometricimg geometry tests: requests and Go results"
+upstream = true
+outputs = ["crates/d2-rs-isometric/tests/fixtures/geometry-api.json"]
+argv = ["{python}", "scripts/isometric_oracle_fixtures.py", "api", "--script", "scripts/isometric-geometry-scoreboard.py", "--output", "crates/d2-rs-isometric/tests/fixtures/geometry-api.json", "--format", "default"]
+key_deps.files = ["scripts/upstream_overlay.py", "scripts/isometric-geometry-scoreboard.py", "scripts/isometric-scene-scoreboard.py", "scripts/cli-scoreboard.py", "scripts/asset-policy-scoreboard.py", "scripts/imageasset-scoreboard.py", "scripts/language-scoreboard.py", "scripts/isometric-geometry-scoreboard.py", "tools/isometric-geometry-scoreboard"]
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "lib", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "isometric-hierarchy-api"
+description = "Original d2isometricimg hierarchy tests: requests and Go results"
+upstream = true
+outputs = ["crates/d2-rs-isometric/tests/fixtures/hierarchy-api.json"]
+argv = ["{python}", "scripts/isometric_oracle_fixtures.py", "api", "--script", "scripts/isometric-hierarchy-scoreboard.py", "--output", "crates/d2-rs-isometric/tests/fixtures/hierarchy-api.json", "--format", "compact"]
+key_deps.files = ["scripts/upstream_overlay.py", "scripts/isometric-geometry-scoreboard.py", "scripts/isometric-scene-scoreboard.py", "scripts/cli-scoreboard.py", "scripts/asset-policy-scoreboard.py", "scripts/imageasset-scoreboard.py", "scripts/language-scoreboard.py", "scripts/isometric-hierarchy-scoreboard.py", "tools/isometric-hierarchy-scoreboard", "tools/isometric-shape-scoreboard", "tools/isometric-solid-scoreboard"]
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "lib", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "isometric-lanes-api"
+description = "Original d2isometricimg lanes tests: requests and Go results"
+upstream = true
+outputs = ["crates/d2-rs-isometric/tests/fixtures/lanes-api.json"]
+argv = ["{python}", "scripts/isometric_oracle_fixtures.py", "api", "--script", "scripts/isometric-lanes-scoreboard.py", "--output", "crates/d2-rs-isometric/tests/fixtures/lanes-api.json", "--format", "compact"]
+key_deps.files = ["scripts/upstream_overlay.py", "scripts/isometric-geometry-scoreboard.py", "scripts/isometric-scene-scoreboard.py", "scripts/cli-scoreboard.py", "scripts/asset-policy-scoreboard.py", "scripts/imageasset-scoreboard.py", "scripts/language-scoreboard.py", "scripts/isometric-lanes-scoreboard.py", "tools/isometric-lanes-scoreboard"]
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "lib", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "isometric-output-api"
+description = "Original d2isometricimg output tests: requests and Go results"
+upstream = true
+outputs = ["crates/d2-rs-isometric/tests/fixtures/output-api.json"]
+argv = ["{python}", "scripts/isometric_oracle_fixtures.py", "api", "--script", "scripts/isometric-output-scoreboard.py", "--output", "crates/d2-rs-isometric/tests/fixtures/output-api.json", "--format", "compact"]
+key_deps.files = ["scripts/upstream_overlay.py", "scripts/isometric-geometry-scoreboard.py", "scripts/isometric-scene-scoreboard.py", "scripts/cli-scoreboard.py", "scripts/asset-policy-scoreboard.py", "scripts/imageasset-scoreboard.py", "scripts/language-scoreboard.py", "scripts/isometric-output-scoreboard.py", "tools/isometric-output-scoreboard"]
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "lib", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "isometric-panel-api"
+description = "Original d2isometricimg panel tests: requests and Go results"
+upstream = true
+outputs = ["crates/d2-rs-isometric/tests/fixtures/panel-api.json"]
+argv = ["{python}", "scripts/isometric_oracle_fixtures.py", "api", "--script", "scripts/isometric-panel-scoreboard.py", "--output", "crates/d2-rs-isometric/tests/fixtures/panel-api.json", "--format", "compact"]
+key_deps.files = ["scripts/upstream_overlay.py", "scripts/isometric-geometry-scoreboard.py", "scripts/isometric-scene-scoreboard.py", "scripts/cli-scoreboard.py", "scripts/asset-policy-scoreboard.py", "scripts/imageasset-scoreboard.py", "scripts/language-scoreboard.py", "scripts/isometric-panel-scoreboard.py", "tools/isometric-panel-scoreboard", "tools/isometric-solid-scoreboard", "tools/isometric-content-scoreboard/scenejson.go"]
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "lib", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "isometric-shape-api"
+description = "Original d2isometricimg shape tests: requests and Go results"
+upstream = true
+outputs = ["crates/d2-rs-isometric/tests/fixtures/shape-api.json"]
+argv = ["{python}", "scripts/isometric_oracle_fixtures.py", "api", "--script", "scripts/isometric-shape-scoreboard.py", "--output", "crates/d2-rs-isometric/tests/fixtures/shape-api.json", "--format", "compact", "--select", "tools/fixtures/seeds/isometric-shape-select.json"]
+inputs = ["tools/fixtures/seeds/isometric-shape-select.json"]
+key_deps.files = ["scripts/upstream_overlay.py", "scripts/isometric-geometry-scoreboard.py", "scripts/isometric-scene-scoreboard.py", "scripts/cli-scoreboard.py", "scripts/asset-policy-scoreboard.py", "scripts/imageasset-scoreboard.py", "scripts/language-scoreboard.py", "scripts/isometric-shape-scoreboard.py", "tools/isometric-shape-scoreboard", "tools/isometric-solid-scoreboard"]
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "lib", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "isometric-solid-api"
+description = "Original d2isometricimg solid tests: requests and Go results"
+upstream = true
+outputs = ["crates/d2-rs-isometric/tests/fixtures/solid-api.json"]
+argv = ["{python}", "scripts/isometric_oracle_fixtures.py", "api", "--script", "scripts/isometric-solid-scoreboard.py", "--output", "crates/d2-rs-isometric/tests/fixtures/solid-api.json", "--format", "compact", "--select", "tools/fixtures/seeds/isometric-solid-select.json"]
+inputs = ["tools/fixtures/seeds/isometric-solid-select.json"]
+key_deps.files = ["scripts/upstream_overlay.py", "scripts/isometric-geometry-scoreboard.py", "scripts/isometric-scene-scoreboard.py", "scripts/cli-scoreboard.py", "scripts/asset-policy-scoreboard.py", "scripts/imageasset-scoreboard.py", "scripts/language-scoreboard.py", "scripts/isometric-solid-scoreboard.py", "tools/isometric-solid-scoreboard"]
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "lib", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "isometric-structured-api"
+description = "Original d2isometricimg structured tests: requests and Go results"
+upstream = true
+outputs = ["crates/d2-rs-isometric/tests/fixtures/structured-api.json"]
+argv = ["{python}", "scripts/isometric_oracle_fixtures.py", "api", "--script", "scripts/isometric-structured-scoreboard.py", "--output", "crates/d2-rs-isometric/tests/fixtures/structured-api.json", "--format", "compact"]
+key_deps.files = ["scripts/upstream_overlay.py", "scripts/isometric-geometry-scoreboard.py", "scripts/isometric-scene-scoreboard.py", "scripts/cli-scoreboard.py", "scripts/asset-policy-scoreboard.py", "scripts/imageasset-scoreboard.py", "scripts/language-scoreboard.py", "scripts/isometric-structured-scoreboard.py", "tools/isometric-structured-scoreboard", "tools/isometric-shape-scoreboard", "tools/isometric-solid-scoreboard"]
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "lib", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "isometric-font-api"
+description = "Original d2isometricimg font tests: requests and Go results"
+upstream = true
+outputs = ["crates/d2-rs-isometric/tests/fixtures/font-api.json"]
+argv = ["{python}", "scripts/isometric_oracle_fixtures.py", "api", "--script", "scripts/isometric-font-scoreboard.py", "--output", "crates/d2-rs-isometric/tests/fixtures/font-api.json", "--format", "compact", "--assets"]
+key_deps.files = ["scripts/upstream_overlay.py", "scripts/isometric-geometry-scoreboard.py", "scripts/isometric-scene-scoreboard.py", "scripts/cli-scoreboard.py", "scripts/asset-policy-scoreboard.py", "scripts/imageasset-scoreboard.py", "scripts/language-scoreboard.py", "scripts/isometric-font-scoreboard.py", "tools/isometric-font-scoreboard", "tools/isometric-content-scoreboard/scenejson.go"]
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "lib", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "isometric-svg-api"
+description = "Original d2svg isometric tests (Render/RenderIsometric/RenderMultiboard): complete SVGs and errors"
+upstream = true
+outputs = ["crates/d2-rs-isometric/tests/fixtures/svg-isometric-api.json"]
+argv = ["{python}", "scripts/isometric_oracle_fixtures.py", "api", "--script", "scripts/svg-isometric-scoreboard.py", "--output", "crates/d2-rs-isometric/tests/fixtures/svg-isometric-api.json", "--format", "indent2"]
+key_deps.files = ["scripts/upstream_overlay.py", "scripts/cli-scoreboard.py", "scripts/svg-isometric-scoreboard.py", "scripts/svg-admission-scoreboard.py", "tools/svg-isometric-scoreboard"]
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "lib", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "isometric-whole-svg"
+description = "Five pinned upstream isometric goldens: board.exp.json plus isometric.exp.svg"
+upstream = true
+outputs = ["crates/d2-rs-isometric/tests/fixtures/whole-svg.json"]
+argv = ["{python}", "scripts/isometric_oracle_fixtures.py", "whole-svg", "--output", "crates/d2-rs-isometric/tests/fixtures/whole-svg.json",
+  "measured/empty-shape/dagre/isometric", "patterns/3d/dagre/isometric", "root/stroke-width/dagre/isometric",
+  "patterns/shape/dagre/isometric", "stable/box_arrowhead/dagre/isometric"]
+key_deps.upstream_paths = [
+  "e2etests/testdata/measured/empty-shape/dagre", "e2etests/testdata/patterns/3d/dagre",
+  "e2etests/testdata/root/stroke-width/dagre", "e2etests/testdata/patterns/shape/dagre",
+  "e2etests/testdata/stable/box_arrowhead/dagre",
+]
+
+[[recipe]]
+name = "isometric-whole-assets"
+description = "Upstream icon/image boards rendered by Go with explicit hash-bound HTTP resources, plus default errors"
+upstream = true
+outputs = ["crates/d2-rs-isometric/tests/fixtures/whole-assets.json"]
+inputs = ["tools/fixtures/seeds/isometric-whole-assets.json"]
+argv = ["{python}", "scripts/isometric_oracle_fixtures.py", "whole-assets", "--output", "crates/d2-rs-isometric/tests/fixtures/whole-assets.json", "--seed", "tools/fixtures/seeds/isometric-whole-assets.json"]
+key_deps.files = ["tools/isometric-probe/main.go"]
+key_deps.go_toolchain = true
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "lib", "go.mod", "go.sum",
+  "e2etests/testdata/stable/images/dagre", "e2etests/testdata/regression/grid_image_label_position/elk",
+  "e2etests/testdata/txtar/sql-table-reserved/tala"]
+
+[[recipe]]
+name = "d2svg-geometry-golden"
+description = "Shape/connection geometry of every non-sketch e2e board paired with its sketch.exp.svg values"
+upstream = true
+outputs = ["crates/d2-rs-render/tests/fixtures/d2svg-geometry/golden.json"]
+argv = ["{python}", "scripts/d2svg-geometry-fixtures.py", "--golden"]
+key_deps.upstream_paths = ["e2etests/testdata"]
+
+[[recipe]]
+name = "d2svg-geometry-oracle"
+description = "Bit-exact lib/geo, lib/label, lib/shape, lib/svg outputs for fixed-seed inputs (host-architecture dependent)"
+upstream = true
+outputs = ["crates/d2-rs-render/tests/fixtures/d2svg-geometry/oracle.json"]
+argv = ["{python}", "scripts/d2svg-geometry-fixtures.py", "--oracle"]
+key_deps.files = ["scripts/d2svg-geometry-oracle.go"]
+key_deps.go_toolchain = true
+key_deps.upstream_paths = ["lib/geo", "lib/label", "lib/shape", "lib/svg", "go.mod", "go.sum"]
+key_deps.extra = "host-arch-dependent float bits"
+
+# Second pass: the remaining d2-rs-isometric API captures. `api` recipes keep
+# whole original tests (--tests) from a scoreboard capture; `probe-api` recipes
+# record the public Render/RenderPage calls of one tools/isometric-probe suite.
+# Go t.TempDir() roots are written as @D2RS_TMP@/<Test>/<NNN> and tests that
+# iterate a Go map literal get canonically sorted operations, so reruns are
+# byte-identical (scripts/isometric_oracle_fixtures.py).
+
+[[recipe]]
+name = "isometric-arrow-cancellation-api"
+description = "Original arrow-visibility cache/work/cancellation test: requests and Go results"
+upstream = true
+outputs = ["crates/d2-rs-isometric/tests/fixtures/arrow-api.json"]
+argv = ["{python}", "scripts/isometric_oracle_fixtures.py", "api", "--script", "scripts/isometric-arrow-scoreboard.py", "--output", "crates/d2-rs-isometric/tests/fixtures/arrow-api.json", "--format", "compact", "--tests", "TestArrowVisibilityBoundsCachesWorkAndCancellation"]
+key_deps.files = ["scripts/upstream_overlay.py", "scripts/isometric-*scoreboard.py", "scripts/cli-scoreboard.py", "scripts/asset-policy-scoreboard.py", "scripts/imageasset-scoreboard.py", "scripts/language-scoreboard.py", "tools/isometric-*-scoreboard"]
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "lib", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "isometric-fidelity-api"
+description = "Original shadow/vector mask/gradient fidelity tests: requests and Go results"
+upstream = true
+outputs = ["crates/d2-rs-isometric/tests/fixtures/fidelity-api.json"]
+argv = ["{python}", "scripts/isometric_oracle_fixtures.py", "api", "--script", "scripts/isometric-fidelity-scoreboard.py", "--output", "crates/d2-rs-isometric/tests/fixtures/fidelity-api.json", "--format", "indent2", "--layout", "cases", "--digest-keys", "depth,opacity"]
+key_deps.files = ["scripts/upstream_overlay.py", "scripts/isometric-*scoreboard.py", "scripts/cli-scoreboard.py", "scripts/asset-policy-scoreboard.py", "scripts/imageasset-scoreboard.py", "scripts/language-scoreboard.py", "tools/isometric-*-scoreboard"]
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "lib", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "isometric-ink-api"
+description = "Original classic/solid ink cancellation tests: requests and Go results"
+upstream = true
+outputs = ["crates/d2-rs-isometric/tests/fixtures/ink-api.json"]
+argv = ["{python}", "scripts/isometric_oracle_fixtures.py", "api", "--script", "scripts/isometric-ink-scoreboard.py", "--output", "crates/d2-rs-isometric/tests/fixtures/ink-api.json", "--format", "indent2", "--layout", "cases"]
+key_deps.files = ["scripts/upstream_overlay.py", "scripts/isometric-*scoreboard.py", "scripts/cli-scoreboard.py", "scripts/asset-policy-scoreboard.py", "scripts/imageasset-scoreboard.py", "scripts/language-scoreboard.py", "tools/isometric-*-scoreboard"]
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "lib", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "isometric-page-glyph-api"
+description = "Original physical-page glyph test: requests and Go results"
+upstream = true
+outputs = ["crates/d2-rs-isometric/tests/fixtures/page-glyph-api.json"]
+argv = ["{python}", "scripts/isometric_oracle_fixtures.py", "api", "--script", "scripts/isometric-page-glyph-scoreboard.py", "--output", "crates/d2-rs-isometric/tests/fixtures/page-glyph-api.json", "--format", "indent2", "--layout", "cases"]
+key_deps.files = ["scripts/upstream_overlay.py", "scripts/isometric-*scoreboard.py", "scripts/cli-scoreboard.py", "scripts/asset-policy-scoreboard.py", "scripts/imageasset-scoreboard.py", "scripts/language-scoreboard.py", "tools/isometric-*-scoreboard"]
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "lib", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "isometric-svg-precision-api"
+description = "Original SVG fragment/predicate/polygon precision tests: requests and Go results"
+upstream = true
+outputs = ["crates/d2-rs-isometric/tests/fixtures/svg-precision-api.json"]
+argv = ["{python}", "scripts/isometric_oracle_fixtures.py", "api", "--script", "scripts/isometric-precision-scoreboard.py", "--output", "crates/d2-rs-isometric/tests/fixtures/svg-precision-api.json", "--format", "indent2", "--layout", "cases"]
+key_deps.files = ["scripts/upstream_overlay.py", "scripts/isometric-*scoreboard.py", "scripts/cli-scoreboard.py", "scripts/asset-policy-scoreboard.py", "scripts/imageasset-scoreboard.py", "scripts/language-scoreboard.py", "tools/isometric-*-scoreboard"]
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "lib", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "isometric-raster-snapshot-api"
+description = "Original deferred-snapshot and multiply-backdrop raster tests: requests and Go results"
+upstream = true
+outputs = ["crates/d2-rs-isometric/tests/fixtures/raster-api.json"]
+argv = ["{python}", "scripts/isometric_oracle_fixtures.py", "api", "--script", "scripts/isometric-raster-scoreboard.py", "--output", "crates/d2-rs-isometric/tests/fixtures/raster-api.json", "--format", "compact", "--layout", "bare", "--tests", "TestNativeDeferredSnapshotRetainsTexturePrecision,TestRasterMultiplyPremultipliedBackdrop"]
+key_deps.files = ["scripts/upstream_overlay.py", "scripts/isometric-*scoreboard.py", "scripts/cli-scoreboard.py", "scripts/asset-policy-scoreboard.py", "scripts/imageasset-scoreboard.py", "scripts/language-scoreboard.py", "tools/isometric-*-scoreboard"]
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "lib", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "isometric-contact-caption-api"
+description = "Original queue/upright contact-arrow caption tests: requests and Go results"
+upstream = true
+outputs = ["crates/d2-rs-isometric/tests/fixtures/contact-caption-api.json"]
+argv = ["{python}", "scripts/isometric_oracle_fixtures.py", "api", "--script", "scripts/isometric-residual-scoreboard.py", "--output", "crates/d2-rs-isometric/tests/fixtures/contact-caption-api.json", "--format", "compact", "--layout", "source-cases", "--tests", "TestQueueContactArrowsTrafficAndMainCaptionUseCorrectAnchors,TestUprightContactArrowsTrafficAndMainCaptionUseCorrectAnchors"]
+key_deps.files = ["scripts/upstream_overlay.py", "scripts/isometric-*scoreboard.py", "scripts/cli-scoreboard.py", "scripts/asset-policy-scoreboard.py", "scripts/imageasset-scoreboard.py", "scripts/language-scoreboard.py", "tools/isometric-*-scoreboard"]
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "lib", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "isometric-content-api"
+description = "Original content tests (lighting, casing, dash, vector capture/paint): requests and Go results"
+upstream = true
+outputs = ["crates/d2-rs-isometric/tests/fixtures/content-api.json"]
+argv = ["{python}", "scripts/isometric_oracle_fixtures.py", "api", "--script", "scripts/isometric-content-scoreboard.py", "--output", "crates/d2-rs-isometric/tests/fixtures/content-api.json", "--format", "compact", "--layout", "bare", "--tests", "TestMatteLightingPreservesTopColorAndRevealsSidewalls,TestNativeCasingDoesNotRevealTransparentStroke,TestNativeDashPreservesBridgeAndCornerVertices,TestNativeReadingAxisAndForeshortening,TestNativeRouteStylingPreservesAuthoredPaint,TestNativeSVGMatrixPreservesAuthoredPrecision,TestNativeSlopedTubeAndCasing,TestNativeVectorBorderAperturePreservesSourceOpening,TestNativeVectorCaptureIsScopedAndCancelable,TestNativeVectorCompensationMaskHasWhiteRGB,TestNativeVectorInitialAnimationPreservesStaticFrame,TestNativeVectorSolidCapClosesOnlyOpaqueSourceMargin,TestNativeVectorSplitPaintCoverageAppliesOpacityOnce,TestPrintedRouteInkKeepsColorAndPlaneThroughTurns"]
+key_deps.files = ["scripts/upstream_overlay.py", "scripts/isometric-*scoreboard.py", "scripts/cli-scoreboard.py", "scripts/asset-policy-scoreboard.py", "scripts/imageasset-scoreboard.py", "scripts/language-scoreboard.py", "tools/isometric-*-scoreboard"]
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "lib", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "isometric-page-api"
+description = "RenderPage calls of the original page tests and their Go results"
+upstream = true
+outputs = ["crates/d2-rs-isometric/tests/fixtures/page-api.json"]
+argv = ["{python}", "scripts/isometric_oracle_fixtures.py", "probe-api", "--suite", "page", "--output", "crates/d2-rs-isometric/tests/fixtures/page-api.json", "--format", "compact", "--meta", '{"source": "d2renderers/d2isometric/d2isometricimg/page_test.go; all original assertions pass"}', "--apis", "page"]
+key_deps.files = ["scripts/upstream_overlay.py", "scripts/isometric-scoreboard.py", "tools/isometric-probe"]
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "lib", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "isometric-native-svg-api"
+description = "SVG Render calls of the original native SVG tests and their Go results"
+upstream = true
+outputs = ["crates/d2-rs-isometric/tests/fixtures/svg-api.json"]
+argv = ["{python}", "scripts/isometric_oracle_fixtures.py", "probe-api", "--suite", "svg", "--output", "crates/d2-rs-isometric/tests/fixtures/svg-api.json", "--format", "compact", "--digest"]
+key_deps.files = ["scripts/upstream_overlay.py", "scripts/isometric-scoreboard.py", "tools/isometric-probe"]
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "lib", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "isometric-png-api"
+description = "PNG Render calls of the original admission/framing tests and their Go results"
+upstream = true
+outputs = ["crates/d2-rs-isometric/tests/fixtures/png-api.json"]
+argv = ["{python}", "scripts/isometric_oracle_fixtures.py", "probe-api", "--suite", "png", "--output", "crates/d2-rs-isometric/tests/fixtures/png-api.json", "--format", "indent1", "--digest"]
+key_deps.files = ["scripts/upstream_overlay.py", "scripts/isometric-scoreboard.py", "tools/isometric-probe"]
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "lib", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "isometric-paint-api"
+description = "Render calls of the original gradient/icon paint tests plus the container-gradient witness board"
+upstream = true
+outputs = ["crates/d2-rs-isometric/tests/fixtures/paint-api.json"]
+argv = ["{python}", "scripts/isometric_oracle_fixtures.py", "probe-api", "--suite", "paint", "--output", "crates/d2-rs-isometric/tests/fixtures/paint-api.json", "--format", "compact", "--meta", '{"source": "tools/isometric-probe/api_scoreboard.py --suite paint"}', "--digest"]
+key_deps.files = ["scripts/upstream_overlay.py", "scripts/isometric-scoreboard.py", "tools/isometric-probe"]
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "lib", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "isometric-panel-assets-api"
+description = "Render calls of the legend asset witness boards"
+upstream = true
+outputs = ["crates/d2-rs-isometric/tests/fixtures/panel-assets-api.json"]
+argv = ["{python}", "scripts/isometric_oracle_fixtures.py", "probe-api", "--suite", "panels", "--output", "crates/d2-rs-isometric/tests/fixtures/panel-assets-api.json", "--format", "indent1", "--meta", '{"source": "txtar/legend-mono boards plus tools/isometric-probe/panel_assets_test.go"}', "--digest"]
+key_deps.files = ["scripts/upstream_overlay.py", "scripts/isometric-scoreboard.py", "tools/isometric-probe"]
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "lib", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "isometric-composition-api"
+description = "Render calls of the original legend/sequence/root-label composition tests"
+upstream = true
+outputs = ["crates/d2-rs-isometric/tests/fixtures/composition-api.json"]
+argv = ["{python}", "scripts/isometric_oracle_fixtures.py", "probe-api", "--suite", "composition", "--output", "crates/d2-rs-isometric/tests/fixtures/composition-api.json", "--format", "indent1", "--meta", '{"source": "tools/isometric-probe/api_scoreboard.py --suite composition"}', "--digest"]
+key_deps.files = ["scripts/upstream_overlay.py", "scripts/isometric-scoreboard.py", "tools/isometric-probe"]
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "lib", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "isometric-fonts-api"
+description = "Render calls of the configured-font admission witness boards"
+upstream = true
+outputs = ["crates/d2-rs-isometric/tests/fixtures/fonts-api.json"]
+argv = ["{python}", "scripts/isometric_oracle_fixtures.py", "probe-api", "--suite", "fonts", "--output", "crates/d2-rs-isometric/tests/fixtures/fonts-api.json", "--format", "indent1", "--meta", '{"source": "tools/isometric-probe/api_scoreboard.py --suite fonts"}', "--digest"]
+key_deps.files = ["scripts/upstream_overlay.py", "scripts/isometric-scoreboard.py", "tools/isometric-probe"]
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "lib", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "isometric-link-boards-api"
+description = "Render/RenderPage calls of the original link-destination tests"
+upstream = true
+outputs = ["crates/d2-rs-isometric/tests/fixtures/link-boards-api.json"]
+argv = ["{python}", "scripts/isometric_oracle_fixtures.py", "probe-api", "--suite", "links", "--output", "crates/d2-rs-isometric/tests/fixtures/link-boards-api.json", "--format", "indent1", "--digest"]
+key_deps.files = ["scripts/upstream_overlay.py", "scripts/isometric-scoreboard.py", "tools/isometric-probe"]
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "lib", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "isometric-gif-api"
+description = "Render(GIF) calls of the original admission/no-traffic tests and GIF witness boards"
+upstream = true
+outputs = ["crates/d2-rs-isometric/tests/fixtures/gif-api.json"]
+argv = ["{python}", "scripts/isometric_oracle_fixtures.py", "probe-api", "--script", "scripts/isometric-gif-scoreboard.py", "--output", "crates/d2-rs-isometric/tests/fixtures/gif-api.json", "--format", "indent2", "--digest"]
+key_deps.files = ["scripts/upstream_overlay.py", "scripts/isometric-scoreboard.py", "scripts/cli-scoreboard.py", "tools/isometric-gif-probe"]
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "lib", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "isometric-gif-frames-api"
+description = "CaptureFrames calls of the original admission/callback/timeline tests and frame witness boards"
+upstream = true
+outputs = ["crates/d2-rs-isometric/tests/fixtures/gif-frames-api.json"]
+argv = ["{python}", "scripts/isometric_oracle_fixtures.py", "probe-api", "--script", "scripts/isometric-frame-scoreboard.py", "--output", "crates/d2-rs-isometric/tests/fixtures/gif-frames-api.json", "--format", "indent2", "--digest"]
+key_deps.files = ["scripts/upstream_overlay.py", "scripts/isometric-scoreboard.py", "scripts/cli-scoreboard.py", "tools/isometric-frame-probe"]
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "lib", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "isometric-timeline-api"
+description = "RenderTimeline calls of the original timeline tests"
+upstream = true
+outputs = ["crates/d2-rs-isometric/tests/fixtures/timeline-api.json"]
+argv = ["{python}", "scripts/isometric_oracle_fixtures.py", "probe-api", "--script", "scripts/isometric-timeline-scoreboard.py", "--output", "crates/d2-rs-isometric/tests/fixtures/timeline-api.json", "--format", "indent2", "--digest"]
+key_deps.files = ["scripts/upstream_overlay.py", "scripts/isometric-scoreboard.py", "scripts/cli-scoreboard.py", "tools/isometric-timeline-probe"]
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "lib", "go.mod", "go.sum"]
+
+[[recipe]]
+name = "isometric-plain-labels"
+description = "TextPainter calls (layout, pixels, retained SVG) on three golden boards"
+upstream = true
+outputs = ["crates/d2-rs-isometric/tests/fixtures/plain-labels.json"]
+argv = ["{python}", "scripts/isometric_oracle_fixtures.py", "mesh-calls", "--mode", "text", "--format", "indent1", "--output", "crates/d2-rs-isometric/tests/fixtures/plain-labels.json", "regression/disclaimer/elk/isometric", "regression/just-width/dagre/isometric", "regression/long_arrowhead_label/elk/isometric"]
+key_deps.files = ["scripts/upstream_overlay.py", "scripts/isometric-scoreboard.py", "tools/isometric-probe"]
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "lib", "go.mod", "go.sum", "e2etests/testdata/regression/disclaimer/elk", "e2etests/testdata/regression/just-width/dagre", "e2etests/testdata/regression/long_arrowhead_label/elk"]
+
+[[recipe]]
+name = "isometric-fallback-labels"
+description = "TextPainter calls with fallback and color glyphs on the emoji golden board"
+upstream = true
+outputs = ["crates/d2-rs-isometric/tests/fixtures/fallback-labels.json"]
+argv = ["{python}", "scripts/isometric_oracle_fixtures.py", "mesh-calls", "--mode", "text", "--output", "crates/d2-rs-isometric/tests/fixtures/fallback-labels.json", "unicode/emojis/dagre/isometric"]
+key_deps.files = ["scripts/upstream_overlay.py", "scripts/isometric-scoreboard.py", "tools/isometric-probe"]
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "lib", "go.mod", "go.sum", "e2etests/testdata/unicode/emojis/dagre"]
+
+[[recipe]]
+name = "isometric-rich-labels"
+description = "richLabelPainter calls on two golden boards"
+upstream = true
+outputs = ["crates/d2-rs-isometric/tests/fixtures/rich-labels.json"]
+argv = ["{python}", "scripts/isometric_oracle_fixtures.py", "mesh-calls", "--mode", "rich", "--output", "crates/d2-rs-isometric/tests/fixtures/rich-labels.json", "regression/no-lexer/dagre/isometric", "txtar/dark-theme-md/dagre/isometric"]
+key_deps.files = ["scripts/upstream_overlay.py", "scripts/isometric-scoreboard.py", "tools/isometric-probe"]
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "lib", "go.mod", "go.sum", "e2etests/testdata/regression/no-lexer/dagre", "e2etests/testdata/txtar/dark-theme-md/dagre"]
+
+[[recipe]]
+name = "isometric-mesh-primitives"
+description = "One observed meshBuilder box/extrudedProfile call per witness board"
+upstream = true
+outputs = ["crates/d2-rs-isometric/tests/fixtures/mesh-primitives.json"]
+inputs = ["tools/fixtures/seeds/isometric-mesh-primitives.json"]
+argv = ["{python}", "scripts/isometric_oracle_fixtures.py", "mesh-calls", "--mode", "primitives", "--output", "crates/d2-rs-isometric/tests/fixtures/mesh-primitives.json", "--witnesses", "tools/fixtures/seeds/isometric-mesh-primitives.json"]
+key_deps.files = ["scripts/upstream_overlay.py", "scripts/isometric-scoreboard.py", "tools/isometric-probe"]
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "lib", "go.mod", "go.sum", "e2etests/testdata/txtar/border-label/dagre", "e2etests/testdata/measured/empty-class/dagre"]
+
+[[recipe]]
+name = "isometric-png-boards"
+description = "Pinned Go native PNG (sha256, size) of every e2etests/png isometric board"
+upstream = true
+outputs = ["crates/d2-rs-isometric/tests/fixtures/png.json"]
+argv = ["{python}", "scripts/isometric_oracle_fixtures.py", "png-boards", "--output", "crates/d2-rs-isometric/tests/fixtures/png.json"]
+key_deps.files = ["scripts/upstream_overlay.py", "scripts/isometric-scoreboard.py", "tools/isometric-probe"]
+key_deps.upstream_paths = ["d2renderers", "d2target", "d2themes", "lib", "go.mod", "go.sum", "e2etests/png/testdata", "e2etests/testdata"]
+
+[[recipe]]
+name = "isometric-static-png"
+description = "Static-PNG adapter witnesses: BestSpeed inputs and Go png.Encode re-encodings"
+upstream = true
+outputs = ["crates/d2-rs-isometric/tests/fixtures/static-png.json"]
+argv = ["{python}", "scripts/isometric_oracle_fixtures.py", "png-contracts", "--output", "crates/d2-rs-isometric/tests/fixtures/static-png.json"]
+key_deps.files = ["scripts/upstream_overlay.py", "scripts/isometric-scoreboard.py", "tools/isometric-probe"]
+key_deps.upstream_paths = ["internal/rasterimage", "d2renderers", "go.mod", "go.sum"]

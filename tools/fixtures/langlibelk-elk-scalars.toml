@@ -1,0 +1,62 @@
+# Bit-exact scalar oracles for crates/d2-rs-elk: elk-go's internal javacompat
+# sin/cos (radial rotation), Go math Acos/Atan2/Hypot and math/rand/v2
+# ChaCha8 (SPoRE/Random seeding). scripts/check-elk-scalars.py builds
+# tools/elk-math-oracle (as a package under github.com/d2lang/elk-go/, so it
+# may import elk-go internals) or the standard-library-only
+# tools/elk-random-oracle. Keys: elk-go version + Go toolchain, or toolchain
+# only; never the D2 pin.
+#
+# Regenerate:  uv run --no-project python scripts/regen-fixtures.py --only 'elk-scalar-*'
+# Test:        cargo test -p d2-rs-elk --features oracle-fixtures
+
+[defaults]
+kind = "command"
+timeout = 600
+
+[defaults.key_deps]
+files = [
+  "scripts/fixture_recipe.py",
+  "scripts/elk_oracle.py",
+  "tools/oracle/go.mod",
+  "tools/oracle/go.sum",
+]
+go_toolchain = true
+
+[[recipe]]
+name = "elk-scalar-trig"
+description = "javacompat.JSMathSin/JSMathCos over specials, random values and k*pi/2 +-1 ulp"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_radial_trig.json"]
+argv = ["{python}", "scripts/check-elk-scalars.py", "trig"]
+key_deps.files = ["scripts/elk_cases/radial.py", "tools/elk-math-oracle/main.go"]
+key_deps.go_modules = ["github.com/d2lang/elk-go"]
+
+[[recipe]]
+name = "elk-scalar-math"
+description = "Go math Acos, Atan2 and Hypot over random and special float64 bit pairs"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_radial_math.json"]
+argv = ["{python}", "scripts/check-elk-scalars.py", "math"]
+key_deps.files = ["scripts/elk_cases/radial.py", "tools/elk-math-oracle/main.go"]
+key_deps.go_modules = ["github.com/d2lang/elk-go"]
+
+[[recipe]]
+name = "elk-scalar-log"
+description = "Go math.Log over specials and 1,000 positive finite float64 bit patterns"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_force_logarithm.json"]
+argv = ["{python}", "scripts/check-elk-scalars.py", "log"]
+key_deps.files = ["scripts/elk_cases/stress.py", "tools/elk-math-oracle/main.go"]
+key_deps.go_modules = ["github.com/d2lang/elk-go"]
+
+[[recipe]]
+name = "elk-option-registry"
+description = "elk-go OptionRegistry.BySuffix over every option-ID dot suffix (checks the committed ID table)"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_option_resolution.json"]
+argv = ["{python}", "scripts/check-elk-scalars.py", "registry"]
+key_deps.files = ["tools/elk-registry-oracle/main.go", "crates/d2-rs-elk/src/fixtures/original_option_ids.txt"]
+key_deps.go_modules = ["github.com/d2lang/elk-go"]
+
+[[recipe]]
+name = "elk-scalar-random"
+description = "math/rand/v2 ChaCha8 Uint64 words and float bits for 16 fixed seeds"
+outputs = ["crates/d2-rs-elk/src/fixtures/original_spore_random.json"]
+argv = ["{python}", "scripts/check-elk-scalars.py", "random"]
+key_deps.files = ["tools/elk-random-oracle/main.go"]

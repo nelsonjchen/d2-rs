@@ -1,0 +1,414 @@
+[
+ {
+  "path": "pinned/d2compiler/compile_test.go#L1473C10-field-text.d2",
+  "text": "x: {\n  opacity: 0.5\n}\n"
+ },
+ {
+  "path": "pinned/d2compiler/compile_test.go#L1473C10-field-text.d2",
+  "text": "x: {\n  opacity: 0.5\n}\n",
+  "utf16": true
+ },
+ {
+  "path": "pinned/d2compiler/compile_test.go#L2325C10-field-text.d2",
+  "text": "x: {\n  shape: sql_table\n  x: {p -> q}\n}"
+ },
+ {
+  "path": "pinned/d2compiler/compile_test.go#L2325C10-field-text.d2",
+  "text": "x: {\n  shape: sql_table\n  x: {p -> q}\n}",
+  "utf16": true
+ },
+ {
+  "path": "pinned/d2compiler/compile_test.go#L2335C10-field-text.d2",
+  "text": "x: {\n  shape: sql_table\n  a -- b.b\n}"
+ },
+ {
+  "path": "pinned/d2compiler/compile_test.go#L2335C10-field-text.d2",
+  "text": "x: {\n  shape: sql_table\n  a -- b.b\n}",
+  "utf16": true
+ },
+ {
+  "path": "pinned/d2compiler/compile_test.go#L2344C10-field-text.d2",
+  "text": "x: {\n  shape: sql_table\n  a\n}\nx.a.b"
+ },
+ {
+  "path": "pinned/d2compiler/compile_test.go#L2344C10-field-text.d2",
+  "text": "x: {\n  shape: sql_table\n  a\n}\nx.a.b",
+  "utf16": true
+ },
+ {
+  "path": "pinned/d2compiler/compile_test.go#L2354C10-field-text.d2",
+  "text": "x: {\n  shape: class\n  a.a\n}"
+ },
+ {
+  "path": "pinned/d2compiler/compile_test.go#L2354C10-field-text.d2",
+  "text": "x: {\n  shape: class\n  a.a\n}",
+  "utf16": true
+ },
+ {
+  "path": "pinned/d2compiler/compile_test.go#L2369C12-field-text.d2",
+  "text": "myobj.style: 3"
+ },
+ {
+  "path": "pinned/d2compiler/compile_test.go#L2369C12-field-text.d2",
+  "text": "myobj.style: 3",
+  "utf16": true
+ },
+ {
+  "path": "pinned/d2compiler/compile_test.go#L2375C12-field-text.d2",
+  "text": "myobj.style: {}"
+ },
+ {
+  "path": "pinned/d2compiler/compile_test.go#L2375C12-field-text.d2",
+  "text": "myobj.style: {}",
+  "utf16": true
+ },
+ {
+  "path": "pinned/d2compiler/compile_test.go#L2381C12-field-text.d2",
+  "text": "myobj.style.style.stroke-dash: 3"
+ },
+ {
+  "path": "pinned/d2compiler/compile_test.go#L2381C12-field-text.d2",
+  "text": "myobj.style.style.stroke-dash: 3",
+  "utf16": true
+ },
+ {
+  "path": "pinned/d2compiler/compile_test.go#L2387C10-field-text.d2",
+  "text": "x: {style.opacity: 0.4}\ny -> x.style\n"
+ },
+ {
+  "path": "pinned/d2compiler/compile_test.go#L2387C10-field-text.d2",
+  "text": "x: {style.opacity: 0.4}\ny -> x.style\n",
+  "utf16": true
+ },
+ {
+  "path": "pinned/d2compiler/compile_test.go#L2395C10-field-text.d2",
+  "text": "a.near.b\n"
+ },
+ {
+  "path": "pinned/d2compiler/compile_test.go#L2395C10-field-text.d2",
+  "text": "a.near.b\n",
+  "utf16": true
+ },
+ {
+  "path": "pinned/d2compiler/compile_test.go#L3727C10-field-text.d2",
+  "text": "shape: sequence_diagram {\n  alice -> bob: What does it mean\\nto be well-adjusted?\n  bob -> alice: The ability to play bridge or\\ngolf as if they were games.\n}\n"
+ },
+ {
+  "path": "pinned/d2compiler/compile_test.go#L3727C10-field-text.d2",
+  "text": "shape: sequence_diagram {\n  alice -> bob: What does it mean\\nto be well-adjusted?\n  bob -> alice: The ability to play bridge or\\ngolf as if they were games.\n}\n",
+  "utf16": true
+ },
+ {
+  "path": "index.d2",
+  "text": "a: @library.\"style\"\nb: @library.style\nc: @library.KELVIN\nd: @library.kelvin\n",
+  "files": {
+   "library.d2": "\"style\": quoted\nstyle.fill: red\nKelvin: { label: symbol }\n"
+  }
+ },
+ {
+  "path": "fields.d2",
+  "text": "a.style: {}"
+ },
+ {
+  "path": "fields.d2",
+  "text": "a.style: {}",
+  "utf16": true
+ },
+ {
+  "path": "fields.d2",
+  "text": "a.STYLE: x"
+ },
+ {
+  "path": "fields.d2",
+  "text": "a.STYLE: x",
+  "utf16": true
+ },
+ {
+  "path": "fields.d2",
+  "text": "a.Opacity: 2"
+ },
+ {
+  "path": "fields.d2",
+  "text": "a.Opacity: 2",
+  "utf16": true
+ },
+ {
+  "path": "fields.d2",
+  "text": "a: {shape: class; b: {c: x}}"
+ },
+ {
+  "path": "fields.d2",
+  "text": "a: {shape: class; b: {c: x}}",
+  "utf16": true
+ },
+ {
+  "path": "fields.d2",
+  "text": "a: {shape: sql_table; b: {label: string; style.opacity: 0.5}}"
+ },
+ {
+  "path": "fields.d2",
+  "text": "a: {shape: sql_table; b: {label: string; style.opacity: 0.5}}",
+  "utf16": true
+ },
+ {
+  "path": "fields.d2",
+  "text": "a: {shape: circle {x}; style.opacity: 2}"
+ },
+ {
+  "path": "fields.d2",
+  "text": "a: {shape: circle {x}; style.opacity: 2}",
+  "utf16": true
+ },
+ {
+  "path": "fields.d2",
+  "text": "a: {shape: class; b: {style.opacity: 2; c: x}}"
+ },
+ {
+  "path": "fields.d2",
+  "text": "a: {shape: class; b: {style.opacity: 2; c: x}}",
+  "utf16": true
+ },
+ {
+  "path": "fields.d2",
+  "text": "a: {shape: sql_table; b: {shape: class; c: x}}"
+ },
+ {
+  "path": "fields.d2",
+  "text": "a: {shape: sql_table; b: {shape: class; c: x}}",
+  "utf16": true
+ },
+ {
+  "path": "fields.d2",
+  "text": "classes: {tab: {shape: sql_table}}; a: {class: tab; b.c}"
+ },
+ {
+  "path": "fields.d2",
+  "text": "classes: {tab: {shape: sql_table}}; a: {class: tab; b.c}",
+  "utf16": true
+ },
+ {
+  "path": "fields.d2",
+  "text": "a: {shape: class; b: {\"style\": x}}"
+ },
+ {
+  "path": "fields.d2",
+  "text": "a: {shape: class; b: {\"style\": x}}",
+  "utf16": true
+ },
+ {
+  "path": "pinned/d2compiler/compile_test.go#L240C10-field-text.d2",
+  "text": "hey: \"\" {\n\tshape: circle\n\twidth: 200\n\theight: 230\n}\n"
+ },
+ {
+  "path": "pinned/d2compiler/compile_test.go#L240C10-field-text.d2",
+  "text": "hey: \"\" {\n\tshape: circle\n\twidth: 200\n\theight: 230\n}\n",
+  "utf16": true
+ },
+ {
+  "path": "pinned/d2compiler/compile_test.go#L400C10-field-text.d2",
+  "text": "x: {\n  shape: image\n  icon: https://icons.terrastruct.com/aws/_Group%20Icons/EC2-instance-container_light-bg.svg\n  name: y\n}\n"
+ },
+ {
+  "path": "pinned/d2compiler/compile_test.go#L400C10-field-text.d2",
+  "text": "x: {\n  shape: image\n  icon: https://icons.terrastruct.com/aws/_Group%20Icons/EC2-instance-container_light-bg.svg\n  name: y\n}\n",
+  "utf16": true
+ },
+ {
+  "path": "pinned/d2compiler/compile_test.go#L1362C10-field-text.d2",
+  "text": "x: {shape: triangle}\n"
+ },
+ {
+  "path": "pinned/d2compiler/compile_test.go#L1362C10-field-text.d2",
+  "text": "x: {shape: triangle}\n",
+  "utf16": true
+ },
+ {
+  "path": "pinned/d2compiler/compile_test.go#L2319C12-field-text.d2",
+  "text": "x.shape: image"
+ },
+ {
+  "path": "pinned/d2compiler/compile_test.go#L2319C12-field-text.d2",
+  "text": "x.shape: image",
+  "utf16": true
+ },
+ {
+  "path": "pinned/d2compiler/compile_test.go#L2576C10-field-text.d2",
+  "text": "SVP1.shape: oval\nSVP1.style.3d: true"
+ },
+ {
+  "path": "pinned/d2compiler/compile_test.go#L2576C10-field-text.d2",
+  "text": "SVP1.shape: oval\nSVP1.style.3d: true",
+  "utf16": true
+ },
+ {
+  "path": "pinned/d2compiler/compile_test.go#L2765C10-field-text.d2",
+  "text": "foo {\n  label: bar\n  constraint: BIZ\n}"
+ },
+ {
+  "path": "pinned/d2compiler/compile_test.go#L2765C10-field-text.d2",
+  "text": "foo {\n  label: bar\n  constraint: BIZ\n}",
+  "utf16": true
+ },
+ {
+  "path": "keys.d2",
+  "text": "style.3d: false"
+ },
+ {
+  "path": "keys.d2",
+  "text": "style.3d: false",
+  "utf16": true
+ },
+ {
+  "path": "keys.d2",
+  "text": "a.style.3d: false"
+ },
+ {
+  "path": "keys.d2",
+  "text": "a.style.3d: false",
+  "utf16": true
+ },
+ {
+  "path": "keys.d2",
+  "text": "a: |md\n hello\n| {style.3d: false}"
+ },
+ {
+  "path": "keys.d2",
+  "text": "a: |md\n hello\n| {style.3d: false}",
+  "utf16": true
+ },
+ {
+  "path": "keys.d2",
+  "text": "a: {shape: circle; width: 01; height: 1}"
+ },
+ {
+  "path": "keys.d2",
+  "text": "a: {shape: circle; width: 01; height: 1}",
+  "utf16": true
+ },
+ {
+  "path": "keys.d2",
+  "text": "a: {shape: square; width: 10; height: 10}"
+ },
+ {
+  "path": "keys.d2",
+  "text": "a: {shape: square; width: 10; height: 10}",
+  "utf16": true
+ },
+ {
+  "path": "keys.d2",
+  "text": "classes: {s: {shape: circle; width: 10; style.double-border: true}}; a: {class: s; height: 20}"
+ },
+ {
+  "path": "keys.d2",
+  "text": "classes: {s: {shape: circle; width: 10; style.double-border: true}}; a: {class: s; height: 20}",
+  "utf16": true
+ },
+ {
+  "path": "keys.d2",
+  "text": "a: {shape: hexagon; style.double-border: false}"
+ },
+ {
+  "path": "keys.d2",
+  "text": "a: {shape: hexagon; style.double-border: false}",
+  "utf16": true
+ },
+ {
+  "path": "keys.d2",
+  "text": "a: {shape: sequence_diagram; b: {shape: image; icon: x; c}}"
+ },
+ {
+  "path": "keys.d2",
+  "text": "a: {shape: sequence_diagram; b: {shape: image; icon: x; c}}",
+  "utf16": true
+ },
+ {
+  "path": "keys.d2",
+  "text": "a: {shape: circle; width: 10; height: 20; style.opacity: 2}"
+ },
+ {
+  "path": "keys.d2",
+  "text": "a: {shape: circle; width: 10; height: 20; style.opacity: 2}",
+  "utf16": true
+ },
+ {
+  "path": "keys.d2",
+  "text": "a: {shape: class; b.constraint: PK}"
+ },
+ {
+  "path": "keys.d2",
+  "text": "a: {shape: class; b.constraint: PK}",
+  "utf16": true
+ },
+ {
+  "path": "keys.d2",
+  "text": "a: {shape: sql_table; b.constraint: PK}"
+ },
+ {
+  "path": "keys.d2",
+  "text": "a: {shape: sql_table; b.constraint: PK}",
+  "utf16": true
+ },
+ {
+  "path": "keys.d2",
+  "text": "a: {shape: image}"
+ },
+ {
+  "path": "keys.d2",
+  "text": "a: {shape: image}",
+  "utf16": true
+ },
+ {
+  "path": "keys.d2",
+  "text": "a: {shape: triangle}; b: {shape: triangle}"
+ },
+ {
+  "path": "keys.d2",
+  "text": "a: {shape: triangle}; b: {shape: triangle}",
+  "utf16": true
+ },
+ {
+  "path": "keys.d2",
+  "text": "a: {shape: circle; width: 10; height: 20}; layers: {b: {c: {shape: circle; width: 10; height: 20}}}"
+ },
+ {
+  "path": "keys.d2",
+  "text": "a: {shape: circle; width: 10; height: 20}; layers: {b: {c: {shape: circle; width: 10; height: 20}}}",
+  "utf16": true
+ },
+ {
+  "path": "cli-control.d2",
+  "text": "direction: right\na: { label: A; shape: circle; width: 80; height: 60; top: 20; left: 30; near: b; label-position: OUTSIDE_TOP_LEFT; icon-position: INSIDE_BOTTOM_RIGHT }\nb: B\n"
+ },
+ {
+  "path": "cli-control.d2",
+  "text": "direction: right\na: { label: A; shape: circle; width: 80; height: 60; top: 20; left: 30; near: b; label-position: OUTSIDE_TOP_LEFT; icon-position: INSIDE_BOTTOM_RIGHT }\nb: B\n",
+  "utf16": true
+ },
+ {
+  "path": "cli-control.d2",
+  "text": "direction: right\na: { label: A; shape: circle; width: 80; height: 80; top: 20; left: 30; near: b; label-position: OUTSIDE_TOP_LEFT; icon-position: INSIDE_BOTTOM_RIGHT }\nb: B\n"
+ },
+ {
+  "path": "cli-control.d2",
+  "text": "direction: right\na: { label: A; shape: circle; width: 80; height: 80; top: 20; left: 30; near: b; label-position: OUTSIDE_TOP_LEFT; icon-position: INSIDE_BOTTOM_RIGHT }\nb: B\n",
+  "utf16": true
+ },
+ {
+  "path": "cli-control.d2",
+  "text": "users: {shape: sql_table; id: {type: int; constraint: primary_key}; name: string}\n"
+ },
+ {
+  "path": "cli-control.d2",
+  "text": "users: {shape: sql_table; id: {type: int; constraint: primary_key}; name: string}\n",
+  "utf16": true
+ },
+ {
+  "path": "cli-control.d2",
+  "text": "users: {shape: sql_table; id: int { constraint: primary_key}; name: string}\n"
+ },
+ {
+  "path": "cli-control.d2",
+  "text": "users: {shape: sql_table; id: int { constraint: primary_key}; name: string}\n",
+  "utf16": true
+ }
+]
