@@ -25,9 +25,12 @@ fn euclidean_distance(start: Point, end: Point) -> f64 {
 }
 
 fn interpolate(start: Point, end: Point, t: f64) -> Point {
+    // lib/geo/point.go:Point.Interpolate rounds the second product, then
+    // fuses the first product on arm64. Near chopPrecision's float32
+    // boundary, separate products can move a connection mask by a pixel.
     Point {
-        x: start.x * (1.0 - t) + end.x * t,
-        y: start.y * (1.0 - t) + end.y * t,
+        x: crate::go_fmadd(start.x, 1.0 - t, end.x * t),
+        y: crate::go_fmadd(start.y, 1.0 - t, end.y * t),
     }
 }
 
@@ -133,6 +136,31 @@ mod tests {
         assert_eq!(chop_precision(2.5), 3.0);
         assert_eq!(chop_precision(-2.5), -3.0);
         assert_eq!(chop_precision(-0.1).to_bits(), 0.0_f64.to_bits());
+    }
+
+    #[test]
+    fn large_route_label_preserves_go_interpolation_before_chopping() {
+        // feature-stress.py's themed/100, connection n73 -> n74. Pinned Go
+        // lib/geo/point.go:Point.Interpolate fuses the first product on arm64;
+        // lib/label/label.go:chopPrecision then narrows the scaled center.
+        let route =
+            [13716.5, 13765.2998046875, 13786.7001953125, 13823.5].map(|y| Point { x: 50.5, y });
+        let origin = top_left(
+            &route,
+            LabelPosition::InsideMiddleCenter,
+            2.0,
+            0.0,
+            Size {
+                width: 8.0,
+                height: 21.0,
+            },
+        )
+        .unwrap();
+        #[cfg(target_arch = "aarch64")]
+        let y = 13760.0;
+        #[cfg(not(target_arch = "aarch64"))]
+        let y = 13759.0;
+        assert_eq!(origin, Point { x: 47.0, y });
     }
 
     #[test]

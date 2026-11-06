@@ -545,19 +545,16 @@ fn property_number(compiler: &Compiler, node: IrNodeId, path: &[&str]) -> Option
 }
 
 /// Returns the source range of a direct property key. D2's grid adapter uses
-/// the key ranges (rather than the resolved values) to retain whether rows or
-/// columns was declared first.
+/// the last primary key ranges (rather than the resolved values) to retain
+/// whether rows or columns was assigned first in the final declarations.
 fn property_key_range_in_map(
     compiler: &Compiler,
     map: IrNodeId,
     path: &[&str],
 ) -> Option<ast::Range> {
     let field = compiler.graph_field(map, path)?;
-    let IrNode::Field(field) = compiler.arena.node(field) else {
-        return None;
-    };
-    let key = field.name.unbox()?;
-    Some(ast::Node::range(&key))
+    let key = compiler.arena.last_primary_key(field)?;
+    Some(key.read().range.clone())
 }
 
 fn property_key_range(compiler: &Compiler, node: IrNodeId, path: &[&str]) -> Option<ast::Range> {

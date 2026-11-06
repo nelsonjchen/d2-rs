@@ -526,6 +526,7 @@ unsafe fn exp_amd64_fma(x: f64) -> f64 {
 #[cfg(target_arch = "x86_64")]
 #[inline(always)]
 fn exp_amd64<const FMA: bool>(x: f64) -> f64 {
+    use d2_rs_core::fused_mul_add;
     if !x.is_finite() {
         return if x == f64::NEG_INFINITY { 0.0 } else { x };
     }
@@ -538,12 +539,12 @@ fn exp_amd64<const FMA: bool>(x: f64) -> f64 {
     let k = (x * 1.4426950408889634).round_ties_even() as i32;
     let kf = k as f64;
     let mut r = if FMA {
-        (-kf).mul_add(0.6931471805596629565, x)
+        fused_mul_add(-kf, 0.6931471805596629565, x)
     } else {
         x - kf * 0.6931471805596629565
     };
     r = if FMA {
-        (-kf).mul_add(0.28235290563031577e-12, r)
+        fused_mul_add(-kf, 0.28235290563031577e-12, r)
     } else {
         r - kf * 0.28235290563031577e-12
     };
@@ -558,14 +559,18 @@ fn exp_amd64<const FMA: bool>(x: f64) -> f64 {
         0.5,
         1.0,
     ] {
-        p = if FMA { r.mul_add(p, c) } else { r * p + c };
+        p = if FMA {
+            fused_mul_add(r, p, c)
+        } else {
+            r * p + c
+        };
     }
     r *= p;
     for _ in 0..3 {
         r *= 2.0 + r;
     }
     r = if FMA {
-        r.mul_add(2.0 + r, 1.0)
+        fused_mul_add(r, 2.0 + r, 1.0)
     } else {
         r * (2.0 + r) + 1.0
     };

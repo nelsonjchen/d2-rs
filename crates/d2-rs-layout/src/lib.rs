@@ -3979,7 +3979,14 @@ fn is_under_near(graph: &Graph, id: NodeId) -> bool {
         }
         current = node.parent;
     }
-    false
+    // OuterNearContainer also visits the synthetic board root, whose NearKey
+    // is retained outside the physical node arena in the source projection.
+    graph
+        .source_root
+        .as_ref()
+        .and_then(|root| root.get("attributes"))
+        .and_then(|attributes| attributes.get("near_key"))
+        .is_some_and(|key| !key.is_null())
 }
 
 #[derive(Clone, Copy, Debug, Default)]

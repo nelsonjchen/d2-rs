@@ -13,8 +13,7 @@ use super::geo::Point;
 use super::svgtext::{escape_text, format_float};
 use crate::target::{TargetConnection, TargetShape};
 
-#[path = "markdown/dom.rs"]
-mod dom;
+use d2_rs_text::markdown::html_tree as dom;
 #[path = "markdown/measure.rs"]
 mod measure;
 #[path = "markdown/paint.rs"]

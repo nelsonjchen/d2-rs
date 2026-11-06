@@ -63,6 +63,7 @@ pub fn graph_to_elk_graph_with_table_columns(
     for id in root_children {
         children.push(build_node(
             &prepared,
+            graph,
             id,
             node_labels,
             table_columns,
@@ -79,6 +80,7 @@ pub fn graph_to_elk_graph_with_table_columns(
         if !emitted.contains(&id) {
             children.push(build_node(
                 &prepared,
+                graph,
                 id,
                 node_labels,
                 table_columns,
@@ -384,6 +386,7 @@ fn ordered_children(graph: &Graph, parent: Option<NodeId>) -> Vec<NodeId> {
 
 fn build_node(
     graph: &Graph,
+    source_graph: &Graph,
     id: NodeId,
     node_labels: &BTreeMap<NodeId, String>,
     table_columns: &BTreeMap<NodeId, Vec<String>>,
@@ -452,7 +455,14 @@ fn build_node(
                 .max((label.floor() / 2.0).floor() + 5.0);
             value["elk.spacing.nodeSelfLoop"] = Value::from(spacing);
         }
-        let padding = source_container_padding(graph, id, &child_ids, node_labels, options.padding);
+        let padding = source_container_padding(
+            graph,
+            source_graph,
+            id,
+            &child_ids,
+            node_labels,
+            options.padding,
+        );
         if let Some(object) = value.as_object_mut() {
             object.insert(
                 "elk.padding".to_owned(),
@@ -500,6 +510,7 @@ fn build_node(
             .map(|child| {
                 build_node(
                     graph,
+                    source_graph,
                     child,
                     node_labels,
                     table_columns,
@@ -567,6 +578,7 @@ fn build_node(
 /// is laid out is what moves children below package/diamond title bands.
 fn source_container_padding(
     graph: &Graph,
+    source_graph: &Graph,
     id: NodeId,
     child_ids: &[NodeId],
     labels: &BTreeMap<NodeId, String>,
@@ -651,15 +663,18 @@ fn source_container_padding(
         }
     }
 
+    // Go's parent-first walk calls adjustPadding before visiting its children.
+    // Their boxes still have SetDimensions sizes, before port-degree growth,
+    // icon height additions or outside-label margins.
     let max_child_width = child_ids
         .iter()
-        .filter_map(|child| graph.node(*child))
-        .map(|child| child.size.width + child.layout_margins.left + child.layout_margins.right)
+        .filter_map(|child| source_graph.node(*child))
+        .map(|child| child.size.width)
         .fold(0.0, f64::max);
     let max_child_height = child_ids
         .iter()
-        .filter_map(|child| graph.node(*child))
-        .map(|child| child.size.height + child.layout_margins.top + child.layout_margins.bottom)
+        .filter_map(|child| source_graph.node(*child))
+        .map(|child| child.size.height)
         .fold(0.0, f64::max);
     let estimated_width = node.size.width
         + node.layout_margins.left

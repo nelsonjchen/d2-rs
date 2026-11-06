@@ -660,7 +660,7 @@ impl Sequence {
 /// `Paragraph.SetString(text, DefaultDirection(LeftToRight))` + `Order()`:
 /// runs as (start rune, end rune exclusive, right-to-left), or None when
 /// x/text reports no runs.
-pub(crate) fn order(runes: &[char]) -> Option<Vec<(usize, usize, bool)>> {
+pub fn order(runes: &[char]) -> Option<Vec<(usize, usize, bool)>> {
     let mut types = Vec::with_capacity(runes.len());
     let mut pair_types = Vec::with_capacity(runes.len());
     let mut pair_values = Vec::with_capacity(runes.len());

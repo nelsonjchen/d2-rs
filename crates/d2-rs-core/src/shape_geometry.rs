@@ -58,7 +58,7 @@ fn intersection_step(origin: f64, scale: f64, delta: f64) -> f64 {
     }
     #[cfg(not(target_arch = "aarch64"))]
     {
-        origin + (scale * delta).round()
+        origin + crate::go_round(scale * delta)
     }
 }
 

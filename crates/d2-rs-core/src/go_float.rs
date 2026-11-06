@@ -3,6 +3,85 @@
 // Go-derived lexical and hexadecimal conversion portions retain BSD-3-Clause
 // terms in THIRD_PARTY_NOTICES.md. Source: Go 1.27 internal/strconv/{atof,atoi}.go.
 
+/// A fused operation independent of the Windows CRT's `fma` implementation.
+/// Go's math.FMA uses the hardware instruction when available, with an exact
+/// software fallback. Keep existing arithmetic on other operating systems.
+#[inline]
+pub fn fused_mul_add(x: f64, y: f64, z: f64) -> f64 {
+    #[cfg(all(windows, target_arch = "x86_64"))]
+    if std::is_x86_feature_detected!("fma") {
+        // SAFETY: detection includes the CPU and OS support for AVX/FMA.
+        return unsafe { fused_mul_add_x86(x, y, z) };
+    }
+    #[cfg(windows)]
+    return libm::fma(x, y, z);
+    #[cfg(not(windows))]
+    x.mul_add(y, z)
+}
+
+#[cfg(all(windows, target_arch = "x86_64"))]
+#[target_feature(enable = "avx,fma")]
+unsafe fn fused_mul_add_x86(x: f64, y: f64, z: f64) -> f64 {
+    use std::arch::x86_64::{_mm_cvtsd_f64, _mm_fmadd_sd, _mm_set_sd};
+    _mm_cvtsd_f64(_mm_fmadd_sd(_mm_set_sd(x), _mm_set_sd(y), _mm_set_sd(z)))
+}
+
+/// Go 1.27 math.Round, without the Windows CRT's intermediate addition.
+#[inline]
+pub fn go_round(x: f64) -> f64 {
+    #[cfg(not(windows))]
+    return x.round();
+    #[cfg(windows)]
+    {
+        let mut bits = x.to_bits();
+        let exponent = (bits >> 52) & 0x7ff;
+        if exponent < 1023 {
+            bits &= 1 << 63;
+            if exponent == 1022 {
+                bits |= 0x3ff0_0000_0000_0000;
+            }
+        } else if exponent < 1023 + 52 {
+            let exponent = exponent - 1023;
+            bits += (1_u64 << 51) >> exponent;
+            bits &= !(0x000f_ffff_ffff_ffff >> exponent);
+        }
+        f64::from_bits(bits)
+    }
+}
+
+#[cfg(test)]
+mod fused_tests {
+    #[test]
+    fn round_preserves_values_adjacent_to_halfway() {
+        // math/floor.go Round: adding 0.5 first would double-round below 0.5.
+        for (x, expected) in [
+            (f64::from_bits(0.5_f64.to_bits() - 1), 0.0_f64),
+            (-f64::from_bits(0.5_f64.to_bits() - 1), -0.0),
+            (0.5, 1.0),
+            (-0.5, -1.0),
+            (f64::from_bits(224.5_f64.to_bits() - 1), 224.0),
+            (f64::INFINITY, f64::INFINITY),
+        ] {
+            assert_eq!(
+                super::go_round(std::hint::black_box(x)).to_bits(),
+                expected.to_bits()
+            );
+        }
+    }
+
+    #[test]
+    fn routing_ratios_use_correctly_rounded_fma() {
+        // math.FMA in Go 1.27; these ratios occur in TALA channel routing.
+        for (x, expected) in [
+            (142.0 / 212.5, 0x3ff7250575413621),
+            (142.0 / 283.5, 0x3ff4039d7c50450b),
+        ] {
+            let x = std::hint::black_box(x);
+            assert_eq!(super::fused_mul_add(x, x, 1.0).to_bits(), expected);
+        }
+    }
+}
+
 /// D2's strconv.ParseFloat(value, 64) contract. Syntax and overflow errors
 /// return None; underflow, signed zero and literal infinities remain values.
 /// Decimal conversion uses Rust's correctly rounded parser after Go lexing.

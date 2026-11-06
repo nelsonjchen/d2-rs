@@ -73,7 +73,7 @@ fn current_username() -> String {
 #[cfg(windows)]
 fn current_username() -> String {
     // os/user.Current requests the domain-qualified SAM account name.
-    #[link(name = "Secur32")]
+    #[link(name = "secur32")]
     unsafe extern "system" {
         fn GetUserNameExW(format: i32, buffer: *mut u16, size: *mut u32) -> u8;
     }

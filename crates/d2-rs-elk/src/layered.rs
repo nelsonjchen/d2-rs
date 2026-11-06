@@ -620,6 +620,9 @@ pub struct LayeredArena {
     /// ELK minimum size for compound nodes, imported before direction
     /// normalization and transposed with the graph when needed.
     pub node_size_minimum: BTreeMap<LNodeId, (f64, f64)>,
+    /// Compound label boxes `(x, y, width, height)` retained for ResizeNode.
+    /// Margins must be measured again after hierarchy transfer changes size.
+    pub(crate) compound_label_boxes: BTreeMap<LNodeId, Vec<[f64; 4]>>,
     /// Maximum `(width, height)` of labels attached to direct self-loops.
     /// The source processor uses the flow-axis dimension after transposition.
     pub loop_label_sizes: BTreeMap<LEdgeId, (f64, f64)>,
@@ -1796,6 +1799,15 @@ impl LayeredArena {
         });
         if let Some(minimum) = node_size_minimum {
             self.node_size_minimum.insert(node_id, minimum);
+        }
+        if !node.children.is_empty() && !node.labels.is_empty() {
+            self.compound_label_boxes.insert(
+                node_id,
+                node.labels
+                    .iter()
+                    .map(|label| [label.x, label.y, label.width, label.height])
+                    .collect(),
+            );
         }
         self.graphs[graph_id as usize].layerless_nodes.push(node_id);
         ids.insert(

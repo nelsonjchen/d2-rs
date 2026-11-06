@@ -3,28 +3,33 @@
 
 usage: fuzz-minimize.py <d2-rs> <go-d2> <findings.jsonl> <witness-dir> <layout> [--limit 60]
 
-For each finding, repeatedly drops line chunks (halving) and then single
-characters inside short files while the same divergence kind persists.
+For output, exit and error-text findings, repeatedly drops line chunks
+(halving) and then single characters inside short files while the same
+divergence kind persists. Error reduction preserves both diagnostic texts,
+allowing source coordinates to move.
 Prints each minimized input, de-duplicated, with its kind.
 """
-import hashlib, json, os, subprocess, sys, tempfile
+import json, os, re, sys, tempfile
+from pathlib import Path
+from fuzz_common import first_error, run
 
 def outcome(binary, text, layout):
-    d = tempfile.mkdtemp(prefix="mn-"); open(os.path.join(d, "input.d2"), "w").write(text)
-    try:
-        p = subprocess.run([binary, f"--layout={layout}", "input.d2", "o.svg"], cwd=d, capture_output=True, timeout=20,
-                           env={**os.environ, "SOURCE_DATE_EPOCH": "946782245"})
-        o = os.path.join(d, "o.svg"); h = hashlib.sha256(open(o, "rb").read()).hexdigest() if p.returncode == 0 and os.path.exists(o) else None
-        r = (p.returncode, h)
-    except subprocess.TimeoutExpired:
-        r = ("timeout", None)
-    subprocess.run(["rm", "-rf", d]); return r
+    with tempfile.TemporaryDirectory(prefix="mn-") as directory:
+        Path(directory, "input.d2").write_text(text)
+        code, stderr, digest = run(binary, directory, layout, "render")
+        return code, digest, first_error(stderr, directory)
 
 def kind(rust, go, text, layout):
     g, r = outcome(go, text, layout), outcome(rust, text, layout)
     if "timeout" in (g[0], r[0]): return None
     if (g[0] == 0) != (r[0] == 0): return "exit-diff"
     if g[0] == 0 and g[1] != r[1]: return "output-diff"
+    # Preserve the original pair of diagnostics, so reduction cannot switch
+    # to an unrelated parser error just because it also differs.
+    if g[0] != 0 and g[2] != r[2]:
+        # Source coordinates necessarily move as lines/characters disappear.
+        diagnostic = lambda message: re.sub(r"input\.d2:\d+:\d+:", "input.d2:<location>:", message)
+        return ("error-diff", diagnostic(g[2]), diagnostic(r[2]))
     return None
 
 def minimize(rust, go, text, layout, want):
@@ -50,11 +55,12 @@ def minimize(rust, go, text, layout, want):
 def main():
     rust, go, index, wdir, layout = sys.argv[1:6]; limit = int(sys.argv[7]) if len(sys.argv) > 7 else 60
     seen = {}
-    rows = [json.loads(l) for l in open(index) if json.loads(l)["kind"] in ("output-diff", "exit-diff")][:limit]
+    rows = [json.loads(l) for l in open(index) if json.loads(l)["kind"] in ("output-diff", "exit-diff", "error-diff")][:limit]
     for r in rows:
         text = open(os.path.join(wdir, r["file"])).read()
-        if kind(rust, go, text, layout) != r["kind"]: continue
-        small = minimize(rust, go, text, layout, r["kind"])
+        want = kind(rust, go, text, layout)
+        if (want[0] if isinstance(want, tuple) else want) != r["kind"]: continue
+        small = minimize(rust, go, text, layout, want)
         key = (r["kind"], small.strip())
         seen.setdefault(key, []).append(r["file"])
         print(f"--- {r['kind']} from {r['file']}\n{small}\n", flush=True)

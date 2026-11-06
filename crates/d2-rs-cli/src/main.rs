@@ -43,6 +43,8 @@ use std::sync::{Arc, Mutex};
 mod cli_admission_api_tests;
 #[cfg(all(test, feature = "oracle-fixtures"))]
 mod engine_option_tests;
+#[cfg(test)]
+mod fuzz_layout_tests;
 #[cfg(all(test, feature = "oracle-fixtures"))]
 mod paged_link_tests;
 #[cfg(test)]
@@ -116,15 +118,37 @@ fn human_path_from(path: &Path, current_dir: &Path, home: Option<&std::ffi::OsSt
     };
     let cleaned = abbreviate(&cleaned);
     let current_dir = abbreviate(current_dir);
+    #[cfg(windows)]
+    let current_dir = clean_asset_path(&current_dir);
     let base = current_dir.components().collect::<Vec<_>>();
     let target = cleaned.components().collect::<Vec<_>>();
-    if base.first() != target.first() {
+    let same_component = |left: &std::path::Component<'_>, right: &std::path::Component<'_>| {
+        // filepath/path_windows.go sameWord uses strings.EqualFold, including
+        // Unicode simple folding, for both volumes and directory components.
+        #[cfg(windows)]
+        return d2_rs_core::ir::equal_fold(
+            left.as_os_str().to_string_lossy().as_bytes(),
+            right.as_os_str().to_string_lossy().as_bytes(),
+        );
+        #[cfg(not(windows))]
+        (left == right)
+    };
+    if !base
+        .first()
+        .zip(target.first())
+        .is_some_and(|(left, right)| same_component(left, right))
+    {
+        // Rel fails across volumes. xmain returns the original absolute
+        // spelling, preserving forward slashes and dot components there.
+        #[cfg(windows)]
+        return abbreviate(&absolute).display().to_string();
+        #[cfg(not(windows))]
         return cleaned.display().to_string();
     }
     let common = base
         .iter()
         .zip(&target)
-        .take_while(|(left, right)| left == right)
+        .take_while(|(left, right)| same_component(left, right))
         .count();
     let mut relative = PathBuf::new();
     for _ in &base[common..] {
@@ -617,7 +641,9 @@ fn local_asset_read_error(path: &Path, error: io::Error) -> String {
         io::ErrorKind::IsADirectory => "is a directory".to_owned(),
         _ => error.to_string(),
     };
-    #[cfg(not(unix))]
+    #[cfg(windows)]
+    let detail = d2_rs_core::windows_io::error_message(&error);
+    #[cfg(not(any(unix, windows)))]
     let detail = error.to_string();
     format!("{operation} {}: {detail}", path.display())
 }
@@ -5333,6 +5359,9 @@ fn run_document_with_stdout(
         read_stdin()?
     } else {
         std::fs::read(&input_path).map_err(|error| {
+            #[cfg(windows)]
+            let absolute = PathBuf::from(&input_path);
+            #[cfg(not(windows))]
             let absolute =
                 std::path::absolute(&input_path).unwrap_or_else(|_| PathBuf::from(&input_path));
             document_compile_error(
@@ -5886,6 +5915,12 @@ fn report_asset_failures(failures: &[(String, String)]) -> String {
 /// xmain.State.AbsPath: join a relative path to the working directory and
 /// clean it lexically.
 fn go_abs_path(path: &str) -> String {
+    // xmain.State.AbsPath returns an absolute argument verbatim. On Windows
+    // its forward slashes matter to d2ir's slash-only path.Dir import base.
+    #[cfg(windows)]
+    if Path::new(path).is_absolute() {
+        return path.to_owned();
+    }
     let path = Path::new(path);
     let joined = if path.is_absolute() {
         path.to_path_buf()
@@ -6533,6 +6568,14 @@ mod source_profile;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn source_test_path(path: &Path) -> String {
+        // d2ir uses Go path, whose separators are slashes on every host.
+        #[cfg(windows)]
+        return path.to_string_lossy().replace('\\', "/");
+        #[cfg(not(windows))]
+        path.to_string_lossy().into_owned()
+    }
 
     #[test]
     fn animation_file_format_is_checked_before_source_read() {
@@ -7978,7 +8021,7 @@ layers: {
         let imported = base.join("labels.d2");
         let input = b"...@labels\nlayers: {one: {a -> b}}\n";
         let args = vec![
-            format!("--path={}", base.join("index.d2").display()),
+            format!("--path={}", source_test_path(&base.join("index.d2"))),
             "--engine=dagre".into(),
         ];
         std::fs::write(&imported, "label: snapshot\na -> b\n").unwrap();
@@ -8027,7 +8070,7 @@ layers: {
         ));
         std::fs::create_dir_all(&base).unwrap();
         let imported = base.join("settings.d2");
-        let path = base.join("index.d2").to_string_lossy().into_owned();
+        let path = source_test_path(&base.join("index.d2"));
         let input = b"...@settings\nlayers: {one: {a -> b}}\n";
         std::fs::write(&imported, "vars: {d2-config: {theme-id: 300}}\n").unwrap();
         {
@@ -8048,7 +8091,7 @@ layers: {
             {
                 let _render = SourceConfigScope::enter(input);
                 assert_eq!(source_config(input, &path), config);
-                let other_path = base.join("other.d2").to_string_lossy().into_owned();
+                let other_path = source_test_path(&base.join("other.d2"));
                 assert_eq!(
                     source_config(input, &other_path).unwrap().unwrap().theme_id,
                     Some(0)
@@ -8625,6 +8668,15 @@ layers: {
         std::fs::write(source_dir.join("nodes.d2"), b"a: imported\n").unwrap();
         let input = source_dir.to_string_lossy().into_owned();
         let default_output = source_dir.with_extension("svg");
+        #[cfg(windows)]
+        {
+            // filepath.Join uses backslashes for directory/index.d2. Pinned
+            // Go's slash-only path.Dir then resolves this import from the CWD.
+            let error = run_document(std::slice::from_ref(&input)).unwrap_err();
+            assert!(error.contains("failed to import \"nodes.d2\""), "{error}");
+            assert!(!default_output.exists());
+            std::fs::write(source_dir.join("index.d2"), b"a: imported\n").unwrap();
+        }
         run_document(std::slice::from_ref(&input)).unwrap();
         assert!(
             std::fs::read_to_string(&default_output)
@@ -9661,12 +9713,85 @@ layers: {
     fn diagnostic_paths_include_sibling_relative_paths() {
         let cwd = std::env::current_dir().unwrap();
         let sibling = cwd.parent().unwrap().join("d2/input.d2");
-        assert_eq!(human_path(&sibling), "../d2/input.d2");
+        let relative = PathBuf::from("..").join("d2").join("input.d2");
+        assert_eq!(human_path(&sibling), relative.to_string_lossy());
         assert_eq!(human_path(&cwd), ".");
         assert_eq!(human_path(Path::new("-")), "-");
         assert_eq!(human_path(Path::new("./folder/../input.d2")), "input.d2");
         assert_eq!(human_path(&cwd.join("folder/../input.d2")), "input.d2");
-        assert_eq!(human_path(Path::new("../d2/./input.d2")), "../d2/input.d2");
+        assert_eq!(
+            human_path(Path::new("../d2/./input.d2")),
+            relative.to_string_lossy()
+        );
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn absolute_source_paths_preserve_slashes_for_cross_drive_imports() {
+        // util-go/xmain.State.AbsPath returns absolute input verbatim; d2ir
+        // import.go then uses path.Dir, which recognizes forward slashes only.
+        for path in ["C:/diagrams/./main.d2", "D:/diagrams/main.d2"] {
+            assert_eq!(go_abs_path(path), path);
+        }
+        let directory =
+            std::env::temp_dir().join(format!("d2-rs-win-import-{}", std::process::id()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let source = directory.join("main.d2");
+        std::fs::write(&source, b"...@nodes\n").unwrap();
+        std::fs::write(directory.join("nodes.d2"), b"a: imported\n").unwrap();
+        let output = directory.join("result.svg");
+        run_document(&[
+            "--layout=dagre".into(),
+            source_test_path(&source),
+            source_test_path(&output),
+        ])
+        .unwrap();
+        assert!(
+            std::fs::read_to_string(&output)
+                .unwrap()
+                .contains("imported")
+        );
+        // Backslashes and directory inputs have the same import limitation in
+        // pinned Go. Preserve that diagnostic, including Windows' OS message.
+        let error = run_document(&[
+            "--layout=dagre".into(),
+            source.to_string_lossy().into_owned(),
+            source_test_path(&output),
+        ])
+        .unwrap_err();
+        assert!(error.contains("failed to import \"nodes.d2\""), "{error}");
+        let detail = d2_rs_core::windows_io::error_message(&io::Error::from_raw_os_error(2));
+        assert!(error.ends_with(&detail), "{error}");
+        let missing = source_test_path(&directory.join("missing.d2"));
+        let error = run_document(&[
+            "--layout=dagre".into(),
+            missing.clone(),
+            source_test_path(&output),
+        ])
+        .unwrap_err();
+        assert!(
+            error.contains(&format!("open {missing}: {detail}")),
+            "{error}"
+        );
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn diagnostic_paths_follow_windows_volume_and_case_rules() {
+        // Go 1.27 filepath.Rel via util-go/xmain.State.HumanPath.
+        let cwd = Path::new(r"C:\work\diagrams");
+        for (path, expected) in [
+            (r"c:\WORK\other\input.d2", r"..\other\input.d2"),
+            ("D:/diagrams/./input.d2", "D:/diagrams/./input.d2"),
+            ("C:/work/diagrams/../input.d2", r"..\input.d2"),
+        ] {
+            assert_eq!(human_path_from(Path::new(path), cwd, None), expected);
+        }
+        assert_eq!(
+            human_path_from(Path::new(r"C:\ſ\input.d2"), Path::new(r"c:\S"), None),
+            "input.d2"
+        );
     }
 
     #[test]

@@ -256,6 +256,9 @@ impl ImageLocalFiles {
 }
 
 fn io_detail(e: &std::io::Error) -> String {
+    #[cfg(windows)]
+    return d2_rs_core::windows_io::error_message(e);
+    #[cfg(not(windows))]
     match e.kind() {
         std::io::ErrorKind::NotFound => "no such file or directory".into(),
         std::io::ErrorKind::PermissionDenied => "permission denied".into(),

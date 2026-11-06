@@ -53,3 +53,6 @@ pub mod plain_text;
 pub mod substitute;
 
 pub mod html_names;
+
+#[doc(hidden)]
+pub mod html_tree;

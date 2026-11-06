@@ -20,6 +20,9 @@ serde.workspace = true
 thiserror.workspace = true
 serde_json.workspace = true
 
+[target.'cfg(windows)'.dependencies]
+libm.workspace = true
+
 [dev-dependencies]
 d2-rs-testdata.workspace = true
 serde_json.workspace = true

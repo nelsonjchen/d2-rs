@@ -216,7 +216,7 @@ fn go_band_windows(width: usize, height: usize) -> Option<Vec<(isize, isize, isi
             return None;
         }
         // Root paints retain their ordinary reference-anchored surface.
-        // WholeFrameScope exposes all prepared destinations for filter input.
+        // Suspending the frame band exposes all destinations for filter input.
         let layer = frame.layers.last()?;
         Some(
             layer
@@ -583,13 +583,13 @@ pub(crate) fn frame_band_rows(width: usize, height: usize) -> Option<(usize, usi
         .map(|(_, _, top, bottom)| (top, bottom))
 }
 
-/// Paints the whole frame while alive: filters and shadows read source pixels
-/// beyond the current band, so their inputs must be complete.
-struct WholeFrameScope(Option<(usize, usize, usize, usize)>);
+/// Temporarily changes the rows being painted. Filters read source pixels
+/// beyond the destination band, bounded by their required input region.
+struct FrameBandScope(Option<(usize, usize, usize, usize)>);
 
-impl WholeFrameScope {
-    fn new() -> Self {
-        Self(FRAME_BAND.with(|band| band.replace(None)))
+impl FrameBandScope {
+    fn new(rows: Option<(usize, usize, usize, usize)>) -> Self {
+        Self(FRAME_BAND.with(|band| band.replace(rows)))
     }
 
     /// The suspended band pass's rows, for a `width` x `height` surface.
@@ -602,7 +602,7 @@ impl WholeFrameScope {
     }
 }
 
-impl Drop for WholeFrameScope {
+impl Drop for FrameBandScope {
     fn drop(&mut self) {
         FRAME_BAND.with(|band| band.set(self.0));
     }
@@ -1372,7 +1372,9 @@ fn native_prepared_bounds(
                         for (glyph_index, glyph) in span.positioned_glyphs.iter().enumerate() {
                             let placement = placements[span_index][glyph_index];
                             let Some(path) = fixed_glyph_path(tree, glyph, placement) else {
-                                if glyph.text.chars().all(char::is_whitespace) {
+                                if glyph.text.chars().all(|value| {
+                                    value.is_whitespace() || crate::font_shaping::ignorable(value)
+                                }) {
                                     continue;
                                 }
                                 // fontface GlyphRenderBounds: a trusted COLRv1
@@ -5109,11 +5111,23 @@ fn linear_gradient_sampler<'a>(
             ))
         })
         .flatten();
+    // gradient.go:drawLinearYOnlyGradientCoverage samples once per row.
+    // Keep the same coordinate arithmetic and share its result across that
+    // row's coverage samples, including transparent samples.
+    let row_only = delta.x == 0.0 && inverse.is_some_and(|inverse| inverse.ky == 0.0);
+    let row_sample = std::cell::Cell::new(None::<(usize, Option<[u8; 4]>)>);
     move |x, y| {
+        if row_only
+            && let Some((row, sample)) = row_sample.get()
+            && row == y
+        {
+            return sample;
+        }
         if constant {
             return gradient_color_with_raw(gradient.stops(), raw_stops, 1.0, opacity);
         }
         let inverse = inverse?;
+        let row = y;
         let (x, y) = (
             x as f64 + 0.5 + device_origin.x,
             y as f64 + 0.5 + device_origin.y,
@@ -5147,12 +5161,16 @@ fn linear_gradient_sampler<'a>(
                 (point.y - start.y) * delta.y,
             ) / denominator
         };
-        gradient_color_with_raw(
+        let sample = gradient_color_with_raw(
             gradient.stops(),
             raw_stops,
             spread_gradient_parameter(parameter, gradient.spread_method())?,
             opacity,
-        )
+        );
+        if row_only {
+            row_sample.set(Some((row, sample)));
+        }
+        sample
     }
 }
 
@@ -5523,6 +5541,68 @@ fn draw_path_with_transform(
                 })
                 .unwrap_or(outer_transform)
         });
+    // raster.go:renderNode rejects primitives outside the destination before
+    // scan conversion. Bound native geometry before expanding its strokes;
+    // imported paths with independent precision transport keep their own path.
+    // Avoid preparing and retaining off-band stroke outlines for the rest
+    // of a large frame (notably grids with double borders).
+    if !go_band_recording()
+        && let Some((first, end)) = frame_band_rows(width, height)
+        && (raster_sources.native_rects.contains_key(path.id())
+            || (raster_sources
+                .native_path_transforms
+                .contains_key(&(path as *const usvg::Path))
+                && raster_sources.get(path.id()).is_none()
+                && exact_svg_source.is_none()))
+    {
+        let [x, y, w, h] = raster_sources.native_rects.get(path.id()).map_or_else(
+            || {
+                let bounds = path.data().bounds();
+                [bounds.x(), bounds.y(), bounds.width(), bounds.height()].map(f64::from)
+            },
+            |rect| rect.box_values,
+        );
+        let (top, bottom) = [(x, y), (x + w, y), (x + w, y + h), (x, y + h)]
+            .into_iter()
+            .map(|(x, y)| map_point(Point64 { x, y }, transform).y)
+            .fold((f64::INFINITY, f64::NEG_INFINITY), |(top, bottom), y| {
+                (top.min(y), bottom.max(y))
+            });
+        let stroke = path.stroke().map_or(0.0, |stroke| {
+            let mut factor = if stroke.linecap() == usvg::LineCap::Square {
+                std::f64::consts::SQRT_2
+            } else {
+                1.0
+            };
+            if matches!(
+                stroke.linejoin(),
+                usvg::LineJoin::Miter | usvg::LineJoin::MiterClip
+            ) {
+                factor = factor.max(f64::from(stroke.miterlimit().get()));
+            }
+            f64::from(stroke.width().get())
+                * 0.5
+                * factor
+                * (transform.ky.abs() + transform.sy.abs())
+        });
+        // Include antialiasing, reference-relative f32 rounding and the
+        // rounded origin's final translation. A nonfinite bound never culls.
+        let coordinate_magnitude = (x.abs() + w.abs()) * transform.ky.abs()
+            + (y.abs() + h.abs()) * transform.sy.abs()
+            + transform.ty.abs();
+        let margin = stroke
+            + 4.0
+            + (coordinate_magnitude + rounding_origin.y.abs() + height as f64)
+                * f64::from(f32::EPSILON)
+                * 4.0;
+        if top.is_finite()
+            && bottom.is_finite()
+            && margin.is_finite()
+            && (bottom + margin <= first as f64 || top - margin >= end as f64)
+        {
+            return true;
+        }
+    }
     // Preserve local coordinates through the scene transform. Transforming
     // through tiny-skia first rounds translated device coordinates to f32.
     let tolerance = 0.375;
@@ -7505,6 +7585,12 @@ fn native_mixed_font_layout_uncached(
             .filter(|_| text.chunks().len() == 1)
             .unwrap_or(chunk.text());
         let needs_native = raw_text != chunk.text()
+            // Go's x/text segmenter retains embedding/override controls in
+            // its runs; usvg's Unicode bidi layout can order them differently
+            // even when every visible glyph uses the primary face.
+            || raw_text.chars().any(|value| {
+                matches!(value, '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}')
+            })
             || old
                 .positioned_glyphs
                 .iter()
@@ -8007,7 +8093,11 @@ fn draw_text_fixed(
                 // A whitespace glyph has advance but no outline. Keep it in
                 // this fixed-point run so a single space does not force the
                 // entire text node through usvg's f32 fallback.
-                if glyph.text.chars().all(char::is_whitespace) {
+                if glyph
+                    .text
+                    .chars()
+                    .all(|value| value.is_whitespace() || crate::font_shaping::ignorable(value))
+                {
                     continue;
                 }
                 // Bitmap/color glyphs and malformed outlines remain on
@@ -8775,7 +8865,7 @@ fn draw_native_sharp_shadow(
 ) -> bool {
     let _ = (tree, inside_masked_layer);
     // The shadow samples its source beyond the current band.
-    let _whole_frame = WholeFrameScope::new();
+    let whole_frame = FrameBandScope::new(None);
     let origin = group_reference_origin(group, scale);
     let dx = transform.sx * 3.0 + transform.kx * 5.0;
     let dy = transform.ky * 3.0 + transform.sy * 5.0;
@@ -8804,7 +8894,7 @@ fn draw_native_sharp_shadow(
     }
     // A streamed band pass writes only its own frame rows; this shadow and
     // its geometry write only rows crop_top..bottom.
-    let (stream_top, stream_bottom) = _whole_frame
+    let (stream_top, stream_bottom) = whole_frame
         .band_rows(canvas_width, canvas_height)
         .filter(|_| !raster_sources.banded)
         .unwrap_or((0, usize::MAX));
@@ -8827,7 +8917,29 @@ fn draw_native_sharp_shadow(
     {
         return false;
     }
-    let mut geometry = vec![0_u8; bytes];
+    // filter.go:regionalFilters/shadowSampleBounds retains the unshifted
+    // input plus every translated sample needed by this destination band.
+    // Preserve the complete input's coordinate/rounding origin, but commit
+    // pages and rasterize only the contributing rows.
+    let destination_top = band_top.max(stream_top).max(crop_top.max(0) as usize);
+    let destination_end = band_bottom
+        .min(stream_bottom)
+        .min((crop_top + height as isize).max(0) as usize);
+    if destination_top >= destination_end {
+        return true;
+    }
+    let input_top = (destination_top as f64 - crop_top as f64 - dy.max(0.0))
+        .floor()
+        .clamp(0.0, height as f64) as usize;
+    let input_end = (destination_end as f64 - crop_top as f64 - dy.min(0.0) + 1.0)
+        .ceil()
+        .clamp(input_top as f64, height as f64) as usize;
+    let input_region = LayerRegion::from_rects(
+        [(0, input_top as isize, width as isize, input_end as isize)],
+        width,
+        height,
+    );
+    let mut geometry = ZeroedLayer::new(bytes);
     fn draw_geometry(
         group: &usvg::Group,
         geometry: &mut [u8],
@@ -8837,6 +8949,7 @@ fn draw_native_sharp_shadow(
         opacity: f32,
         text_outline: bool,
         origin: Point64,
+        input_region: &LayerRegion,
         raster_sources: &RasterSourceMap<'_>,
         sources: &SvgImagePathSources,
     ) -> bool {
@@ -8858,6 +8971,7 @@ fn draw_native_sharp_shadow(
                     opacity,
                     text_outline,
                     origin,
+                    input_region,
                     raster_sources,
                     sources,
                 )
@@ -8880,7 +8994,7 @@ fn draw_native_sharp_shadow(
                 // Source filters the complete prepared geometry, including
                 // streak blend children. Retain the crop's device origin for
                 // path/pattern sampling and translate only compositing bounds.
-                let mut layer = vec![0_u8; geometry.len()];
+                let mut layer = ZeroedLayer::new(geometry.len());
                 if !draw_geometry(
                     child,
                     &mut layer,
@@ -8890,6 +9004,7 @@ fn draw_native_sharp_shadow(
                     opacity,
                     text_outline,
                     origin,
+                    input_region,
                     raster_sources,
                     sources,
                 ) {
@@ -8910,7 +9025,7 @@ fn draw_native_sharp_shadow(
                     width,
                     height,
                     crop_bounds,
-                    &LayerRegion::full(width, height),
+                    input_region,
                     scale,
                     sources.exact_effect_opacity(child.id(), child.opacity().get()),
                     child.blend_mode(),
@@ -8939,6 +9054,7 @@ fn draw_native_sharp_shadow(
     }
     // Source filter input is the prepared geometry rectangle, not the frame.
     // Keep exact device transforms while rendering into this bounded layer.
+    let geometry_rows = FrameBandScope::new(Some((width, height, input_top, input_end)));
     if !draw_geometry(
         group,
         &mut geometry,
@@ -8948,11 +9064,13 @@ fn draw_native_sharp_shadow(
         opacity,
         text_outline,
         origin,
+        &input_region,
         raster_sources,
         sources,
     ) {
         return false;
     }
+    drop(geometry_rows);
     let alpha_at = |x: isize, y: isize| -> f64 {
         if x < 0 || y < 0 || x as usize >= width || y as usize >= height {
             0.0
@@ -8966,9 +9084,14 @@ fn draw_native_sharp_shadow(
     // every filter sample on large diagrams with many small shadowed shapes.
     // Any nonzero byte bounds the support from outside: pixels it adds have
     // zero alpha and zero shadow, which composite nothing.
-    let Some((min_x, min_y, max_x, max_y)) = nonzero_pixel_bounds(&geometry, width) else {
+    let row_bytes = width * 4;
+    let Some((min_x, min_y, max_x, max_y)) = nonzero_pixel_bounds(
+        &geometry[input_top * row_bytes..input_end * row_bytes],
+        width,
+    ) else {
         return true;
     };
+    let (min_y, max_y) = (min_y + input_top, max_y + input_top);
     let left = (min_x as f64).min(min_x as f64 + dx).floor().max(0.0) as usize;
     let top = (min_y as f64).min(min_y as f64 + dy).floor().max(0.0) as usize;
     let right = ((max_x as f64).max(max_x as f64 + dx).ceil() + 2.0).min(width as f64) as usize;
@@ -9095,7 +9218,7 @@ fn draw_static_appendix_shadow(
     native_legend: Option<(Affine64, crate::svg_precision::NativeDropShadow)>,
 ) -> bool {
     // The blurred shadow samples its source beyond the current band.
-    let _whole_frame = WholeFrameScope::new();
+    let _whole_frame = FrameBandScope::new(None);
     let (sigma_x, sigma_y, offset_x, offset_y, color): (f64, f64, f64, f64, [u8; 4]) =
         if let Some((t, filter)) = native_legend {
             let bounds = group.abs_stroke_bounding_box();
@@ -10508,7 +10631,11 @@ fn native_color_glyph_placements<'a>(
         for (glyph, transform) in span.positioned_glyphs.iter().zip(transforms) {
             if is_colr(glyph) {
                 shaped.push((glyph, *transform));
-            } else if !glyph.text.chars().all(char::is_whitespace) {
+            } else if !glyph
+                .text
+                .chars()
+                .all(|value| value.is_whitespace() || crate::font_shaping::ignorable(value))
+            {
                 // Monochrome paint and decorations need the shared native
                 // paint pipeline before their flattened trees can be reused.
                 return None;
@@ -10685,7 +10812,9 @@ fn draw_color_text_native(
                             // outline.
                         } else if glyph.id.0 != 0
                             && (glyph.text.is_empty()
-                                || !glyph.text.chars().all(char::is_whitespace))
+                                || !glyph.text.chars().all(|value| {
+                                    value.is_whitespace() || crate::font_shaping::ignorable(value)
+                                }))
                         {
                             // Source sfnt.LoadGlyph supports both glyf and CFF
                             // outlines. Reuse the fixed outline boundary so a CFF
@@ -13746,6 +13875,12 @@ fn render_simple_with_band_height(
             TEXT_MEMO.with(|memo| {
                 if let Some(memo) = memo.borrow_mut().as_mut() {
                     memo.effect_layer = None;
+                    // A completed destination no longer needs its expanded
+                    // scan edges. Keep only primitives that reach later rows;
+                    // compact source paths remain available for reconstruction.
+                    memo.rasters.retain(|_, raster| {
+                        raster.bounds.is_some_and(|(_, _, _, end)| end > bottom)
+                    });
                 }
             });
             sink(width, height, &mut frame[rows.clone()]);
@@ -13795,13 +13930,15 @@ mod tests {
     /// PNG frames stream under Go's band emulation, paged frames without it.
     #[test]
     fn streamed_bands_match_whole_frame_render() {
-        for go_bands in [true, false] {
-            streamed_bands_match_whole_frame_render_with(go_bands);
+        // Paged sharp-shadow frames deliberately render in one pass; PNG
+        // sharp-shadow frames stream and need regional filter inputs.
+        for (go_bands, sharp_shadow) in [(true, false), (false, false), (true, true)] {
+            streamed_bands_match_whole_frame_render_with(go_bands, sharp_shadow);
         }
     }
 
-    fn streamed_bands_match_whole_frame_render_with(go_bands: bool) {
-        let svg = r##"<svg xmlns="http://www.w3.org/2000/svg" width="320" height="6000" viewBox="0 0 320 6000">
+    fn streamed_bands_match_whole_frame_render_with(go_bands: bool, sharp_shadow: bool) {
+        let svg = r##"<svg xmlns="http://www.w3.org/2000/svg" width="320" height="6000" viewBox="0 0 320 6000" preserveAspectRatio="xMinYMin meet">
           <defs><mask id="m" maskUnits="userSpaceOnUse" x="0" y="0" width="320" height="6000">
             <rect width="320" height="6000" fill="white"/>
             <rect x="100" y="860" width="80" height="40" fill="black"/>
@@ -13812,10 +13949,27 @@ mod tests {
           <text x="40" y="880" font-family="Source Sans Pro" font-size="28" fill="#111">Band edge text</text>
           <text x="40" y="2625" font-family="Source Sans Pro" font-size="40" fill="#123">Another line</text>
         </svg>"##;
+        // The tall-shadow-box stress witness needs source rows just above
+        // each band as well as the unshifted shape. Fractional viewport
+        // scaling also exercises bilinear sampling across that boundary.
+        let svg = if sharp_shadow {
+            svg.replacen("width=\"320\" height=\"6000\"", "width=\"400\" height=\"7500\"", 1).replace(
+                "<defs>",
+                r##"<defs><filter id="shadow" x="-20%" y="-20%" width="160%" height="160%"><feFlood flood-color="#3d4574" flood-opacity="0.4" result="shadow-color"/><feComposite in="shadow-color" in2="SourceAlpha" operator="in"/><feOffset dx="3" dy="5"/><feBlend in="SourceGraphic" mode="normal"/></filter>"##,
+            ).replace(
+                "<rect x=\"10\"",
+                r##"<svg id="d2-rs-native-canvas-viewport-shadow" class="d2-svg" data-d2-rs-canvas-reference="ordinary" width="320" height="6000" viewBox="0 0 320 6000"><g id="d2-rs-native-shape-shadow-control" data-d2-rs-shape-shadow="sharp" filter="url(#shadow)"><rect id="control-native-raster-shape-0" x="-2.25" y="-3.125" width="220" height="4700" rx="7.75" fill="#eef1f8" stroke="#335"/><g opacity="0.6"><rect id="control-native-raster-shape-1" x="15" y="100" width="120" height="4200" fill="#f69d3c"/></g></g></svg><rect x="10""##,
+            )
+        } else {
+            svg.to_owned()
+        };
+        let (svg, sources) = crate::svg_precision::tag_embedded_svg_images(&svg);
+        if sharp_shadow {
+            assert!(sources.is_native_shape_shadow("d2-rs-native-shape-shadow-control"));
+        }
         let mut options = usvg::Options::default();
         super::super::load_bundled_fonts(&mut options);
-        let tree = usvg::Tree::from_str(svg, &options).unwrap();
-        let sources = super::SvgImagePathSources::default();
+        let tree = usvg::Tree::from_str(&svg, &options).unwrap();
         let _bands = go_bands.then(super::GoPngBandsScope::new);
         let render = |sink: Option<super::BandSink<'_>>| {
             super::render_simple_with_band_height(
@@ -13846,7 +14000,7 @@ mod tests {
         assert!(empty.is_empty() && bands > 2);
         assert!(
             streamed == whole,
-            "streamed bands differ from the whole frame (Go bands: {go_bands})"
+            "streamed bands differ from the whole frame (Go bands: {go_bands}, sharp shadow: {sharp_shadow})"
         );
     }
 
@@ -14598,6 +14752,38 @@ mod tests {
                 "a qualified viewport must not bypass a real descendant {name} effect"
             );
         }
+    }
+
+    #[test]
+    fn bidi_controls_retain_the_native_fixed_text_path() {
+        let svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"256\" height=\"100\"><text x=\"128\" y=\"50\" font-family=\"Source Sans Pro\" font-size=\"16\" text-anchor=\"middle\">\u{202e}RTL override\u{202c}</text></svg>";
+        let mut options = usvg::Options::default();
+        super::super::load_bundled_fonts(&mut options);
+        let tree = usvg::Tree::from_str(svg, &options).unwrap();
+        let usvg::Node::Text(text) = &tree.root().children()[0] else {
+            panic!("text");
+        };
+        assert!(super::native_mixed_font_layout(&tree, text).is_some());
+        let mut pixels = vec![0; 256 * 100 * 4];
+        assert_eq!(
+            super::draw_text_fixed(
+                text,
+                &tree,
+                &mut pixels,
+                256,
+                100,
+                1.0,
+                1.0,
+                Point64::default(),
+                None,
+                None,
+                Point64::default(),
+                false,
+                &super::SvgImagePathSources::default(),
+            ),
+            Some(true)
+        );
+        assert!(pixels.iter().any(|&value| value != 0));
     }
 
     fn fixed_text_transforms_for_source(body: &str) -> Vec<Vec<super::Affine64>> {

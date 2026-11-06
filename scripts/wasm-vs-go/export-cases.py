@@ -7,9 +7,11 @@ usage: export-cases.py <out.json> [--cases 12]
 import argparse
 import importlib.util
 import json
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "scripts"))
 
 
 def main():

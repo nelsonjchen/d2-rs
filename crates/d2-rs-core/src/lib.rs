@@ -16,8 +16,15 @@ use thiserror::Error;
 pub mod ast;
 mod go_float;
 #[doc(hidden)]
+pub use go_float::fused_mul_add;
+#[doc(hidden)]
 pub use go_float::go_fmadd;
+#[doc(hidden)]
+pub use go_float::go_round;
 pub mod grid;
+#[cfg(windows)]
+#[doc(hidden)]
+pub mod windows_io;
 pub use go_float::{go_json_float, parse_d2_float, parse_d2_float_result};
 mod go_quote;
 /// Quote diagnostic bytes using pinned Go string/Unicode semantics.

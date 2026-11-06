@@ -10,6 +10,23 @@ Each release names the upstream Go D2 commit it matches, from
 
 ## [Unreleased]
 
+### Fixed
+
+- Windows: the default test tier passes and all 944 e2e boards match a
+  Windows build of Go (checked with the GNU target under Wine). Imports
+  across drives, path spelling in diagnostics and Windows file errors follow
+  Go, and Go-matching math replaces C library calls whose results differ on
+  Windows. The MSVC build is still compiled but not run in CI.
+- PNG: right-to-left override text, short `cylinder`, `callout` and
+  `c4-person` shapes, `--scale=0.05`, and malformed PNG icons (now rejected
+  as Go does) match Go.
+- Layout cases found by fuzzing: glob-applied circle containers (Dagre, ELK),
+  `near` on the root board, repeated grid dimensions, and inline HTML in
+  Markdown labels.
+- Faster PNG export of shadows, double borders, gradients and long Markdown.
+
+## [0.1.0] - 2026-11-06
+
 ### Added
 
 - First release: a Rust port of the D2 toolchain, matching Go D2 `master` at
@@ -39,4 +56,5 @@ Each release names the upstream Go D2 commit it matches, from
 - Windows builds but is not qualified against Go: imports across drives,
   path separators in diagnostics and one TALA layout differ in tests.
 
-[Unreleased]: https://github.com/nelsonjchen/d2-rs
+[Unreleased]: https://github.com/nelsonjchen/d2-rs/commits/main
+[0.1.0]: https://crates.io/crates/d2-rs/0.1.0

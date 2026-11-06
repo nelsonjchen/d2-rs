@@ -6,9 +6,16 @@ the raw `d2.compile` and `d2.render`, d2-rs through its `D2` facade. Each
 measurement runs in a fresh process and reports:
 
 - startup time;
-- median compile+render time;
+- compile+render CPU and wall time;
 - peak RSS;
-- the SVG's sha256, so byte identity is checked on every row.
+- every timed SVG's sha256, so byte identity is checked on every sample.
+
+The driver alternates Go/Rust order between repeats. Each sample uses a fresh
+process with one untimed warm-up; startup is recorded separately. Failed calls,
+missing SVGs, unstable bytes and mismatches fail the row. The Go module must
+contain clean build metadata for the manifest's commit and toolchain and report
+the pinned version stamp. Module and case hashes must remain unchanged during
+the capture.
 
 ## Build
 
@@ -28,10 +35,18 @@ uv run --no-project python scripts/wasm-vs-go/export-cases.py /tmp/cases.json
 export CASES=/tmp/cases.json GO_WASM=/tmp/go-main.wasm \
   GO_EXEC="$(go env GOROOT)/lib/wasm/wasm_exec.js" \
   RS_DIR="$PWD/crates/d2-rs-wasm"
-node scripts/wasm-vs-go/bench.mjs 3 dagre,elk,tala
+node scripts/wasm-vs-go/bench.mjs 3 dagre,elk,tala '' /tmp/wasm-perf.json
 ```
 
-`bench.mjs` writes `bench-results.json` in the working directory.
+The optional fourth argument selects comma-separated case indices; an empty
+argument selects every case. The optional fifth argument sets the report path
+(default `bench-results.json` in the working directory). Reports include every
+sample and per-engine medians and worst ratios. The command exits nonzero for
+incorrect output or any wall median over Go. Set `METRIC=cpu` to gate on the
+recorded process CPU medians instead (these include V8 background work).
+`WARMUP` sets the number of untimed calls (default 1); `SETTLE_MS` waits after
+warmup before timing (default 0), useful for separating V8 tiering CPU from
+steady-state compile/render CPU. Both settings are recorded in the report.
 
 ## Public API differential scoreboard
 

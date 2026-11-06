@@ -137,16 +137,19 @@ fn runs(text: &str, assignment: &[usize]) -> Vec<Run> {
     if chars.is_empty() {
         return Vec::new();
     }
-    let bidi = unicode_bidi::BidiInfo::new(text, Some(unicode_bidi::Level::ltr()));
+    // go-text uses x/text's implicit paragraph level and its treatment of
+    // formatting controls. Share the fontface port rather than UAX #9's
+    // different run boundaries from unicode-bidi. ShapeTextTransient bypasses
+    // bidi segmentation for ASCII, including independent code tokens.
+    let bidi = if text.is_ascii() {
+        vec![(0, chars.len(), false)]
+    } else {
+        let runes = chars.iter().map(|&(_, value)| value).collect::<Vec<_>>();
+        d2_rs_fontface::bidi_runs(&runes).unwrap_or_else(|| vec![(0, runes.len(), false)])
+    };
     let mut result = Vec::new();
     let mut delimiter_stack = Vec::<(usize, Script)>::new();
-    let mut at = 0;
-    while at < chars.len() {
-        let rtl = bidi.levels[chars[at].0].is_rtl();
-        let mut end = at + 1;
-        while end < chars.len() && bidi.levels[chars[end].0].is_rtl() == rtl {
-            end += 1;
-        }
+    for (at, end, rtl) in bidi {
         let mut start = at;
         let mut script = Script::Common;
         let mut semantic = Vec::new();
@@ -197,7 +200,6 @@ fn runs(text: &str, assignment: &[usize]) -> Vec<Run> {
                 }
             }
         }
-        at = end;
     }
     let mut at = 0;
     while at < result.len() {
@@ -376,6 +378,61 @@ const PAIRED_DELIMITERS: &[u32] = &[
 
 #[cfg(test)]
 mod bundled_contract_tests {
+    #[test]
+    fn bidi_override_positions_match_fontface() {
+        use super::*;
+        use d2_rs_fontface::{ShapeFace, ShapeLimits, ShapingWorkspace, parse_face};
+        let data = d2_rs_text::assets::SOURCE_SANS_PRO_REGULAR_TTF;
+        let face = parse_face(data, 0).unwrap();
+        for text in [
+            "\u{202e}RTL override\u{202c}",
+            "\u{202e}RTL override\u{202c} 5",
+        ] {
+            let expected = ShapingWorkspace::new()
+                .shape_text_transient(
+                    &(),
+                    text,
+                    32 * 64,
+                    &[ShapeFace {
+                        id: "primary",
+                        face: &face,
+                    }],
+                    ShapeLimits {
+                        runes: 1000,
+                        faces: 10,
+                        coverage_checks: 10000,
+                        runs: 1000,
+                        glyphs: 1000,
+                    },
+                )
+                .unwrap();
+            let actual = shape(text, 32.0, &[Font { data, index: 0 }]).unwrap();
+            assert_eq!(actual.advance, expected.advance);
+            assert_eq!(actual.glyphs.len(), expected.glyphs.len());
+            for (a, e) in actual.glyphs.iter().zip(&expected.glyphs) {
+                assert_eq!(
+                    (
+                        a.id,
+                        a.x,
+                        a.y,
+                        a.advance,
+                        a.source_index,
+                        a.source as i32,
+                        a.empty
+                    ),
+                    (
+                        e.id,
+                        e.position_x,
+                        e.position_y,
+                        e.advance,
+                        e.source_index as usize,
+                        e.source,
+                        e.empty
+                    )
+                );
+            }
+        }
+    }
     #[cfg(feature = "oracle-fixtures")]
     use super::*;
     #[cfg(feature = "oracle-fixtures")]

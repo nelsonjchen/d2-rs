@@ -9,10 +9,10 @@
 // Unsupported elements are later rejected by validateMarkdownSVGNodes,
 // exactly as in Go.
 
-pub(crate) type NodeId = usize;
+pub type NodeId = usize;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum NodeType {
+pub enum NodeType {
     Document,
     Element,
     Text,
@@ -20,7 +20,7 @@ pub(crate) enum NodeType {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct Node {
+pub struct Node {
     pub kind: NodeType,
     pub data: String,
     pub attr: Vec<(String, String)>,
@@ -32,7 +32,7 @@ pub(crate) struct Node {
 }
 
 #[derive(Clone, Debug, Default)]
-pub(crate) struct Dom {
+pub struct Dom {
     pub nodes: Vec<Node>,
 }
 
@@ -62,24 +62,24 @@ impl Dom {
         self.nodes[parent].last_child = Some(child);
     }
 
-    pub(crate) fn node(&self, id: NodeId) -> &Node {
+    pub fn node(&self, id: NodeId) -> &Node {
         &self.nodes[id]
     }
 
-    pub(crate) fn children(&self, id: NodeId) -> Children<'_> {
+    pub fn children(&self, id: NodeId) -> Children<'_> {
         Children {
             dom: self,
             next: self.nodes[id].first_child,
         }
     }
 
-    pub(crate) fn is_element(&self, id: NodeId, name: &str) -> bool {
+    pub fn is_element(&self, id: NodeId, name: &str) -> bool {
         let n = &self.nodes[id];
         n.kind == NodeType::Element && n.data == name
     }
 
     /// nodeAttr.
-    pub(crate) fn attr(&self, id: NodeId, name: &str) -> &str {
+    pub fn attr(&self, id: NodeId, name: &str) -> &str {
         self.nodes[id]
             .attr
             .iter()
@@ -88,7 +88,7 @@ impl Dom {
     }
 }
 
-pub(crate) struct Children<'a> {
+pub struct Children<'a> {
     dom: &'a Dom,
     next: Option<NodeId>,
 }
@@ -270,8 +270,7 @@ fn unescape(text: &str) -> String {
     if !text.contains('&') {
         return text.to_owned();
     }
-    String::from_utf8_lossy(&d2_rs_text::markdown::html::unescape_html(text.as_bytes()))
-        .into_owned()
+    String::from_utf8_lossy(&crate::markdown::html::unescape_html(text.as_bytes())).into_owned()
 }
 
 /// token.go convertNewlines.
@@ -585,7 +584,7 @@ impl Builder {
 }
 
 /// html.Parse over a body fragment; returns the tree and its <body>.
-pub(crate) fn parse_document(html: &str) -> (Dom, NodeId) {
+pub fn parse_document(html: &str) -> (Dom, NodeId) {
     let mut dom = Dom::default();
     let document = dom.add(NodeType::Document, String::new(), Vec::new());
     let html_el = dom.add(NodeType::Element, "html".into(), Vec::new());
@@ -633,4 +632,162 @@ pub(crate) fn parse_document(html: &str) -> (Dom, NodeId) {
         }
     }
     (builder.dom, body)
+}
+
+/// Preserve the HTML tree's text-node boundaries in an XML measurement tree.
+/// Non-void self-closing tags are ordinary start tags in x/net/html, so an
+/// XML parser cannot consume their original spelling directly.
+pub fn measurement_fragment(html: &str) -> String {
+    fn escaped(output: &mut String, value: &str, attribute: bool) {
+        for c in value.chars() {
+            match c {
+                '&' => output.push_str("&amp;"),
+                '<' => output.push_str("&lt;"),
+                '>' => output.push_str("&gt;"),
+                '"' if attribute => output.push_str("&quot;"),
+                _ => output.push(c),
+            }
+        }
+    }
+    fn write(dom: &Dom, id: NodeId, output: &mut String) {
+        let node = dom.node(id);
+        match node.kind {
+            NodeType::Text => escaped(output, &node.data, false),
+            NodeType::Comment => {
+                output.push_str("<!--");
+                output.push_str(&node.data);
+                output.push_str("-->");
+            }
+            NodeType::Element => {
+                output.push('<');
+                output.push_str(&node.data);
+                for (name, value) in &node.attr {
+                    output.push(' ');
+                    output.push_str(name);
+                    output.push_str("=\"");
+                    escaped(output, value, true);
+                    output.push('"');
+                }
+                output.push('>');
+                for child in dom.children(id) {
+                    write(dom, child, output);
+                }
+                output.push_str("</");
+                output.push_str(&node.data);
+                output.push('>');
+            }
+            NodeType::Document => {}
+        }
+    }
+    let (dom, body) = parse_document(html);
+    let mut output = String::with_capacity(html.len());
+    for child in dom.children(body) {
+        write(&dom, child, &mut output);
+    }
+    output
+}
+
+impl Dom {
+    pub fn has_markdown_heading_ancestor(&self, n: NodeId) -> bool {
+        let mut ancestor = self.node(n).parent;
+        while let Some(a) = ancestor {
+            let node = self.node(a);
+            if node.kind == NodeType::Element
+                && matches!(node.data.as_str(), "h1" | "h2" | "h3" | "h4" | "h5" | "h6")
+            {
+                return true;
+            }
+            ancestor = node.parent;
+        }
+        false
+    }
+
+    /// hasAncestorElement.
+    pub fn has_ancestor_element(&self, n: NodeId, el: &str) -> bool {
+        let mut ancestor = self.node(n).parent;
+        while let Some(a) = ancestor {
+            if self.is_element(a, el) {
+                return true;
+            }
+            ancestor = self.node(a).parent;
+        }
+        false
+    }
+
+    fn blank(&self, n: NodeId) -> bool {
+        self.node(n).data.trim().is_empty()
+    }
+
+    /// hasPrev.
+    pub fn has_prev(&self, n: NodeId) -> bool {
+        match self.node(n).prev_sibling {
+            None => false,
+            Some(p) if self.blank(p) => self.has_prev(p),
+            Some(_) => true,
+        }
+    }
+
+    /// hasNext.
+    pub fn has_next(&self, n: NodeId) -> bool {
+        match self.node(n).next_sibling {
+            None => false,
+            Some(p) if self.blank(p) => self.has_next(p),
+            Some(_) => true,
+        }
+    }
+
+    /// getPrev (which, as in Go, continues through getNext).
+    pub fn get_prev(&self, n: Option<NodeId>) -> Option<NodeId> {
+        let n = n?;
+        if self.blank(n) {
+            if let Some(next) = self.get_next(self.node(n).prev_sibling) {
+                return Some(next);
+            }
+        }
+        Some(n)
+    }
+
+    /// getNext.
+    pub fn get_next(&self, n: Option<NodeId>) -> Option<NodeId> {
+        let n = n?;
+        if self.blank(n) {
+            if let Some(next) = self.get_next(self.node(n).next_sibling) {
+                return Some(next);
+            }
+        }
+        Some(n)
+    }
+
+    pub fn parent_element_type(&self, n: NodeId) -> &str {
+        match self.node(n).parent {
+            Some(p) if self.node(p).kind == NodeType::Element => &self.node(p).data,
+            _ => "",
+        }
+    }
+
+    pub fn element_data(&self, n: NodeId) -> Option<&str> {
+        let node = self.node(n);
+        (node.kind == NodeType::Element).then_some(node.data.as_str())
+    }
+
+    /// markdownNodeText.
+    pub fn markdown_node_text(&self, n: NodeId) -> String {
+        fn walk(dom: &Dom, n: NodeId, out: &mut String) {
+            let node = dom.node(n);
+            if node.kind == NodeType::Text {
+                out.push_str(&node.data);
+                return;
+            }
+            if node.kind == NodeType::Element && node.data == "br" {
+                out.push('\n');
+                return;
+            }
+            for child in dom.children(n) {
+                walk(dom, child, out);
+            }
+        }
+        let mut out = String::new();
+        walk(self, n, &mut out);
+        out
+    }
 }

@@ -87,7 +87,7 @@ pub(in crate::internal) fn go_hypot(mut p: f64, mut q: f64) -> f64 {
     // Go's ARM64 compiler fuses `1+q*q` in math.hypot into an FMA before
     // calling FSQRTD. Preserve that intermediate exactly; a separate multiply
     // and add can be one ULP lower.
-    p * go_sqrt(q.mul_add(q, 1.0))
+    p * go_sqrt(d2_rs_core::fused_mul_add(q, q, 1.0))
 }
 
 pub(super) fn wire_length<E>(

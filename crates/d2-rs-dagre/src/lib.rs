@@ -8073,8 +8073,24 @@ fn fit_containers_source_tracked(
 ) {
     let mut containers = graph
         .nodes()
-        .filter_map(|(id, _)| {
-            has_rankable_children(graph, id).then_some((id, parent_depth(graph, id)))
+        .filter_map(|(id, node)| {
+            if !has_rankable_children(graph, id) {
+                return None;
+            }
+            // Go fitPadding returns before visiting children of a non-square
+            // container (d2dagrelayout/layout.go). Those descendants retain
+            // their Dagro envelopes too, even when they are rectangles.
+            let mut parent = node.parent;
+            let mut depth = 0;
+            while let Some(parent_id) = parent {
+                let ancestor = graph.node(parent_id)?;
+                if !matches!(ancestor.shape, ShapeKind::Rectangle | ShapeKind::Square) {
+                    return None;
+                }
+                depth += 1;
+                parent = ancestor.parent;
+            }
+            Some((id, depth))
         })
         .collect::<Vec<_>>();
     containers.sort_by(|left, right| right.1.cmp(&left.1).then_with(|| left.0.cmp(&right.0)));
@@ -13228,13 +13244,29 @@ fn go_intersection_point(u0: Point, u1: Point, v0: Point, v1: Point) -> Option<P
         return None;
     }
     Some(Point {
-        x: u0.x + (s * udx).round(),
-        y: u0.y + (s * udy).round(),
+        x: u0.x + d2_rs_core::go_round(s * udx),
+        y: u0.y + d2_rs_core::go_round(s * udy),
     })
 }
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn intersection_does_not_round_a_displacement_below_halfway_up() {
+        // D2 lib/geo/point.go IntersectionPoint uses Go math.Round. Windows
+        // CRT round double-rounds this displacement when adding 0.5 first.
+        let x = std::hint::black_box(f64::from_bits(0.5_f64.to_bits() - 1));
+        assert_eq!(
+            super::go_intersection_point(
+                Point { x: 0.0, y: 0.0 },
+                Point { x: 1.0, y: 1.0 },
+                Point { x, y: -1.0 },
+                Point { x, y: 1.0 },
+            ),
+            Some(Point { x: 0.0, y: 0.0 })
+        );
+    }
+
     #[test]
     fn horizontal_disconnected_container_preserves_the_standalone_origin() {
         // d2dagrelayout.adjustCrossRankSpacing/shiftReachableDownIndexed:

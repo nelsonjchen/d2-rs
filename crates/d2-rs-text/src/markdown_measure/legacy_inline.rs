@@ -35,6 +35,7 @@ pub fn measurement_html(source: &str) -> String {
     let source = normalize_html_names(source);
     let mut output = String::new();
     let mut cursor = 0;
+    let mut html_self_closing = false;
     while let Some(relative) = source[cursor..].find('<') {
         let start = cursor + relative;
         output.push_str(&source[cursor..start]);
@@ -62,6 +63,29 @@ pub fn measurement_html(source: &str) -> String {
             .split(|c: char| c.is_ascii_whitespace() || c == '/')
             .next()
             .unwrap_or("");
+        if !name.is_empty()
+            && tag.trim_end().ends_with('/')
+            && !matches!(
+                name,
+                "area"
+                    | "base"
+                    | "br"
+                    | "col"
+                    | "embed"
+                    | "hr"
+                    | "img"
+                    | "input"
+                    | "keygen"
+                    | "link"
+                    | "meta"
+                    | "param"
+                    | "source"
+                    | "track"
+                    | "wbr"
+            )
+        {
+            html_self_closing = true;
+        }
         output.push_str(&source[start..end]);
         if matches!(name, "br" | "img" | "hr") && !tag.trim_end().ends_with('/') {
             output.push('/');
@@ -70,7 +94,18 @@ pub fn measurement_html(source: &str) -> String {
         cursor = end + 1;
     }
     output.push_str(&source[cursor..]);
-    output
+    // x/net/html drops whitespace before entering the document body. An
+    // artificial XML <body> would retain it as an inline run, swallowing a
+    // leading <br> instead of reserving its empty line box.
+    let before_body_whitespace = source
+        .as_bytes()
+        .first()
+        .is_some_and(|byte| matches!(byte, b' ' | b'\n' | b'\r' | b'\t' | 12));
+    if html_self_closing || before_body_whitespace {
+        crate::markdown::html_tree::measurement_fragment(&source)
+    } else {
+        output
+    }
 }
 
 impl MarkdownMeasurer<'_> {

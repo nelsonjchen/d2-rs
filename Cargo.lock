@@ -344,6 +344,7 @@ name = "d2-rs-core"
 version = "0.1.0"
 dependencies = [
  "d2-rs-testdata",
+ "libm",
  "num-bigint",
  "num-rational",
  "serde",

@@ -10,7 +10,7 @@
 //! additional font faces.
 
 use std::collections::BTreeMap;
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 #[path = "markdown_ignorable_ranges.rs"]
@@ -72,9 +72,12 @@ struct FontMetrics {
     /// Optional horizontal ink bounds from `loca`/`glyf`. Fonts without
     /// TrueType outlines retain advance-only measurement.
     outlines: GlyphOutlines,
+    // textmeasure.Ruler retains one immutable atlas per face and size.
+    markdown_atlases: Mutex<BTreeMap<u64, Arc<MarkdownCodeAtlas>>>,
 }
 
 type OutlineBox = (i16, i16, i16, i16);
+type MarkdownCodeAtlas = BTreeMap<u32, (u16, [f64; 6])>;
 
 /// Codepoint to glyph pairs sorted by codepoint. Subtables are read in table
 /// order and a later pair for a codepoint replaces an earlier one, as
@@ -559,6 +562,7 @@ impl TrueTypeFont {
                 cmap: parse_cmap(cmap)?,
                 kern: parse_legacy_kern(data)?,
                 outlines,
+                markdown_atlases: Mutex::new(BTreeMap::new()),
             }),
         })
     }
@@ -1234,7 +1238,19 @@ impl TrueTypeFont {
 
     // Original atlas_metrics.go packing, including the operation order used
     // when converting packed fixed-point coordinates back into ruler bounds.
-    fn markdown_code_atlas(&self, size: f64) -> BTreeMap<u32, (u16, [f64; 6])> {
+    fn markdown_code_atlas(&self, size: f64) -> Arc<MarkdownCodeAtlas> {
+        let mut atlases = self
+            .metrics
+            .markdown_atlases
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        atlases
+            .entry(size.to_bits())
+            .or_insert_with(|| Arc::new(self.build_markdown_code_atlas(size)))
+            .clone()
+    }
+
+    fn build_markdown_code_atlas(&self, size: f64) -> MarkdownCodeAtlas {
         let runes = std::iter::once(0xfffd)
             .chain(0..=0xff)
             .chain(0x25a0..=0x25ff);

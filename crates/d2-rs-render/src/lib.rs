@@ -3364,7 +3364,10 @@ fn bounds_with_markdown_family_and_legend(
                 target_modifier_label_bounds(
                     node_label_box(
                         target_rect,
-                        node.shape,
+                        // d2target.Diagram.BoundingBox places every label
+                        // on GetBox, independently of the painter's inner
+                        // content box (including collapsed short shapes).
+                        ShapeKind::Rectangle,
                         rendered_position,
                         size,
                         cloud_content_aspect(node, size),
@@ -4411,13 +4414,15 @@ fn node_inner_box(rect: Rect, shape: ShapeKind, cloud_aspect: Option<f64>) -> Re
             // head is not part of the content box, so labels start at the
             // body rather than at the silhouette's top edge.
             let head_radius = rect.size.width * 0.22;
-            let body_top = head_radius + head_radius * 0.8;
+            let body_top = go_float::go_fmadd(rect.size.width, 0.22, head_radius * 0.8);
             let horizontal = rect.size.width * 0.05;
             let vertical = rect.size.height * 0.03;
-            inner.origin.x += horizontal;
-            inner.origin.y += body_top + vertical;
-            inner.size.width = (rect.size.width - 2.0 * horizontal).max(0.0);
-            inner.size.height = (rect.size.height - body_top - 2.0 * vertical).max(0.0);
+            inner.origin.x = go_float::go_fmadd(rect.size.width, 0.05, inner.origin.x);
+            inner.origin.y += go_float::go_fmadd(rect.size.height, 0.03, body_top);
+            inner.size.width =
+                rect.size.width - go_float::go_fmadd(rect.size.width, 0.05, horizontal);
+            inner.size.height =
+                rect.size.height - body_top - go_float::go_fmadd(rect.size.height, 0.03, vertical);
         }
         ShapeKind::Cloud => {
             let aspect = cloud_aspect
@@ -4441,7 +4446,7 @@ fn node_inner_box(rect: Rect, shape: ShapeKind, cloud_aspect: Option<f64>) -> Re
                 24.0
             };
             inner.origin.y += 2.0 * arc;
-            inner.size.height = (rect.size.height - 3.0 * arc).max(0.0);
+            inner.size.height = rect.size.height - 3.0 * arc;
         }
         ShapeKind::Queue => {
             let arc = if rect.size.width < 48.0 {
@@ -16352,6 +16357,61 @@ mod tests {
                 height: 166.0
             }
         );
+    }
+
+    #[test]
+    fn short_shape_raster_bounds_use_the_full_target_box() {
+        // d2target.Diagram.BoundingBox uses GetBox for label extents;
+        // d2scenebuild.shapeLabelPlacement uses the signed GetInnerBox.
+        for (shape, top, label_top) in [
+            (ShapeKind::Cylinder, -1.0, 12.75),
+            (ShapeKind::Callout, -1.0, -2.75),
+            (ShapeKind::C4Person, -41.0, 44.6),
+        ] {
+            let size = Size {
+                width: 200.0,
+                height: 31.0,
+            };
+            let label_size = Size {
+                width: 14.0,
+                height: 21.0,
+            };
+            let mut graph = Graph::default();
+            let node = graph.add_node(Node {
+                shape,
+                label_position: LabelPosition::InsideMiddleCenter,
+                label_size: Some(label_size),
+                ..Node::new("w", size)
+            });
+            let mut result = Engine.layout(&graph, &LayoutOptions::default()).unwrap();
+            let rect = Rect {
+                origin: Point::default(),
+                size,
+            };
+            result.boxes.insert(node, rect);
+            result.node_labels.clear();
+            assert_eq!(
+                super::bounds(
+                    &graph,
+                    &result,
+                    &BTreeMap::from([(node, "w".into())]),
+                    &BTreeMap::new()
+                ),
+                (-1.0, top, 201.0, 32.0),
+                "{shape:?}"
+            );
+            let label = node_label_box(
+                rect,
+                shape,
+                LabelPosition::InsideMiddleCenter,
+                label_size,
+                None,
+            );
+            assert!(
+                (label.origin.y - label_top).abs() < 1e-12,
+                "{shape:?}: {label:?}"
+            );
+        }
     }
 
     #[test]

@@ -74,13 +74,18 @@ blocks, gradients, opacity, nested Dagre).
 
 Open, with witnesses from the sweeps:
 
-- **Raster text:** right-to-left scripts, combining marks and multi-code-point
-  emoji differ from Go in PNG (SVG matches).
-- **Short shapes in PNG:** `cylinder`, `callout` and `c4-person` with an
-  explicit height of 25-31 px differ from Go in PNG; their SVG matches.
-- **Small scale:** `--scale=0.05` differs from Go in PNG (100 and 500 nodes).
-- **Malformed images:** a malformed PNG icon that Go rejects
-  (`imageasset: probe ... malformed`) renders in d2-rs.
+- ~~**Raster text:** bidi override controls (U+202E/U+202C) differed in PNG.~~
+  Fixed Go-compatible bidi runs and native admission of controls without ink;
+  the complete hard-text board now matches Go byte for byte on arm64.
+- ~~**Short shapes in PNG:** `cylinder`, `callout` and `c4-person` with an
+  explicit height of 25-31 px differ from Go in PNG; their SVG matches.~~
+  Fixed full-box canvas bounds and signed inner-box label placement.
+- ~~**Small scale:** `--scale=0.05` differed in PNG (100 and 500 nodes).~~
+  Fixed arm64 route-label interpolation before mask-box rounding; both match
+  Go byte for byte.
+- ~~**Malformed images:** a malformed PNG icon that Go rejects
+  (`imageasset: probe ... malformed`) renders in d2-rs.~~ PNG admission now
+  validates the complete container and configuration before retention.
 - **Error text:** a right-to-left override character in an invalid keyword is
   escaped (`‮`) in d2-rs errors and raw in Go's.
 - **Markdown:** a tab-indented empty heading inside a block differs.
@@ -90,22 +95,47 @@ Open, with witnesses from the sweeps:
   `GapNormalizationTransactions`, so the error text differs.
 - **Fuzz singletons:** duplicated `grid-rows`, `*: suspend` globs, a `package`
   shape four levels deep, Gujarati next to an emoji; one witness each.
-- **Performance beyond corpus size** (quiet arm64, d2-rs/Go): a shadowed
-  container with 60 children at 1.33x CPU and 1.10x peak RSS (worse since the
-  band-loop work); 240 double-bordered shapes at 1.16x RSS; 240 gradient
-  fills at 1.04x CPU; 240-item Markdown at 1.05x CPU (1.11x at 480); TALA
+- ~~**Non-TALA raster performance:** shadowed containers, double borders,
+  gradient fills and Markdown exceeded Go at large sizes.~~ Regional shadow
+  inputs, bounded stroke caches, shared font-size atlases and row gradient
+  sampling bring all four below Go locally on arm64, with identical PNG
+  bytes; quiet-host confirmation is pending.
+- **Performance beyond corpus size** (quiet arm64, d2-rs/Go): TALA
   with 100 parallel edges at 1.24x CPU and growing; TALA with 100 classes at
   1.10x RSS; TALA at scale (`scale-sweep.py`): nested at 100 nodes 2.24x
   RSS, long labels at 100 nodes 1.15x RSS, fan-out at 200-400 nodes 1.5-1.75x
   wall with CPU near Go; compiling an 80,000-edge board before the engine's edge-limit
   error at about 1.4x Go wall. Shadows, opacity, 3D, nested fills and dark theme stay under Go
   but their ratios grow with size. The corpus itself has no row over Go.
-- **Not yet measured:** WASM performance against Go, and long fuzz runs.
-- **Windows:** the workspace builds and passes clippy, but nothing is
-  qualified against Go on Windows. CLI tests show imports across drives
-  resolving against the working directory, `\` in diagnostic paths and a
-  TALA layout hash that differs from Linux and macOS. CI compiles the
-  Windows tests without running them.
+- **Long fuzz:** seeds 2026110616/17/18, 1,000 jobs each on Dagre/ELK/TALA,
+  find 6/6/7 differences. Complete output inventories and all 22 matching
+  empty-output outcomes are checked; no crash, hang, timeout or invalid SVG.
+  Minimized front-end/Markdown/layout witnesses cover root `near`, repeated
+  grid dimensions, circle containers/globs, `0` versus `00` dimensions,
+  inline HTML measurement and diagnostic text/precedence. Three TALA-only
+  witnesses cover explicit container width fitting and filtered-glob placement.
+  Witnesses and owner handoffs: `oracle-cache/reports/x16/handoff.json`.
+  X18 fixes all nine assigned Dagre/ELK output witnesses: HTML self-closing
+  and leading-whitespace measurement, final grid-key order, root-near bounds,
+  Dagre fitting below non-square containers, and ELK child-size estimates and
+  resized-label margins.
+  The shared grid/near causes also cover TALA jobs 740/203; diagnostics and
+  the three TALA-only placement witnesses remain with Q1/T2.
+- **WASM performance:** Node 22.21.1 on arm64, pinned d2js versus current Rust
+  WASM, the 12 perf-bench inputs on every engine, three interleaved samples
+  after warmup. All 36 SVGs match byte for byte. Median wall Rust/Go ratios:
+  Dagre 0.33x, ELK 0.33x, TALA 0.38x; worst row 0.69x. Process CPU samples are
+  retained separately in `oracle-cache/reports/x16/wasm-performance.json`.
+  Two early-call CPU excesses disappear with additional warmup: Dagre
+  arrowhead scaling is 0.32x Go after three warmups, and TALA grid across cells
+  is 0.45x after ten (interleaved samples, 500 ms settling, identical SVGs).
+- **Windows:** the GNU target passes the default tier under Wine 9 and matches
+  Windows Go on all 944 applicable e2e boards, including TALA. CRT FMA and near-halfway
+  rounding are bypassed in the affected math paths. Absolute forward-slash
+  source paths now retain their import base across drives; backslash source
+  paths resolve imports against the working directory in pinned Go too.
+  Diagnostics follow Windows separators, case folding and OS error text.
+  Native MSVC remains unqualified; CI still compiles its tests without running.
 
 Go progress messages that differ only under concurrent load (identical output
 hashes, not reproducible when Go runs alone) are harness noise, not drift.

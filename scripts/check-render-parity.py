@@ -36,6 +36,8 @@ DEFAULT_FIXTURES = {
     "raster-diamond": ROOT / "tests/d2/raster-diamond.d2",
     "raster-tall-shadow": ROOT / "tests/d2/raster-tall-shadow.d2",
     "raster-color-glyph-bands": ROOT / "tests/d2/raster-color-glyph-bands.d2",
+    "raster-short-shapes": ROOT / "tests/d2/raster-short-shapes.d2",
+    "raster-bidi-controls": ROOT / "tests/d2/raster-bidi-controls.d2",
     "crowfoot-marker-overflow": ROOT / "tests/d2/crowfoot-marker-overflow.d2",
     "svg-arc-icon": ROOT / "tests/d2/svg-arc-icon.d2",
     "svg-embedded-raster-use": ROOT / "tests/d2/svg-embedded-raster-use.d2",

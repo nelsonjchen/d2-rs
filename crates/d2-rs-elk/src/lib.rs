@@ -2612,8 +2612,7 @@ fn pad_nested_graph(arena: &mut LayeredArena, graph_id: LGraphId) {
     arena.graphs[graph_id as usize].width = width;
     arena.graphs[graph_id as usize].height = height;
     if let Some(parent_node) = arena.graphs[graph_id as usize].parent_node {
-        arena.nodes[parent_node as usize].width = width;
-        arena.nodes[parent_node as usize].height = height;
+        resize_hierarchy_node(arena, parent_node, width, height);
     }
 }
 
@@ -2753,9 +2752,45 @@ fn pad_nested_graph_with_external_ports(
     arena.graphs[graph_id as usize].width = width;
     arena.graphs[graph_id as usize].height = height;
     if let Some(parent_node) = arena.graphs[graph_id as usize].parent_node {
-        arena.nodes[parent_node as usize].width = width;
-        arena.nodes[parent_node as usize].height = height;
+        resize_hierarchy_node(arena, parent_node, width, height);
     }
+}
+
+// elk-go lgraph_util.go ResizeNode(moveLabels=true), followed by the label
+// part of InnermostNodeMarginCalculator. The imported overflow is relative
+// to the old box; retaining it after a compound grows enlarges its parent.
+fn resize_hierarchy_node(arena: &mut LayeredArena, id: LNodeId, width: f64, height: f64) {
+    let node = &mut arena.nodes[id as usize];
+    if let Some(labels) = arena.compound_label_boxes.get_mut(&id) {
+        let width_diff = f64::from((width - node.width) as f32);
+        let height_diff = f64::from((height - node.height) as f32);
+        let mut margins = [0.0_f64; 4];
+        for [x, y, w, h] in labels {
+            let middle_x = *x + *w / 2.0;
+            let middle_y = *y + *h / 2.0;
+            let width_percent = middle_x / node.width;
+            let height_percent = middle_y / node.height;
+            if width_percent + height_percent >= 1.0 {
+                if width_percent - height_percent > 0.0 && middle_y >= 0.0 {
+                    *x += width_diff;
+                    *y = d2_rs_core::go_fmadd(height_diff, height_percent, *y);
+                } else if width_percent - height_percent < 0.0 && middle_x >= 0.0 {
+                    *x = d2_rs_core::go_fmadd(width_diff, width_percent, *x);
+                    *y += height_diff;
+                }
+            }
+            margins[0] = margins[0].max(-*y);
+            margins[1] = margins[1].max(*x + *w - width);
+            margins[2] = margins[2].max(*y + *h - height);
+            margins[3] = margins[3].max(-*x);
+        }
+        node.label_margin_top = margins[0];
+        node.label_margin_right = margins[1];
+        node.label_margin_bottom = margins[2];
+        node.label_margin_left = margins[3];
+    }
+    node.width = width;
+    node.height = height;
 }
 
 /// Returns the nodes that elk-go's `GraphAllNodes` exposes: graph-level
@@ -2990,6 +3025,12 @@ fn graph_offset_in_output_coordinates(offset_y: f64, direction: &str) -> Point {
 
 fn transpose_arena_for_vertical(arena: &mut LayeredArena) {
     arena.transpose_label_side_modes();
+    for labels in arena.compound_label_boxes.values_mut() {
+        for [x, y, width, height] in labels {
+            std::mem::swap(x, y);
+            std::mem::swap(width, height);
+        }
+    }
     for node in &mut arena.nodes {
         node.alignment = node.alignment.transposed();
         std::mem::swap(&mut node.width, &mut node.height);
@@ -3062,6 +3103,11 @@ fn normalize_up_to_internal(arena: &mut LayeredArena) {
             node.alignment = node.alignment.mirrored();
             node.position_x = (offset - node.width) - node.position_x;
             std::mem::swap(&mut node.label_margin_left, &mut node.label_margin_right);
+            if let Some(labels) = arena.compound_label_boxes.get_mut(&id) {
+                for [x, _, width, _] in labels {
+                    *x = (node.width - *width) - *x;
+                }
+            }
             for port in node.ports.clone() {
                 let port = &mut arena.ports[port as usize];
                 port.x = (node.width - port.width) - port.x;
@@ -3102,6 +3148,11 @@ fn normalize_left_to_right(arena: &mut LayeredArena) {
             node.position_x = offset - node.width - node.position_x;
             std::mem::swap(&mut node.margin_left, &mut node.margin_right);
             std::mem::swap(&mut node.label_margin_left, &mut node.label_margin_right);
+            if let Some(labels) = arena.compound_label_boxes.get_mut(&node_id) {
+                for [x, _, width, _] in labels {
+                    *x = node.width - *width - *x;
+                }
+            }
             for port_id in &node.ports {
                 let port = &mut arena.ports[*port_id as usize];
                 port.x = node.width - port.width - port.x;

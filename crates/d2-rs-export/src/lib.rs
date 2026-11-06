@@ -63,13 +63,22 @@ mod svg_import_geometry;
 mod svg_precision;
 
 /// Admit an acquired image before retaining it in a raster resolver cache.
-/// Raster decoding/dimension checks remain at the caller's raster boundary;
-/// SVG envelopes and declared compressed SVG use the existing bounded codec.
+/// PNG container/configuration checks mirror imageasset.probeRaster before
+/// retention; pixel decoding remains at the caller's raster boundary. SVG
+/// envelopes and declared compressed SVG use the existing bounded codec.
 pub fn prepare_image_asset_bytes(
     source: &str,
     mime_hint: Option<&str>,
     bytes: &[u8],
 ) -> Result<Vec<u8>, String> {
+    if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
+        // internal/rasterimage.Config validates every PNG/APNG chunk before
+        // image.DecodeConfig, even when SVG bundling never decodes pixels.
+        d2_rs_math::png_first_frame::inspect_png_container(bytes)
+            .and_then(|_| d2_rs_math::svg_image_config::png_decode_config(bytes, None))
+            .map_err(|error| format!("malformed PNG image: {error}"))?;
+        return Ok(bytes.to_vec());
+    }
     if !raster_asset_validation::signature(bytes).is_empty() {
         return Ok(bytes.to_vec());
     }
@@ -4605,6 +4614,41 @@ pub fn render_ascii_with_options(
 mod tests {
     use super::*;
     use std::io::Read;
+
+    #[test]
+    fn acquired_pngs_validate_the_container_before_retention() {
+        use base64::Engine as _;
+        // registry-sweep.py's icon-png witness. Go imageasset.probeRaster
+        // rejects its IDAT checksum before dimensions or pixel decoding.
+        let malformed = base64::engine::general_purpose::STANDARD
+            .decode("iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAKklEQVR4nGNgGAWjYBSMglEwCkbBKBgFo2AUjIJRMApGwSgYBaNgFIyCUQAAuAQAAXhm0nEAAAAASUVORK5CYII=")
+            .unwrap();
+        assert_eq!(
+            prepare_image_asset_bytes("./icon.png", None, &malformed).unwrap_err(),
+            "malformed PNG image: invalid PNG IDAT checksum"
+        );
+        let mut valid = Vec::new();
+        {
+            let mut encoder = png::Encoder::new(&mut valid, 1, 1);
+            encoder.set_color(png::ColorType::Rgba);
+            encoder.set_depth(png::BitDepth::Eight);
+            encoder
+                .write_header()
+                .unwrap()
+                .write_image_data(&[20, 40, 60, 255])
+                .unwrap();
+        }
+        // Go ignores bytes after IEND and retains the original encoding.
+        valid.extend_from_slice(b"trailing data");
+        assert_eq!(
+            prepare_image_asset_bytes("./icon.png", None, &valid).unwrap(),
+            valid
+        );
+        assert_eq!(
+            prepare_image_asset_bytes("./icon.png", None, &valid[..33]).unwrap_err(),
+            "malformed PNG image: truncated PNG chunk"
+        );
+    }
 
     #[test]
     fn svg_import_preflight_matches_shape_emission_and_svg_boundary() {

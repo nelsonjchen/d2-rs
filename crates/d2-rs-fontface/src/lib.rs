@@ -31,6 +31,7 @@ mod shaping;
 mod shaping_tables;
 mod unicode;
 
+pub use bidi::order as bidi_runs;
 pub use bundled_faces::{
     register_bundled_face, register_bundled_face_size, registered_bundled_face,
     registered_bundled_face_backing_digest, registered_bundled_face_digest,

@@ -37,6 +37,16 @@ Current: 944 of 944 (933 SVGs, 11 errors). `--filter` and `--jobs` narrow or
 speed up a run; `--go <oracle>` also scores the Go CLI through the same
 harness, which rules out harness artifacts.
 
+On Linux, `scripts/windows-e2e-scoreboard.py --go <pinned-Windows-Go.exe>`
+compares the complete output file inventory from Windows Go and Rust under
+Wine. Build Rust with `cargo build --locked --profile diagnostic -p d2-rs
+--target x86_64-pc-windows-gnu`; cross-build Go from the manifest's checkout
+with `GOOS=windows GOARCH=amd64` and the manifest's version stamp. The script
+checks the Go commit, toolchain, architecture and version, and reports errors,
+timeouts and missing child outputs as failures. `--wine` selects a Wine loader;
+`WINEPREFIX` selects its configuration. Reports and failing witnesses stay in
+`oracle-cache/reports/`. The Windows comparison normalizes only version stamps.
+
 ### Oracle test tier
 
 ```sh
