@@ -51,10 +51,10 @@ inputs and mutations of them under the same options; all 5,024 original jobs
 match. The only exceptions are 5 mutated inputs that crash the pinned Go
 itself, where d2-rs reports an error instead.
 
-**Known gaps at the extremes:** upstream's tests use small, well-formed
-diagrams and few code languages. Generated sweeps beyond them cover very
-large graphs, extreme sizes and scales, every shape, flag and Chroma lexer,
-and random mutations. They found and fixed many gaps; these are still open
+**Known issues:** upstream's tests use small, well-formed diagrams and few
+code languages, so generated sweeps go beyond them: very large graphs,
+extreme sizes and scales, every shape, flag and Chroma lexer, and random
+mutations. They found and fixed many gaps; these are still open
 ([details](docs/STATUS.md#beyond-the-upstream-corpus)):
 
 - **TALA memory:** with every seed routing at once, as in Go, a 200-node
@@ -65,15 +65,20 @@ and random mutations. They found and fixed many gaps; these are still open
 - **Speed at scale:** TALA with long labels at 100 nodes runs about 1.26× Go
   wall, and compiling an 80,000-edge board before the edge-limit error about
   1.4×.
+- **Binary size:** the native CLI is about 1.2× the size of Go's.
+- **Windows in CI:** CI builds Windows but does not run its tests; they were
+  run natively for this release.
 - **Unreplayed witnesses:** four LaTeX inputs and three fuzz singletons from
   an earlier sweep were not kept; their variants match Go.
 
-## Use
+## Install
+
+The command line, from [crates.io](https://crates.io/crates/d2-rs):
 
 ```sh
-cargo build --release --locked -p d2-rs
-target/release/d2-rs input.d2 output.svg
-target/release/d2-rs --layout=tala input.d2 output.svg
+cargo install d2-rs
+d2-rs input.d2 output.svg
+d2-rs --layout=tala input.d2 output.png
 ```
 
 The CLI follows D2's command line:
@@ -81,14 +86,25 @@ The CLI follows D2's command line:
 - multiboard output;
 - PNG, PDF, PPTX, GIF and ASCII export.
 
-### WebAssembly
+The WebAssembly package, from [npm](https://www.npmjs.com/package/@d2-rs/wasm),
+for Node and browsers. Its `D2` class has the same `compile` / `render` shape
+as D2.js ([usage](crates/d2-rs-wasm/README.md)):
 
 ```sh
-cd crates/d2-rs-wasm && node ./scripts/build-wasm.mjs
+npm install @d2-rs/wasm
 ```
 
-The package in `crates/d2-rs-wasm` has a `D2` class with the same
-`compile` / `render` shape as D2.js. It ships builds for both Node and browsers.
+As a Rust library, depend on [`d2-rs-lib`](https://crates.io/crates/d2-rs-lib)
+and the crates in the [repository map](#repository-map). Releases are listed
+in the [changelog](CHANGELOG.md).
+
+### From source
+
+```sh
+cargo build --release --locked -p d2-rs
+target/release/d2-rs input.d2 output.svg
+cd crates/d2-rs-wasm && pnpm build   # needs wasm-bindgen 0.2.128 and pnpm
+```
 
 ## How it was built
 
@@ -145,8 +161,7 @@ others are still modules inside the crates that needed them, for example
 `d2-rs-core/src/go_float.rs` (`strconv`), `go_sort.rs` (`sort`),
 `d2-rs-export/src/go_png.rs` and `go_zip.rs`, `d2-rs-elk/src/go_math.rs` and
 `go_trig.rs`, and `d2-rs-tala/src/internal/runtime/go_rng.rs`
-(`math/rand`). None of these crates is published, and there are no plans to
-publish them yet.
+(`math/rand`).
 
 ## Repository map
 

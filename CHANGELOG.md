@@ -34,6 +34,16 @@ Matches Go D2 `master` at 6a7b48378, as 0.1.0 does.
   four LaTeX line-break cases and several error messages.
 - Faster PNG export of shadows, double borders, gradients and long Markdown.
 
+### Known issues
+
+- TALA: a 200-node fan-out peaks at about 1.05× Go's memory now that every
+  seed routes at once; long labels at 100 nodes run about 1.26× Go wall; a
+  400-node fan-out takes 0.36 s to reach the same error Go reports in 0.04 s.
+- The native CLI binary is about 1.2× the size of Go's.
+- CI builds Windows but does not run its tests.
+- Four LaTeX inputs and three fuzz singletons from an earlier sweep were not
+  kept and could not be replayed; their variants match Go.
+
 ## [0.1.0] - 2026-11-06
 
 ### Added

@@ -8,9 +8,11 @@ server, filesystem or network access. Its high-level `D2` class has the same
 API shape as D2.js, Go D2's own WASM package (`d2js`), and renders the same
 SVGs.
 
-The package is private and not yet published to npm. Build it from source.
+```sh
+npm install @d2-rs/wasm
+```
 
-## Build
+## Build from source
 
 You need:
 
@@ -35,8 +37,8 @@ copy of the `D2` facade. `pkg/` is not checked in, so rebuild it for every
 distribution. `pnpm test` runs the Node contract tests against the built
 package.
 
-To use the build from another project, depend on this directory, for example
-`pnpm add file:path/to/d2-rs/crates/d2-rs-wasm`.
+To use a local build from another project, depend on this directory, for
+example `pnpm add file:path/to/d2-rs/crates/d2-rs-wasm`.
 
 ## Usage
 
