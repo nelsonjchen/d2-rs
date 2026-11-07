@@ -151,6 +151,7 @@ impl Plan {
             Atom::Sequence(children) => {
                 let stretch = braket::row_dimensions(children, scale, display, prime)?;
                 let mut cursor = x;
+                let mut local_cursor_em = 0.0;
                 let mut width_em = 0.0;
                 let mut previous = None;
                 for (index, child) in children.iter().enumerate() {
@@ -198,6 +199,10 @@ impl Plan {
                     let before = cursor;
                     cursor += boundary_space;
                     let external_space = boundary_space;
+                    let group_start = out.groups.len();
+                    let child_x = cursor;
+                    let local_x = (local_cursor_em + boundary_em / scale) * 1000.0;
+                    out.intrinsic_width_em = None;
                     cursor += if let (
                         Some((height, depth)),
                         Atom::FenceDelimiter { code, class, color },
@@ -218,6 +223,15 @@ impl Plan {
                     } else {
                         self.layout(child, cursor, baseline, scale, out, display, prime)?
                     };
+                    // wrapper.addChildren keeps x in the row's em frame;
+                    // place converts it only after applying the child's RScale.
+                    // Retain that coordinate when the paint plan is later
+                    // divided back out of an inherited script scale.
+                    for group in &mut out.groups[group_start..] {
+                        if group.x == child_x {
+                            group.x_frame = Some((x / scale + local_x, scale));
+                        }
+                    }
                     let content = out
                         .width_em
                         .unwrap_or((cursor - before - external_space) / 1000.0);
@@ -241,9 +255,20 @@ impl Plan {
                             }
                     };
                     width_em += contribution + right_space * scale;
+                    local_cursor_em += if let Atom::DeclaredSize { factor, .. } = child {
+                        let body = &out.groups.last()?.body;
+                        (body.intrinsic_width_em.unwrap_or_else(|| {
+                            body.width_em.unwrap_or(body.width / 1000.0) / scale
+                        }) + size_boundary_em / scale)
+                            * factor
+                    } else {
+                        out.intrinsic_width_em.unwrap_or(content / scale) + boundary_em / scale
+                    };
+                    local_cursor_em += right_space;
                     cursor += right_space * 1000.0 * scale;
                 }
                 out.width_em = Some(width_em);
+                out.intrinsic_width_em = Some(local_cursor_em);
                 Some(cursor - x)
             }
             Atom::DeclaredSize { body, factor } => {
@@ -284,8 +309,10 @@ impl Plan {
                 // BBox.Append applies the wrapper's getScale result to
                 // its intrinsic em advance before converting to SVG units.
                 let wrapper_scale = styles::SCRIPT_MULTIPLIER.powi((*level).min(2) as i32);
-                let width_em =
-                    (local.width_em.unwrap_or(local.width / 1000.) / own_scale) * wrapper_scale;
+                let intrinsic_width_em = local
+                    .intrinsic_width_em
+                    .unwrap_or_else(|| local.width_em.unwrap_or(local.width / 1000.) / own_scale);
+                let width_em = intrinsic_width_em * wrapper_scale;
                 let width = width_em * 1000.;
                 local.width = width;
                 local.width_em = Some(width_em);
@@ -300,6 +327,7 @@ impl Plan {
                 out.ascent = out.ascent.max(baseline + local.ascent);
                 out.depth = out.depth.max(local.depth - baseline);
                 out.groups.push(LayoutGroup {
+                    x_frame: None,
                     data_cramped: None,
                     own_translate: None,
                     accent_offset: None,

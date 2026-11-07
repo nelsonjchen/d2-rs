@@ -1817,7 +1817,7 @@ fn themed_node_style(
     }
     if output.stroke_width.is_none() {
         output.stroke_width = Some(
-            if graph.is_sequence_diagram(node_id) || is_sequence_group_like(graph, node_id) {
+            if is_sequence_panel(graph, node_id) || is_sequence_group_like(graph, node_id) {
                 "0"
             } else {
                 "2"
@@ -3161,7 +3161,7 @@ fn bounds_with_markdown_family_and_legend(
             .and_then(|value| value.parse::<f64>().ok())
             .filter(|width| width.is_finite() && *width >= 0.0)
             .unwrap_or_else(|| {
-                if graph.is_sequence_diagram(*node_id) || is_sequence_group_like(graph, *node_id) {
+                if is_sequence_panel(graph, *node_id) || is_sequence_group_like(graph, *node_id) {
                     0.0
                 } else {
                     2.0
@@ -3587,7 +3587,7 @@ fn bounds_with_markdown_family_and_legend(
     bounds
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "oracle-fixtures"))]
 fn draw_legend(
     svg: &mut String,
     legend: &Legend,
@@ -4237,12 +4237,57 @@ fn is_sequence_group_like(graph: &Graph, id: NodeId) -> bool {
         return false;
     }
     let scope = outer_sequence_scope(graph, id);
+    // LayoutNested extracts special descendants before classifying actors.
+    // Each actor then gets a lifeline, which keeps IsSequenceDiagramGroup
+    // false even after InjectNested restores the inner messages. Lifelines
+    // live outside Graph.edges here, so use that same extracted inventory.
+    let actor_candidate = graph.node(id).is_some_and(|node| node.parent == scope);
+    let live_object = |object| {
+        // Only direct actors acquire a lifeline. Other descendants use the
+        // post-reinjection reference inventory, just like the Go exporter.
+        if !actor_candidate {
+            return true;
+        }
+        let mut parent = graph.node(object).and_then(|node| node.parent);
+        while let Some(ancestor) = parent {
+            if Some(ancestor) == scope {
+                break;
+            }
+            if graph.is_sequence_diagram(ancestor)
+                || graph
+                    .node(ancestor)
+                    .is_some_and(|node| node.grid_rows.is_some() || node.grid_columns.is_some())
+            {
+                return false;
+            }
+            parent = graph.node(ancestor).and_then(|node| node.parent);
+        }
+        true
+    };
     let contains_reference_edge = |container| {
         graph.sequence_group_edges.iter().any(|(owner, edges)| {
-            !edges.is_empty() && is_descendant_or_self(graph, *owner, container)
+            is_descendant_or_self(graph, *owner, container)
+                && edges.iter().any(|edge| {
+                    graph
+                        .edges
+                        .get(edge.0 as usize)
+                        .is_some_and(|edge| live_object(edge.source) && live_object(edge.target))
+                })
         })
     };
-    if !contains_reference_edge(id) && !graph.sequence_contains_object(id) {
+    let contains_object = if graph.sequence_object_scopes.is_empty() {
+        graph
+            .nodes()
+            .any(|(child, node)| node.parent == Some(id) && live_object(child))
+    } else {
+        graph.sequence_object_scopes.iter().any(|(object, scopes)| {
+            live_object(*object)
+                && scopes
+                    .iter()
+                    .any(|scope| is_descendant_or_self(graph, *scope, id))
+        })
+    };
+    if !contains_reference_edge(id) && !contains_object {
         return false;
     }
     // Source checks child.ContainsAnyEdge using reference scopes. Compiled
@@ -4250,7 +4295,7 @@ fn is_sequence_group_like(graph: &Graph, id: NodeId) -> bool {
     // measured graphs need to infer actor aliases from terminal names.
     graph
         .nodes()
-        .filter(|(_, node)| node.parent == Some(id))
+        .filter(|(child, node)| node.parent == Some(id) && live_object(*child))
         .all(|(child, node)| {
             let actor_proxy = !graph.sequence_node_edge_refs.contains_key(&id)
                 && !is_nested_sequence_grid_descendant(graph, id)
@@ -4305,6 +4350,14 @@ fn sequence_reinjected_root(graph: &Graph, id: NodeId) -> bool {
         && graph.node(id).is_some_and(|node| {
             node.grid_rows.is_some() || node.grid_columns.is_some() || graph.is_sequence_diagram(id)
         })
+}
+
+// newSequenceDiagram rewrites empty sequence descendants into pages or
+// spans. Populated diagrams recover their authored shape during reinjection.
+fn is_sequence_panel(graph: &Graph, id: NodeId) -> bool {
+    graph.is_sequence_diagram(id)
+        && !is_sequence_note_like(graph, id)
+        && !is_sequence_span_like(graph, id)
 }
 
 fn target_shape_for_node(graph: &Graph, id: NodeId) -> Option<ShapeKind> {
@@ -11591,7 +11644,7 @@ fn render_svg_with_sketch_inner(
         let arrows = graph.edge_arrows(edge_id);
         let arrowheads = graph.edge_arrowheads(edge_id);
         let edge_stroke_width = stroke_width(edge_style.stroke_width.as_deref());
-        let source_stroke_width = if graph.is_sequence_diagram(edge.source) {
+        let source_stroke_width = if is_sequence_panel(graph, edge.source) {
             0.0
         } else {
             styles
@@ -11599,7 +11652,7 @@ fn render_svg_with_sketch_inner(
                 .and_then(|style| style.stroke_width.as_deref())
                 .map_or(2.0, |value| stroke_width(Some(value)))
         };
-        let target_stroke_width = if graph.is_sequence_diagram(edge.target) {
+        let target_stroke_width = if is_sequence_panel(graph, edge.target) {
             0.0
         } else {
             styles
@@ -13815,7 +13868,9 @@ fn target_hash_shape_for_stage(
             .get(&id)
             .cloned()
             .unwrap_or_default(),
-        shape_type: if graph.is_sequence_diagram(id) {
+        shape_type: if graph.is_sequence_diagram(id)
+            && (stage == TargetShapeStage::Unmeasured || is_sequence_panel(graph, id))
+        {
             "sequence_diagram".to_owned()
         } else {
             let shape = if stage == TargetShapeStage::Unmeasured {
@@ -13835,7 +13890,10 @@ fn target_hash_shape_for_stage(
         stroke_dash: GoFloat(parse_hash_f64(style.stroke_dash.as_deref(), 0.0)),
         stroke_width: parse_hash_f64(
             style.stroke_width.as_deref(),
-            if graph.is_sequence_diagram(id) || sequence_group {
+            if (graph.is_sequence_diagram(id) && stage == TargetShapeStage::Unmeasured)
+                || is_sequence_panel(graph, id)
+                || sequence_group
+            {
                 0.0
             } else {
                 2.0
@@ -18995,6 +19053,56 @@ mod tests {
     }
 
     #[test]
+    fn empty_sequence_descendants_export_their_final_note_or_span_shape() {
+        // newSequenceDiagram rewrites actor descendants before toShape.
+        // Empty nested sequences are not extracted by LayoutNested.
+        for message in [false, true] {
+            let mut graph = Graph {
+                root_sequence_diagram: true,
+                ..Graph::default()
+            };
+            let size = Size {
+                width: 100.0,
+                height: 40.0,
+            };
+            let actor = graph.add_node(Node::new("actor", size));
+            let child = graph.add_node(Node {
+                parent: Some(actor),
+                ..Node::new("actor.child", size)
+            });
+            graph.set_sequence_diagram(child, true);
+            let other = graph.add_node(Node::new("other", size));
+            if message {
+                graph.add_edge(Edge {
+                    source: child,
+                    target: other,
+                });
+            }
+            let result = Engine.layout(&graph, &LayoutOptions::default()).unwrap();
+            let shape = super::target_hash_shape(
+                &graph,
+                &result,
+                &BTreeMap::new(),
+                &BTreeMap::new(),
+                child,
+            )
+            .unwrap();
+            // d2exporter maps shape.SQUARE_TYPE to target "rectangle".
+            assert_eq!(shape.shape_type, if message { "rectangle" } else { "page" });
+            assert_eq!(shape.stroke_width, 2);
+            assert!(!super::is_sequence_panel(&graph, child));
+            let overrides = BTreeMap::new();
+            let palette = super::PaletteView::new(super::active_palette(None), &overrides);
+            assert_eq!(
+                themed_node_style(&graph, child, &SourceNodeStyle::default(), palette)
+                    .stroke_width
+                    .as_deref(),
+                Some("2"),
+            );
+        }
+    }
+
+    #[test]
     fn nested_sequence_grid_cells_follow_sequence_note_shape_rules() {
         let mut graph = Graph {
             root_sequence_diagram: true,
@@ -21629,7 +21737,7 @@ mod circle_arrow_source_contract {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "oracle-fixtures"))]
 mod markdown_flow_source_contract {
     use super::*;
     #[cfg(feature = "oracle-fixtures")]
@@ -22165,7 +22273,7 @@ mod markdown_html_case_source_contract {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "oracle-fixtures"))]
 mod root_canvas_source_contract {
     #[cfg(feature = "oracle-fixtures")]
     use super::*;
@@ -22318,7 +22426,7 @@ mod root_canvas_source_contract {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "oracle-fixtures"))]
 mod markdown_background_source_contract {
     #[cfg(feature = "oracle-fixtures")]
     use super::*;
@@ -22445,6 +22553,67 @@ mod markdown_background_source_contract {
 
 #[cfg(test)]
 mod sequence_group_reference_contract {
+    #[test]
+    fn reinjected_sequence_messages_do_not_turn_outer_actors_into_groups() {
+        use d2_rs_core::ast::Shared;
+        use d2_rs_language::{compiler, parse};
+        // ExtractSubgraph removes a's messages before the outer sequence
+        // classifies g. addLifelineEdges then makes g an endpoint, so the
+        // final d2graph.IsSequenceDiagramGroup predicate still rejects it.
+        for document_root in [false, true] {
+            for scoped_key in [false, true] {
+                let body = if scoped_key {
+                    "g.a: {shape:sequence_diagram; b->c}"
+                } else {
+                    "g: {a: {shape:sequence_diagram; b->c}}"
+                };
+                let source = if document_root {
+                    format!("shape:sequence_diagram; {body}")
+                } else {
+                    format!("s: {{shape:sequence_diagram; {body}}}")
+                };
+                let parsed = parse("", source.as_bytes(), None);
+                assert!(parsed.error.is_none());
+                let (compiler, ir) = compiler::compile_ir(Shared::new(parsed.map)).unwrap();
+                let (graph, _, _) =
+                    compiler::lower_graph_with_measurer_and_labels(&compiler, ir, &|_: &str| {
+                        d2_rs_core::Size {
+                            width: 20.0,
+                            height: 20.0,
+                        }
+                    })
+                    .unwrap();
+                let name = if document_root { "g" } else { "s.g" };
+                let (actor, _) = graph
+                    .nodes()
+                    .find(|(_, node)| node.external_id == name)
+                    .unwrap();
+                assert!(!super::is_sequence_group_like(&graph, actor), "{source}");
+                assert_eq!(super::default_node_fill(&graph, actor), "B5", "{source}");
+                assert_eq!(super::sequence_shape_z_index(&graph, actor), 0, "{source}");
+                let overrides = Default::default();
+                let palette = super::PaletteView::new(super::active_palette(None), &overrides);
+                assert_eq!(
+                    super::themed_node_style(&graph, actor, &Default::default(), palette)
+                        .stroke_width
+                        .as_deref(),
+                    Some("2"),
+                    "{source}",
+                );
+            }
+        }
+        // Messages declared in a retained scope between outer actors still
+        // qualify its parent as a group; scope ownership cannot be erased.
+        let parsed = parse("", b"shape:sequence_diagram; b; c; g.a: {b->c}", None);
+        let (compiler, ir) = compiler::compile_ir(Shared::new(parsed.map)).unwrap();
+        let graph = compiler::lower_graph(&compiler, ir).unwrap();
+        let (group, _) = graph
+            .nodes()
+            .find(|(_, node)| node.external_id == "g")
+            .unwrap();
+        assert!(super::is_sequence_group_like(&graph, group));
+    }
+
     #[cfg(feature = "oracle-fixtures")]
     #[test]
     fn complete_group_inventory_matches_original_go_reference_scope_controls() {
@@ -22500,7 +22669,7 @@ mod sequence_group_reference_contract {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "oracle-fixtures"))]
 mod sequence_group_label_fill_source_contract {
     #[cfg(feature = "oracle-fixtures")]
     use super::*;
@@ -22607,6 +22776,7 @@ mod sequence_group_label_fill_source_contract {
 #[cfg(test)]
 mod sequence_render_roles_source_contract {
     use super::*;
+    #[cfg(feature = "oracle-fixtures")]
     use d2_rs_core::{Edge, LayoutReport, Node, Score};
 
     #[cfg(feature = "oracle-fixtures")]
@@ -22826,7 +22996,7 @@ mod sequence_render_roles_source_contract {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "oracle-fixtures"))]
 mod sequence_note_references_source_contract {
 
     #[cfg(feature = "oracle-fixtures")]
@@ -23054,7 +23224,7 @@ mod lifeline_source_order_fallback_contract {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "oracle-fixtures"))]
 mod extracted_group_label_source_contract {
     #[cfg(feature = "oracle-fixtures")]
     use super::*;
@@ -23174,7 +23344,7 @@ mod extracted_group_label_source_contract {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "oracle-fixtures"))]
 mod connection_label_fill_source_contract {
     #[cfg(feature = "oracle-fixtures")]
     use super::*;
@@ -24205,6 +24375,7 @@ mod scene_label_admission_source_contract {
     use super::*;
     #[cfg(feature = "oracle-fixtures")]
     use d2_rs_core::ast::Shared;
+    #[cfg(feature = "oracle-fixtures")]
     use d2_rs_language::{compiler, parse};
     #[cfg(feature = "oracle-fixtures")]
     #[test]
@@ -24245,7 +24416,9 @@ mod scene_label_admission_source_contract {
             }
         }
     }
+    #[cfg(feature = "oracle-fixtures")]
     struct AdmissionMeasurer;
+    #[cfg(feature = "oracle-fixtures")]
     impl compiler::GraphMeasurer for AdmissionMeasurer {
         fn measure(&self, _: &str) -> Size {
             Size {
@@ -24863,7 +25036,7 @@ mod empty_config_target_bytes_source_contract {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "oracle-fixtures"))]
 mod edge_icon_position_source_contract {
     #[cfg(feature = "oracle-fixtures")]
     use super::*;
@@ -24959,7 +25132,7 @@ mod edge_icon_position_source_contract {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "oracle-fixtures"))]
 mod legend_target_source_contract {
     #[cfg(feature = "oracle-fixtures")]
     use super::*;
@@ -25150,7 +25323,7 @@ mod scene_route_tangent_contract {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "oracle-fixtures"))]
 mod sequence_lifeline_export_contract {
     #[cfg(feature = "oracle-fixtures")]
     use super::*;

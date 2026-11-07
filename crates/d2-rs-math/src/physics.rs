@@ -921,6 +921,7 @@ pub(super) fn layout_inferred(
     )?;
     if x != 0.0 || baseline != 0.0 {
         out.groups.push(LayoutGroup {
+            x_frame: None,
             data_cramped: None,
             own_translate: None,
             accent_offset: None,

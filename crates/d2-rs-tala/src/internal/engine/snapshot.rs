@@ -21,86 +21,12 @@ use std::time::Duration;
 #[cfg(not(target_arch = "wasm32"))]
 const CANCELLATION_POLL_INTERVAL: Duration = Duration::from_millis(10);
 
-/// How many seeds of one race may run an EdgeRouting pass at once. Routing
-/// is each seed's memory peak and concurrent seeds reach it together; a
-/// seed's routes depend only on its own pipeline, so bounding the overlap
-/// changes when a pass starts, never what it produces. On tpmjs, 2 cuts peak
-/// RSS 186 -> 148 MB for +12% wall (still 0.91x Go); 1 reaches 122 MB but
-/// costs +24%.
-const CONCURRENT_ROUTING_SEEDS: usize = 2;
-
-/// Inputs with at most this many nodes and edges route every seed at once:
-/// their routing peak is small, so serializing a seed only lengthens the
-/// race's critical path (queue_workers: about 8% of wall). Larger inputs
-/// (tpmjs: 188 nodes) keep the gate, which bounds their peak RSS.
-const UNGATED_ROUTING_MAX_NODES: usize = 64;
-const UNGATED_ROUTING_MAX_EDGES: usize = 64;
-
-/// The routing slots a race over `input` grants its seeds.
-#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
-fn routing_slots_for(input: &Graph, seeds: usize) -> usize {
-    if input.nodes().count() <= UNGATED_ROUTING_MAX_NODES
-        && input.edges().len() <= UNGATED_ROUTING_MAX_EDGES
-    {
-        seeds.max(1)
-    } else {
-        CONCURRENT_ROUTING_SEEDS
-    }
-}
-
-// Browser builds run seeds in order and never install a gate.
-#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
-struct RouteStageGate {
-    busy: std::sync::Mutex<usize>,
-    released: std::sync::Condvar,
-    slots: usize,
-}
-
-thread_local! {
-    /// Installed only on a native race's seed worker threads.
-    static ROUTE_STAGE_GATE: std::cell::RefCell<Option<std::sync::Arc<RouteStageGate>>> =
-        const { std::cell::RefCell::new(None) };
-}
-
-/// Held for the duration of one EdgeRouting pass on a race seed thread.
-pub(super) struct RouteStagePermit(std::sync::Arc<RouteStageGate>);
-
-/// Wait for this race's routing slot, or None outside a seed race.
-pub(super) fn route_stage_permit() -> Option<RouteStagePermit> {
-    let gate = ROUTE_STAGE_GATE.with(|gate| gate.borrow().clone())?;
-    let mut busy = gate
-        .busy
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    while *busy >= gate.slots {
-        busy = gate
-            .released
-            .wait(busy)
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-    }
-    *busy += 1;
-    drop(busy);
-    Some(RouteStagePermit(gate))
-}
-
-impl Drop for RouteStagePermit {
-    fn drop(&mut self) {
-        let mut busy = self
-            .0
-            .busy
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        *busy -= 1;
-        drop(busy);
-        self.0.released.notify_one();
-    }
-}
-
 /// Runs one seeded candidate through a requested diagnostic boundary.
 ///
 /// This compatibility entry point is not a stable application API. Use
 /// [`crate::Engine::layout`] for production layout.
 pub fn layout_snapshot(input: &Graph, seed: i64, stage: LayoutStage) -> LayoutSnapshot {
+    let _transactions = limits::AutolayoutTransactionScope::enter();
     #[cfg(feature = "diagnostic-traces")]
     crate::internal::call_counts::count!(Layout);
     let requested_stage = stage;
@@ -1323,6 +1249,24 @@ fn run_compound_label_stage(
     with_cancellation(cancellation, || pipeline.run_place_labels())
 }
 
+/// `evaluateSeedResult` checks authored label/icon positions after each
+/// optional refinement. Clone clears the private fixed-position flags, so
+/// rerouting can move a label even when the ordinary seed preserved it.
+fn refinement_preserves_authored_positions(input: &Graph, graph: &ArenaGraph) -> bool {
+    input.nodes().all(|(id, node)| {
+        let actual = &graph.nodes[id.0 as usize];
+        let fixed_label = actual.label_text_present
+            && node.label_position != LabelPosition::Unset
+            && !node.external_label.is_some_and(|label| label.automatic);
+        let fixed_icon = node.has_icon
+            && node
+                .icon_position
+                .is_some_and(|position| position != LabelPosition::Unset);
+        (!fixed_label || actual.label_position == node.label_position)
+            && (!fixed_icon || actual.icon_position == node.icon_position)
+    })
+}
+
 /// Apply D2 v0.9.0's one post-selection rigid-container proposal. The
 /// proposal is fully isolated, rerouted, and scored before it can replace the
 /// ordinary winning seed. Every `Compound/...` event is diagnostic-only.
@@ -1424,6 +1368,12 @@ fn build_compound_candidate(
         return Ok(None);
     }
 
+    // result_validate.go rejects a proposal that changes an authored label
+    // or icon position, even when its completed geometry scores better.
+    if !refinement_preserves_authored_positions(input, &candidate.graph) {
+        return Ok(None);
+    }
+
     let candidate_score = graph_race_selection_score(&candidate.graph)?;
     let incumbent_score = winner.score;
     if candidate_score.compare(incumbent_score) != CandidateOrdering::Less {
@@ -1457,6 +1407,9 @@ fn build_preserved_compound_routes(
         &selected.value.graph,
         cancellation,
     )?;
+    if !refinement_preserves_authored_positions(input, &graph) {
+        return Ok(None);
+    }
     let mut result = selected.value.result.clone();
     let score = refresh_seed_layout_result(input, selected.seed, &graph, &mut result)?;
     // evaluateSeedResult rejects a non-finite score.
@@ -1708,7 +1661,6 @@ fn race_seed_layouts(
     let race = race_seed_candidates_with_cancellation(
         seeds,
         max_concurrency,
-        routing_slots_for(&input, seeds.len()),
         cancellation.clone(),
         move |index, seed| {
             let input = std::sync::Arc::clone(&worker_input);
@@ -1789,7 +1741,6 @@ fn race_seed_layouts(
 fn race_seed_candidates_with_cancellation<T, F>(
     seeds: &[i64],
     max_concurrency: usize,
-    routing_slots: usize,
     cancellation: Option<CancellationToken>,
     run_candidate: F,
 ) -> Result<SeedRace<T>, LayoutError>
@@ -1803,11 +1754,6 @@ where
 
     let (sender, receiver) = mpsc::sync_channel(seeds.len());
     let run_candidate = std::sync::Arc::new(run_candidate);
-    let route_gate = std::sync::Arc::new(RouteStageGate {
-        busy: std::sync::Mutex::new(0),
-        released: std::sync::Condvar::new(),
-        slots: routing_slots,
-    });
 
     // D2 bounds simultaneous local seed attempts. Keep the input order in a
     // shared FIFO while allowing each worker to finish independently; the
@@ -1820,9 +1766,7 @@ where
         let sender = sender.clone();
         let run_candidate = std::sync::Arc::clone(&run_candidate);
         let jobs = std::sync::Arc::clone(&jobs);
-        let route_gate = std::sync::Arc::clone(&route_gate);
         thread::spawn(move || {
-            ROUTE_STAGE_GATE.with(|gate| *gate.borrow_mut() = Some(route_gate));
             loop {
                 let job = jobs.lock().ok().and_then(|mut jobs| jobs.pop_front());
                 let Some((index, seed)) = job else {
@@ -1920,13 +1864,7 @@ where
     T: Send + 'static,
     F: Fn(usize, i64) -> Result<SeedCandidate<T>, LayoutError> + Send + Sync + 'static,
 {
-    race_seed_candidates_with_cancellation(
-        seeds,
-        max_concurrency,
-        CONCURRENT_ROUTING_SEEDS,
-        None,
-        run_candidate,
-    )
+    race_seed_candidates_with_cancellation(seeds, max_concurrency, None, run_candidate)
 }
 
 /// Browsers do not provide the blocking threads used by the native seed
@@ -1937,7 +1875,6 @@ where
 fn race_seed_candidates_with_cancellation<T, F>(
     seeds: &[i64],
     max_concurrency: usize,
-    _routing_slots: usize,
     cancellation: Option<CancellationToken>,
     run_candidate: F,
 ) -> Result<SeedRace<T>, LayoutError>
@@ -2002,13 +1939,7 @@ fn race_seed_candidates<T, F>(
 where
     F: Fn(usize, i64) -> Result<SeedCandidate<T>, LayoutError>,
 {
-    race_seed_candidates_with_cancellation(
-        seeds,
-        max_concurrency,
-        CONCURRENT_ROUTING_SEEDS,
-        None,
-        run_candidate,
-    )
+    race_seed_candidates_with_cancellation(seeds, max_concurrency, None, run_candidate)
 }
 
 pub(crate) fn route_existing(
@@ -3751,40 +3682,6 @@ mod race_seed_tests {
     }
 
     #[test]
-    fn routing_gate_opens_only_for_small_inputs() {
-        let graph_with = |nodes: usize, edges: usize| {
-            let mut graph = crate::Graph::default();
-            let ids = (0..nodes)
-                .map(|index| {
-                    graph.add_node(crate::Node::new(
-                        format!("n{index}"),
-                        crate::Size {
-                            width: 10.0,
-                            height: 10.0,
-                        },
-                    ))
-                })
-                .collect::<Vec<_>>();
-            for index in 0..edges {
-                graph.add_edge(crate::Edge {
-                    source: ids[index % nodes],
-                    target: ids[(index + 1) % nodes],
-                });
-            }
-            graph
-        };
-        assert_eq!(routing_slots_for(&graph_with(64, 64), 3), 3);
-        assert_eq!(
-            routing_slots_for(&graph_with(65, 10), 3),
-            CONCURRENT_ROUTING_SEEDS
-        );
-        assert_eq!(
-            routing_slots_for(&graph_with(10, 65), 3),
-            CONCURRENT_ROUTING_SEEDS
-        );
-    }
-
-    #[test]
     #[cfg(not(target_arch = "wasm32"))]
     fn stage_dimensions_failed_race_cancellation_wins() {
         let token = CancellationToken::new();
@@ -3792,7 +3689,6 @@ mod race_seed_tests {
         let result = race_seed_candidates_with_cancellation::<(), _>(
             &[1, 17],
             2,
-            CONCURRENT_ROUTING_SEEDS,
             Some(token),
             move |_, _| {
                 worker_token.cancel();
@@ -3830,7 +3726,6 @@ mod race_seed_tests {
             let result = race_seed_candidates_with_cancellation::<(), _>(
                 &[7, -7, 0, 42],
                 2,
-                CONCURRENT_ROUTING_SEEDS,
                 Some(token),
                 move |index, seed| {
                     observed.lock().unwrap().push((index, seed));
@@ -3936,6 +3831,146 @@ mod race_seed_tests {
             label.percentage = 1.0 - label.percentage;
             assert_eq!(actual.edge_labels[&id], label);
         }
+    }
+
+    #[test]
+    fn compound_flow_keeps_the_ordinary_layout_when_rerouting_moves_an_authored_label() {
+        // X16 job 687: Check PIN's local direction and a small, explicitly
+        // centered start circle admit an outer-flow proposal whose relabeling
+        // violates result_validate.go's fixed-label position contract.
+        let mut input = Graph::default();
+        for (index, (name, width, height, label, label_width, label_height)) in [
+            ("Check PIN", 161.0, 81.0, "Check PIN", 116.0, 36.0),
+            ("Check PIN.start", 10.0, 10.0, "⬤", 9.0, 21.0),
+            ("Check PIN.Enter PIN", 111.0, 66.0, "Enter PIN", 66.0, 21.0),
+            ("Check PIN.choice", 20.0, 20.0, "choice", 46.0, 21.0),
+            ("Check PIN.end", 10.0, 10.0, "⬤", 9.0, 21.0),
+            ("Search Network", 159.0, 66.0, "Search Network", 114.0, 21.0),
+            ("Ready", 89.0, 66.0, "Ready", 44.0, 21.0),
+            ("Off", 68.0, 66.0, "Off", 23.0, 21.0),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let mut node = crate::Node::new(name, Size { width, height });
+            node.label_size = Some(Size {
+                width: label_width,
+                height: label_height,
+            });
+            node.font_size = Some(if index == 0 { 28 } else { 16 });
+            if (1..=4).contains(&index) {
+                node.parent = Some(NodeId(0));
+            }
+            if [1, 3, 4].contains(&index) {
+                node.fixed_width = true;
+                node.fixed_height = true;
+                node.shape = if index == 3 {
+                    crate::ShapeKind::Diamond
+                } else {
+                    crate::ShapeKind::Circle
+                };
+            }
+            if index == 0 {
+                node.direction = Some(crate::Direction::Right);
+            }
+            if index == 1 {
+                node.label_position = LabelPosition::InsideMiddleCenter;
+            }
+            let id = input.add_node(node);
+            input.set_node_label(id, label);
+            input.tala_id_overrides[index] = Some(i64::from(
+                name.bytes().fold(2_166_136_261_u32, |hash, byte| {
+                    (hash ^ u32::from(byte)).wrapping_mul(16_777_619)
+                }),
+            ));
+        }
+        input.container_flags[0] = true;
+        for (from, to, tala_id, text, width) in [
+            (1, 2, 676415191, "", 0.0),
+            (2, 3, 1833161418, "/check PIN", 72.0),
+            (3, 2, 1172586854, "[pin invalid]", 78.0),
+            (3, 4, 359648842, "[pin OK]", 53.0),
+            (0, 5, 2848456926, "[pin OK]", 53.0),
+            (5, 6, 947159636, "network found", 96.0),
+            (0, 7, 886741779, "power off", 66.0),
+            (5, 7, 605853718, "power off", 66.0),
+        ] {
+            let id = input.add_edge(crate::Edge {
+                source: NodeId(from),
+                target: NodeId(to),
+            });
+            input.tala_edge_ids[id.0 as usize] = Some(tala_id);
+            input.set_edge_arrows(
+                id,
+                crate::EdgeArrows {
+                    source: false,
+                    target: true,
+                },
+            );
+            if !text.is_empty() {
+                input.set_edge_label(
+                    id,
+                    Some(EdgeLabel {
+                        text: text.into(),
+                        size: Size {
+                            width,
+                            height: 21.0,
+                        },
+                        position: LabelPosition::Unset,
+                        percentage: 0.0,
+                    }),
+                );
+            }
+        }
+        let result = layout_result(
+            &input,
+            &LayoutOptions {
+                seeds: vec![1],
+                max_concurrency: 1,
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            result.node_labels[&NodeId(1)].position,
+            LabelPosition::InsideMiddleCenter
+        );
+        // Pinned Go keeps the ordinary seed: its outer Ready block is to the
+        // right of Search Network, rather than below it in the rejected plan.
+        assert_eq!(
+            result.boxes[&NodeId(6)].origin,
+            Point { x: 654.0, y: 396.0 }
+        );
+    }
+
+    #[test]
+    fn refinement_checks_authored_label_and_icon_positions_after_cloning() {
+        let mut input = Graph::default();
+        let mut node = crate::Node::new(
+            "fixed",
+            Size {
+                width: 10.0,
+                height: 10.0,
+            },
+        );
+        node.label_size = Some(Size {
+            width: 9.0,
+            height: 21.0,
+        });
+        node.label_position = LabelPosition::InsideMiddleCenter;
+        node.has_icon = true;
+        node.icon_position = Some(LabelPosition::InsideTopLeft);
+        input.add_node(node);
+        let mut candidate = ArenaGraph::from_input(&input);
+        prepare_compound_candidate_state(&mut candidate);
+        assert!(refinement_preserves_authored_positions(&input, &candidate));
+        candidate.nodes[0].label_position = LabelPosition::OutsideTopCenter;
+        assert!(!refinement_preserves_authored_positions(&input, &candidate));
+        candidate.nodes[0].label_position = LabelPosition::InsideMiddleCenter;
+        candidate.nodes[0].icon_position = Some(LabelPosition::OutsideLeftTop);
+        assert!(!refinement_preserves_authored_positions(&input, &candidate));
+        input.nodes[0].label_position = LabelPosition::Unset;
+        input.nodes[0].icon_position = Some(LabelPosition::Unset);
+        assert!(refinement_preserves_authored_positions(&input, &candidate));
     }
 
     #[test]

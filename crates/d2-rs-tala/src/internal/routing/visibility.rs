@@ -2873,14 +2873,13 @@ impl VisibilityGraph {
         // Search storage retains neighbors independently of the source Nodes slice.
         intersections.retain_incident_objects();
         let mut objects = intersections.members.clone();
-        let mut member_indices = objects
-            .iter()
-            .enumerate()
-            .map(|(index, &node)| (node, index))
-            .collect::<BTreeMap<_, _>>();
+        let mut member_indices = SlotIndices::default();
+        for (index, &node) in objects.iter().enumerate() {
+            member_indices.insert(node, index);
+        }
         for node in 0..intersections.nodes.len() {
-            if let std::collections::btree_map::Entry::Vacant(entry) = member_indices.entry(node) {
-                entry.insert(objects.len());
+            if !member_indices.contains(node) {
+                member_indices.insert(node, objects.len());
                 objects.push(node);
             }
         }
@@ -2926,6 +2925,11 @@ impl VisibilityGraph {
             .filter(|node| node.is_tunnel())
             .map(|node| point_key(node.point()))
             .collect::<BTreeSet<_>>();
+        // These inventories only construct the numerical preview above.
+        // refresh_canonical publishes its own dense slot table; retaining the
+        // preview while that table is built stacks both allocations at peak.
+        drop(member_indices);
+        drop(objects);
         if let Some(budget) = budget
             && intersections.unreserved_member_count() != 0
         {
@@ -4851,7 +4855,7 @@ mod tests {
         let nodes = route
             .node_ids
             .iter()
-            .map(|&i| visibility.points[i])
+            .map(|&i| visibility.point(i))
             .collect::<Vec<_>>();
         assert_eq!(
             super::super::route_geometry::segment_endpoints_from_ovg_nodes(&nodes),
@@ -4888,8 +4892,8 @@ mod tests {
         );
         let center = visibility.centers[&invisible];
 
-        assert_eq!(visibility.points[center], Point { x: 30.0, y: 40.0 });
-        assert_eq!(visibility.center_owners[center], None);
+        assert_eq!(visibility.point(center), Point { x: 30.0, y: 40.0 });
+        assert!(!visibility.is_node_center(center));
         assert!(!visibility.edges[center].is_empty());
         let array_units = visibility.member_count() as u64 * 3;
         let limited = LocalRouteSearchWork::new(array_units - 1);
@@ -5768,7 +5772,7 @@ mod tests {
                 .iter()
                 .skip(1)
                 .take(route.points.len())
-                .map(|index| visibility.points[*index])
+                .map(|index| visibility.point(*index))
                 .collect::<Vec<_>>(),
             route.points
         );
@@ -6113,7 +6117,7 @@ mod tests {
         );
         let adjacent = ovg.edges[ovg.centers[&middle]]
             .iter()
-            .map(|slot| ovg.points[slot.neighbor()])
+            .map(|slot| ovg.point(slot.neighbor()))
             .collect::<Vec<_>>();
         assert_eq!(
             adjacent,
@@ -6208,7 +6212,10 @@ mod tests {
             all_ports.into_iter(),
         );
 
-        assert_eq!(ovg.point_containers[ovg.centers[&nested]], Some(container));
+        assert_eq!(
+            ovg.search_nodes()[ovg.centers[&nested]].container,
+            Some(container)
+        );
     }
 
     #[test]
@@ -6361,12 +6368,8 @@ mod tests {
             [(first, first_port), (second, second_port)].into_iter(),
         );
 
-        let shared_nodes = ovg
-            .points
-            .iter()
-            .enumerate()
-            .filter(|(_, point)| **point == shared_point)
-            .map(|(index, _)| index)
+        let shared_nodes = (0..ovg.edges.len())
+            .filter(|&index| ovg.point(index) == shared_point)
             .collect::<Vec<_>>();
         assert_eq!(shared_nodes.len(), 1);
         for owner in [first, second] {
@@ -6419,16 +6422,13 @@ mod tests {
             [(first, first_port), (second, second_port)].into_iter(),
         );
         assert_eq!(
-            ovg.points
-                .iter()
-                .filter(|point| **point == shared_point)
+            (0..ovg.edges.len())
+                .filter(|&index| ovg.point(index) == shared_point)
                 .count(),
             1
         );
-        let index = ovg
-            .points
-            .iter()
-            .position(|point| *point == shared_point)
+        let index = (0..ovg.edges.len())
+            .find(|&index| ovg.point(index) == shared_point)
             .unwrap();
         assert_eq!(
             ovg.port_owners[index]

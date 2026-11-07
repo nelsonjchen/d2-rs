@@ -244,17 +244,22 @@ impl RoutePoints {
         self.0.0.read().expect("Edge.Points field").capacity()
     }
     pub(super) fn point(&self, index: usize) -> Point {
-        self.0
-            .0
-            .read()
-            .expect("Edge.Points field")
-            .coordinate_slot(index)
+        self.coordinate_slot(index)
             .expect("route index")
             .unwrap_or_else(|| {
                 std::panic::panic_any(
                     "runtime error: invalid memory address or nil pointer dereference",
                 )
             })
+    }
+    /// Read a nullable point without retaining its slice backing or point
+    /// allocation. No callback can replace the header or slot during this read.
+    pub(super) fn coordinate_slot(&self, index: usize) -> Option<Option<Point>> {
+        self.0
+            .0
+            .read()
+            .expect("Edge.Points field")
+            .coordinate_slot(index)
     }
     pub(super) fn slot(&self, index: usize) -> Option<SharedOwnerPoint> {
         self.header().get(index).expect("route index")

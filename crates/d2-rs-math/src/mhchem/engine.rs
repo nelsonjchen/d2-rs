@@ -161,7 +161,7 @@ pub(super) fn to_tex(input: &str, mode: &str) -> Result<String, Error> {
     }
     texify(&run(input, mode)?, mode != "tex")
 }
-#[cfg(test)]
+#[cfg(all(test, feature = "oracle-fixtures"))]
 mod tests {
     use super::*;
     #[cfg(feature = "oracle-fixtures")]

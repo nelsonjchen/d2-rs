@@ -19,6 +19,7 @@ pub(super) fn blank() -> Layout {
 }
 pub(super) fn group(body: Layout, x: f64, y: f64, scale: f64, kind: &'static str) -> LayoutGroup {
     LayoutGroup {
+        x_frame: None,
         data_cramped: None,
         own_translate: None,
         accent_offset: None,
@@ -607,6 +608,7 @@ pub(super) fn layout(
         if close != 0 {
             let (w, fh, fd, mut g) = fence(close, h_em, d_em, scale)?;
             g.x = cursor;
+            g.x_frame = None;
             outer.groups.push(g);
             total += w;
             ascent = ascent.max(fh);
@@ -1009,6 +1011,7 @@ pub(super) fn resolve(layout: &mut Layout) {
                                 _ => 0.0,
                             };
                             cell.x += (cursor - old_cursor + shift) * state.scale * 1000.0;
+                            cell.x_frame = None;
                             ams::set_wrap_width(&mut cell.body, width * state.scale * 1000.0);
 
                             ams::set_percentage_wrap(
@@ -1022,6 +1025,7 @@ pub(super) fn resolve(layout: &mut Layout) {
                     }
                     if !state.top {
                         let shift = (target - natural) * state.scale * 1000.0;
+                        g.x_frame = None;
                         g.x -= match state.container_align {
                             "center" => shift / 2.0,
                             "right" => shift,
@@ -1059,6 +1063,7 @@ pub(super) fn resolve(layout: &mut Layout) {
             layout.width_em = layout.width_em.map(|w| w + delta / 1000.0);
             for g in &mut layout.groups[i + 1..] {
                 g.x += delta;
+                g.x_frame = None;
             }
             for glyph in &mut layout.glyphs[before..] {
                 glyph.x += delta;

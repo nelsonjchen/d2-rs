@@ -797,7 +797,7 @@ impl Pipeline {
     ) {
         // Only the scope's child order is read here; skip the owner-source
         // graph snapshot that placement_scope_graph attaches for placement.
-        let Some(placement) = self.build_placement_scope_graph_after(scope, &BTreeSet::new())
+        let Some(mut placement) = self.build_placement_scope_graph_after(scope, &BTreeSet::new())
         else {
             return;
         };
@@ -813,7 +813,14 @@ impl Pipeline {
             &placement.trace_owner_graph,
             &placement.trace_children_graph_node_order,
         );
-        for child in placement.child_order {
+        let child_order = std::mem::take(&mut placement.child_order);
+        // Go's recursive child graphs share their entity maps. This preview
+        // only supplies ordering; retaining its copied projection at every
+        // ancestor keeps quadratic snapshot storage live during this walk.
+        // Diagnostic callbacks below still observe the preview's owner view.
+        #[cfg(not(feature = "diagnostic-traces"))]
+        drop(placement);
+        for child in child_order {
             if self.graph.nodes[child.0 as usize].hierarchy.is_some() {
                 if self.graph.nodes[child.0 as usize].is_container {
                     self.mark_hierarchy_containers(child, seen);
@@ -862,12 +869,9 @@ impl Pipeline {
     /// keeps memoized costs; a failed enclosing stage restores its entry state.
     pub(super) fn gap_normalization_stage(&mut self) -> Result<bool, LayoutError> {
         let context = gap_guard::ActiveContext::new();
-        let mut guard = limits::WorkGuard::new(
-            Some(&context),
-            "GapNormalizationTransactions",
-            gap_guard::MAX_TRANSACTION_WORK_UNITS,
-        )
-        .map_err(|error| LayoutError::PlacementTransaction(error.to_string()))?;
+        let mut guard =
+            limits::WorkGuard::transaction(Some(&context), "GapNormalizationTransactions")
+                .map_err(|error| LayoutError::PlacementTransaction(error.to_string()))?;
         self.gap_normalization_stage_with_guard(&mut guard)
             .map_err(|error| LayoutError::PlacementTransaction(error.to_string()))
     }
@@ -2200,33 +2204,20 @@ impl Pipeline {
                         .map(|child| child.tala_id),
                 )
                 .collect::<BTreeSet<_>>();
-            for child in fit_nodes.iter().filter(|child| {
-                direct_child_tala_ids.contains(&child.tala_id)
-                    && child.position.is_some()
-                    && child
-                        .label_size
-                        .is_some_and(|label| label.width > child.rect.size.width)
-            }) {
-                let Some(position) = child.position else {
-                    continue;
-                };
-                let Some(label) = child.label_size else {
-                    continue;
-                };
-                let right = position.x + child.rect.size.width;
-                let on_left_boundary = position.x == top_left.x;
-                let on_right_boundary = right == bottom_right.x;
-                if !on_left_boundary && !on_right_boundary {
-                    continue;
-                }
-                let overhang = child.rect.size.width / 2.0 - label.width / 2.0;
-                if on_left_boundary {
-                    top_left.x = top_left.x.min((position.x + overhang).floor());
-                }
-                if on_right_boundary {
-                    bottom_right.x = bottom_right.x.max((right - overhang).ceil());
-                }
-            }
+            // A scope without external projections took its bounds directly
+            // from local_children above. Those same child pointers still
+            // participate in expandForLabels.
+            let fit_children = fit_nodes.iter().chain(
+                local_children
+                    .iter()
+                    .filter(|_| fit_nodes.is_empty())
+                    .map(|child| &scope.nodes[child.0 as usize]),
+            );
+            ArenaGraph::expand_for_child_labels(
+                &mut top_left,
+                &mut bottom_right,
+                fit_children.filter(|child| direct_child_tala_ids.contains(&child.tala_id)),
+            );
             if crate::internal::trace_env_value("TALA_TRACE_FIT_CANDIDATES").is_some_and(|target| {
                 target == "all"
                     || target

@@ -58,6 +58,7 @@ pub(super) fn layout(
     local.ascent = ascent * unit;
     local.depth = depth * unit;
     out.groups.push(LayoutGroup {
+        x_frame: None,
         data_cramped: None,
         own_translate: None,
         accent_offset: None,

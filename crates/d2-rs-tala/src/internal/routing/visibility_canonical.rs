@@ -42,9 +42,6 @@ struct CanonicalView {
     /// replaced by build mutations, and every one is followed by a refresh.
     /// Shared with each flavor's route index as its retained-point table.
     point_refs: std::sync::Arc<[Option<crate::internal::owner_points::SharedOwnerPoint>]>,
-    /// Per canonical index, PortNode::is_node_center. The flag is written only
-    /// when a center is allocated during a build, before that build's refresh.
-    node_centers: Vec<bool>,
     /// The per-hop search record of each canonical index. Its inputs are
     /// published only by refresh while this view exists, so it is rebuilt
     /// there instead of once per search.
@@ -70,7 +67,6 @@ impl VisibilityGraph {
             indices,
             edge_indices: Default::default(),
             point_refs: Vec::new().into(),
-            node_centers: Vec::new(),
             search_nodes: Vec::new(),
             static_edges: std::sync::OnceLock::new(),
             route_identities: std::sync::OnceLock::new(),
@@ -97,8 +93,12 @@ impl VisibilityGraph {
                 })
             });
             if view.static_edges.get().is_none() && endpoints_bound {
-                let edges =
-                    super::static_edge_index::StaticEdges::from_build_taking_axes(&mut view.build);
+                let edges = super::static_edge_index::StaticEdges::take_shared_points(
+                    &mut view.build,
+                    view.point_refs.clone(),
+                    &view.indices.0,
+                    &view.objects,
+                );
                 let _ = view.static_edges.set(std::sync::Arc::new(edges));
             }
             if view.static_edges.get().is_some() {
@@ -107,10 +107,6 @@ impl VisibilityGraph {
                 // and the static edges retain the same live Point allocations.
                 view.frozen = true;
                 view.build.release_objects();
-                self.points = Vec::new();
-                self.search_indices = Vec::new();
-                self.center_owners = Vec::new();
-                self.point_containers = Vec::new();
             }
         }
         std::sync::Arc::new(self)
@@ -128,6 +124,13 @@ impl VisibilityGraph {
         // Every build mutation is followed by this refresh.
         view.static_edges = std::sync::OnceLock::new();
         view.route_identities = std::sync::OnceLock::new();
+        // Canonical reads use the live point references and packed search
+        // records below. These arrays belong only to numerical-only graphs;
+        // discard a constructor's preview before publishing the shared view.
+        self.points = Vec::new();
+        self.search_indices = Vec::new();
+        self.center_owners = Vec::new();
+        self.point_containers = Vec::new();
         view.build.retain_incident_objects();
         // Size the lookup-only identity map for the build's edges at once
         // instead of through repeated doubling; later refreshes add only
@@ -165,9 +168,9 @@ impl VisibilityGraph {
         // and polls nothing, so the per-node read order is unobservable.
         let count = view.objects.len();
         let mut point_refs = Vec::with_capacity(count);
-        let mut node_centers = std::mem::take(&mut view.node_centers);
-        node_centers.clear();
-        node_centers.reserve(count);
+        let mut search_nodes = std::mem::take(&mut view.search_nodes);
+        search_nodes.clear();
+        search_nodes.reserve(count);
         // One flat table holds each slot's neighbor, distance, axis and
         // canonical edge identity (None for a nil slot, captured with the
         // same lookups canonical_slot_edge reads back). Size it exactly up
@@ -191,15 +194,6 @@ impl VisibilityGraph {
                 })
                 .sum(),
         );
-        let mut points = std::mem::take(&mut self.points);
-        points.clear();
-        points.reserve(count);
-        let mut search_indices = std::mem::take(&mut self.search_indices);
-        search_indices.clear();
-        search_indices.reserve(count);
-        let mut point_containers = std::mem::take(&mut self.point_containers);
-        point_containers.clear();
-        point_containers.reserve(count);
         let mut port_owners = std::mem::take(&mut self.port_owners);
         port_owners.clear();
         port_owners.offsets.reserve(count);
@@ -210,10 +204,7 @@ impl VisibilityGraph {
             let shared = &view.build.nodes[node];
             let record = shared.read();
             point_refs.push(record.point_ref.clone());
-            node_centers.push(record.is_node_center);
             let a = record.point();
-            points.push(a);
-            search_indices.push(record.index);
             record.edges.with_slots(|slots| {
                 for edge in slots.iter() {
                     let identity = edge
@@ -245,15 +236,33 @@ impl VisibilityGraph {
                 }
             });
             edges.finish_node();
-            point_containers.push(record.container);
             // owner_directions yields every owner key in map order.
             port_owners.push(record.owners.keys().copied());
             near_port_owners.push(record.near_ports.as_deref().into_iter().flatten().copied());
+            search_nodes.push(SearchNode {
+                search_index: compact_search_index(record.index),
+                container: record.container,
+                flags: if record.owners.is_empty() {
+                    0
+                } else {
+                    SEARCH_NODE_PORT_OWNED
+                } | if record
+                    .near_ports
+                    .as_ref()
+                    .is_some_and(|owners| !owners.is_empty())
+                {
+                    SEARCH_NODE_NEAR_PORT
+                } else {
+                    0
+                } | if record.is_node_center {
+                    SEARCH_NODE_CENTER
+                } else {
+                    0
+                },
+            });
         }
         view.point_refs = point_refs.into();
-        view.node_centers = node_centers;
-        self.points = points;
-        self.search_indices = search_indices;
+        view.search_nodes = search_nodes;
         self.edges = edges;
         self.centers = view
             .build
@@ -261,19 +270,8 @@ impl VisibilityGraph {
             .iter()
             .map(|(&owner, node)| (owner, view.indices[node]))
             .collect();
-        self.center_owners = vec![None; view.objects.len()];
-        for (&owner, &node) in &view.build.centers {
-            if view.build.nodes[node].read().is_node_center {
-                self.center_owners[view.indices[&node]] = Some(owner);
-            }
-        }
-        self.point_containers = point_containers;
         self.port_owners = port_owners;
         self.near_port_owners = near_port_owners;
-        let search_nodes = self.build_search_nodes();
-        if let Some(view) = &mut self.canonical {
-            view.search_nodes = search_nodes;
-        }
     }
     fn member_count(&self) -> usize {
         self.canonical
@@ -283,7 +281,7 @@ impl VisibilityGraph {
     fn is_node_center(&self, index: usize) -> bool {
         self.canonical.as_ref().map_or_else(
             || self.center_owners[index].is_some(),
-            |view| view.node_centers[index],
+            |view| view.search_nodes[index].flags & SEARCH_NODE_CENTER != 0,
         )
     }
     pub(super) fn static_edge_index(&self) -> super::static_edge_index::StaticEdgeIndex {
@@ -291,8 +289,13 @@ impl VisibilityGraph {
             return super::static_edge_index::StaticEdgeIndex::from_segments(self.segments());
         };
         let shared = view.static_edges.get_or_init(|| {
-            std::sync::Arc::new(super::static_edge_index::StaticEdges::from_build(
+            std::sync::Arc::new(super::static_edge_index::StaticEdges::from_shared_points(
                 &view.build,
+                view.point_refs.clone(),
+                &view.indices.0,
+                &view.objects,
+                view.build.horizontal_edges.clone(),
+                view.build.vertical_edges.clone(),
             ))
         });
         super::static_edge_index::StaticEdgeIndex::from_shared(shared.clone())
@@ -422,6 +425,8 @@ mod canonical_tests {
                 node.owners.insert(owner, Default::default());
             }
             node.near_ports = Some(Box::new(BTreeSet::from([NodeId(30), NodeId(40)])));
+            node.container = Some(NodeId(70));
+            node.index = 11;
         }
         let mut receiver = super::super::ovg_ports::PortBuild::default();
         let a = receiver
@@ -435,19 +440,24 @@ mod canonical_tests {
         receiver.add_existing_node(local, None).unwrap();
         let end = receiver.add_point(Point { x: 1.0, y: 12.0 }, None).unwrap();
         receiver.connect(local, end, None).unwrap();
+        receiver.nodes[local].write().is_node_center = true;
         drop(source);
         let mut view = VisibilityGraph::default();
         view.retain_canonical(receiver);
-        let local_index = view
-            .points
-            .iter()
-            .position(|p| *p == Point { x: 1.0, y: 2.0 })
+        let local_index = (0..view.edges.len())
+            .find(|&node| view.point(node) == Point { x: 1.0, y: 2.0 })
             .unwrap();
-        let foreign_index = view
-            .points
-            .iter()
-            .position(|p| *p == Point { x: 11.0, y: 2.0 })
+        let foreign_index = (0..view.edges.len())
+            .find(|&node| view.point(node) == Point { x: 11.0, y: 2.0 })
             .unwrap();
+        assert_eq!(view.search_index(local_index), 11);
+        assert_eq!(view.search_nodes()[local_index].container, Some(NodeId(70)));
+        assert_eq!(
+            view.search_nodes()[local_index].flags,
+            SEARCH_NODE_PORT_OWNED | SEARCH_NODE_NEAR_PORT | SEARCH_NODE_CENTER
+        );
+        assert!(view.is_node_center(local_index));
+        assert!(!view.is_node_center(foreign_index));
         assert_eq!(
             view.port_owners[local_index]
                 .iter()
@@ -509,6 +519,10 @@ mod canonical_tests {
             BTreeSet::from([NodeId(20), NodeId(50)])
         );
         assert!(view.near_port_owners[local_index].is_empty());
+        assert_eq!(
+            view.search_nodes()[local_index].flags,
+            SEARCH_NODE_PORT_OWNED | SEARCH_NODE_CENTER
+        );
         assert_eq!(view.canonical_edge_at(local_index, 0), foreign_identity);
         assert_eq!(view.canonical_edge_at(foreign_index, 1), Some(2));
         assert_eq!(view.static_edge_index().edges.len(), 3);

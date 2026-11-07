@@ -658,7 +658,7 @@ mod tests {
         }
     }
 }
-#[cfg(test)]
+#[cfg(all(test, feature = "oracle-fixtures"))]
 mod imported_tests {
     use super::*;
     #[cfg(feature = "oracle-fixtures")]

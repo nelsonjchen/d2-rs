@@ -5639,11 +5639,11 @@ impl Pipeline {
                 project_obstructions(target, source);
             sized_projected_obstructions.insert(
                 (old_to_new[&source], projected_edge),
-                current_obstructions_from_to,
+                current_obstructions_from_to.into(),
             );
             sized_projected_obstructions.insert(
                 (old_to_new[&target], projected_edge),
-                current_obstructions_to_from,
+                current_obstructions_to_from.into(),
             );
             sized_projected_obstruction_sets
                 .insert((old_to_new[&source], projected_edge), current_sets_from_to);
@@ -9189,16 +9189,11 @@ impl Pipeline {
         let mut prepared_owner_components = Vec::with_capacity(subgraphs.len());
         for members in &subgraphs {
             let prepared = if let Some(session) = owner_session.as_deref_mut() {
-                let (component, parent_nodes, parent_edges) = scope
-                    .graph
-                    .induced_placement_subgraph_with_edge_mapping(members);
+                let (parent_nodes, parent_edges, node_order) =
+                    scope.graph.induced_placement_correspondence(members);
                 Some(
                     session
-                        .prepare_component(
-                            &parent_nodes,
-                            &parent_edges,
-                            &component.graph_node_order(),
-                        )
+                        .prepare_component(&parent_nodes, &parent_edges, &node_order)
                         .map_err(|error| {
                             crate::LayoutError::PlacementTransaction(error.to_string())
                         })?,

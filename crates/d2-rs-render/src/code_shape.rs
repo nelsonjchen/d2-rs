@@ -152,7 +152,7 @@ pub(super) fn draw(
         identity_prefix,
     )
 }
-#[cfg(test)]
+#[cfg(all(test, feature = "oracle-fixtures"))]
 pub(super) fn draw_runs(
     svg: &mut String,
     label: &str,

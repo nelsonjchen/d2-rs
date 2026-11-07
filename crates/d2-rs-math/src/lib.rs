@@ -71,7 +71,7 @@ mod declaration_font_glyphs;
 mod declaration_fonts;
 mod double_struck;
 mod enclose;
-#[cfg(test)]
+#[cfg(all(test, feature = "oracle-fixtures"))]
 mod enclose_contract_tests;
 #[cfg(all(test, feature = "oracle-fixtures"))]
 mod fixed_accents_contract_tests;
@@ -117,7 +117,7 @@ mod source_macros;
 mod split_fraction;
 #[cfg(all(test, feature = "oracle-fixtures"))]
 mod split_fraction_contract_tests;
-#[cfg(test)]
+#[cfg(all(test, feature = "oracle-fixtures"))]
 mod stacks_contract_tests;
 mod style_classes;
 mod styles;
@@ -600,6 +600,8 @@ struct TableLine {
     dashed: bool,
 }
 struct LayoutGroup {
+    // Local SVG x and its paint-frame scale, before any scale round trip.
+    x_frame: Option<(f64, f64)>,
     data_cramped: Option<bool>,
     // moToSVG's own "translate(0 u)" (u in the node's units, already x1000)
     // for symmetric/largeop centering; it replaces standardSVG's scale.
@@ -4891,6 +4893,7 @@ fn layout_at_with_style_inner(
             out.depth = out.depth.max(local.depth - baseline);
             out.width_em = local.width_em;
             out.groups.push(LayoutGroup {
+                x_frame: None,
                 data_cramped: None,
                 own_translate: None,
                 accent_offset: None,
@@ -4957,6 +4960,7 @@ fn layout_at_with_style_inner(
             out.ascent = out.ascent.max(baseline + height * scale);
             out.depth = out.depth.max(depth * scale - baseline);
             out.groups.push(LayoutGroup {
+                x_frame: None,
                 data_cramped: None,
                 own_translate: None,
                 accent_offset: None,
@@ -5170,6 +5174,7 @@ fn layout_at_with_style_inner(
                 groups: Vec::new(),
             };
             out.groups.push(LayoutGroup {
+                x_frame: None,
                 data_cramped: None,
                 own_translate: None,
                 accent_offset: None,
@@ -5389,6 +5394,7 @@ fn layout_at_with_style_inner(
             out.ascent = out.ascent.max(baseline + local.ascent);
             out.depth = out.depth.max(local.depth - baseline);
             out.groups.push(LayoutGroup {
+                x_frame: None,
                 data_cramped: None,
                 own_translate: None,
                 accent_offset: None,
@@ -5483,6 +5489,7 @@ fn layout_at_with_style_inner(
             out.ascent = out.ascent.max(baseline + local.ascent);
             out.depth = out.depth.max(local.depth - baseline);
             out.groups.push(LayoutGroup {
+                x_frame: None,
                 data_cramped,
                 own_translate: None,
                 accent_offset: None,
@@ -5544,6 +5551,7 @@ fn layout_at_with_style_inner(
             out.ascent = out.ascent.max(baseline + h);
             out.depth = out.depth.max(d - baseline);
             out.groups.push(LayoutGroup {
+                x_frame: None,
                 data_cramped: None,
                 own_translate: None,
                 accent_offset: None,
@@ -5597,6 +5605,7 @@ fn layout_at_with_style_inner(
             out.ascent = out.ascent.max(baseline + local.ascent);
             out.depth = out.depth.max(local.depth - baseline);
             out.groups.push(LayoutGroup {
+                x_frame: None,
                 data_cramped: None,
                 own_translate: None,
                 accent_offset: None,
@@ -5692,6 +5701,7 @@ fn layout_at_with_style_inner(
             out.ascent = out.ascent.max(baseline + local.ascent);
             out.depth = out.depth.max(local.depth - baseline);
             out.groups.push(LayoutGroup {
+                x_frame: None,
                 data_cramped: None,
                 own_translate: None,
                 accent_offset: None,
@@ -5800,6 +5810,7 @@ fn layout_at_with_style_inner(
                 local.depth = content.depth;
                 local.width_em = content.width_em;
                 local.groups.push(LayoutGroup {
+                    x_frame: None,
                     data_cramped: None,
                     own_translate: None,
                     accent_offset: None,
@@ -5842,6 +5853,7 @@ fn layout_at_with_style_inner(
                 None
             };
             out.groups.push(LayoutGroup {
+                x_frame: None,
                 data_cramped: None,
                 own_translate: None,
                 accent_offset: None,
@@ -6117,6 +6129,7 @@ fn layout_at_with_style_inner(
                     .depth
                     .max((root_d * rscale - bbox_h) * 1000.0 * scale - baseline);
                 let mut group = LayoutGroup {
+                    x_frame: None,
                     data_cramped: None,
                     own_translate: None,
                     accent_offset: None,
@@ -6146,6 +6159,7 @@ fn layout_at_with_style_inner(
                 {
                     let mut child = group.body.groups.pop()?;
                     child.x += group.x;
+                    child.x_frame = None;
                     child.baseline += group.baseline;
                     child.before_glyph = out.glyphs.len();
                     group = child;
@@ -6183,6 +6197,7 @@ fn layout_at_with_style_inner(
                 if base.glyphs.is_empty() && base.rules.is_empty() && base.groups.len() == 1 {
                     let mut child = base.groups.pop()?;
                     child.x += shift;
+                    child.x_frame = None;
                     child.before_glyph = 0;
                     container.groups.push(child);
                 } else if base.groups.is_empty() && base.rules.is_empty() && base.glyphs.len() == 1
@@ -6192,6 +6207,7 @@ fn layout_at_with_style_inner(
                     container.glyphs.push(glyph);
                 } else {
                     container.groups.push(LayoutGroup {
+                        x_frame: None,
                         data_cramped: None,
                         own_translate: None,
                         accent_offset: None,
@@ -6220,6 +6236,7 @@ fn layout_at_with_style_inner(
                 body_box
             };
             out.groups.push(LayoutGroup {
+                x_frame: None,
                 data_cramped: None,
                 own_translate: None,
                 accent_offset: None,
@@ -6299,6 +6316,7 @@ fn layout_at_with_style_inner(
             parent.ascent = parent.ascent.max(parent_baseline + out.ascent);
             parent.depth = parent.depth.max(out.depth - parent_baseline);
             parent.groups.push(LayoutGroup {
+                x_frame: None,
                 data_cramped: None,
                 own_translate: None,
                 accent_offset: None,
@@ -6612,6 +6630,7 @@ fn layout_at_with_style_inner(
                 {
                     let mut group = child.groups.pop()?;
                     group.x = dx;
+                    group.x_frame = None;
                     group.baseline = dy;
                     group.before_glyph = local.glyphs.len();
                     local.groups.push(group);
@@ -6636,6 +6655,7 @@ fn layout_at_with_style_inner(
                     classes::place(child, dx, dy, child_scale, &mut local);
                 } else {
                     local.groups.push(LayoutGroup {
+                        x_frame: None,
                         data_cramped: None,
                         own_translate: None,
                         accent_offset: None,
@@ -6727,6 +6747,7 @@ fn layout_at_with_style_inner(
                     },
             );
             out.groups.push(LayoutGroup {
+                x_frame: None,
                 data_cramped: None,
                 own_translate: None,
                 accent_offset: None,
@@ -7008,9 +7029,18 @@ fn return_tex_class(atom: &Atom, prepared: Option<usize>) -> Option<usize> {
         | Atom::DeclaredSize { body, .. }
         | Atom::Padded { body, .. }
         | Atom::ScriptPolicy { body, .. } => return_tex_class(body, prepared),
-        Atom::Sequence(children) => children
-            .last()
-            .and_then(|a| return_tex_class(a, atom_tex_class(a))),
+        Atom::Sequence(children) => {
+            // setRowTeXClass returns the final child's prepared class. In
+            // particular, isLastTeXAtom can demote a trailing BIN inside a
+            // declaration before the following sibling reads PrevClass.
+            let classes = sequence_tex_classes(children);
+            children
+                .iter()
+                .enumerate()
+                .rev()
+                .find(|(_, child)| !operator_dictionary::spacelike(child))
+                .and_then(|(index, child)| return_tex_class(child, classes[index]))
+        }
         _ => prepared,
     }
 }
@@ -7171,6 +7201,7 @@ fn layout_in_parent_frame(layout: &Layout, scale: f64) -> Layout {
             .groups
             .iter()
             .map(|group| LayoutGroup {
+                x_frame: group.x_frame.map(|(x, frame)| (x, frame / scale)),
                 data_cramped: group.data_cramped,
                 own_translate: group.own_translate,
                 accent_offset: group.accent_offset,
@@ -7183,7 +7214,9 @@ fn layout_in_parent_frame(layout: &Layout, scale: f64) -> Layout {
                 tex_class: group.tex_class,
                 before_glyph: group.before_glyph,
                 scale: group.scale / scale,
-                x: group.x / scale,
+                x: group
+                    .x_frame
+                    .map_or(group.x / scale, |(x, frame)| x * (frame / scale)),
                 baseline: group.baseline / scale,
                 color: group.color.clone(),
                 kind: group.kind,
@@ -8064,8 +8097,70 @@ mod tests {
             .unwrap();
         assert_eq!(spacer.attribute("transform"), Some("translate(1529.2,0)"));
 
+        // Pinned svg/wrapper.go addChildren accumulates em advances before
+        // place converts to SVG units. A size declaration closed by a break
+        // must preserve that order in fenced rows.
+        for (expression, kind, placement) in [
+            (r"\left(\small a \\ b \right)", "mo", "translate(1267.6,0)"),
+            (
+                r"\left(\small a \newline b \right)",
+                "mo",
+                "translate(1267.6,0)",
+            ),
+            // texclass.go setRowTeXClass returns the prepared trailing BIN
+            // (demoted by isLastTeXAtom) through the closed declaration.
+            (r"\left(\small a + \\ b\right)", "mi", "translate(1499.9,0)"),
+            (
+                r"\left(\scriptstyle a + \\ b\right)",
+                "mi",
+                "translate(1313.2,0)",
+            ),
+            (
+                r"\left(\scriptscriptstyle a + \\ b\right)",
+                "mi",
+                "translate(1042.5,0)",
+            ),
+            (
+                r"\left(\displaystyle a + \\ b\right)",
+                "mi",
+                "translate(1696,0)",
+            ),
+        ] {
+            let svg = super::render_exact(expression).unwrap();
+            let document = roxmltree::Document::parse(&svg).unwrap();
+            let last = document
+                .descendants()
+                .rfind(|node| node.attribute("data-mml-node") == Some(kind))
+                .unwrap();
+            assert_eq!(last.attribute("transform"), Some(placement), "{expression}");
+        }
+
         // parser.go pendingCell closes StyleItems before an open owner emits
         // spaces. The lexical environment survives, but mstyle does not.
+        // wrapper.go addChildren retains local em positions inside scripts;
+        // scaling and then dividing 449.65 changes fixed()'s rounding tie.
+        for expression in [r"x^{\small a \\ b}", r"x^{\small a \newline b}"] {
+            let svg = super::render_exact(expression).unwrap();
+            let document = roxmltree::Document::parse(&svg).unwrap();
+            let spacer = document
+                .descendants()
+                .find(|node| node.attribute("data-mml-node") == Some("mspace"))
+                .unwrap();
+            assert_eq!(
+                spacer.attribute("transform"),
+                Some("translate(449.6,0)"),
+                "{expression}"
+            );
+            let identifier = document
+                .descendants()
+                .rfind(|node| node.attribute("data-mml-node") == Some("mi"))
+                .unwrap();
+            assert_eq!(
+                identifier.attribute("transform"),
+                Some("translate(449.6,0)"),
+                "{expression}"
+            );
+        }
         for (expression, spacer_x, token_x) in [
             (r"\displaystyle a = \\ b", "1584.8", "1862.6"),
             (r"\scriptstyle a = \\ b", "924.2", "924.2"),
@@ -8094,6 +8189,28 @@ mod tests {
             assert_eq!(
                 children[2].attribute("transform").unwrap(),
                 format!("translate({token_x},0)")
+            );
+        }
+        // wrapper.go getScale and BBox.Append scale the intrinsic em width.
+        // Reconstructing it from paint units changes mfrac.go alignX's tie.
+        for expression in [
+            r"\frac{\scriptscriptstyle a + \\ b}{c}",
+            r"\frac{\scriptscriptstyle a + \newline b}{c}",
+        ] {
+            let svg = super::render_exact(expression).unwrap();
+            let document = roxmltree::Document::parse(&svg).unwrap();
+            let denominator = document
+                .descendants()
+                .find(|node| node.attribute("data-mml-node") == Some("mfrac"))
+                .unwrap()
+                .children()
+                .filter(|node| node.is_element())
+                .nth(1)
+                .unwrap();
+            assert_eq!(
+                denominator.attribute("transform"),
+                Some("translate(544.7,-686)"),
+                "{expression}"
             );
         }
         let svg = super::render_exact(r"a + \color{red}").unwrap();
@@ -8512,7 +8629,7 @@ mod original_general_fraction_contract {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "oracle-fixtures"))]
 mod original_radical_contract {
     use super::{measure, render};
     use d2_rs_core::Size;
@@ -8549,7 +8666,7 @@ mod original_radical_contract {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "oracle-fixtures"))]
 mod original_cancel_color_contract {
     use super::{measure, render};
     use d2_rs_core::Size;
@@ -8586,7 +8703,7 @@ mod original_cancel_color_contract {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "oracle-fixtures"))]
 mod original_gensymb_contract {
     use super::{measure, render};
     use d2_rs_core::Size;
@@ -8623,7 +8740,7 @@ mod original_gensymb_contract {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "oracle-fixtures"))]
 mod original_texatom_scope_contract {
     use super::*;
     #[cfg(feature = "oracle-fixtures")]
@@ -8923,7 +9040,7 @@ fn apply_math_font(atom: &mut Atom, calligraphic: bool) {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "oracle-fixtures"))]
 mod original_amscd_contract {
     use super::*;
     #[cfg(feature = "oracle-fixtures")]
@@ -8973,7 +9090,7 @@ mod original_amscd_contract {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "oracle-fixtures"))]
 mod original_cd_paint_contract {
     use super::*;
     #[cfg(feature = "oracle-fixtures")]
@@ -9034,7 +9151,7 @@ mod original_cd_paint_contract {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "oracle-fixtures"))]
 mod original_cd_capture_contract {
     use super::*;
     #[cfg(feature = "oracle-fixtures")]
@@ -9076,7 +9193,7 @@ mod original_cd_capture_contract {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "oracle-fixtures"))]
 mod original_numeric_contract {
     use super::*;
     #[cfg(feature = "oracle-fixtures")]
@@ -9135,7 +9252,7 @@ mod original_numeric_contract {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "oracle-fixtures"))]
 mod original_length_contract {
     use super::*;
     #[cfg(feature = "oracle-fixtures")]
@@ -9402,7 +9519,7 @@ mod original_xarrow_contract {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "oracle-fixtures"))]
 mod original_host_primitive_contract {
     use super::*;
     #[cfg(feature = "oracle-fixtures")]
@@ -9865,10 +9982,10 @@ mod original_matrix_table_contract {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "oracle-fixtures"))]
 mod prime_contract_tests;
 
-#[cfg(test)]
+#[cfg(all(test, feature = "oracle-fixtures"))]
 mod ams_contract_tests;
 
 #[doc(hidden)]

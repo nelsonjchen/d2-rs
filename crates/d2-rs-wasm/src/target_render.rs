@@ -226,7 +226,7 @@ fn native_options(options: &Map<String, Value>) -> RenderOptions {
         ..Default::default()
     }
 }
-#[cfg(test)]
+#[cfg(all(test, feature = "oracle-fixtures"))]
 mod tests {
     use super::*;
 

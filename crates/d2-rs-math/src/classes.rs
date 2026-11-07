@@ -139,6 +139,7 @@ pub(super) fn place(mut child: Layout, x: f64, y: f64, scale: f64, out: &mut Lay
     {
         let mut group = child.groups.pop().unwrap();
         group.x = x;
+        group.x_frame = None;
         group.baseline = y;
         group.before_glyph = out.glyphs.len();
         out.groups.push(group);
@@ -149,6 +150,7 @@ pub(super) fn place(mut child: Layout, x: f64, y: f64, scale: f64, out: &mut Lay
         out.glyphs.push(glyph);
     } else {
         out.groups.push(LayoutGroup {
+            x_frame: None,
             data_cramped: None,
             own_translate: None,
             accent_offset: None,
@@ -464,6 +466,7 @@ pub(super) fn layout_limits(
     out.ascent = out.ascent.max(baseline + local.ascent);
     out.depth = out.depth.max(local.depth - baseline);
     out.groups.push(LayoutGroup {
+        x_frame: None,
         data_cramped: None,
         own_translate: None,
         accent_offset: None,

@@ -341,49 +341,6 @@ fn gif_admitted(d: &[u8], c: Option<&CancellationToken>) -> Result<Config, Strin
     })
 }
 
-#[cfg(test)]
-mod gif_tests {
-    use super::*;
-    #[derive(serde::Deserialize)]
-    struct Row {
-        data: Vec<u8>,
-        cancel: String,
-        error: String,
-        output: Option<Config>,
-    }
-    #[cfg(feature = "oracle-fixtures")]
-    #[test]
-    fn original_static_gif_config_logical_canvas_and_charge() {
-        let rows: Vec<Row> = serde_json::from_str(d2_rs_testdata::oracle_fixture!(
-            "tests/fixtures/gif-config-v090.json"
-        ))
-        .unwrap();
-        for (i, r) in rows.iter().enumerate() {
-            let token = CancellationToken::new();
-            let c = match r.cancel.as_str() {
-                "cancelled" => {
-                    token.cancel();
-                    Some(&token)
-                }
-                "deadline" => {
-                    token.expire();
-                    Some(&token)
-                }
-                _ => None,
-            };
-            let result = gif_static(&r.data, c);
-            assert_eq!(
-                result.as_ref().err().map(String::as_str).unwrap_or(""),
-                r.error,
-                "control {i}"
-            );
-            if let Ok(cfg) = result {
-                assert_eq!(Some(cfg), r.output, "control {i}");
-            }
-        }
-    }
-}
-
 fn jbad(s: &str) -> String {
     format!("invalid JPEG format: {s}")
 }
@@ -791,5 +748,48 @@ pub(crate) fn admitted(
         "gif" => gif_admitted(d, c),
         "webp" => webp_admitted(d, c),
         _ => unreachable!("format admitted by embedded URI/signature"),
+    }
+}
+
+#[cfg(all(test, feature = "oracle-fixtures"))]
+mod gif_tests {
+    use super::*;
+    #[derive(serde::Deserialize)]
+    struct Row {
+        data: Vec<u8>,
+        cancel: String,
+        error: String,
+        output: Option<Config>,
+    }
+    #[cfg(feature = "oracle-fixtures")]
+    #[test]
+    fn original_static_gif_config_logical_canvas_and_charge() {
+        let rows: Vec<Row> = serde_json::from_str(d2_rs_testdata::oracle_fixture!(
+            "tests/fixtures/gif-config-v090.json"
+        ))
+        .unwrap();
+        for (i, r) in rows.iter().enumerate() {
+            let token = CancellationToken::new();
+            let c = match r.cancel.as_str() {
+                "cancelled" => {
+                    token.cancel();
+                    Some(&token)
+                }
+                "deadline" => {
+                    token.expire();
+                    Some(&token)
+                }
+                _ => None,
+            };
+            let result = gif_static(&r.data, c);
+            assert_eq!(
+                result.as_ref().err().map(String::as_str).unwrap_or(""),
+                r.error,
+                "control {i}"
+            );
+            if let Ok(cfg) = result {
+                assert_eq!(Some(cfg), r.output, "control {i}");
+            }
+        }
     }
 }

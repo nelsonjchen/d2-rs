@@ -9,28 +9,8 @@ use super::{Point, ovg_ports::push_pointer};
 use crate::internal::owner_points::SharedOwnerPoint;
 use std::collections::BTreeMap;
 
-/// A static edge endpoint: the node's retained TopLeft allocation when it
-/// has one, read live as `NodeRef::point` does, else its captured value.
-/// `NodeRef` keeps both; a static edge never reads the value of a shared
-/// point, so it stores only the source that `point()` would use.
-#[derive(Clone, Debug)]
-pub(super) enum StaticPoint {
-    Shared(SharedOwnerPoint),
-    Value(Point),
-}
-impl StaticPoint {
-    fn of(value: Point, shared: Option<SharedOwnerPoint>) -> Self {
-        shared.map_or(Self::Value(value), Self::Shared)
-    }
-    pub(super) fn point(&self) -> Point {
-        match self {
-            Self::Shared(point) => point.get(),
-            Self::Value(point) => *point,
-        }
-    }
-}
 /// One OVG edge of the shared static index: its endpoints as positions in
-/// `StaticEdges::points`. A position below `StaticEdges::ovg_points` is the
+/// the shared endpoint table. Below `StaticEdges::points.len()` is the
 /// endpoint's OVG node slot (`NodeIdentity::Ovg`); later positions are the
 /// values of coordinate-only segments.
 #[derive(Clone, Copy, Debug)]
@@ -38,6 +18,28 @@ pub(super) struct StaticEdge {
     from: u32,
     to: u32,
     pub(super) distance: f64,
+}
+impl StaticEdge {
+    fn from_shared_points(
+        edge: &super::ovg_objects::SharedPortEdge,
+        points: &[Option<SharedOwnerPoint>],
+        indices: &[usize],
+    ) -> Self {
+        let endpoint = |slot: usize| {
+            let index = indices[slot];
+            let _ = points[index]
+                .as_ref()
+                .expect("runtime error: invalid memory address or nil pointer dereference")
+                .get();
+            u32::try_from(index).expect("OVG node slot")
+        };
+        let edge = edge.read();
+        Self {
+            from: endpoint(edge.from_slot()),
+            to: endpoint(edge.to_slot()),
+            distance: edge.distance,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -84,10 +86,14 @@ impl Axes {
 #[derive(Debug, Default)]
 pub(super) struct StaticEdges {
     pub(super) edges: Vec<StaticEdge>,
-    /// Endpoint table: each OVG endpoint once, at its node slot, then the
-    /// two values of every coordinate-only segment.
-    points: Vec<Option<StaticPoint>>,
-    ovg_points: u32,
+    /// Each OVG endpoint once, at its node slot. Unconnected slots are nil.
+    points: std::sync::Arc<[Option<SharedOwnerPoint>]>,
+    #[cfg(any(test, feature = "diagnostic-traces"))]
+    point_identities: Option<std::sync::Arc<[usize]>>,
+    /// Coordinate-only segments follow the OVG endpoints. Keeping their
+    /// values separate leaves each production endpoint a single pointer,
+    /// as OVGEdge.From/To.Point are in the pinned Go router.
+    values: Vec<Point>,
     pub(super) horizontal: Axes,
     pub(super) vertical: Axes,
 }
@@ -98,7 +104,9 @@ impl Clone for StaticEdges {
         Self {
             edges,
             points: self.points.clone(),
-            ovg_points: self.ovg_points,
+            #[cfg(any(test, feature = "diagnostic-traces"))]
+            point_identities: self.point_identities.clone(),
+            values: self.values.clone(),
             horizontal: self.horizontal.clone(),
             vertical: self.vertical.clone(),
         }
@@ -112,16 +120,60 @@ impl StaticEdges {
             build.vertical_edges.clone(),
         )
     }
-    /// `from_build` for a frozen build whose Connect axes nothing else reads:
-    /// move them in (a clone keeps every bucket's capacity, so the moved axes
-    /// are what a clone would have been) instead of keeping a second copy.
-    pub(super) fn from_build_taking_axes(build: &mut super::ovg_ports::PortBuild) -> Self {
-        let horizontal = std::mem::take(&mut build.horizontal_edges);
-        let vertical = std::mem::take(&mut build.vertical_edges);
-        Self::with_axes(build, horizontal, vertical)
+    /// Publish over the canonical view's retained points. Edges keep their
+    /// insertion order, while endpoint slots map into that shared inventory.
+    /// Point allocations, including aliases and absent slots, stay intact.
+    pub(super) fn from_shared_points(
+        build: &super::ovg_ports::PortBuild,
+        points: std::sync::Arc<[Option<SharedOwnerPoint>]>,
+        indices: &[usize],
+        objects: &[usize],
+        horizontal: Axes,
+        vertical: Axes,
+    ) -> Self {
+        #[cfg(not(any(test, feature = "diagnostic-traces")))]
+        let _ = objects;
+        let mut edges = Vec::with_capacity(build.edges.capacity());
+        for edge in &build.edges {
+            edges.push(StaticEdge::from_shared_points(edge, &points, indices));
+        }
+        Self {
+            edges,
+            points,
+            #[cfg(any(test, feature = "diagnostic-traces"))]
+            point_identities: Some(objects.into()),
+            values: Vec::new(),
+            horizontal,
+            vertical,
+        }
+    }
+    /// A frozen build gives up its handles. Collecting their owned iterator
+    /// lets Vec reuse the handle allocation for the equally sized records on
+    /// native targets, instead of retaining both tables at publication.
+    pub(super) fn take_shared_points(
+        build: &mut super::ovg_ports::PortBuild,
+        points: std::sync::Arc<[Option<SharedOwnerPoint>]>,
+        indices: &[usize],
+        objects: &[usize],
+    ) -> Self {
+        #[cfg(not(any(test, feature = "diagnostic-traces")))]
+        let _ = objects;
+        let edges = std::mem::take(&mut build.edges)
+            .into_iter()
+            .map(|edge| StaticEdge::from_shared_points(&edge, &points, indices))
+            .collect();
+        Self {
+            edges,
+            points,
+            #[cfg(any(test, feature = "diagnostic-traces"))]
+            point_identities: Some(objects.into()),
+            values: Vec::new(),
+            horizontal: std::mem::take(&mut build.horizontal_edges),
+            vertical: std::mem::take(&mut build.vertical_edges),
+        }
     }
     fn with_axes(build: &super::ovg_ports::PortBuild, horizontal: Axes, vertical: Axes) -> Self {
-        let mut points: Vec<Option<StaticPoint>> = Vec::new();
+        let mut points: Vec<Option<SharedOwnerPoint>> = Vec::new();
         // Each endpoint is captured at its first edge occurrence, in the
         // original edge order; a later occurrence reads the same node object.
         let mut endpoint = |id: usize| {
@@ -131,7 +183,10 @@ impl StaticEdges {
             }
             if points[id].is_none() {
                 let node = &build.nodes[id].read();
-                points[id] = Some(StaticPoint::of(node.point(), node.point_ref.clone()));
+                // Preserve the source nil-point failure at its first edge
+                // occurrence before retaining the allocation for live reads.
+                let _ = node.point();
+                points[id] = node.point_ref.clone();
             }
             slot
         };
@@ -146,20 +201,27 @@ impl StaticEdges {
                 distance: edge.distance,
             });
         }
-        let ovg_points = u32::try_from(points.len()).expect("OVG node slot");
+        u32::try_from(points.len()).expect("OVG node slot");
         Self {
             edges,
-            points,
-            ovg_points,
+            points: points.into(),
+            #[cfg(any(test, feature = "diagnostic-traces"))]
+            point_identities: None,
+            values: Vec::new(),
             horizontal,
             vertical,
         }
     }
     fn point(&self, endpoint: u32) -> Point {
-        self.points[endpoint as usize]
-            .as_ref()
-            .expect("static edge endpoint")
-            .point()
+        let endpoint = endpoint as usize;
+        if endpoint < self.points.len() {
+            self.points[endpoint]
+                .as_ref()
+                .expect("static edge endpoint")
+                .get()
+        } else {
+            self.values[endpoint - self.points.len()]
+        }
     }
     /// Edge `id`'s endpoints, read live in from/to order.
     pub(super) fn edge_points(&self, id: usize) -> [Point; 2] {
@@ -169,7 +231,13 @@ impl StaticEdges {
     /// Edge's OVG node slots, None for a coordinate-only endpoint.
     #[cfg(any(test, feature = "diagnostic-traces"))]
     pub(super) fn edge_ovg(&self, edge: &StaticEdge) -> [Option<u32>; 2] {
-        let ovg = |endpoint: u32| (endpoint < self.ovg_points).then_some(endpoint);
+        let ovg = |endpoint: u32| {
+            ((endpoint as usize) < self.points.len()).then(|| {
+                self.point_identities.as_ref().map_or(endpoint, |objects| {
+                    u32::try_from(objects[endpoint as usize]).expect("OVG node slot")
+                })
+            })
+        };
         [ovg(edge.from), ovg(edge.to)]
     }
 }
@@ -306,9 +374,9 @@ impl StaticEdgeIndex {
     pub(super) fn append_value(&mut self, segment: [Point; 2]) -> usize {
         let shared = std::sync::Arc::make_mut(&mut self.shared);
         let id = shared.edges.len();
-        let from = u32::try_from(shared.points.len()).expect("static edge endpoint");
-        shared.points.push(Some(StaticPoint::Value(segment[0])));
-        shared.points.push(Some(StaticPoint::Value(segment[1])));
+        let from =
+            u32::try_from(shared.points.len() + shared.values.len()).expect("static edge endpoint");
+        shared.values.extend(segment);
         let edge = StaticEdge {
             from,
             to: from + 1,
@@ -445,5 +513,68 @@ mod tests {
             .unwrap();
         assert_eq!(index.overlapping[&0], vec![0]);
         assert_eq!(index.overlapping[&1], vec![0, 1]);
+    }
+
+    #[test]
+    fn shared_endpoints_and_appended_values_preserve_identity_through_copy_on_write() {
+        // ovg_edge_router.go addRoute reads OVGEdge.From/To.Point live,
+        // including when a coordinate-only segment has also been published.
+        let mut build = super::super::ovg_ports::PortBuild::default();
+        let a = build.allocate_node(Point { x: 0.0, y: 1.0 });
+        let b = build.allocate_node(Point { x: 10.0, y: 1.0 });
+        build.connect(a, b, None).unwrap();
+        let live = build.nodes[a].read().point_ref.clone().unwrap();
+        let other = build.nodes[b].read().point_ref.clone().unwrap();
+        // Canonical order may differ from build-slot order and repeat a node.
+        let points: std::sync::Arc<[_]> =
+            vec![Some(other.clone()), Some(live.clone()), Some(other)].into();
+        let original = std::sync::Arc::new(StaticEdges::from_shared_points(
+            &build,
+            points.clone(),
+            &[1, 2],
+            &[1, 0, 1],
+            build.horizontal_edges.clone(),
+            build.vertical_edges.clone(),
+        ));
+        assert!(std::sync::Arc::ptr_eq(&original.points, &points));
+        let consumed =
+            StaticEdges::take_shared_points(&mut build, points.clone(), &[1, 2], &[1, 0, 1]);
+        assert_eq!(consumed.edge_points(0), original.edge_points(0));
+        assert_eq!(consumed.edges[0].distance, original.edges[0].distance);
+        assert_eq!(consumed.edge_ovg(&consumed.edges[0]), [Some(0), Some(1)]);
+        assert_eq!(
+            consumed.horizontal.buckets[&1.0f64.to_bits()].edges,
+            vec![0]
+        );
+        assert!(consumed.vertical.buckets.is_empty());
+        assert!(std::sync::Arc::ptr_eq(&consumed.points, &points));
+        let mut index = StaticEdgeIndex::from_shared(original.clone());
+        let values = [Point { x: -0.0, y: 5.0 }, Point { x: 3.0, y: 5.0 }];
+        let added = index.append_value(values);
+        assert_eq!(added, 1);
+        assert_eq!(original.edges.len(), 1);
+        assert_eq!(index.edge_ovg(&index.edges[0]), [Some(0), Some(1)]);
+        assert_eq!(index.edge_ovg(&index.edges[added]), [None, None]);
+        assert_eq!(index.edge_points(added), values);
+        assert_eq!(index.edge_points(added)[0].x.to_bits(), (-0.0f64).to_bits());
+        drop(build);
+        let moved = Point { x: 2.0, y: 4.0 };
+        live.set(moved);
+        assert_eq!(original.edge_points(0)[0], moved);
+        assert_eq!(consumed.edge_points(0)[0], moved);
+        assert_eq!(index.edge_points(0)[0], moved);
+        assert_eq!(index.edge_points(added), values);
+        // Unconnected slots stay absent; adding values must not fill them.
+        let mut sparse = super::super::ovg_ports::PortBuild::default();
+        sparse.allocate_node(Point { x: 20.0, y: 1.0 });
+        let c = sparse.allocate_node(Point { x: 30.0, y: 1.0 });
+        let d = sparse.allocate_node(Point { x: 40.0, y: 1.0 });
+        sparse.connect(c, d, None).unwrap();
+        let mut sparse = StaticEdgeIndex::from_build(&sparse);
+        assert!(sparse.points[0].is_none());
+        assert_eq!(sparse.append_value(values), 1);
+        assert!(sparse.points[0].is_none());
+        assert_eq!(sparse.edge_ovg(&sparse.edges[0]), [Some(1), Some(2)]);
+        assert_eq!(sparse.edge_ovg(&sparse.edges[1]), [None, None]);
     }
 }

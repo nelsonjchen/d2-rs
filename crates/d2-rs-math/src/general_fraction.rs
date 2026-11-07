@@ -380,6 +380,7 @@ pub(super) fn layout(
     ams::set_wrap_width(&mut local, content * unit);
     ams::set_percentage_wrap(&mut local, content * unit, "center");
     out.groups.push(LayoutGroup {
+        x_frame: None,
         data_cramped: None,
         own_translate: None,
         accent_offset: None,

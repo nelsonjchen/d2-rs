@@ -29,6 +29,7 @@ fn group(
     before_glyph: usize,
 ) -> LayoutGroup {
     LayoutGroup {
+        x_frame: None,
         data_cramped: None,
         own_translate: None,
         accent_offset: None,

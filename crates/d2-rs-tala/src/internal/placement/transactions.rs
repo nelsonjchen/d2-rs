@@ -837,8 +837,8 @@ impl ArenaGraph {
                 .obstruction_sets_to_from
                 .update_projections(reconcile);
         }
-        for projected in self.sized_projected_obstructions.values_mut().flatten() {
-            reconcile(projected);
+        for projections in self.sized_projected_obstructions.values_mut() {
+            projections.update_projections(reconcile);
         }
         for inventory in self.sized_projected_obstruction_sets.values_mut() {
             inventory.update_projections(reconcile);
@@ -971,8 +971,8 @@ impl ArenaGraph {
                 .obstruction_sets_to_from
                 .update_projections(adjust);
         }
-        for projected in self.sized_projected_obstructions.values_mut().flatten() {
-            adjust(projected);
+        for projections in self.sized_projected_obstructions.values_mut() {
+            projections.update_projections(adjust);
         }
         for inventory in self.sized_projected_obstruction_sets.values_mut() {
             inventory.update_projections(adjust);
@@ -2369,8 +2369,8 @@ impl ArenaGraph {
                 .obstruction_sets_to_from
                 .update_projections(set_projected);
         }
-        for projected in self.sized_projected_obstructions.values_mut().flatten() {
-            set_projected(projected);
+        for projections in self.sized_projected_obstructions.values_mut() {
+            projections.update_projections(set_projected);
         }
         for inventory in self.sized_projected_obstruction_sets.values_mut() {
             inventory.update_projections(set_projected);
@@ -4957,7 +4957,9 @@ impl ArenaGraph {
     /// it, so repeatedly rebuilding `graph_node_order` and rescanning every
     /// external alias for each node/pair is semantically redundant (and was
     /// enough to push large nesting cases past the release timeout).
-    fn projected_transaction_live_geometry(&self) -> IdHashMap<i64, (Option<Point>, Size)> {
+    pub(super) fn projected_transaction_live_geometry(
+        &self,
+    ) -> IdHashMap<i64, (Option<Point>, Size)> {
         // Lookup-only (entry/get), so a hash map preserves every result.
         let mut geometry = IdHashMap::default();
         for node in self.graph_node_order() {
@@ -5215,7 +5217,7 @@ impl ArenaGraph {
         }
         ProjectedTransactionState {
             nodes,
-            original_positions: geometry.iter().map(|(position, _)| *position).collect(),
+            original_geometry: geometry,
             existing_overlaps,
             existing_exact_overlaps,
         }
@@ -5280,7 +5282,7 @@ impl ArenaGraph {
             return true;
         }
         if node.node.fixed_top_left.is_some()
-            && state.original_positions[node_index] != Some(position)
+            && state.original_geometry[node_index].0 != Some(position)
         {
             return true;
         }
@@ -5435,8 +5437,8 @@ impl ArenaGraph {
             .iter()
             .enumerate()
             .filter_map(|(index, entry)| {
-                let current = geometry.get(&entry.node.tala_id)?.0;
-                (current != state.original_positions[index]).then_some(entry.node.tala_id)
+                let current = geometry.get(&entry.node.tala_id)?;
+                (*current != state.original_geometry[index]).then_some(entry.node.tala_id)
             })
             .collect()
     }

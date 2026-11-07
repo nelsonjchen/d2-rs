@@ -1895,9 +1895,21 @@ impl ArenaGraph {
         if children.is_empty() {
             return;
         }
-        let Some((top_left, bottom_right)) = self.transaction_container_bounds(&children) else {
+        let Some((mut top_left, mut bottom_right)) = self.transaction_container_bounds(&children)
+        else {
             return;
         };
+        // node.go positionContainerChildren expands the fixed bounds for
+        // centered child labels before computing InsidePlacement. Synthetic
+        // vessels have no label; the retained carrier's label is its member's.
+        Self::expand_for_child_labels(
+            &mut top_left,
+            &mut bottom_right,
+            children
+                .iter()
+                .filter(|child| !self.active_node_is_aggregate(**child))
+                .map(|child| &self.nodes[child.0 as usize]),
+        );
         let content = Size {
             width: bottom_right.x - top_left.x,
             height: bottom_right.y - top_left.y,
@@ -3495,7 +3507,7 @@ impl ArenaGraph {
 }
 
 type TransposeRollbackMaps = (
-    Tracked<BTreeMap<(NodeId, EdgeId), Vec<ProjectedAdjacent>>>,
+    Tracked<BTreeMap<(NodeId, EdgeId), SharedProjections>>,
     Tracked<BTreeMap<(NodeId, EdgeId), OrderedObstructionInventory>>,
 );
 

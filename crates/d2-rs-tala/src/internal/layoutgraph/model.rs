@@ -1373,6 +1373,99 @@ impl AbductionCurrentNodeRef {
     }
 }
 
+/// Numerical views of Go's shared obstruction pointers. A rollback snapshot
+/// retains the same values until a candidate actually changes a projection.
+#[derive(Clone, Debug, Default)]
+pub(super) struct SharedProjections(Arc<Vec<ProjectedAdjacent>>);
+
+impl SharedProjections {
+    pub(super) fn update_projections(&mut self, mut update: impl FnMut(&mut ProjectedAdjacent)) {
+        if let Some(values) = Arc::get_mut(&mut self.0) {
+            for projection in values {
+                update(projection);
+            }
+            return;
+        }
+        // Evaluate each update once, including diagnostic observations. A
+        // no-op reconciliation must keep the shared allocation intact.
+        for index in 0..self.len() {
+            let original = self[index];
+            let mut projection = original;
+            update(&mut projection);
+            if !projection.same_bits(original) {
+                Arc::make_mut(&mut self.0)[index] = projection;
+            }
+        }
+    }
+}
+
+impl From<Vec<ProjectedAdjacent>> for SharedProjections {
+    fn from(values: Vec<ProjectedAdjacent>) -> Self {
+        Self(Arc::new(values))
+    }
+}
+
+impl FromIterator<ProjectedAdjacent> for SharedProjections {
+    fn from_iter<T: IntoIterator<Item = ProjectedAdjacent>>(values: T) -> Self {
+        values.into_iter().collect::<Vec<_>>().into()
+    }
+}
+
+impl std::ops::Deref for SharedProjections {
+    type Target = Vec<ProjectedAdjacent>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for SharedProjections {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        Arc::make_mut(&mut self.0)
+    }
+}
+
+impl<'a> IntoIterator for &'a SharedProjections {
+    type Item = &'a ProjectedAdjacent;
+    type IntoIter = std::slice::Iter<'a, ProjectedAdjacent>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+#[cfg(test)]
+mod projection_snapshot_tests {
+    use super::*;
+
+    #[test]
+    fn obstruction_snapshots_share_unchanged_values_and_isolate_changed_bits() {
+        let nan = f64::from_bits(0x7ff8_0000_0000_1234);
+        let mut projections: SharedProjections = vec![ProjectedAdjacent {
+            owner: NodeId(0),
+            tala_id: 17,
+            container_tala_id: None,
+            offset: Point { x: -0.0, y: nan },
+            size: Size {
+                width: 10.0,
+                height: 20.0,
+            },
+            cluster_member: false,
+        }]
+        .into();
+        let rollback = projections.clone();
+        projections.update_projections(|_| {});
+        assert!(Arc::ptr_eq(&projections.0, &rollback.0));
+        projections.update_projections(|projection| projection.offset.x = 0.0);
+        assert!(!Arc::ptr_eq(&projections.0, &rollback.0));
+        assert_eq!(rollback[0].offset.x.to_bits(), (-0.0_f64).to_bits());
+        assert_eq!(projections[0].offset.x.to_bits(), 0.0_f64.to_bits());
+        assert_eq!(projections[0].offset.y.to_bits(), nan.to_bits());
+        assert_eq!(rollback[0].offset.y.to_bits(), nan.to_bits());
+        projections.update_projections(|projection| projection.size.width = 30.0);
+        assert_eq!(rollback[0].size.width, 10.0);
+        assert_eq!(projections[0].size.width, 30.0);
+    }
+}
+
 /// One nonnil pointer in the source Graph.Containers obstruction slices.
 /// Local identifies a geometry carrier, independently of the canonical node
 /// pointer; a foreign pointer never aliases a component's dense node index.
@@ -1602,7 +1695,7 @@ pub(super) struct ProjectedTransactionNode {
 #[derive(Clone, Debug)]
 pub(super) struct ProjectedTransactionState {
     pub(super) nodes: Vec<ProjectedTransactionNode>,
-    pub(super) original_positions: Vec<Option<Point>>,
+    pub(super) original_geometry: Vec<(Option<Point>, Size)>,
     pub(super) existing_overlaps: BTreeSet<(usize, usize)>,
     pub(super) existing_exact_overlaps: BTreeSet<(usize, usize)>,
 }
@@ -1704,7 +1797,7 @@ pub(super) struct PlacementScope {
     /// intentionally receive original endpoints in a different edge-ID
     /// pairing.
     pub(super) sized_edge_abductions: Vec<SizedEdgeAbduction>,
-    pub(super) sized_projected_obstructions: BTreeMap<(NodeId, EdgeId), Vec<ProjectedAdjacent>>,
+    pub(super) sized_projected_obstructions: BTreeMap<(NodeId, EdgeId), SharedProjections>,
     pub(super) sized_projected_obstruction_sets:
         BTreeMap<(NodeId, EdgeId), OrderedObstructionInventory>,
     /// Original child-to-child edges that collapse onto one carrier and are
@@ -3036,8 +3129,7 @@ pub(super) struct ArenaGraph {
     /// writes the shared canonical field; materialization clears this cache.
     pub(super) long_distance_neighbor_data:
         Vec<Option<BTreeMap<NodeId, LongDistanceNeighborRequirements>>>,
-    pub(super) sized_projected_obstructions:
-        Tracked<BTreeMap<(NodeId, EdgeId), Vec<ProjectedAdjacent>>>,
+    pub(super) sized_projected_obstructions: Tracked<BTreeMap<(NodeId, EdgeId), SharedProjections>>,
     pub(super) sized_projected_obstruction_sets:
         Tracked<BTreeMap<(NodeId, EdgeId), OrderedObstructionInventory>>,
     pub(super) sized_collapsed_symmetry_neighbors: Tracked<BTreeMap<i64, Vec<ProjectedAdjacent>>>,

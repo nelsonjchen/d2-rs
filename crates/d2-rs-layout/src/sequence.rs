@@ -47,9 +47,13 @@ pub const EDGE_GROUP_LABEL_PADDING: f64 = 20.0;
 /// use D2's elbow route. Synthetic lifeline edges remain outside the shared
 /// edge arena and are reported as a follow-up boundary.
 pub fn layout(graph: &Graph, options: &LayoutOptions) -> Result<LayoutResult, LayoutError> {
-    let root = graph
-        .nodes()
-        .find_map(|(id, _)| graph.is_sequence_diagram(id).then_some(id));
+    let root = if graph.root_sequence_diagram {
+        None
+    } else {
+        graph
+            .nodes()
+            .find_map(|(id, _)| graph.is_sequence_diagram(id).then_some(id))
+    };
     layout_inner(graph, options, root, EngineKind::Tala, false, None)
 }
 
@@ -71,9 +75,13 @@ pub fn layout_with_nested_and_cancellation(
     engine: EngineKind,
     cancellation: Option<&CancellationToken>,
 ) -> Result<LayoutResult, LayoutError> {
-    let root = graph
-        .nodes()
-        .find_map(|(id, _)| graph.is_sequence_diagram(id).then_some(id));
+    let root = if graph.root_sequence_diagram {
+        None
+    } else {
+        graph
+            .nodes()
+            .find_map(|(id, _)| graph.is_sequence_diagram(id).then_some(id))
+    };
     let result = layout_inner(graph, options, root, engine, true, cancellation)?;
     validate_scope_positions(graph, &result, root)?;
     Ok(result)
@@ -506,6 +514,8 @@ fn layout_inner(
     if layout_nested_actors {
         // LayoutNested walks through ordinary actors to extract special
         // descendants before the enclosing sequence partitions notes/spans.
+        // Sequence roots remain as placeholders after their contents are
+        // extracted, so the outer sequence still validates them as actors.
         // Direct grid actors already have their own extraction below.
         let mut queue = graph
             .nodes()
@@ -517,6 +527,9 @@ fn layout_inner(
             cursor += 1;
             let node = graph.node(id).expect("sequence descendant");
             if graph.is_sequence_diagram(id) {
+                if has_direct_child(graph, id) {
+                    roots.push(id);
+                }
                 continue;
             }
             if node.grid_rows.is_some() || node.grid_columns.is_some() {
@@ -537,7 +550,7 @@ fn layout_inner(
             let mut source = graph.clone();
             for (&id, local) in &locals {
                 if let Some(rect) = local.boxes.get(&id) {
-                    let node = source.node_mut(id).expect("extracted grid root");
+                    let node = source.node_mut(id).expect("extracted special root");
                     node.size = rect.size;
                     node.declared_size = Some(rect.size);
                 }
@@ -614,11 +627,27 @@ fn layout_inner(
     groups.dedup();
     let actors = graph
         .nodes()
-        .filter_map(|(id, node)| {
-            (node.parent == root_node && !groups.contains(&id) && !graph.is_sequence_diagram(id))
-                .then_some(id)
-        })
+        .filter_map(|(id, node)| (node.parent == root_node && !groups.contains(&id)).then_some(id))
         .collect::<Vec<_>>();
+    // LayoutNested retains special diagram roots, even after extracting their
+    // contents. They remain in ChildrenArray, where newSequenceDiagram rejects
+    // nested sequence actors in declaration order, before the empty-actor check.
+    if let Some(actor) = actors
+        .iter()
+        .copied()
+        .filter(|id| graph.is_sequence_diagram(*id))
+        .min_by_key(|id| note_line(graph, *id))
+    {
+        let node = graph.node(actor).expect("sequence actor");
+        let name = root_node
+            .and_then(|root| graph.node(root))
+            .and_then(|root| node.external_id.strip_prefix(&root.external_id))
+            .and_then(|suffix| suffix.strip_prefix('.'))
+            .unwrap_or(&node.external_id);
+        return Err(LayoutError::SequenceDiagram(format!(
+            "actors in sequence diagrams cannot themselves be sequence diagrams: {name}"
+        )));
+    }
     if actors.is_empty() {
         return Err(LayoutError::SequenceDiagram(
             "no actors declared in sequence diagram".to_owned(),
@@ -633,26 +662,12 @@ fn layout_inner(
         .keys()
         .flat_map(|actor| super::ordered_descendants(graph, *actor))
         .collect::<std::collections::BTreeSet<_>>();
-    // LayoutNested removes special diagrams from the sequence graph while it
-    // lays out actors and messages, then injects those diagrams afterward.
+    // LayoutNested removes special diagram contents, retaining their roots.
+    // Those placeholders (and unextracted empty diagrams) still participate
+    // in newSequenceDiagram's note/span classification under ordinary actors.
     let scope_nodes = all_scope_nodes
         .into_iter()
         .filter(|id| !extracted_actor_nodes.contains(id))
-        .filter(|id| {
-            // LayoutNested extracts the complete nested sequence graph before
-            // the enclosing sequence builds its note/span inventory.
-            let mut current = Some(*id);
-            while let Some(candidate) = current {
-                if Some(candidate) == root_node {
-                    break;
-                }
-                if graph.is_sequence_diagram(candidate) {
-                    return false;
-                }
-                current = graph.node(candidate).and_then(|node| node.parent);
-            }
-            true
-        })
         .collect::<Vec<_>>();
     let notes = scope_nodes
         .iter()
@@ -1021,7 +1036,6 @@ fn layout_inner(
         .copied()
         .filter(|id| {
             Some(*id) != root_node
-                && !graph.is_sequence_diagram(*id)
                 && !actors.contains(id)
                 && !groups.contains(id)
                 && !notes.contains(id)
@@ -1645,7 +1659,10 @@ fn layout_actor_subgraphs(
         // extracts special diagrams. Running Dagre on an ordinary actor's
         // children changes the actor into a generic compound; its descendants
         // are sequence spans and notes instead.
-        if actor_node.grid_rows.is_none() && actor_node.grid_columns.is_none() {
+        if actor_node.grid_rows.is_none()
+            && actor_node.grid_columns.is_none()
+            && !graph.is_sequence_diagram(actor)
+        {
             continue;
         }
         if !graph.nodes().any(|(_, node)| node.parent == Some(actor)) {
@@ -1655,7 +1672,7 @@ fn layout_actor_subgraphs(
         node_ids.extend(super::ordered_descendants(graph, actor));
         let (mut projected, projected_nodes, mut projected_edges) =
             super::project_graph(graph, &node_ids, false);
-        // LayoutNested gives an extracted grid its own ordinary graph root.
+        // LayoutNested gives an extracted special diagram its own graph root.
         // It does not inherit the enclosing document's sequence root shape.
         // Keeping that flag recursively dispatches the same actor as another
         // root sequence instead of laying out its grid.
@@ -1732,12 +1749,23 @@ fn layout_actor_subgraphs(
             .and_then(|node| node.direction)
             .unwrap_or(graph.direction);
         let dispatcher = LayoutDispatcher;
-        let local = if actor_node.grid_rows.is_some() || actor_node.grid_columns.is_some() {
-            dispatcher.layout_grid_diagram(&projected, engine.clone(), options, cancellation)
+        let local = if graph.is_sequence_diagram(actor) {
+            layout_scope_with_cancellation(
+                &projected,
+                options,
+                NodeId(0),
+                engine.clone(),
+                cancellation,
+            )
+        } else if actor_node.grid_rows.is_some() || actor_node.grid_columns.is_some() {
+            dispatcher
+                .layout_grid_diagram(&projected, engine.clone(), options, cancellation)
+                .map_err(super::LayoutDispatchError::into_core_error)
         } else {
-            dispatcher.layout_with_cancellation(&projected, engine.clone(), options, cancellation)
-        }
-        .map_err(super::LayoutDispatchError::into_core_error)?;
+            dispatcher
+                .layout_with_cancellation(&projected, engine.clone(), options, cancellation)
+                .map_err(super::LayoutDispatchError::into_core_error)
+        }?;
         let local = super::remap_result(local, &projected_nodes, &projected_edges);
         layouts.insert(actor, local);
     }
@@ -2230,6 +2258,182 @@ mod tests {
     use d2_rs_core::{Edge, EdgeId, Graph, LabelPosition, LayoutOptions, Node, Size};
 
     #[test]
+    fn empty_sequence_descendants_participate_in_note_and_span_layout() {
+        // d2layouts.go:211-215 retains empty special diagrams. The actor's
+        // child then enters newSequenceDiagram's normal note/span queue.
+        for implicit in [false, true] {
+            for message in [false, true] {
+                let mut graph = Graph {
+                    root_sequence_diagram: implicit,
+                    ..Graph::default()
+                };
+                let size = Size {
+                    width: 100.0,
+                    height: 40.0,
+                };
+                let root = if implicit {
+                    None
+                } else {
+                    let root = graph.add_node(Node::new("scope", size));
+                    graph.set_sequence_diagram(root, true);
+                    Some(root)
+                };
+                let prefix = if implicit { "" } else { "scope." };
+                let actor = graph.add_node(Node {
+                    parent: root,
+                    ..Node::new(format!("{prefix}actor"), size)
+                });
+                let child = graph.add_node(Node {
+                    parent: Some(actor),
+                    ..Node::new(format!("{prefix}actor.child"), size)
+                });
+                let other = graph.add_node(Node {
+                    parent: root,
+                    ..Node::new(format!("{prefix}other"), size)
+                });
+                if message {
+                    graph.add_edge(Edge {
+                        source: child,
+                        target: other,
+                    });
+                }
+                graph.set_sequence_diagram(child, true);
+                let mut ordinary = graph.clone();
+                ordinary.set_sequence_diagram(child, false);
+                for engine in [EngineKind::Dagre, EngineKind::Elk, EngineKind::Tala] {
+                    let result = super::LayoutDispatcher
+                        .layout(&graph, engine.clone(), &LayoutOptions::default())
+                        .unwrap();
+                    let expected = super::LayoutDispatcher
+                        .layout(&ordinary, engine, &LayoutOptions::default())
+                        .unwrap();
+                    assert!(result.boxes.contains_key(&child));
+                    assert_eq!(result.boxes, expected.boxes);
+                    assert_eq!(result.node_labels, expected.node_labels);
+                    assert_eq!(result.routes, expected.routes);
+                    assert_eq!(result.sequence_lifelines, expected.sequence_lifelines);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn empty_nested_sequences_are_rejected_in_declaration_order() {
+        // d2layouts.LayoutNested leaves empty special diagrams in place;
+        // d2sequence.newSequenceDiagram rejects them before the empty-actor
+        // check, using getObjEarliestLineNum and the extracted scope's AbsID.
+        for implicit in [false, true] {
+            let mut graph = Graph::default();
+            let size = Size {
+                width: 100.0,
+                height: 40.0,
+            };
+            let root = if implicit {
+                graph.root_sequence_diagram = true;
+                None
+            } else {
+                let root = graph.add_node(Node::new("scope", size));
+                graph.set_sequence_diagram(root, true);
+                Some(root)
+            };
+            let prefix = if implicit { "" } else { "scope." };
+            let mut later = Node::new(format!("{prefix}later"), size);
+            later.parent = root;
+            let later = graph.add_node(later);
+            graph.set_sequence_diagram(later, true);
+            graph.sequence_node_lines.insert(later, 9);
+            let mut first = Node::new(format!("{prefix}first"), size);
+            first.parent = root;
+            let first = graph.add_node(first);
+            graph.set_sequence_diagram(first, true);
+            graph.sequence_node_lines.insert(first, 2);
+            for engine in [EngineKind::Dagre, EngineKind::Elk, EngineKind::Tala] {
+                let error = super::LayoutDispatcher
+                    .layout(&graph, engine, &LayoutOptions::default())
+                    .unwrap_err();
+                assert!(
+                    error.to_string().ends_with(
+                        "actors in sequence diagrams cannot themselves be sequence diagrams: first"
+                    ),
+                    "{error}"
+                );
+            }
+            graph.set_sequence_diagram(first, false);
+            graph.set_sequence_diagram(later, false);
+            assert!(
+                super::LayoutDispatcher
+                    .layout(&graph, EngineKind::Dagre, &LayoutOptions::default())
+                    .is_ok()
+            );
+        }
+    }
+
+    #[test]
+    fn nested_sequence_contents_are_validated_before_outer_actors() {
+        // LayoutNested extracts populated sequences before calling the outer
+        // newSequenceDiagram. An error in a deeper sequence therefore takes
+        // precedence over an earlier empty sequence actor in the parent.
+        for implicit in [false, true] {
+            for invalid_inner in [false, true] {
+                let mut graph = Graph {
+                    root_sequence_diagram: implicit,
+                    ..Default::default()
+                };
+                let size = Size {
+                    width: 100.0,
+                    height: 40.0,
+                };
+                let root = if implicit {
+                    None
+                } else {
+                    let root = graph.add_node(Node::new("scope", size));
+                    graph.set_sequence_diagram(root, true);
+                    Some(root)
+                };
+                let prefix = if implicit { "" } else { "scope." };
+                let empty = graph.add_node(Node {
+                    parent: root,
+                    ..Node::new(format!("{prefix}empty"), size)
+                });
+                graph.set_sequence_diagram(empty, true);
+                graph.sequence_node_lines.insert(empty, 1);
+                let nested = graph.add_node(Node {
+                    parent: root,
+                    ..Node::new(format!("{prefix}nested"), size)
+                });
+                graph.set_sequence_diagram(nested, true);
+                graph.sequence_node_lines.insert(nested, 2);
+                let children = ["first", "second"].map(|name| {
+                    graph.add_node(Node {
+                        parent: Some(nested),
+                        ..Node::new(format!("{prefix}nested.{name}"), size)
+                    })
+                });
+                if invalid_inner {
+                    graph.set_sequence_diagram(children[0], true);
+                } else {
+                    graph.add_edge(Edge {
+                        source: children[0],
+                        target: children[1],
+                    });
+                }
+                for engine in [EngineKind::Dagre, EngineKind::Elk, EngineKind::Tala] {
+                    let error = super::LayoutDispatcher
+                        .layout(&graph, engine, &LayoutOptions::default())
+                        .unwrap_err();
+                    let actor = if invalid_inner { "first" } else { "empty" };
+                    assert_eq!(
+                        error.to_string(),
+                        format!(
+                            "actors in sequence diagrams cannot themselves be sequence diagrams: {actor}"
+                        )
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
     fn extracted_grid_descendant_notes_do_not_extend_outer_lifelines() {
         let mut graph = Graph::default();
         graph.root_sequence_diagram = true;
@@ -2626,15 +2830,21 @@ mod tests {
             target: second,
         });
 
-        let outer_layout =
-            layout_scope(&graph, &LayoutOptions::default(), outer, EngineKind::Dagre).unwrap();
-        assert!(outer_layout.routes.contains_key(&outer_message));
-        assert!(!outer_layout.routes.contains_key(&inner_message));
-        assert!(!outer_layout.routes.contains_key(&cross_scope_message));
+        // d2layouts.LayoutNested retains the nested root as a placeholder;
+        // d2sequence.newSequenceDiagram rejects it as an actor (:98-100).
+        // Pinned Go rejects the equivalent source even with crossing messages.
+        for engine in [EngineKind::Dagre, EngineKind::Elk, EngineKind::Tala] {
+            let error = layout_scope(&graph, &LayoutOptions::default(), outer, engine).unwrap_err();
+            assert_eq!(
+                error.to_string(),
+                "actors in sequence diagrams cannot themselves be sequence diagrams: nested"
+            );
+        }
 
         let nested_layout =
             layout_scope(&graph, &LayoutOptions::default(), nested, EngineKind::Dagre).unwrap();
         assert!(nested_layout.routes.contains_key(&inner_message));
+        assert!(!nested_layout.routes.contains_key(&outer_message));
         assert!(!nested_layout.routes.contains_key(&cross_scope_message));
         assert_eq!(
             nested_layout.node_labels[&nested].position,

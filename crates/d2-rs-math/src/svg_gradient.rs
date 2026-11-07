@@ -179,7 +179,7 @@ pub fn attach_stops(
         Err(error("internal uncompiled linear gradient".into()))
     }
 }
-#[cfg(test)]
+#[cfg(all(test, feature = "oracle-fixtures"))]
 mod tests {
     use super::*;
     #[cfg(feature = "oracle-fixtures")]
@@ -326,7 +326,7 @@ pub fn finite_inverse(m: [f64; 6]) -> Option<[f64; 6]> {
     out.iter().all(|v| v.is_finite()).then_some(out)
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "oracle-fixtures"))]
 mod raster_inverse_tests {
     use super::*;
     #[cfg(feature = "oracle-fixtures")]

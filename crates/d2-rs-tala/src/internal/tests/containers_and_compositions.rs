@@ -26,6 +26,148 @@
     }
 
     #[test]
+    fn local_container_fit_reserves_boundary_child_label_overhang() {
+        // Pinned node.go expandForLabels; the first fit of fuzz job 687 has
+        // this 10px child, a 35px label and raw bounds (0, 0)..(177, 88).
+        let mut input = Graph::default();
+        let child = input.add_node(node("narrow", 10.0, 61.0));
+        let mut arena = ArenaGraph::from_input(&input);
+        arena.set_position(child, Point::default());
+        arena.nodes[child.0 as usize].label_size = Some(Size {
+            width: 35.0,
+            height: 21.0,
+        });
+        let mut low = Point::default();
+        let mut high = Point { x: 177.0, y: 88.0 };
+        ArenaGraph::expand_for_child_labels(&mut low, &mut high, arena.nodes.iter());
+        assert_eq!(low, Point { x: -13.0, y: 0.0 });
+        assert_eq!(high, Point { x: 177.0, y: 88.0 });
+        // Touching either boundary permits expansion on both sides.
+        arena.nodes[child.0 as usize]
+            .label_size
+            .as_mut()
+            .unwrap()
+            .width = 500.0;
+        low = Point::default();
+        ArenaGraph::expand_for_child_labels(&mut low, &mut high, arena.nodes.iter());
+        assert_eq!(low, Point { x: -245.0, y: 0.0 });
+        assert_eq!(high, Point { x: 255.0, y: 88.0 });
+    }
+
+    #[test]
+    fn reflected_container_children_retain_centered_label_overhang() {
+        // Pinned placement/direct.go mirrorAxes and node.go
+        // positionContainerChildren: label expansion precedes InsidePlacement.
+        // These are the six public node boxes before the reduced 687 mirror.
+        let mut input = Graph::default();
+        let parent = input.add_node(node("parent", 310.0, 226.0));
+        let mut narrow = node("parent.narrow", 10.0, 61.0);
+        narrow.parent = Some(parent);
+        narrow.label_size = Some(Size { width: 35.0, height: 21.0 });
+        narrow.label_position = LabelPosition::InsideMiddleCenter;
+        let narrow = input.add_node(narrow);
+        let mut peer = node("parent.peer", 102.0, 66.0);
+        peer.parent = Some(parent);
+        let peer = input.add_node(peer);
+        let mut diamond = node("parent.diamond", 36.0, 20.0);
+        diamond.parent = Some(parent);
+        diamond.shape = ShapeKind::Diamond;
+        let diamond = input.add_node(diamond);
+        let outer = input.add_node(node("outer", 159.0, 66.0));
+        let last = input.add_node(node("last", 68.0, 66.0));
+        let mut arena = ArenaGraph::from_input(&input);
+        for (id, x, y) in [
+            (parent, 0.0, 38.0),
+            (narrow, 73.0, 98.0),
+            (peer, 148.0, 98.0),
+            (diamond, 73.0, 184.0),
+            (outer, 396.0, 198.0),
+            (last, 396.0, 0.0),
+        ] {
+            arena.set_position(id, Point { x, y });
+        }
+        arena.mirror_axes_with_reachable(false, true, None);
+        for (id, x, y) in [
+            (parent, 0.0, -264.0),
+            (narrow, 73.0, -159.0),
+            (peer, 148.0, -164.0),
+            (diamond, 73.0, -204.0),
+            (outer, 396.0, -264.0),
+            (last, 396.0, -66.0),
+        ] {
+            assert_eq!(arena.position(id), Some(Point { x, y }));
+        }
+        // A second positioning pass must retain the same child frame.
+        arena.position_container_children(parent, true);
+        assert_eq!(arena.position(narrow), Some(Point { x: 73.0, y: -159.0 }));
+        assert_eq!(arena.position(peer), Some(Point { x: 148.0, y: -164.0 }));
+    }
+
+    #[test]
+    fn explicit_container_dimensions_leave_label_minima_to_unset_axes() {
+        // Pinned layoutgraph/node.go fitToBoundingBox: a desired dimension
+        // suppresses that axis's inside-label minimum before shape fitting.
+        let mut input = Graph::default();
+        let parent = input.add_node(node("parent", 10.0, 20.0));
+        let mut arena = ArenaGraph::from_input(&input);
+        let content = Size {
+            width: 10.0,
+            height: 20.0,
+        };
+        let padding = Insets {
+            top: 10.0,
+            right: 10.0,
+            bottom: 10.0,
+            left: 10.0,
+        };
+        for (shape, expected) in [
+            (
+                ShapeKind::Rectangle,
+                [(120.0, 100.0), (30.0, 100.0), (120.0, 40.0), (30.0, 40.0)],
+            ),
+            (
+                ShapeKind::Circle,
+                [(170.0, 170.0), (142.0, 142.0), (170.0, 170.0), (57.0, 57.0)],
+            ),
+            (
+                ShapeKind::Parallelogram,
+                [(172.0, 100.0), (82.0, 100.0), (172.0, 40.0), (82.0, 40.0)],
+            ),
+        ] {
+            for ((desired_width, desired_height), (width, height)) in [
+                (None, None),
+                (Some(4.0), None),
+                (None, Some(6.0)),
+                (Some(4.0), Some(6.0)),
+            ]
+            .into_iter()
+            .zip(expected)
+            {
+                let record = &mut arena.nodes[parent.0 as usize];
+                record.shape = shape;
+                record.label_size = Some(Size {
+                    width: 100.0,
+                    height: 80.0,
+                });
+                record.label_position = LabelPosition::InsideMiddleCenter;
+                record.desired_width = desired_width;
+                record.desired_height = desired_height;
+                let expected = Size { width, height };
+                assert_eq!(
+                    arena.shape_dimensions_to_fit(parent, content, padding),
+                    expected,
+                    "{shape:?}, width {desired_width:?}, height {desired_height:?}"
+                );
+                assert_eq!(
+                    arena.bin_pack_shape_dimensions_to_fit(parent, content, padding),
+                    expected,
+                    "bin pack: {shape:?}, width {desired_width:?}, height {desired_height:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn rectangular_grid_without_desired_width_uses_fitted_dimensions() {
         let mut input = Graph::with_direction(Direction::Down);
         let mut grid = node("grid", 298.0, 56.0);

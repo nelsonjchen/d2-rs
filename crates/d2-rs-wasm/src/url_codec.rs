@@ -3,7 +3,7 @@
 
 pub(super) use d2_rs_lib::urlenc::decode;
 
-#[cfg(test)]
+#[cfg(all(test, feature = "oracle-fixtures"))]
 mod tests {
     use super::*;
     #[cfg(feature = "oracle-fixtures")]

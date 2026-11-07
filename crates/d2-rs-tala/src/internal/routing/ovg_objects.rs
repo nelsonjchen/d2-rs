@@ -155,8 +155,11 @@ impl SharedPortEdge {
         }
     }
     pub(super) fn incident(&self, local_index: usize) -> IncidentEdge {
+        #[cfg(not(any(test, feature = "diagnostic-traces")))]
+        let _ = local_index;
         IncidentEdge {
             record: Arc::downgrade(&self.record),
+            #[cfg(any(test, feature = "diagnostic-traces"))]
             local_index,
             retained_owner: None,
         }
@@ -208,6 +211,10 @@ impl Drop for EdgeWrite<'_> {
 #[derive(Clone, Debug)]
 pub(super) struct IncidentEdge {
     record: Weak<GoCell<PortEdge>>,
+    // Source adjacency slots hold only an edge pointer. Local numbers are
+    // diagnostic labels, not identity: a hierarchy import keeps the original
+    // pointer even when the receiver has different edge indices.
+    #[cfg(any(test, feature = "diagnostic-traces"))]
     local_index: usize,
     retained_owner: Option<Arc<ObjectRoot>>,
 }
@@ -245,6 +252,7 @@ impl IncidentEdge {
 #[derive(Clone, Debug)]
 pub(super) struct StoredIncident {
     record: Weak<GoCell<PortEdge>>,
+    #[cfg(any(test, feature = "diagnostic-traces"))]
     local_index: usize,
 }
 impl StoredIncident {
@@ -266,6 +274,7 @@ impl super::ovg_edge_header::SlotValue for IncidentEdge {
     fn retained(stored: &StoredIncident, owner: Option<Arc<ObjectRoot>>) -> Self {
         Self {
             record: stored.record.clone(),
+            #[cfg(any(test, feature = "diagnostic-traces"))]
             local_index: stored.local_index,
             retained_owner: owner,
         }
@@ -273,21 +282,25 @@ impl super::ovg_edge_header::SlotValue for IncidentEdge {
     fn stored(&self) -> StoredIncident {
         StoredIncident {
             record: self.record.clone(),
+            #[cfg(any(test, feature = "diagnostic-traces"))]
             local_index: self.local_index,
         }
     }
     fn into_stored(self) -> StoredIncident {
         StoredIncident {
             record: self.record,
+            #[cfg(any(test, feature = "diagnostic-traces"))]
             local_index: self.local_index,
         }
     }
 }
+#[cfg(any(test, feature = "diagnostic-traces"))]
 impl PartialEq<usize> for IncidentEdge {
     fn eq(&self, other: &usize) -> bool {
         self.local_index == *other
     }
 }
+#[cfg(any(test, feature = "diagnostic-traces"))]
 impl serde::Serialize for IncidentEdge {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.local_index.serialize(serializer)

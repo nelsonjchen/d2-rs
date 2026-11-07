@@ -247,6 +247,7 @@ pub(super) fn layout_node(
     local.ascent = height * 1000.0 * scale;
     local.depth = depth * 1000.0 * scale;
     local.groups.push(LayoutGroup {
+        x_frame: None,
         data_cramped: None,
         own_translate: None,
         accent_offset: None,
@@ -304,6 +305,7 @@ pub(super) fn layout_node(
     out.ascent = out.ascent.max(baseline + local.ascent);
     out.depth = out.depth.max(local.depth - baseline);
     out.groups.push(LayoutGroup {
+        x_frame: None,
         data_cramped: None,
         own_translate: None,
         accent_offset: None,

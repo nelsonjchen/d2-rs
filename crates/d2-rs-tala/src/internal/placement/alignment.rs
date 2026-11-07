@@ -119,44 +119,27 @@ impl AlignmentTrialSnapshot {
         } else {
             graph.projected_transaction_nodes.clone()
         };
-        // Match projected_transaction_geometry's first-match precedence:
-        // active graph nodes, container children, aggregate children, then
-        // external containers. Index only lookup results; traversal order
-        // and duplicate Tala-ID winners remain unchanged.
-        let mut positions = crate::internal::IdHashMap::default();
-        for node in graph.graph_node_order() {
-            positions
-                .entry(graph.active_node_tala_id(node))
-                .or_insert_with(|| graph.active_node_position(node));
-        }
-        for node in graph
-            .transaction_external_container_children
-            .values()
-            .flatten()
-            .chain(
-                graph
-                    .transaction_external_aggregate_children
-                    .values()
-                    .flatten(),
-            )
-            .chain(graph.transaction_external_containers.iter())
-        {
-            positions
-                .entry(node.tala_id)
-                .or_insert_with(|| graph.anchored_external_position(node));
-        }
-        let original_positions = nodes
+        // Capture live sizes as well as positions: a container refit can
+        // grow a vessel without moving it. Go's GraphState.geometryChanged
+        // still validates that vessel's new overlap pairs.
+        let geometry = graph.projected_transaction_live_geometry();
+        let original_geometry = nodes
             .iter()
             .map(|entry| {
-                positions
+                geometry
                     .get(&entry.node.tala_id)
                     .copied()
-                    .unwrap_or_else(|| graph.anchored_external_position(&entry.node))
+                    .unwrap_or_else(|| {
+                        (
+                            graph.anchored_external_position(&entry.node),
+                            entry.node.rect.size,
+                        )
+                    })
             })
             .collect();
         ProjectedTransactionState {
             nodes,
-            original_positions,
+            original_geometry,
             existing_overlaps: BTreeSet::new(),
             existing_exact_overlaps: BTreeSet::new(),
         }
@@ -1105,7 +1088,7 @@ impl ArenaGraph {
                 let containment_valid = self.transaction_containment_is_valid();
                 let pre_sync_container_valid = external_containers_valid && containment_valid;
                 if pre_sync_container_valid {
-                    self.sync_clusters();
+                    self.sync_clusters_after_container_refit();
                     self.sync_sequences();
                     if crate::internal::trace_env_enabled("TALA_TRACE_ALIGN_CLUSTER_STATE") {
                         eprintln!(
@@ -1857,7 +1840,11 @@ impl ArenaGraph {
                 // stage-level compatibility parameter for callers that need
                 // the historical lazy frame; the transaction boundary itself
                 // must always be complete.
-                self.sync_clusters();
+                if hierarchy_materialized {
+                    self.sync_clusters_after_container_refit();
+                } else {
+                    self.sync_clusters();
+                }
                 self.sync_sequences();
                 // Go's Transaction.UpdateState snapshots live boxes before
                 // each later edge. Refresh the projected carrier geometry at
@@ -2034,27 +2021,80 @@ mod tests {
         graph.transaction_external_containers.push(nil_child);
         let expected = graph.projected_transaction_state();
         let actual = AlignmentTrialSnapshot::projected_geometry(&graph);
-        let bits = |positions: &[Option<Point>]| {
-            positions
+        let bits = |geometry: &[(Option<Point>, Size)]| {
+            geometry
                 .iter()
-                .map(|point| point.map(|p| (p.x.to_bits(), p.y.to_bits())))
+                .map(|(point, size)| {
+                    (
+                        point.map(|p| (p.x.to_bits(), p.y.to_bits())),
+                        size.width.to_bits(),
+                        size.height.to_bits(),
+                    )
+                })
                 .collect::<Vec<_>>()
         };
         assert_eq!(
-            bits(&actual.original_positions),
-            bits(&expected.original_positions)
+            bits(&actual.original_geometry),
+            bits(&expected.original_geometry)
         );
         assert_eq!(
             format!("{:?}", actual.nodes),
             format!("{:?}", expected.nodes)
         );
         assert_eq!(
-            actual.original_positions[1],
+            actual.original_geometry[1].0,
             Some(Point { x: 21.0, y: -0.0 })
         );
-        assert_eq!(actual.original_positions[2], None);
+        assert_eq!(actual.original_geometry[2].0, None);
         assert!(actual.existing_overlaps.is_empty());
         assert!(actual.existing_exact_overlaps.is_empty());
+    }
+
+    #[test]
+    fn alignment_rejects_stationary_vessel_growth_into_peer_spacing() {
+        // transaction.go GraphState.geometryChanged includes both dimensions.
+        // Growing a column into its peer's 20px clearance must be validated
+        // even though the temporary vessel's TopLeft stays fixed.
+        let mut input = Graph::default();
+        let size = Size {
+            width: 30.0,
+            height: 10.0,
+        };
+        let first = input.add_node(Node::new("first", size));
+        let second = input.add_node(Node::new("second", size));
+        let peer = input.add_node(Node::new("peer", size));
+        let mut graph = ArenaGraph::from_input(&input);
+        graph.clusters.push(ClusterState {
+            members: vec![first, second],
+            arrangement: ClusterArrangement::Column,
+            desired_arrangement: ClusterArrangement::Column,
+            padding: 20.0,
+            vessel_tala_id: 10001,
+            fixed_size: false,
+        });
+        for member in [first, second] {
+            graph.nodes[member.0 as usize].cluster = Some(0);
+        }
+        graph.node_order = vec![first, peer];
+        graph.set_position(first, Point { x: 0.0, y: 0.0 });
+        graph.set_position(second, Point { x: 0.0, y: 30.0 });
+        graph.set_position(peer, Point { x: 0.0, y: 60.0 });
+        graph
+            .pending_cluster_vessel_positions
+            .insert(0, Point::default());
+        graph.refresh_node_order_membership();
+        graph.refresh_cluster_vessel_sizes();
+        let state = AlignmentTrialSnapshot::projected_geometry(&graph);
+        let dirty = graph.projected_transaction_dirty_node_ids(&state);
+        assert!(dirty.is_empty());
+        assert!(graph.projected_transaction_nodes_are_valid_with_dirty(&state, Some(&dirty)));
+        let origin = graph.active_node_position(first);
+        graph.nodes[first.0 as usize].rect.size.height += 3.0;
+        graph.sync_clusters_after_container_refit();
+        assert_eq!(graph.active_node_position(first), origin);
+        let dirty = graph.projected_transaction_dirty_node_ids(&state);
+        assert_eq!(dirty, BTreeSet::from([10001]));
+        assert!(!graph.projected_transaction_nodes_are_valid_with_dirty(&state, Some(&dirty)));
     }
 
     #[test]

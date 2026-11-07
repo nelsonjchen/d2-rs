@@ -1540,11 +1540,11 @@ fn reorder_nil<T>(value: Option<T>) -> T {
         std::panic::panic_any("runtime error: invalid memory address or nil pointer dereference")
     })
 }
-fn reorder_slot(
-    route: &RoutePoints,
-    index: usize,
-) -> Option<super::owner_points::SharedOwnerPoint> {
-    route.header().get(index).unwrap_or_else(|| {
+fn reorder_slot(route: &RoutePoints, index: usize) -> Option<Point> {
+    // edge.go isStraight/hasOverlappingEnd read points without a callback.
+    // Borrow their coordinates, preserving nil slots and the source bounds
+    // panic, rather than retaining an Arc for every comparison.
+    route.coordinate_slot(index).unwrap_or_else(|| {
         std::panic::panic_any(format!(
             "runtime error: index out of range [{index}] with length {}",
             route.len()
@@ -1556,12 +1556,7 @@ fn is_straight(edge: &ArenaEdge) -> bool {
     let mut q = reorder_slot(&edge.route, 1);
     for i in 2..edge.route.len() {
         let r = reorder_slot(&edge.route, i);
-        if orientation(
-            reorder_nil(p.clone()).get(),
-            reorder_nil(q.clone()).get(),
-            reorder_nil(r.clone()).get(),
-        ) != 0.0
-        {
+        if orientation(reorder_nil(p), reorder_nil(q), reorder_nil(r)) != 0.0 {
             return false;
         }
         p = q;
@@ -1599,10 +1594,7 @@ fn has_overlapping_end(graph: &ArenaGraph, edge_index: usize) -> bool {
     let edge = &graph.edge_records[edge_index];
     let start = reorder_slot(&edge.route, 0);
     let end = reorder_slot(&edge.route, edge.route.len() - 1);
-    let equal = |a: Option<super::owner_points::SharedOwnerPoint>,
-                 b: &Option<super::owner_points::SharedOwnerPoint>| {
-        a.zip(b.as_ref()).is_some_and(|(a, b)| a.get() == b.get())
-    };
+    let equal = |a: Option<Point>, b: &Option<Point>| a.zip(*b).is_some_and(|(a, b)| a == b);
     for (node, endpoint) in [(edge.from, &start), (edge.to, &end)] {
         let node = reorder_nil(graph.nodes.get(node.0 as usize));
         for other in node.edges.header().iter_slots() {
@@ -2103,6 +2095,26 @@ mod tests {
             )))
             .is_err()
         );
+    }
+
+    #[test]
+    fn duplicate_overlap_reads_current_coordinates_and_ignores_nil_ends() {
+        // layoutgraph/edge.go hasOverlappingEnd uses nonNilEquals on the
+        // current shared point values; neither a prior coordinate image nor
+        // equality between two nil pointers constitutes an overlapping end.
+        let g = reorder_fixture();
+        let other_start = g.edge_records[1].route.slot(0).unwrap();
+        let original = other_start.get();
+        assert!(!has_overlapping_end(&g, 0));
+        other_start.set(g.edge_records[0].route.point(0));
+        assert!(has_overlapping_end(&g, 0));
+        other_start.set(original);
+        assert!(!has_overlapping_end(&g, 0));
+        for edge in &g.edge_records {
+            edge.route
+                .replace(RoutePoints::pointer_literal(&[None, None]));
+        }
+        assert!(!has_overlapping_end(&g, 0));
     }
 
     #[test]

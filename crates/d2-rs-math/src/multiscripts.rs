@@ -192,6 +192,7 @@ fn place_child(mut child: Layout, x: f64, scale: f64, out: &mut Layout) {
     {
         let mut g = child.groups.pop().unwrap();
         g.x = x;
+        g.x_frame = None;
         g.before_glyph = out.glyphs.len();
         out.groups.push(g);
     } else {
@@ -200,6 +201,7 @@ fn place_child(mut child: Layout, x: f64, scale: f64, out: &mut Layout) {
 }
 fn group(child: Layout, x: f64, y: f64, scale: f64, kind: &'static str, out: &mut Layout) {
     out.groups.push(LayoutGroup {
+        x_frame: None,
         data_cramped: None,
         own_translate: None,
         accent_offset: None,

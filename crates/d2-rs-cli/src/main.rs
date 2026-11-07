@@ -8911,11 +8911,12 @@ layers: {
                 output.to_string_lossy().into_owned(),
             ])
             .unwrap_err();
+            // HumanPath abbreviates $HOME, which contains the temp directory on Windows.
             assert_eq!(
                 error,
                 format!(
                     "err: failed to compile {}: paged board 0 frame: d2raster: even-odd clip work 23889216 exceeds limit 22727272",
-                    input_path.display()
+                    human_path(&input_path)
                 )
             );
             assert!(!output.exists());

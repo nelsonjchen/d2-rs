@@ -307,7 +307,7 @@ pub fn solid(value: &str) -> Result<[u8; 4], String> {
     let bytes = color.map(|v| (v * 255. + 0.5) as i32 as u8);
     Ok(bytes)
 }
-#[cfg(test)]
+#[cfg(all(test, feature = "oracle-fixtures"))]
 mod tests {
     use super::*;
     #[cfg(feature = "oracle-fixtures")]

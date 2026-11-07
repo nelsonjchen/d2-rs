@@ -527,6 +527,28 @@ impl ArenaGraph {
         }
     }
 
+    /// Node.expandForLabels reserves a centered label's overhang when its
+    /// child touches either horizontal boundary of the fitted graph.
+    pub(super) fn expand_for_child_labels<'a>(
+        top_left: &mut Point,
+        bottom_right: &mut Point,
+        children: impl IntoIterator<Item = &'a ArenaNode>,
+    ) {
+        for child in children {
+            let (Some(position), Some(label)) = (child.position, child.label_size) else {
+                continue;
+            };
+            let right = position.x + child.rect.size.width;
+            if (position.x == top_left.x || right == bottom_right.x)
+                && label.width > child.rect.size.width
+            {
+                let overhang = child.rect.size.width / 2.0 - label.width / 2.0;
+                top_left.x = top_left.x.min((position.x + overhang).floor());
+                bottom_right.x = bottom_right.x.max((right - overhang).ceil());
+            }
+        }
+    }
+
     pub(super) fn bin_pack_shape_dimensions_to_fit(
         &self,
         container: NodeId,
@@ -550,8 +572,12 @@ impl ArenaGraph {
         // chosen outside by TALA need not have an external-label input record.
         let label_is_inside = !Self::label_position_is_outside(node.label_position);
         if label_is_inside && let Some(label) = node.label_size {
-            width = width.max(label.width - padding_x + 20.0);
-            height = height.max(label.height - padding_y + 20.0);
+            if node.desired_width.is_none() {
+                width = width.max(label.width - padding_x + 20.0);
+            }
+            if node.desired_height.is_none() {
+                height = height.max(label.height - padding_y + 20.0);
+            }
         }
         let fitted = match node.shape {
             ShapeKind::Parallelogram => Size {
@@ -684,8 +710,12 @@ impl ArenaGraph {
         // chosen outside by TALA need not have an external-label input record.
         let label_is_inside = !Self::label_position_is_outside(node.label_position);
         if label_is_inside && let Some(label) = node.label_size {
-            width = width.max(label.width - padding_x + 20.0);
-            height = height.max(label.height - padding_y + 20.0);
+            if node.desired_width.is_none() {
+                width = width.max(label.width - padding_x + 20.0);
+            }
+            if node.desired_height.is_none() {
+                height = height.max(label.height - padding_y + 20.0);
+            }
         }
 
         let mut fitted = match node.shape {

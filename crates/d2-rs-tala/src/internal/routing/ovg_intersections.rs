@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 //! Ordinary OVG intersections: pinned ovg.go and ovg_resource.go.
 use super::ovg_groups::group;
-use super::ovg_ports::{PortBuild, SharedPortNode};
+use super::ovg_ports::{PortBuild, PortList, SharedPortNode};
 use super::route_search_guard::OvgBuildBudget;
 use super::{ArenaGraph, NodeId, Point, Rect};
 use crate::internal::owner_groups::OwnerGroupKind::{Cluster, Sequence};
@@ -12,8 +12,14 @@ pub(super) type Budget<'a, 'b> = Option<&'a OvgBuildBudget<'b>>;
 pub(super) fn check(budget: Budget<'_, '_>) -> Result<(), ()> {
     budget.map_or(Ok(()), |b| b.check())
 }
+// Keep the constant one-unit charge in each scan. An outlined adapter would
+// restore the per-step call even when reserve_work's ordinary path inlines.
+#[inline(always)]
 pub(super) fn step(budget: Budget<'_, '_>) -> Result<(), ()> {
-    budget.map_or(Ok(()), |b| b.reserve_work(1))
+    match budget {
+        Some(budget) => budget.reserve_work(1),
+        None => Ok(()),
+    }
 }
 pub(super) fn rect(graph: &ArenaGraph, node: NodeId) -> Rect {
     Rect {
@@ -395,7 +401,7 @@ impl PortIndex {
         budget: Budget<'_, '_>,
     ) -> Result<Self, ()> {
         let mut out = Self::default();
-        for (&owner, ports) in &build.ports {
+        for (&owner, ports) in build.ports.iter() {
             step(budget)?;
             let owner_index = out.owners.len();
             out.owners.push(owner);
@@ -537,9 +543,17 @@ impl PortIndex {
             // Source map lookup yields a nil slice when this indexed owner
             // has since been removed. Keep the captured alignment inventory,
             // but walk the current entry (including an absent/empty one).
-            for &(node_index, _) in build.ports.get(&owner).into_iter().flatten() {
+            let ports = build
+                .ports
+                .get(&owner)
+                .map(PortList::nodes)
+                .unwrap_or_default();
+            for node in ports {
                 step(budget)?;
-                let port = build.nodes[node_index].point();
+                let port = node
+                    .read()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .point();
                 let point = get_point()
                     .expect("runtime error: invalid memory address or nil pointer dereference");
                 if port.x != point.x && port.y != point.y {
@@ -575,15 +589,15 @@ impl PortIndex {
                     // The earlier alignment/boundary reads cannot substitute
                     // for this live reference. A late nil point is accepted by
                     // layoutgraph.segmentIntersectsBox and does not obstruct.
-                    let live_port = build.nodes[node_index]
+                    let live_port = node
                         .read()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner)
                         .point_ref
                         .as_ref()
                         .map(|p| p.get());
                     let live_query = get_point();
-                    if live_port
-                        .zip(live_query)
-                        .is_some_and(|(live_port, live_query)| {
+                    let blocked = match (live_port, live_query) {
+                        (Some(live_port), Some(live_query)) => {
                             super::route_geometry::recovered_segment_intersects_box(
                                 live_port,
                                 live_query,
@@ -592,8 +606,10 @@ impl PortIndex {
                                     size: graph.nodes[other.0 as usize].rect.size,
                                 },
                             )
-                        })
-                    {
+                        }
+                        _ => false,
+                    };
+                    if blocked {
                         direct = false;
                         break;
                     }

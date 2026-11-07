@@ -134,6 +134,7 @@ fn blank() -> Layout {
 }
 fn group(body: Layout, kind: &'static str, x: f64, baseline: f64, scale: f64) -> LayoutGroup {
     LayoutGroup {
+        x_frame: None,
         data_cramped: None,
         own_translate: None,
         accent_offset: None,
@@ -232,6 +233,7 @@ pub(super) fn layout(
             group(b, "mrow", 0.0, 0.0, script)
         };
         frame.x = (width - label_width) / 2.0;
+        frame.x_frame = None;
         frame.baseline = v;
         local.groups.push(frame);
     }
@@ -244,6 +246,7 @@ pub(super) fn layout(
     let mut over_box = over_box;
     let mut frame = over_box.groups.pop()?;
     frame.x = (width - over_box.width) / 2.0;
+    frame.x_frame = None;
     frame.baseline = u;
     local.groups.push(frame);
     out.ascent = out.ascent.max(baseline + local.ascent);

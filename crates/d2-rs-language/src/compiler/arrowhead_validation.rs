@@ -220,6 +220,7 @@ struct ScopeFrame {
 
 struct KeyFrame {
     map: NodeId,
+    object: usize,
     fields: std::vec::IntoIter<NodeId>,
     shape: String,
     in_sequence: bool,
@@ -295,7 +296,7 @@ impl ArrowheadValidation<'_> {
         // Source compileBoard skips validateKeys if any preceding graph
         // compilation failed, including failures in an earlier board.
         if self.errors.is_empty() {
-            self.validate_keys(map, map, false, "");
+            self.validate_keys(map, map);
         }
         // Go validates and exports the same compileMap hierarchy. Only the
         // requested render root needs its order; planning and recursive
@@ -382,14 +383,8 @@ impl ArrowheadValidation<'_> {
         }
     }
 
-    fn validate_keys(
-        &mut self,
-        map: NodeId,
-        board_root: NodeId,
-        in_sequence: bool,
-        default_shape: &str,
-    ) {
-        let mut frames = vec![self.key_frame(map, board_root, in_sequence, default_shape)];
+    fn validate_keys(&mut self, map: NodeId, board_root: NodeId) {
+        let mut frames = vec![self.key_frame(map, 0, false)];
         while let Some(frame) = frames.last_mut() {
             let Some(field) = frame.fields.next() else {
                 frames.pop();
@@ -397,6 +392,7 @@ impl ArrowheadValidation<'_> {
             };
             let KeyFrame {
                 map,
+                object,
                 shape,
                 in_sequence,
                 width,
@@ -428,50 +424,30 @@ impl ArrowheadValidation<'_> {
                 }
             } else if !matches!(shape.as_str(), "sql_table" | "class")
                 && let Some(child) = self.compiler.arena.map(field)
+                && let Some(child_object) =
+                    self.states.last().unwrap().validation_child(*object, field)
             {
-                // setDefaultShapes applies to objects rather than the root;
-                // rich-label defaults differ outside sequence diagrams.
-                let language =
-                    super::graph::field_language(self.compiler, field).unwrap_or_default();
-                let default_shape = if in_sequence || language.is_empty() {
-                    "rectangle"
-                } else if matches!(language.as_str(), "latex" | "markdown") {
-                    "text"
-                } else {
-                    "code"
-                };
-                frames.push(self.key_frame(child, board_root, in_sequence, default_shape));
+                frames.push(self.key_frame(child, child_object, in_sequence));
             }
         }
     }
 
-    fn key_frame(
-        &self,
-        map: NodeId,
-        board_root: NodeId,
-        in_sequence: bool,
-        default_shape: &str,
-    ) -> KeyFrame {
-        let mut shape = self.object_shape_value(map, board_root).unwrap_or_default();
-        if shape.is_empty() {
-            shape = default_shape.into();
-        }
+    fn key_frame(&self, map: NodeId, object: usize, in_sequence: bool) -> KeyFrame {
+        // validateKey reads the compiled object's attributes, including class
+        // precedence and setDefaultShapes, after resolving HasChild.
+        let (shape, width, height) = self.states.last().unwrap().validation_attributes(object);
         let in_sequence = in_sequence || shape == "sequence_diagram";
-        // validateKey only reads dimensions for the circle/square equality
-        // check (compile.go:1516). Other shapes need neither inherited lookup
-        // nor scalar formatting; construction already validates their values.
         let (width, height) = if matches!(shape.as_str(), "circle" | "square") {
             (
-                self.effective_field(map, board_root, &["width"])
-                    .and_then(|field| self.field_text(field)),
-                self.effective_field(map, board_root, &["height"])
-                    .and_then(|field| self.field_text(field)),
+                width.and_then(|field| self.field_text(field)),
+                height.and_then(|field| self.field_text(field)),
             )
         } else {
             (None, None)
         };
         KeyFrame {
             map,
+            object,
             fields: self.fields(map).into_iter(),
             shape,
             in_sequence,
@@ -1352,10 +1328,8 @@ impl ArrowheadValidation<'_> {
                 if let Some(ast) = self.compiler.arena.last_ref(field).and_then(|r| r.ast()) {
                     self.errors.push(error(
                         &ast,
-                        format!(
-                            "invalid style keyword: {}",
-                            crate::parser::quote_input(name.as_bytes())
-                        ),
+                        // Go compileStyleField uses a raw %s between literal quotes.
+                        format!("invalid style keyword: \"{name}\""),
                     ));
                 }
                 continue;
@@ -1570,6 +1544,14 @@ mod tests {
                 ],
             ),
             ("a: {shape: circle; \"width\": 80; height: 90}\n", &[]),
+            // compile.go:1559 passes ScalarString to HasChild; d2graph's
+            // EnsureChild stores FormatKeyPath IDs instead. These names
+            // therefore skip recursive validateKeys, as the pinned CLI does.
+            (r"a\nb: {shape: circle; width: 80; height: 90}", &[]),
+            (r#""a.b": {shape: circle; width: 80; height: 90}"#, &[]),
+            (r"a: {b\nc: {shape: circle; width: 80; height: 90}}", &[]),
+            (r#""width": {shape: circle; width: 80; height: 90}"#, &[]),
+            ("a\\nb.width: 80\na\\nb.height: 90\n*.shape: circle\n", &[]),
             (
                 "classes: {size: {width: 80; height: 90}}\nlayers: {child: {classes: {size: {width: 90; height: 90}}; a: {class: size; shape: circle; width: 90}}}\n",
                 &[],
@@ -2049,6 +2031,23 @@ mod tests {
                     .collect::<Vec<_>>(),
                 *expected,
                 "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn invalid_style_keyword_preserves_raw_scalar_text() {
+        // d2compiler/compile.go compileStyleField formats %s, not %q.
+        for (source, name) in [
+            ("a: {style: {bad\u{202e}: true}}\n", "bad\u{202e}"),
+            ("a: {style: {\"bad\\\"name\": true}}\n", "bad\"name"),
+            ("a: {style: {\"bad\\nname\": true}}\n", "bad\nname"),
+        ] {
+            let actual = diagnostics(source);
+            assert_eq!(actual.len(), 1, "{source}");
+            assert_eq!(
+                actual[0].message,
+                format!("validation.d2:1:13: invalid style keyword: \"{name}\"")
             );
         }
     }

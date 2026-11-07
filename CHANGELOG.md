@@ -10,19 +10,28 @@ Each release names the upstream Go D2 commit it matches, from
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-07
+
+Matches Go D2 `master` at 6a7b48378, as 0.1.0 does.
+
 ### Fixed
 
-- Windows: the default test tier passes and all 944 e2e boards match a
-  Windows build of Go (checked with the GNU target under Wine). Imports
-  across drives, path spelling in diagnostics and Windows file errors follow
-  Go, and Go-matching math replaces C library calls whose results differ on
-  Windows. The MSVC build is still compiled but not run in CI.
+- Windows: the default test tier passes and all 944 e2e boards match Go on
+  native MSVC and under Wine. Imports across drives, path spelling in
+  diagnostics and Windows file errors follow Go, and Go-matching math
+  replaces C library results that differ on Windows. Files with CRLF line
+  endings render as in Go.
+- TALA: boards with many edges ran up to 1.7x slower than Go because seeds
+  waited for each other to route; every seed now routes at once, as in Go.
+  Parallel edges, nested boards and class diagrams use less CPU or memory,
+  and the 200-node nested work-limit error matches Go.
 - PNG: right-to-left override text, short `cylinder`, `callout` and
   `c4-person` shapes, `--scale=0.05`, and malformed PNG icons (now rejected
   as Go does) match Go.
-- Layout cases found by fuzzing: glob-applied circle containers (Dagre, ELK),
-  `near` on the root board, repeated grid dimensions, and inline HTML in
-  Markdown labels.
+- Layout and error cases found by fuzzing: glob-applied circle containers,
+  `near` on the root board, repeated grid dimensions, inline HTML in
+  Markdown, TALA containers with explicit widths, nested sequence diagrams,
+  four LaTeX line-break cases and several error messages.
 - Faster PNG export of shadows, double borders, gradients and long Markdown.
 
 ## [0.1.0] - 2026-11-06
@@ -57,4 +66,5 @@ Each release names the upstream Go D2 commit it matches, from
   path separators in diagnostics and one TALA layout differ in tests.
 
 [Unreleased]: https://github.com/nelsonjchen/d2-rs/commits/main
+[0.1.1]: https://crates.io/crates/d2-rs/0.1.1
 [0.1.0]: https://crates.io/crates/d2-rs/0.1.0

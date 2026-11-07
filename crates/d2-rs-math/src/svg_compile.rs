@@ -191,7 +191,7 @@ pub fn prepare(
     }
     Ok(elements)
 }
-#[cfg(test)]
+#[cfg(all(test, feature = "oracle-fixtures"))]
 mod tests {
     use super::*;
     #[cfg(feature = "oracle-fixtures")]
@@ -394,7 +394,7 @@ pub fn compile_elements(
     }
     Ok(Progress::Complete)
 }
-#[cfg(test)]
+#[cfg(all(test, feature = "oracle-fixtures"))]
 mod elements_pass_tests {
     use super::*;
     #[cfg(feature = "oracle-fixtures")]

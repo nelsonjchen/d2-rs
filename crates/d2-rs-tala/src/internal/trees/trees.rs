@@ -44,10 +44,6 @@ impl PlacementTree {
         }
     }
 
-    fn contains(&self, node: NodeId) -> bool {
-        self.node == node || self.children.iter().any(|child| child.contains(node))
-    }
-
     fn set_orientation(&mut self, orientation: Orientation) {
         self.orientation = orientation;
         for child in &mut self.children {
@@ -1977,12 +1973,21 @@ impl ArenaGraph {
         orientation: Orientation,
         active_nodes: &BTreeSet<NodeId>,
     ) -> f64 {
+        // trees/layout.go placeAtOrientationGuarded builds isNodeOfTree once.
+        // The tree topology is fixed while transactions move its coordinates.
+        let mut descendants = Vec::new();
+        tree.descendants(&mut descendants);
+        let mut is_node_of_tree = vec![false; self.nodes.len()];
+        is_node_of_tree[tree.node.0 as usize] = true;
+        for &node in &descendants {
+            is_node_of_tree[node.0 as usize] = true;
+        }
         let root_position = self.tree_border_position(tree.node, orientation);
         let mut border_position = root_position;
         for node in active_nodes
             .iter()
             .copied()
-            .filter(|node| !tree.contains(*node))
+            .filter(|node| !is_node_of_tree[node.0 as usize])
         {
             let position = self.tree_border_position(node, orientation);
             let beyond = if matches!(orientation, Orientation::Left | Orientation::Top) {
@@ -2001,12 +2006,13 @@ impl ArenaGraph {
         if let Some(origin) =
             self.container_fixed_origin(self.nodes[tree.node.0 as usize].container)
         {
-            let mut descendants = vec![tree.node];
-            tree.descendants(&mut descendants);
-            if descendants.into_iter().any(|node| {
-                self.position(node)
-                    .is_some_and(|position| position.x < origin.x || position.y < origin.y)
-            }) {
+            if std::iter::once(tree.node)
+                .chain(descendants.iter().copied())
+                .any(|node| {
+                    self.position(node)
+                        .is_some_and(|position| position.x < origin.x || position.y < origin.y)
+                })
+            {
                 current_best_distance = f64::INFINITY;
             }
         }
@@ -2014,7 +2020,7 @@ impl ArenaGraph {
         let mut obstacles = active_nodes
             .iter()
             .copied()
-            .filter(|node| !tree.contains(*node))
+            .filter(|node| !is_node_of_tree[node.0 as usize])
             .map(|node| self.tree_border_position(node, orientation))
             .filter(|position| {
                 if matches!(orientation, Orientation::Left | Orientation::Top) {
@@ -2054,16 +2060,14 @@ impl ArenaGraph {
             // moved tree descendant colliding with a live core node. Recheck
             // those pairs explicitly with the same spacing predicate before
             // accepting the candidate.
-            let mut moved_tree_nodes = Vec::new();
-            tree.descendants(&mut moved_tree_nodes);
             let mut tree_has_new_overlap = false;
-            'tree_pairs: for moved in moved_tree_nodes {
+            'tree_pairs: for &moved in &descendants {
                 let Some(a) = trial.position(moved) else {
                     continue;
                 };
                 let left_size = trial.active_node_size(moved);
                 for other in active_nodes.iter().copied() {
-                    if tree.contains(other) {
+                    if is_node_of_tree[other.0 as usize] {
                         continue;
                     }
                     let Some(b) = trial.position(other) else {
@@ -2581,6 +2585,44 @@ mod geometry_crosswalk_tests {
             descendants,
             vec![NodeId(1), NodeId(2), NodeId(4), NodeId(5)]
         );
+    }
+
+    #[test]
+    fn tree_placement_excludes_its_root_and_descendants_from_obstacles() {
+        let mut input = Graph::default();
+        let root = input.add_node(node("root", 50.0, 40.0));
+        let child = input.add_node(node("child", 30.0, 20.0));
+        let grandchild = input.add_node(node("grandchild", 40.0, 20.0));
+        let obstacle = input.add_node(node("obstacle", 40.0, 20.0));
+        let mut arena = ArenaGraph::from_input(&input);
+        arena.set_position(root, Point { x: 100.0, y: 0.0 });
+        arena.set_position(child, Point { x: 20.0, y: 100.0 });
+        arena.set_position(grandchild, Point { x: 100.0, y: 200.0 });
+        arena.set_position(obstacle, Point { x: 250.0, y: 500.0 });
+        let tree = PlacementTree {
+            node: root,
+            sentinel_edge: None,
+            children: vec![PlacementTree {
+                children: vec![leaf(grandchild)],
+                ..leaf(child)
+            }],
+            orientation: Orientation::Bottom,
+        };
+        let active = [root, child, grandchild, obstacle].into_iter().collect();
+        // trees/layout.go placeAtOrientationGuarded considers only obstacle
+        // and the root's border as candidate positions. The closest valid
+        // transaction moves the descendants down by the root's height.
+        assert_eq!(
+            arena.place_at_orientation(&tree, Orientation::Bottom, &active),
+            0.0
+        );
+        assert_eq!(arena.position(root), Some(Point { x: 100.0, y: 0.0 }));
+        assert_eq!(arena.position(child), Some(Point { x: 20.0, y: 140.0 }));
+        assert_eq!(
+            arena.position(grandchild),
+            Some(Point { x: 100.0, y: 240.0 })
+        );
+        assert_eq!(arena.position(obstacle), Some(Point { x: 250.0, y: 500.0 }));
     }
 
     #[test]

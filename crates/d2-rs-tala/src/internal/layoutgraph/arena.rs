@@ -1696,6 +1696,64 @@ impl ArenaGraph {
         (graph, nodes)
     }
 
+    /// SplitSubgraphs first redirects every component's owning pointers.
+    /// Preparing those bindings needs only the source correspondence, not a
+    /// second materialization of all node geometry and projection inventories.
+    pub(super) fn induced_placement_correspondence(
+        &self,
+        members: &[NodeId],
+    ) -> (Vec<NodeId>, Vec<EdgeId>, Vec<NodeId>) {
+        // Aggregate materialization may change which dense nodes are live.
+        // Keep that path until its membership can be derived independently.
+        if !self.clusters.is_empty() || !self.sequences.is_empty() {
+            let (graph, nodes, edges) = self.induced_placement_subgraph_with_edge_mapping(members);
+            return (nodes, edges, graph.graph_node_order());
+        }
+        let old_to_new = members
+            .iter()
+            .enumerate()
+            .map(|(index, old)| (*old, NodeId(index as u32)))
+            .collect::<crate::internal::IdHashMap<_, _>>();
+        // Keep the same last-occurrence mapping as materialization, including
+        // repeated edge pointers in a serialized Graph.Edges slice.
+        let mut edge_indices = crate::internal::IdHashMap::default();
+        for (index, (edge, _, _)) in self.induced_placement_edges(&old_to_new).enumerate() {
+            edge_indices.insert(edge, index);
+        }
+        let mut edges = edge_indices.into_iter().collect::<Vec<_>>();
+        edges.sort_by_key(|&(_, index)| index);
+        (
+            members.to_vec(),
+            edges.into_iter().map(|(edge, _)| edge).collect(),
+            (0..members.len())
+                .map(|index| NodeId(index as u32))
+                .collect(),
+        )
+    }
+
+    fn induced_placement_edges<'a>(
+        &'a self,
+        old_to_new: &'a crate::internal::IdHashMap<NodeId, NodeId>,
+    ) -> impl Iterator<Item = (EdgeId, NodeId, NodeId)> + 'a {
+        // Edges incident to hidden aggregate members are reattached to their
+        // temporary vessel. Preparation and materialization must use the same
+        // owning-node correspondence, independently of numeric metadata.
+        let endpoint = move |node| {
+            let owner = self.active_aggregate_owner(node);
+            old_to_new
+                .get(&owner)
+                .copied()
+                .or_else(|| old_to_new.get(&node).copied())
+        };
+        self.edge_order
+            .read()
+            .into_iter()
+            .filter_map(move |old_edge| {
+                let edge = &self.edge_records[old_edge.0 as usize];
+                Some((old_edge, endpoint(edge.from)?, endpoint(edge.to)?))
+            })
+    }
+
     /// Keep the independently constructed edge mapping alongside the node
     /// mapping. Source SplitSubgraphs retains the actual edge pointers; a
     /// compact input_id or repeated Tala ID cannot identify their owner.
@@ -1804,29 +1862,11 @@ impl ArenaGraph {
             })
             .collect::<Vec<_>>();
 
-        // Edges incident to hidden aggregate members are reattached to the
-        // temporary vessel.  Graph.AddCluster's vessel retains both source
-        // edges, while a stable member-only scan would silently drop every
-        // edge belonging to a non-carrier member.
-        let induced_endpoint = |node: NodeId| {
-            let owner = self.active_aggregate_owner(node);
-            old_to_new
-                .get(&owner)
-                .copied()
-                .or_else(|| old_to_new.get(&node).copied())
-        };
-
         let mut old_edge_to_new = crate::internal::IdHashMap::default();
         let mut edges = Vec::new();
         let mut induced_source_edge_endpoints = Vec::new();
-        for old_edge in self.edge_order.read().iter().copied() {
+        for (old_edge, from, to) in self.induced_placement_edges(&old_to_new) {
             let edge = &self.edge_records[old_edge.0 as usize];
-            let Some(from) = induced_endpoint(edge.from) else {
-                continue;
-            };
-            let Some(to) = induced_endpoint(edge.to) else {
-                continue;
-            };
             let new_edge = EdgeId(edges.len() as u32);
             old_edge_to_new.insert(old_edge, new_edge);
             // The temporary graph densifies `input_id`; carry the matching
@@ -2060,11 +2100,17 @@ impl ArenaGraph {
             .filter_map(|(&(old_node, old_edge), obstructions)| {
                 let new_node = *old_to_new.get(&old_node)?;
                 let new_edge = *old_edge_to_new.get(&old_edge)?;
-                let obstructions = obstructions
-                    .iter()
-                    .copied()
-                    .filter_map(remap_adjacent)
-                    .collect::<Vec<_>>();
+                let obstructions = if obstructions.iter().all(|projection| {
+                    old_to_new.get(&projection.owner).copied() == Some(projection.owner)
+                }) {
+                    obstructions.clone()
+                } else {
+                    obstructions
+                        .iter()
+                        .copied()
+                        .filter_map(remap_adjacent)
+                        .collect::<SharedProjections>()
+                };
                 // An explicit empty inventory is material: recovered
                 // edgeLength walked the restored endpoint-container chains
                 // and found no eligible boxes. Dropping the key would fall
@@ -2868,6 +2914,11 @@ mod identity_tests {
         let members = [nodes[6], nodes[2], nodes[4]];
         let (first, parent_nodes, parent_edges) =
             parent.induced_placement_subgraph_with_edge_mapping(&members);
+        let (prepared_nodes, prepared_edges, prepared_order) =
+            parent.induced_placement_correspondence(&members);
+        assert_eq!(prepared_nodes, parent_nodes);
+        assert_eq!(prepared_edges, parent_edges);
+        assert_eq!(prepared_order, first.graph_node_order());
         assert_eq!(parent_nodes, members);
         assert_eq!(parent_edges, [edges[4], edges[5], edges[1]]);
         assert!(
@@ -2910,6 +2961,18 @@ mod identity_tests {
         assert_eq!(legacy_nodes, parent_nodes);
         assert_eq!(legacy.edge_records.len(), first.edge_records.len());
         assert_eq!(legacy.nodes[0].edges, first.nodes[0].edges);
+
+        // A repeated serialized edge pointer keeps its final local slot in
+        // the owning correspondence, independently of repeated Tala IDs.
+        parent.edge_order.push(edges[4]);
+        let (repeated, parent_nodes, parent_edges) =
+            parent.induced_placement_subgraph_with_edge_mapping(&members);
+        let (prepared_nodes, prepared_edges, prepared_order) =
+            parent.induced_placement_correspondence(&members);
+        assert_eq!(prepared_nodes, parent_nodes);
+        assert_eq!(prepared_edges, parent_edges);
+        assert_eq!(prepared_order, repeated.graph_node_order());
+        assert_eq!(prepared_edges, [edges[5], edges[1], edges[4]]);
     }
 
     #[test]

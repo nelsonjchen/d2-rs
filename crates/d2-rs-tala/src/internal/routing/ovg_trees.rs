@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 //! Pinned routing/ovg.go addTreeNodes and tree_routes.go.
 use super::ovg_intersections::{Budget, check, rect, step};
-use super::ovg_ports::PortBuild;
+use super::ovg_ports::{PortBuild, PortList};
 use super::{ArenaGraph, NodeId, Point, Port, PortSide};
 use crate::internal::OwnerGraphId;
 use crate::internal::nodeshape::ports::{shape_center_port_index, shape_port_indices};
@@ -308,7 +308,11 @@ fn center_index(
 impl PortBuild {
     fn indexed_port(&self, node: NodeId, index: Option<usize>) -> usize {
         let index = index.expect("runtime error: index out of range [-1]");
-        let ports = self.ports.get(&node).map(Vec::as_slice).unwrap_or_default();
+        let ports = self
+            .ports
+            .get(&node)
+            .map(PortList::as_slice)
+            .unwrap_or_default();
         ports
             .get(index)
             .unwrap_or_else(|| {

@@ -32,6 +32,7 @@ fn blank() -> Layout {
 }
 fn group(body: Layout, x: f64, baseline: f64, scale: f64, kind: &'static str) -> LayoutGroup {
     LayoutGroup {
+        x_frame: None,
         data_cramped: None,
         own_translate: None,
         accent_offset: None,
@@ -667,6 +668,7 @@ fn layout_arrow_stretched(
     if above.is_none() && below.is_none() {
         let mut arrow = body.groups.pop()?;
         arrow.x += x;
+        arrow.x_frame = None;
         arrow.baseline += baseline;
         arrow.before_glyph = out.glyphs.len();
         out.ascent = out.ascent.max(baseline + ascent);

@@ -132,7 +132,7 @@ impl PortBuild {
 
     pub(super) fn flag_near_ports(&mut self, budget: Budget<'_, '_>) -> Result<(), ()> {
         check(budget)?;
-        for (&owner, ports) in &self.ports {
+        for (&owner, ports) in self.ports.iter() {
             step(budget)?;
             for &(port, _) in ports {
                 step(budget)?;

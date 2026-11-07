@@ -71,6 +71,7 @@ fn blank() -> Layout {
 }
 fn mark_group(body: Layout, kind: &'static str, scale: f64, x: f64, baseline: f64) -> LayoutGroup {
     LayoutGroup {
+        x_frame: None,
         data_cramped: None,
         own_translate: None,
         accent_offset: None,
@@ -257,6 +258,7 @@ pub(super) fn probe_mark(
         out.ascent = h * 1000. * scale;
         out.depth = d * 1000. * scale;
         out.groups.push(LayoutGroup {
+            x_frame: None,
             data_cramped: None,
             own_translate: None,
             accent_offset: None,

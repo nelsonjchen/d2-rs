@@ -249,7 +249,7 @@ pub fn parse(
         offset += 1;
     }
 }
-#[cfg(test)]
+#[cfg(all(test, feature = "oracle-fixtures"))]
 mod tests {
     use super::*;
     #[cfg(feature = "oracle-fixtures")]

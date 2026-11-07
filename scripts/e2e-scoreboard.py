@@ -80,11 +80,12 @@ def run_binary(binary: Path, case: dict, engine: str, timeout: int, env: dict[st
     if not expected_error and not expected_svg.is_file():
         row["outcome"] = "no-golden"
         return row
-    expected = normalize(expected_svg.read_text()) if expected_svg.is_file() else ""
+    expected = normalize(expected_svg.read_text(encoding="utf-8")) if expected_svg.is_file() else ""
     with tempfile.TemporaryDirectory(prefix="d2rs-e2e-") as scratch:
         source = Path(scratch) / "input.d2"
         output = Path(scratch) / "output.svg"
-        source.write_text(case["script"])
+        # Write bytes as given: text mode would turn \n into \r\n on Windows.
+        source.write_text(case["script"], encoding="utf-8", newline="")
         command = [str(binary), "--pad=0", "--bundle=false", "--no-xml-tag", "--omit-version=false",
                    "--tala-seeds=1", f"--layout={engine}", "--timeout=" + str(timeout)]
         if case["themeID"] is not None:
@@ -116,7 +117,7 @@ def run_binary(binary: Path, case: dict, engine: str, timeout: int, env: dict[st
             row["exit"] = process.returncode
             row["stderr"] = stderr[-1500:]
             return row
-        actual = normalize(output.read_text(errors="replace"))
+        actual = normalize(output.read_text(encoding="utf-8", errors="replace"))
     animated = is_animated(expected)
     expected_hash = target_hash(expected, animated)
     actual_hash = target_hash(actual, animated)
@@ -142,7 +143,7 @@ def main() -> int:
     args = parser.parse_args()
     if args.d2svg:
         RUST_ENV["D2_RS_SVG_RENDERER"] = "d2svg"
-    cases = [json.loads(path.read_text()) for path in sorted(args.cases.glob("*.json"))]
+    cases = [json.loads(path.read_text(encoding="utf-8")) for path in sorted(args.cases.glob("*.json"))]
     if not cases:
         parser.error(f"no dumped cases in {args.cases}")
     engines = args.engines.split(",")
@@ -164,7 +165,7 @@ def main() -> int:
     report = {"rust": str(args.rust), "cases": len(cases), "boards": len(rows),
               "summary": {k: dict(v) for k, v in summary.items()}, "rows": rows}
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(report, indent=1) + "\n")
+    args.output.write_text(json.dumps(report, indent=1) + "\n", encoding="utf-8")
     for engine, counts in report["summary"].items():
         print(engine, dict(sorted(counts.items())))
     return 0

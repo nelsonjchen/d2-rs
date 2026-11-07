@@ -42,9 +42,9 @@ pass, and every retained golden that the pinned Go still reproduces (51 of
 x86-64 (Linux), each against Go built for that architecture, since Go's float
 output differs slightly between them
 ([details](docs/FIXTURES.md#host-architecture)). Benchmarks were measured on
-arm64 and in Node. Windows builds and passes clippy in CI, but it is not
-qualified: its tests have known path and layout differences
-([STATUS](docs/STATUS.md#beyond-the-upstream-corpus)).
+arm64 and in Node. Windows passes the default test tier and all 944 e2e
+boards natively (MSVC) and under Wine; CI builds Windows but does not run its
+tests.
 
 **Differential runs:** the pinned Go CLI and d2-rs render the same upstream
 inputs and mutations of them under the same options; all 5,024 original jobs
@@ -57,23 +57,16 @@ large graphs, extreme sizes and scales, every shape, flag and Chroma lexer,
 and random mutations. They found and fixed many gaps; these are still open
 ([details](docs/STATUS.md#beyond-the-upstream-corpus)):
 
-- **PNG only** (the SVG matches): right-to-left text, combining marks and
-  multi-code-point emoji; `cylinder`, `callout` and `c4-person` shapes 25-31
-  px tall; `--scale=0.05`.
-- **Errors:** d2-rs renders a malformed PNG icon that Go rejects, escapes a
-  right-to-left override character in an error message that Go prints raw,
-  and names a different stage when a 200-node nested board exceeds TALA's
-  work limit in both.
-- **Markdown and LaTeX:** a tab-indented empty heading inside a block, and
-  four LaTeX inputs where a style declaration spans a line break.
-- **Fuzz singletons:** duplicated `grid-rows`, `*: suspend` globs, a
-  `package` shape four levels deep, Gujarati next to an emoji.
-- **Speed at scale:** TALA on large boards is slower or larger than Go
-  (fan-out at 200-400 nodes 1.5-1.75× wall, nested at 100 nodes 2.24× peak
-  RSS, 100 parallel edges 1.24× CPU), and a few raster stress cases run
-  1.04-1.33× Go (a shadowed container with 60 children, 240 double-bordered
-  shapes, 240 gradient fills, long Markdown). WebAssembly speed beyond the
-  36-row benchmark is unmeasured.
+- **TALA memory:** with every seed routing at once, as in Go, a 200-node
+  fan-out peaks at about 1.05× Go's memory; per-seed routing state is larger
+  than Go's.
+- **TALA error path:** a 400-node fan-out fails exactly as Go does, but takes
+  0.36 s to reach the error against Go's 0.04 s.
+- **Speed at scale:** TALA with long labels at 100 nodes runs about 1.26× Go
+  wall, and compiling an 80,000-edge board before the edge-limit error about
+  1.4×.
+- **Unreplayed witnesses:** four LaTeX inputs and three fuzz singletons from
+  an earlier sweep were not kept; their variants match Go.
 
 ## Use
 

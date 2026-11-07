@@ -4717,7 +4717,7 @@ mod tests {
 #[cfg(all(test, feature = "oracle-fixtures"))]
 mod sequence_actor_label_policy_tests;
 
-#[cfg(test)]
+#[cfg(all(test, feature = "oracle-fixtures"))]
 mod sequence_target_export_tests;
 
 // Reads regenerated oracle fixtures (docs/FIXTURES.md).

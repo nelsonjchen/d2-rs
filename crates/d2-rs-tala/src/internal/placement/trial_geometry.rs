@@ -93,7 +93,7 @@ pub(super) struct TrialGeometrySnapshot {
     sized_cluster_distance_boxes: Tracked<BTreeMap<(NodeId, i64), ProjectedClusterDistance>>,
     sized_edge_abductions: Tracked<Vec<SizedEdgeAbduction>>,
     sized_edge_abductions_present: bool,
-    sized_projected_obstructions: Tracked<BTreeMap<(NodeId, EdgeId), Vec<ProjectedAdjacent>>>,
+    sized_projected_obstructions: Tracked<BTreeMap<(NodeId, EdgeId), SharedProjections>>,
     sized_projected_obstruction_sets:
         Tracked<BTreeMap<(NodeId, EdgeId), OrderedObstructionInventory>>,
     sized_collapsed_symmetry_neighbors: Tracked<BTreeMap<i64, Vec<ProjectedAdjacent>>>,

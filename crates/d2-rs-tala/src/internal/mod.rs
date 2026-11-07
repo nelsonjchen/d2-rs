@@ -543,8 +543,8 @@ use model::{
     ProjectedCluster, ProjectedClusterDistance, ProjectedClusterLayout, ProjectedObstructionRef,
     ProjectedObstructionSet, ProjectedTableColumnNeighbor, ProjectionGenerations, ProjectionMemo,
     ResolvedAggregateEdgeAbduction, RoutingCostField, ScopeNodeMetadata, SequenceState,
-    SizedEdgeAbduction, SourceOrientationContext, Stage, SubtreeMirror, Tracked, TreeRoutingNode,
-    compass_axis_delta, compass_delta, fnv1a32, layout_orientation,
+    SharedProjections, SizedEdgeAbduction, SourceOrientationContext, Stage, SubtreeMirror, Tracked,
+    TreeRoutingNode, compass_axis_delta, compass_delta, fnv1a32, layout_orientation,
 };
 pub use model::{
     HierarchyAlignmentDirection as LayoutHierarchyAlignmentDirection,

@@ -156,6 +156,7 @@ pub(super) fn layout(
     out.ascent = out.ascent.max(baseline + local.ascent);
     out.depth = out.depth.max(local.depth - baseline);
     out.groups.push(LayoutGroup {
+        x_frame: None,
         data_cramped: None,
         own_translate: None,
         accent_offset: None,

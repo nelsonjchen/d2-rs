@@ -364,7 +364,29 @@ impl<'a> OvgBuildBudget<'a> {
         self.edges.get()
     }
 
+    #[inline(always)]
     pub(super) fn reserve_work(&self, amount: u64) -> Result<(), ()> {
+        // ovgBuildGuard.reserveWork only inspects the context on a stride
+        // crossing when Done is present. Keep that ordinary numerical path
+        // inside OVG scans; caller contexts, explicit checks and rejected
+        // charges retain the complete source path below.
+        // This must inline even when LLVM's size estimate includes aggregate
+        // failure handling: an ordinary step only updates the two counters.
+        let previous = self.work.get();
+        if self.current_scope_has_done == Some(true)
+            && amount != 0
+            && let Some(next) = previous.checked_add(amount)
+            && next <= MAX_OVG_WORK_UNITS
+            && previous / 1024 == next / 1024
+        {
+            self.work.set(next);
+            return self.reserve_aggregate_work(amount);
+        }
+        self.reserve_work_checked(amount)
+    }
+
+    #[inline(never)]
+    fn reserve_work_checked(&self, amount: u64) -> Result<(), ()> {
         let previous = self.work.get();
         let Some(next) = previous.checked_add(amount) else {
             if self.cancelled() {
@@ -389,6 +411,11 @@ impl<'a> OvgBuildBudget<'a> {
             return Err(());
         }
         self.work.set(next);
+        self.reserve_aggregate_work(amount)
+    }
+
+    #[inline]
+    fn reserve_aggregate_work(&self, amount: u64) -> Result<(), ()> {
         // The aggregate charge runs in the same installed scope, so it reuses
         // this guard's cached Done presence instead of a thread-local read.
         if let Some(aggregate) = &self.aggregate
@@ -1436,19 +1463,28 @@ mod tests {
 
     #[test]
     fn ovg_aggregate_stride_cancellation_keeps_accepted_stage_charge() {
-        let aggregate = RouteStageWork::new(4096);
-        aggregate.used.store(1022, Ordering::Release);
-        let budget = OvgBuildBudget::with_aggregate(aggregate.clone());
-        let token = crate::CancellationToken::new();
-        crate::internal::with_cancellation(Some(&token), || {
-            budget.reserve_work(1).unwrap();
-            token.cancel();
-            assert!(budget.reserve_work(1).is_err());
-        });
-        assert_eq!(budget.work.get(), 2);
-        assert_eq!(aggregate.used(), 1024);
-        assert!(!aggregate.exhausted());
-        assert!(!budget.exhausted());
+        // ovg_resource.go reserveWork publishes its local charge before
+        // route_stage_guard.go add reaches the independent aggregate stride.
+        // The current-scope shortcut must still observe that aggregate poll.
+        for scoped in [false, true] {
+            let aggregate = RouteStageWork::new(4096);
+            aggregate.used.store(1022, Ordering::Release);
+            let token = crate::CancellationToken::new();
+            crate::internal::with_cancellation(Some(&token), || {
+                let budget = if scoped {
+                    OvgBuildBudget::for_current_scope(Some(aggregate.clone()))
+                } else {
+                    OvgBuildBudget::with_aggregate(aggregate.clone())
+                };
+                budget.reserve_work(1).unwrap();
+                token.cancel();
+                assert!(budget.reserve_work(1).is_err());
+                assert_eq!(budget.work.get(), 2);
+                assert_eq!(aggregate.used(), 1024);
+                assert!(!aggregate.exhausted());
+                assert!(!budget.exhausted());
+            });
+        }
     }
 }
 

@@ -1636,7 +1636,7 @@ fn projected_cluster_resize_updates_cached_endpoint_and_obstruction_sizes() {
     });
     arena.sized_projected_obstructions.insert(
         (vessel, edge),
-        vec![small_projection, vessel_obstruction, control_obstruction],
+        vec![small_projection, vessel_obstruction, control_obstruction].into(),
     );
     arena
         .sized_collapsed_symmetry_neighbors
@@ -7713,7 +7713,7 @@ fn projected_obstruction_inventory_preserves_recovered_endpoint_chain_order() {
 
     arena.sized_projected_obstructions.insert(
         (source, edge),
-        vec![alternate_obstruction, direct_obstruction],
+        vec![alternate_obstruction, direct_obstruction].into(),
     );
     assert_eq!(
         arena.edge_route_penalty(source, target, edge, None, None, false),
@@ -7722,7 +7722,7 @@ fn projected_obstruction_inventory_preserves_recovered_endpoint_chain_order() {
 
     arena.sized_projected_obstructions.insert(
         (target, edge),
-        vec![direct_obstruction, alternate_obstruction],
+        vec![direct_obstruction, alternate_obstruction].into(),
     );
     assert_eq!(
         arena.edge_route_penalty(target, source, edge, None, None, false),
@@ -7735,7 +7735,7 @@ fn projected_obstruction_inventory_preserves_recovered_endpoint_chain_order() {
     );
     arena.sized_projected_obstructions.insert(
         (source, edge),
-        vec![direct_obstruction, alternate_obstruction],
+        vec![direct_obstruction, alternate_obstruction].into(),
     );
     assert_eq!(
         arena.edge_route_penalty(source, target, edge, None, None, false),
@@ -7810,7 +7810,7 @@ fn ordered_abduction_and_physical_edges_preserve_parent_route_obstructions() {
     arena.sized_edge_abductions[0].obstructions_from_to.clear();
     arena.sized_projected_obstructions.insert(
         (source, second),
-        vec![direct_obstruction, alternate_obstruction],
+        vec![direct_obstruction, alternate_obstruction].into(),
     );
     let with_parent_projection = arena.sized_edge_length(source, false);
     arena.sized_projected_obstructions.remove(&(source, second));
@@ -10267,7 +10267,7 @@ fn induced_subgraph_preserves_an_explicitly_empty_obstruction_inventory() {
     arena.set_turn_cost(10.0);
     arena
         .sized_projected_obstructions
-        .insert((source, edge), Vec::new());
+        .insert((source, edge), SharedProjections::default());
 
     let (mut subgraph, _) = arena.induced_placement_subgraph(&[source, target, obstruction]);
     subgraph.set_position(NodeId(0), Point { x: 0.0, y: 0.0 });
@@ -10278,7 +10278,7 @@ fn induced_subgraph_preserves_an_explicitly_empty_obstruction_inventory() {
         subgraph
             .sized_projected_obstructions
             .get(&(NodeId(0), EdgeId(0)))
-            .is_some_and(Vec::is_empty)
+            .is_some_and(|projections| projections.is_empty())
     );
     assert_eq!(
         subgraph.edge_route_penalty(NodeId(0), NodeId(1), EdgeId(0), None, None, false),

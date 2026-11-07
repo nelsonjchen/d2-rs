@@ -2671,11 +2671,11 @@ impl ArenaGraph {
             }
         }
         for obstructions in self.sized_projected_obstructions.values_mut() {
-            for obstruction in obstructions {
+            obstructions.update_projections(|obstruction| {
                 if obstruction.owner == node && obstruction.tala_id == vessel_tala_id {
                     obstruction.size = layout.size;
                 }
-            }
+            });
         }
         for inventory in self.sized_projected_obstruction_sets.values_mut() {
             inventory.update_projections(|obstruction| {
@@ -3340,6 +3340,14 @@ impl ArenaGraph {
         self.sync_clusters_from_positions(&vessel_positions);
     }
 
+    /// Transaction.Commit publishes live vessel dimensions after refitting
+    /// ordinary containers. Placement's preview scopes retain their separate
+    /// pre-fit vessel sizes until the owning scope has been materialized.
+    pub(super) fn sync_clusters_after_container_refit(&mut self) {
+        let positions = self.cluster_vessel_positions();
+        self.sync_clusters_from_positions_filtered_impl(&positions, false, true, false, true);
+    }
+
     /// Synchronize clusters from a direct transaction in the owning graph.
     /// The Go engine's live pointers make `MoveNodeWithChildren` walk each
     /// member's source descendants during this boundary; induced placement
@@ -3422,7 +3430,7 @@ impl ArenaGraph {
         &mut self,
         vessel_positions: &[Option<Point>],
     ) {
-        self.sync_clusters_from_positions_filtered_impl(vessel_positions, false, true, true);
+        self.sync_clusters_from_positions_filtered_impl(vessel_positions, false, true, true, false);
     }
 
     /// Publish aggregate member geometry at a stage boundary even when the
@@ -3435,7 +3443,13 @@ impl ArenaGraph {
         &mut self,
         vessel_positions: &[Option<Point>],
     ) {
-        self.sync_clusters_from_positions_filtered_impl(vessel_positions, false, false, false);
+        self.sync_clusters_from_positions_filtered_impl(
+            vessel_positions,
+            false,
+            false,
+            false,
+            false,
+        );
     }
 
     /// Correct the one-pixel tie left by a stable carrier after a rejected
@@ -3497,6 +3511,7 @@ impl ArenaGraph {
             skip_row_clusters,
             true,
             false,
+            false,
         );
     }
 
@@ -3507,6 +3522,7 @@ impl ArenaGraph {
         skip_row_clusters: bool,
         skip_inactive_with_pending: bool,
         move_descendants: bool,
+        resize_vessel: bool,
     ) {
         if crate::internal::trace_env_enabled("TALA_TRACE_SYNC_CLUSTER_CALLER") {
             eprintln!(
@@ -3612,6 +3628,20 @@ impl ArenaGraph {
                 eprintln!();
             }
             self.resize_cluster_members(cluster_index);
+            if resize_vessel {
+                // Cluster.SyncGeometry resizes its vessel as well as its members
+                // before arranging them. Transactions validate that new box even
+                // when the vessel's independent TopLeft did not move.
+                let vessel_size = self.cluster_vessel_size_for_arrangement(
+                    cluster_index,
+                    self.clusters[cluster_index].arrangement,
+                );
+                if self.cluster_vessel_sizes.len() <= cluster_index {
+                    self.cluster_vessel_sizes
+                        .resize(cluster_index + 1, Size::default());
+                }
+                self.cluster_vessel_sizes[cluster_index] = vessel_size;
+            }
             if move_descendants {
                 self.arrange_cluster_members_with_descendants(cluster_index, vessel_top_left);
             } else {
@@ -4739,7 +4769,7 @@ mod tests {
 
         let state = graph.projected_transaction_state();
         assert_eq!(
-            state.original_positions[1],
+            state.original_geometry[1].0,
             Some(Point { x: 250.0, y: 0.0 }),
             "GraphState must snapshot the live shared pointer, not its carrier fallback"
         );

@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 //! Pinned ovg.go boundary layers, port connections, fallback and corners.
 use super::ovg_intersections::{Budget, check, descendant, rect, step};
-use super::ovg_ports::PortBuild;
+use super::ovg_ports::{PortBuild, PortList};
 use super::route_geometry::recovered_segment_intersects_box;
 use super::{ArenaGraph, NodeId, Point, Rect};
 use std::collections::BTreeSet;
@@ -44,6 +44,11 @@ fn near_graph_node(
     Ok(false)
 }
 impl PortBuild {
+    // Most blockers have direction NONE. Keep their direction test and box
+    // query outside the port walk, whose work guard needs a much larger frame.
+    // ovg_resource.go:429-464 likewise skips the walk unless a port can exempt
+    // this segment; its checks and point reads stay in the same order below.
+    #[inline(always)]
     pub(super) fn passes_through_allowing_ports(
         &self,
         graph: &ArenaGraph,
@@ -60,36 +65,52 @@ impl PortBuild {
             5 => first.y == second.y && first.x < second.x,
             _ => false,
         };
-        if allows_port {
-            // Only the exemption scan reads the owner's port list; the map is
-            // not mutated by this callback-free predicate.
-            let ports = self
-                .ports
-                .get(&owner)
-                .map(Vec::as_slice)
-                .unwrap_or_default();
-            for &(index, _) in ports {
-                step(budget)?;
-                let point = self.nodes[index].point();
-                if point == first || point == second {
-                    return Ok(false);
-                }
-            }
+        if allows_port && self.endpoint_is_port(owner, first, second, budget)? {
+            return Ok(false);
         }
         // Source evaluates PassesThrough before guard.check; its nil box
         // origin yields false, unlike the proximity predicate's dereference.
-        let blocked = graph.position(owner).is_some_and(|origin| {
-            recovered_segment_intersects_box(
+        let blocked = match graph.position(owner) {
+            Some(origin) => recovered_segment_intersects_box(
                 first,
                 second,
                 Rect {
                     origin,
                     size: graph.nodes[owner.0 as usize].rect.size,
                 },
-            )
-        });
+            ),
+            None => false,
+        };
         check(budget)?;
         Ok(blocked)
+    }
+
+    #[inline(never)]
+    fn endpoint_is_port(
+        &self,
+        owner: NodeId,
+        first: Point,
+        second: Point,
+        budget: Budget<'_, '_>,
+    ) -> Result<bool, ()> {
+        // Only the exemption scan reads the owner's port list; the map is
+        // not mutated by this predicate's context callbacks.
+        let ports = self
+            .ports
+            .get(&owner)
+            .map(PortList::nodes)
+            .unwrap_or_default();
+        for node in ports {
+            step(budget)?;
+            let point = node
+                .read()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .point();
+            if point == first || point == second {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 
     pub(super) fn add_boundary_layers(
@@ -148,13 +169,13 @@ impl PortBuild {
     fn create_port_boundary_connections(
         &mut self,
         owner: NodeId,
-        ports: &[(usize, super::Port)],
+        ports: &[usize],
         bounds: Bounds,
         budget: Budget<'_, '_>,
     ) -> Result<(), ()> {
         check(budget)?;
         let mut seen = BTreeSet::new();
-        for &(index, _) in ports {
+        for &index in ports {
             step(budget)?;
             if !seen.insert(index) {
                 continue;
@@ -234,10 +255,13 @@ impl PortBuild {
             // traversal is not a claim of a guaranteed source map order.
             for owner in self.port_order.clone() {
                 step(budget)?;
-                let ports = self.ports[&owner].clone();
+                let ports = self.ports[&owner]
+                    .iter()
+                    .map(|&(index, _)| index)
+                    .collect::<Vec<_>>();
                 let mut added = false;
                 let mut seen = BTreeSet::new();
-                for &(index, _) in &ports {
+                for &index in &ports {
                     step(budget)?;
                     if !seen.insert(index) {
                         continue;
@@ -372,7 +396,10 @@ mod tests {
         let graph = graph();
         let mut build = PortBuild::default();
         build.add_ports(&graph, &[NodeId(0)], None).unwrap();
-        let ports = build.ports[&NodeId(0)].clone();
+        let ports = build.ports[&NodeId(0)]
+            .iter()
+            .map(|&(index, _)| index)
+            .collect::<Vec<_>>();
         assert_eq!(ports.len(), 12);
         assert_eq!(build.nodes.len(), 1);
         build

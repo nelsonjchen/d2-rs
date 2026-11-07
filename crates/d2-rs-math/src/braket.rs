@@ -331,6 +331,7 @@ impl Parser {
 
 fn empty_group(kind: &'static str, x: f64, scale: f64, before_glyph: usize) -> LayoutGroup {
     LayoutGroup {
+        x_frame: None,
         data_cramped: None,
         own_translate: None,
         accent_offset: None,
@@ -426,6 +427,7 @@ pub(super) fn layout_stretched_token(
     let (width, height, depth, mut group) =
         table::fence_with_symmetry(code, height, depth, scale, symmetric)?;
     group.x = x;
+    group.x_frame = None;
     group.baseline = baseline;
     group.before_glyph = out.glyphs.len();
     group.color = explicit_color(color);
@@ -466,7 +468,6 @@ pub(super) fn layout(
         (0., 0.)
     };
     let classes = sequence_tex_classes(&children);
-    let mut cursor = 0.0;
     let mut cursor_em = 0.0;
     let mut previous = None;
     for (i, a) in children.iter().enumerate() {
@@ -487,8 +488,11 @@ pub(super) fn layout(
         if mml_spacing::core(a).is_some() {
             spacing = left_space * 1000.;
         }
-        cursor += spacing * scale;
         cursor_em += spacing / 1000.;
+        // svg/wrapper.go addChildren accumulates em widths and converts only
+        // when placing the child. Summing font-unit advances moves ties after
+        // a size declaration closes at a line break.
+        let cursor = (cursor_em * scale) * 1000.;
         // Nonstretchy zero delimiters stand for an unfenced explicit row
         // in cfrac/genfrac; they contribute no SVG child node.
         if !stretchy && matches!(a, Atom::FenceDelimiter { code: 0, .. }) {
@@ -553,6 +557,7 @@ pub(super) fn layout(
                 }
             }
             group.x = cursor;
+            group.x_frame = None;
             group.before_glyph = row.glyphs.len();
             if let Atom::FenceDelimiter { color, .. } = a {
                 group.color = explicit_color(color.as_deref());
@@ -561,7 +566,6 @@ pub(super) fn layout(
             row.ascent = row.ascent.max(fh);
             row.depth = row.depth.max(fd);
             cursor_em += w / (1000.0 * scale);
-            cursor += w;
         } else {
             let mut local = blank();
             local.width = layout_at_with_style(a, 0.0, 0.0, scale, &mut local, display, prime)?;
@@ -574,6 +578,7 @@ pub(super) fn layout(
             if local.glyphs.is_empty() && local.rules.is_empty() && local.groups.len() == 1 {
                 let mut group = local.groups.pop()?;
                 group.x += cursor;
+                group.x_frame = None;
                 group.before_glyph = row.glyphs.len();
                 row.groups.push(group);
             } else if local.glyphs.len() == 1 && local.rules.is_empty() && local.groups.is_empty() {
@@ -584,6 +589,7 @@ pub(super) fn layout(
                 row.glyphs.push(glyph);
             } else {
                 row.groups.push(LayoutGroup {
+                    x_frame: None,
                     data_cramped: None,
                     own_translate: None,
                     accent_offset: None,
@@ -607,16 +613,14 @@ pub(super) fn layout(
                     lines: vec![],
                 });
             }
-            cursor += w;
         }
-        cursor += right_space * 1000. * scale;
         cursor_em += right_space;
     }
     if open == 0 && close == 0 && body.is_empty() {
         row.ascent = 250.0 * scale;
         row.depth = -250.0 * scale;
     }
-    row.width = cursor;
+    row.width = (cursor_em * scale) * 1000.;
     row.width_em = Some(cursor_em * scale);
     out.width_em = Some(cursor_em * scale);
     out.ascent = out.ascent.max(baseline + row.ascent);
@@ -626,6 +630,7 @@ pub(super) fn layout(
         out.depth.max(row.depth - baseline)
     };
     out.groups.push(LayoutGroup {
+        x_frame: None,
         data_cramped: None,
         own_translate: None,
         accent_offset: None,
@@ -648,7 +653,7 @@ pub(super) fn layout(
         body: Box::new(row),
         lines: vec![],
     });
-    Some(cursor)
+    Some((cursor_em * scale) * 1000.)
 }
 
 pub(super) fn layout_token(
@@ -710,6 +715,7 @@ pub(super) fn layout_fixed(
         // MakeBig's present dot is an empty symmetric mo, not an absent
         // delimiter. moToSVG retains its own axis-centering translation.
         out.groups.push(LayoutGroup {
+            x_frame: None,
             data_cramped: None,
             own_translate: Some(250.),
             accent_offset: None,
@@ -739,6 +745,7 @@ pub(super) fn layout_fixed(
     }
     let (width, height, depth, mut group) = table::fixed_fence(code, size, scale)?;
     group.x = x;
+    group.x_frame = None;
     group.baseline = baseline;
     group.before_glyph = out.glyphs.len();
     out.ascent = out.ascent.max(baseline + height);

@@ -2,7 +2,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 //! D2 v0.9.0 limits/work.go signed work accounting and cancellation order.
+use std::cell::{Cell, RefCell};
 use std::fmt;
+use std::rc::Rc;
 
 /// Maximum work units permitted for one hierarchy or placement optimization.
 pub(super) const MAX_OPTIMIZATION_WORK_UNITS: u64 = 250_000_000;
@@ -188,6 +190,47 @@ pub(super) struct WorkGuard<'a> {
     location: String,
     used: i64,
     limit: i64,
+    transaction: Option<Rc<TransactionWork>>,
+}
+
+struct TransactionWork {
+    used: Cell<i64>,
+    limit: i64,
+}
+
+thread_local! {
+    // Go carries this pointer in the context passed down one seed's pipeline.
+    // Placement transactions stay on that seed's calling thread.
+    static TRANSACTION_WORK: RefCell<Option<Rc<TransactionWork>>> = const { RefCell::new(None) };
+}
+
+/// engine/pipeline.go runAllStages installs one guard before any stage runs.
+/// Recursive placement scopes reuse it; independent seed attempts do not.
+pub(super) struct AutolayoutTransactionScope(Option<Rc<TransactionWork>>);
+
+impl AutolayoutTransactionScope {
+    pub(super) fn enter() -> Self {
+        Self::with_limit(MAX_TRANSACTION_WORK_UNITS)
+    }
+
+    fn with_limit(limit: i64) -> Self {
+        Self(TRANSACTION_WORK.with(|current| {
+            let previous = current.borrow().clone();
+            if previous.is_none() {
+                *current.borrow_mut() = Some(Rc::new(TransactionWork {
+                    used: Cell::new(0),
+                    limit,
+                }));
+            }
+            previous
+        }))
+    }
+}
+
+impl Drop for AutolayoutTransactionScope {
+    fn drop(&mut self) {
+        TRANSACTION_WORK.with(|current| *current.borrow_mut() = self.0.take());
+    }
 }
 
 /// Error returned by the bounded hierarchy/placement optimization guard.
@@ -516,9 +559,40 @@ impl<'a> WorkGuard<'a> {
             location: location.into(),
             used: 0,
             limit,
+            transaction: None,
         };
         guard.finish()?;
         Ok(guard)
+    }
+
+    /// layoutgraph.ensureTransactionWorkGuard retains the enclosing guard's
+    /// identity and consumed work instead of starting a fresh stage budget.
+    pub(super) fn transaction(
+        context: Option<&'a dyn Context>,
+        location: &str,
+    ) -> Result<Self, Error> {
+        let transaction = TRANSACTION_WORK.with(|current| current.borrow().clone());
+        let mut guard = Self::new(
+            context,
+            if transaction.is_some() {
+                "AutolayoutTransactions"
+            } else {
+                location
+            },
+            transaction
+                .as_ref()
+                .map_or(MAX_TRANSACTION_WORK_UNITS, |work| work.limit),
+        )?;
+        guard.transaction = transaction;
+        Ok(guard)
+    }
+
+    fn set_used(&mut self, used: i64) {
+        if let Some(transaction) = &self.transaction {
+            transaction.used.set(used);
+        } else {
+            self.used = used;
+        }
     }
     fn stride(&self) -> i64 {
         if self.cancellable { 1024 } else { 64 }
@@ -530,11 +604,12 @@ impl<'a> WorkGuard<'a> {
         }
     }
     pub(super) fn step(&mut self) -> Result<(), Error> {
-        self.used = self.used.wrapping_add(1);
-        if self.used > self.limit {
+        let used = self.used().wrapping_add(1);
+        self.set_used(used);
+        if used > self.limit {
             return Err(self.limit_error());
         }
-        if self.used % self.stride() == 0 {
+        if used % self.stride() == 0 {
             self.check()?;
         }
         Ok(())
@@ -543,13 +618,14 @@ impl<'a> WorkGuard<'a> {
     /// limit failure is one addition; otherwise it steps one at a time.
     pub(super) fn steps(&mut self, count: usize) -> Result<(), Error> {
         let stride = self.stride();
+        let used = self.used();
         if let Ok(units) = i64::try_from(count)
-            && self.used >= 0
-            && let Some(end) = self.used.checked_add(units)
+            && used >= 0
+            && let Some(end) = used.checked_add(units)
             && end <= self.limit
-            && end / stride == self.used / stride
+            && end / stride == used / stride
         {
-            self.used = end;
+            self.set_used(end);
             return Ok(());
         }
         for _ in 0..count {
@@ -564,19 +640,19 @@ impl<'a> WorkGuard<'a> {
                 self.location
             )));
         }
-        if units > self.limit || self.used > self.limit.wrapping_sub(units) {
-            let previous = self.used;
-            self.used = self.limit.wrapping_add(1);
+        let previous = self.used();
+        if units > self.limit || previous > self.limit.wrapping_sub(units) {
+            self.set_used(self.limit.wrapping_add(1));
             let stride = self.stride();
             if previous <= self.limit && previous / stride != self.limit / stride {
                 self.check()?;
             }
             return Err(self.limit_error());
         }
-        let previous = self.used;
-        self.used = self.used.wrapping_add(units);
+        let used = previous.wrapping_add(units);
+        self.set_used(used);
         let stride = self.stride();
-        if self.used % stride != 0 && previous / stride == self.used / stride {
+        if used % stride != 0 && previous / stride == used / stride {
             return Ok(());
         }
         self.check()
@@ -586,7 +662,7 @@ impl<'a> WorkGuard<'a> {
             return Ok(());
         }
         #[cfg(feature = "diagnostic-traces")]
-        self.context.transaction_work_used(self.used);
+        self.context.transaction_work_used(self.used());
         if let Some(cause) = self.context.error() {
             return Err(Error::Context {
                 location: self.location.clone(),
@@ -608,7 +684,7 @@ impl<'a> WorkGuard<'a> {
     /// Commit and placement operations still poll their distinct caller ctx.
     pub(super) fn check_context_with(&self, context: &dyn Context) -> Result<(), Error> {
         #[cfg(feature = "diagnostic-traces")]
-        context.transaction_work_used(self.used);
+        context.transaction_work_used(self.used());
         if let Some(cause) = context.error() {
             return Err(Error::Context {
                 location: String::new(),
@@ -634,7 +710,9 @@ impl<'a> WorkGuard<'a> {
         self.limit = limit;
     }
     pub(super) fn used(&self) -> i64 {
-        self.used
+        self.transaction
+            .as_ref()
+            .map_or(self.used, |work| work.used.get())
     }
 }
 
@@ -643,6 +721,89 @@ mod tests {
     use super::*;
     use crate::internal::go_rng::GoRng;
     use std::cell::Cell;
+
+    #[test]
+    fn autolayout_transactions_share_recursive_work_and_release_the_request() {
+        struct Background;
+        impl Context for Background {
+            fn done(&self) -> Option<bool> {
+                None
+            }
+            fn error(&self) -> Option<ContextError> {
+                None
+            }
+        }
+
+        // pipeline.go:404 and transaction.go:131-143 retain one request
+        // guard, including while a recursive scope opens another transaction.
+        {
+            let _request = AutolayoutTransactionScope::with_limit(5);
+            let mut first = WorkGuard::transaction(Some(&Background), "First").unwrap();
+            first.add(2).unwrap();
+            {
+                let _recursive = AutolayoutTransactionScope::enter();
+                let mut second = WorkGuard::transaction(Some(&Background), "Second").unwrap();
+                assert_eq!(second.used(), 2);
+                second.steps(3).unwrap();
+            }
+            assert_eq!(first.used(), 5);
+            assert_eq!(
+                first.step().unwrap_err().to_string(),
+                "TALA AutolayoutTransactions work exceeds limit 5"
+            );
+        }
+
+        // Another seed gets a fresh counter; standalone operations keep their
+        // own diagnostic location and budget after the request has returned.
+        {
+            let _request = AutolayoutTransactionScope::with_limit(5);
+            let mut next = WorkGuard::transaction(Some(&Background), "Next").unwrap();
+            assert_eq!(next.used(), 0);
+            next.add(5).unwrap();
+        }
+        let standalone = WorkGuard::transaction(Some(&Background), "Standalone").unwrap();
+        assert_eq!(standalone.used(), 0);
+        assert_eq!(standalone.location, "Standalone");
+    }
+
+    #[test]
+    fn nested_autolayout_reports_the_enclosing_transaction_limit() {
+        use crate::{Graph, LayoutStage, Node, Size, layout_snapshot};
+
+        // The scale-sweep nested/200 witness has 96 containers and 104 leaves.
+        // Exercise the same public graph contract with a smaller inventory and
+        // an injected budget, as upstream transaction limit tests do.
+        let mut graph = Graph::default();
+        let mut parent = None;
+        for i in 0..4 {
+            let mut node = Node::new(
+                format!("c{i}"),
+                Size {
+                    width: 100.0,
+                    height: 60.0,
+                },
+            );
+            node.parent = parent;
+            parent = Some(graph.add_node(node));
+        }
+        for i in 0..8 {
+            let mut node = Node::new(
+                format!("n{i}"),
+                Size {
+                    width: 100.0,
+                    height: 60.0,
+                },
+            );
+            node.parent = parent;
+            graph.add_node(node);
+        }
+        let _request = AutolayoutTransactionScope::with_limit(100);
+        let result = layout_snapshot(&graph, 1, LayoutStage::Normalize);
+        assert_eq!(
+            result.layout_error.unwrap().to_string(),
+            "TALA AutolayoutTransactions work exceeds limit 100"
+        );
+    }
 
     #[test]
     fn operation_cancellation_does_not_replace_the_guard_context() {

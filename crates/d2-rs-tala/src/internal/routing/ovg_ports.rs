@@ -26,6 +26,51 @@ pub(super) struct Metadata {
     directions: u16,
     center: bool,
 }
+
+/// Go leaves portOwnersByNode nil on ordinary visibility nodes. Keep only a
+/// pointer on those nodes, allocating the map when addPortMetadata writes it.
+/// Read-only walks and direction transforms preserve the unallocated map.
+#[derive(Default, Debug)]
+#[allow(clippy::box_collection)]
+pub(super) struct PortOwners(Option<Box<BTreeMap<NodeId, Metadata>>>);
+
+impl std::ops::Deref for PortOwners {
+    type Target = BTreeMap<NodeId, Metadata>;
+
+    fn deref(&self) -> &Self::Target {
+        static EMPTY: BTreeMap<NodeId, Metadata> = BTreeMap::new();
+        self.0.as_deref().unwrap_or(&EMPTY)
+    }
+}
+
+impl PortOwners {
+    pub(super) fn entry(
+        &mut self,
+        owner: NodeId,
+    ) -> std::collections::btree_map::Entry<'_, NodeId, Metadata> {
+        self.0.get_or_insert_with(Default::default).entry(owner)
+    }
+
+    pub(super) fn insert(&mut self, owner: NodeId, metadata: Metadata) -> Option<Metadata> {
+        self.0
+            .get_or_insert_with(Default::default)
+            .insert(owner, metadata)
+    }
+
+    fn values_mut(&mut self) -> impl Iterator<Item = &mut Metadata> {
+        self.0.iter_mut().flat_map(|owners| owners.values_mut())
+    }
+
+    fn get_mut(&mut self, owner: &NodeId) -> Option<&mut Metadata> {
+        self.0.as_mut()?.get_mut(owner)
+    }
+
+    #[cfg(test)]
+    pub(super) fn remove(&mut self, owner: &NodeId) -> Option<Metadata> {
+        self.0.as_mut()?.remove(owner)
+    }
+}
+
 #[derive(Debug)]
 pub(super) struct PortNode {
     pub(super) point_ref: Option<crate::internal::owner_points::SharedOwnerPoint>,
@@ -36,7 +81,7 @@ pub(super) struct PortNode {
     /// every node allocation in the next allocator size class.
     #[allow(clippy::box_collection)]
     pub(super) near_ports: Option<Box<BTreeSet<NodeId>>>,
-    pub(super) owners: BTreeMap<NodeId, Metadata>,
+    pub(super) owners: PortOwners,
     pub(super) is_tunnel: bool,
     pub(super) edges: super::ovg_edge_header::EdgeHeader<super::ovg_objects::IncidentEdge>,
 }
@@ -141,6 +186,138 @@ fn occupant_slot(entry: &Occupant) -> usize {
         *entry
     }
 }
+/// Go's OVG.Ports contains only node pointers. Keep that compact list separate
+/// from the flat routing adapter's slot/Port records, which blocker scans do
+/// not read. Both arrays retain the same order, including repeated nodes.
+#[derive(Default, Clone, Debug)]
+pub(super) struct PortList {
+    records: Vec<(usize, Port)>,
+    nodes: Vec<Arc<GoCell<PortNode>>>,
+}
+impl PortList {
+    fn with_capacity(capacity: usize) -> Self {
+        Self {
+            records: Vec::with_capacity(capacity),
+            nodes: Vec::with_capacity(capacity),
+        }
+    }
+    pub(super) fn nodes(&self) -> &[Arc<GoCell<PortNode>>] {
+        &self.nodes
+    }
+    pub(super) fn as_slice(&self) -> &[(usize, Port)] {
+        &self.records
+    }
+    fn push(&mut self, record: (usize, Port), node: &SharedPortNode) {
+        self.records.push(record);
+        self.nodes.push(node.0.clone());
+    }
+}
+impl std::ops::Deref for PortList {
+    type Target = Vec<(usize, Port)>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.records
+    }
+}
+impl<'a> IntoIterator for &'a PortList {
+    type Item = &'a (usize, Port);
+    type IntoIter = std::slice::Iter<'a, (usize, Port)>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.records.iter()
+    }
+}
+
+#[derive(Default, Clone, Debug)]
+pub(super) struct PortLists {
+    // OVG.Ports is indexed by dense arena owner id so repeated blocker queries
+    // need no tree search. A missing slot differs from a present empty list,
+    // just as a missing Go map key differs from an assigned nil slice.
+    // Sparse subgraphs can contain only high owner ids. Keep their lists in
+    // overflow until a dense prefix fits within twice the number of owners;
+    // storage must follow this OVG's owner count, not the whole arena's size.
+    // The dense prefix followed by overflow preserves ascending traversal.
+    slots: Vec<Option<(NodeId, PortList)>>,
+    overflow: BTreeMap<NodeId, PortList>,
+    len: usize,
+}
+impl PortLists {
+    pub(super) fn get(&self, owner: &NodeId) -> Option<&PortList> {
+        if let Some(slot) = self.slots.get(owner.0 as usize) {
+            slot.as_ref().map(|(_, ports)| ports)
+        } else {
+            self.overflow.get(owner)
+        }
+    }
+    fn get_mut(&mut self, owner: &NodeId) -> Option<&mut PortList> {
+        if let Some(slot) = self.slots.get_mut(owner.0 as usize) {
+            slot.as_mut().map(|(_, ports)| ports)
+        } else {
+            self.overflow.get_mut(owner)
+        }
+    }
+    fn contains_key(&self, owner: &NodeId) -> bool {
+        self.get(owner).is_some()
+    }
+    fn insert(&mut self, owner: NodeId, ports: PortList) {
+        if !self.contains_key(&owner) {
+            self.len += 1;
+        }
+        let index = owner.0 as usize;
+        if index >= self.slots.len() && index < self.len.saturating_mul(2) {
+            self.slots.resize_with(index + 1, || None);
+            // Every remaining overflow key stays beyond the dense prefix.
+            while self
+                .overflow
+                .first_key_value()
+                .is_some_and(|(owner, _)| (owner.0 as usize) < self.slots.len())
+            {
+                let (owner, ports) = self.overflow.pop_first().unwrap();
+                self.slots[owner.0 as usize] = Some((owner, ports));
+            }
+        }
+        if let Some(slot) = self.slots.get_mut(index) {
+            *slot = Some((owner, ports));
+        } else {
+            self.overflow.insert(owner, ports);
+        }
+    }
+    fn get_or_default(&mut self, owner: NodeId) -> &mut PortList {
+        if !self.contains_key(&owner) {
+            self.insert(owner, PortList::default());
+        }
+        self.get_mut(&owner).unwrap()
+    }
+    pub(super) fn iter(&self) -> impl Iterator<Item = (&NodeId, &PortList)> {
+        self.slots
+            .iter()
+            .flatten()
+            .map(|(owner, ports)| (owner, ports))
+            .chain(self.overflow.iter())
+    }
+    fn keys(&self) -> impl Iterator<Item = &NodeId> {
+        self.iter().map(|(owner, _)| owner)
+    }
+    #[cfg(test)]
+    fn values(&self) -> impl Iterator<Item = &PortList> {
+        self.iter().map(|(_, ports)| ports)
+    }
+    fn values_mut(&mut self) -> impl Iterator<Item = &mut PortList> {
+        self.slots
+            .iter_mut()
+            .flatten()
+            .map(|(_, ports)| ports)
+            .chain(self.overflow.values_mut())
+    }
+}
+impl std::ops::Index<&NodeId> for PortLists {
+    type Output = PortList;
+
+    fn index(&self, owner: &NodeId) -> &Self::Output {
+        self.get(owner).expect("missing port owner")
+    }
+}
+
 #[derive(Default, Clone, Debug)]
 pub(super) struct PortBuild {
     // Stable identity storage, separate from the source Nodes slice. Maps
@@ -157,7 +334,7 @@ pub(super) struct PortBuild {
     // Point-bit keys; lookup-only outside a sorted diagnostic dump.
     occupied: crate::internal::FloatKeyHashMap<(u64, u64), Occupant>,
     nan_occupied: Vec<(Point, usize)>,
-    pub(super) ports: BTreeMap<NodeId, Vec<(usize, Port)>>,
+    pub(super) ports: PortLists,
     pub(super) port_order: Vec<NodeId>,
     pub(super) edges: Vec<super::ovg_objects::SharedPortEdge>,
     pub(super) edges_allocated: bool,
@@ -250,7 +427,7 @@ impl PortBuild {
                 point_ref: Some(crate::internal::owner_points::SharedOwnerPoint::new(point)),
                 is_node_center: false,
                 index: 0,
-                owners: BTreeMap::new(),
+                owners: PortOwners::default(),
                 is_tunnel: false,
                 edges: super::ovg_edge_header::EdgeHeader::default(),
                 container: None,
@@ -335,6 +512,9 @@ impl PortBuild {
     /// static edge tables. Point allocations remain shared by those tables;
     /// lookup maps retain slots, so they need no construction object handles.
     pub(super) fn release_objects(&mut self) {
+        for ports in self.ports.values_mut() {
+            ports.nodes = Vec::new();
+        }
         self.nodes = Vec::new();
         self.edges = Vec::new();
         self.root = Default::default();
@@ -361,7 +541,8 @@ impl PortBuild {
         build.port_order = exact(std::mem::take(&mut build.port_order));
         build.edges = exact(std::mem::take(&mut build.edges));
         for entries in build.ports.values_mut() {
-            *entries = exact(std::mem::take(entries));
+            entries.records = exact(std::mem::take(&mut entries.records));
+            entries.nodes = exact(std::mem::take(&mut entries.nodes));
         }
         build
     }
@@ -421,7 +602,7 @@ impl PortBuild {
                 b.reserve_nodes(1)?;
             }
             self.publish_member(center, budget.is_some());
-            let count = self.ports.get(&owner).map_or(0, Vec::len);
+            let count = self.ports.get(&owner).map_or(0, |ports| ports.len());
             for slot in 0..count {
                 let port = self.ports[&owner][slot].0;
                 self.connect(center, port, budget)?;
@@ -464,7 +645,7 @@ impl PortBuild {
         if !self.ports.contains_key(&owner) {
             self.port_order.push(owner);
         }
-        let entries = self.ports.entry(owner).or_default();
+        let entries = self.ports.get_or_default(owner);
         // Preserve the full source direction in canonical metadata, including
         // a Tree.Orientation changed by a callback after center-port selection.
         // The legacy flat Port view only represents cardinal directions.
@@ -483,7 +664,7 @@ impl PortBuild {
             tunnel: None,
             is_center: false,
         };
-        entries.push((identity, port));
+        entries.push((identity, port), &self.nodes[identity]);
         let directions = if (0..=8).contains(&raw_direction) {
             1 << raw_direction
         } else {
@@ -550,7 +731,7 @@ impl PortBuild {
                 }
                 let metadata = self.nodes[identity].read().owners[&entry.owner];
                 let point = self.nodes[index].point();
-                let ports = self.ports.entry(entry.owner).or_default();
+                let ports = self.ports.get_or_default(entry.owner);
                 let mut port = ports
                     .iter()
                     .find(|(_, p)| p.point == point)
@@ -566,7 +747,7 @@ impl PortBuild {
                 port.point = point;
                 port.is_center = metadata.center;
                 port.tunnel = Some(tunnel_id);
-                ports.push((identity, port));
+                ports.push((identity, port), &self.nodes[identity]);
                 added.push((entry.owner, port));
                 endpoints[side] = identity;
             }
@@ -882,7 +1063,7 @@ impl PortBuild {
             }
         }
         for entries in self.ports.values_mut() {
-            for (id, port) in entries {
+            for (id, port) in &mut entries.records {
                 port.point = self.nodes[*id].point();
                 port.side = side(port.side, transpose, x, y);
                 port.direction = side(port.direction, transpose, x, y);
@@ -898,12 +1079,12 @@ impl PortBuild {
         use super::ovg_intersections::{check, step};
         check(budget)?;
         let mut imported = BTreeMap::new();
-        for (&owner, ports) in &other.ports {
+        for (&owner, ports) in other.ports.iter() {
             if let Some(b) = budget {
                 b.reserve_work(ports.len() as u64 + 1)?;
             }
-            let mut canonical_ports = Vec::with_capacity(ports.len());
-            for &(foreign, mut port) in ports {
+            let mut canonical_ports = PortList::with_capacity(ports.len());
+            for &(foreign, mut port) in ports.iter() {
                 let local = *imported
                     .entry(foreign)
                     .or_insert_with(|| self.import_node(other, foreign));
@@ -928,7 +1109,7 @@ impl PortBuild {
                     }
                 }
                 port.point = self.nodes[canonical].point();
-                canonical_ports.push((canonical, port));
+                canonical_ports.push((canonical, port), &self.nodes[canonical]);
             }
             if !self.ports.contains_key(&owner) {
                 self.port_order.push(owner);
@@ -1004,7 +1185,7 @@ impl PortBuild {
             if !self.ports.contains_key(&owner) {
                 self.port_order.push(owner);
             }
-            self.ports.insert(owner, Vec::with_capacity(12));
+            self.ports.insert(owner, PortList::with_capacity(12));
             let node = &graph.nodes[owner.0 as usize];
             // Shape percentages are prepared once. Each absolute point below
             // reads the current owner position after its own guarded step.
@@ -1042,7 +1223,10 @@ impl PortBuild {
                     // CenterPortIndices loop, after every side is complete.
                     port.point = self.nodes[index].point();
                     port.is_center = false;
-                    self.ports.get_mut(&owner).unwrap().push((index, port));
+                    self.ports
+                        .get_mut(&owner)
+                        .unwrap()
+                        .push((index, port), &self.nodes[index]);
                     let direction = match side {
                         PortSide::Top => 4,
                         PortSide::Left => 7,
@@ -1093,7 +1277,9 @@ impl PortBuild {
             if !self.ports.contains_key(&owner) {
                 self.port_order.push(owner);
             }
-            self.ports.entry(owner).or_default().push((index, port));
+            self.ports
+                .get_or_default(owner)
+                .push((index, port), &self.nodes[index]);
             let direction = match port.side {
                 PortSide::Top => 4,
                 PortSide::Right => 5,
@@ -1230,6 +1416,67 @@ mod tests {
             crate::graphjson::graphjson_to_graph(&serde_json::to_vec(&value).unwrap()).unwrap();
         ArenaGraph::from_input(&input)
     }
+
+    #[test]
+    fn sparse_subgraph_port_owners_retain_live_nodes_when_lower_owners_are_added() {
+        // ovg.go addPorts assigns each owner's slice independently; adding
+        // other owners cannot detach the earlier OVGNode.Point allocations.
+        let nodes = (0..65)
+            .map(|i| {
+                serde_json::json!({
+                    "id": i + 1, "width": 100, "height": 100,
+                    "topLeft": {"x": i * 200, "y": 0}
+                })
+            })
+            .collect::<Vec<_>>();
+        let input = serde_json::json!({"nodes": nodes, "edges": []});
+        let graph = ArenaGraph::from_input(
+            &crate::graphjson::graphjson_to_graph(&serde_json::to_vec(&input).unwrap()).unwrap(),
+        );
+        let mut build = PortBuild::default();
+        let owner = NodeId(63);
+        build.add_ports(&graph, &[owner], None).unwrap();
+        assert!(build.ports.get(&NodeId(0)).is_none());
+        let original = build.nodes[build.ports[&owner][0].0].clone();
+
+        let remaining = (0..63).chain([64]).map(NodeId).collect::<Vec<_>>();
+        build.add_ports(&graph, &remaining, None).unwrap();
+        assert_eq!(
+            build.ports.keys().copied().collect::<Vec<_>>(),
+            (0..65).map(NodeId).collect::<Vec<_>>()
+        );
+        assert!(build.ports.values().all(|ports| ports.len() == 12));
+        let retained = &build.nodes[build.ports[&owner][0].0];
+        assert!(retained.same_allocation(&original));
+        let next = Point { x: -20.0, y: 17.0 };
+        original.read().point_ref.as_ref().unwrap().set(next);
+        assert_eq!(retained.point(), next);
+
+        // ovg_resource.go passesThroughAllowingPorts dereferences the retained
+        // OVGNode.Point, including replacement of the point allocation itself.
+        // An endpoint inside the box is admitted only by this live port.
+        let inside = Point {
+            x: graph.position(owner).unwrap().x + 20.0,
+            y: 17.0,
+        };
+        original.write().point_ref =
+            Some(crate::internal::owner_points::SharedOwnerPoint::new(inside));
+        assert!(
+            !build
+                .passes_through_allowing_ports(
+                    &graph,
+                    owner,
+                    inside,
+                    Point {
+                        x: inside.x,
+                        y: -20.0
+                    },
+                    4,
+                    None,
+                )
+                .unwrap()
+        );
+    }
     #[test]
     fn center_publication_precedes_member_insertion_and_exit_check() {
         for (at, count) in [(4, 0), (5, 0), (6, 1)] {
@@ -1310,7 +1557,7 @@ mod tests {
             assert_eq!(ports.nodes.len(), before.len());
             assert_eq!(ports.occupied.len(), before.len());
             assert_eq!(
-                ports.ports.values().map(Vec::len).sum::<usize>(),
+                ports.ports.values().map(|ports| ports.len()).sum::<usize>(),
                 before.len()
             );
         }
@@ -1350,6 +1597,31 @@ mod tests {
         );
         assert!(ports.nodes[center].read().owners.is_empty());
         assert!(!ports.nodes[original].read().owners.is_empty());
+    }
+    #[test]
+    fn nonport_owner_maps_stay_nil_through_reads_and_hierarchy_transforms() {
+        // routing/ovg_node.go NewOVGNode and ovg_hierarchy.go's direction
+        // transform leave the nil portOwnersByNode map unallocated.
+        let mut ports = PortBuild::default();
+        let node = ports.add_point(Point { x: 10.0, y: 20.0 }, None).unwrap();
+        assert_eq!(ports.owner_directions(node).count(), 0);
+        assert_eq!(ports.port_directions(node, NodeId(0)), 0);
+        assert!(ports.nodes[node].read().owners.0.is_none());
+        ports.transform_hierarchy(true, true, false);
+        assert_eq!(ports.nodes[node].point(), Point { x: -20.0, y: 10.0 });
+        assert!(ports.nodes[node].read().owners.0.is_none());
+        ports.nodes[node].write().owners.insert(
+            NodeId(0),
+            Metadata {
+                directions: 1 << 4,
+                center: true,
+            },
+        );
+        let shared = ports.nodes[node].clone();
+        ports.transform_hierarchy(true, false, false);
+        assert_eq!(shared.read().owners[&NodeId(0)].directions, 1 << 7);
+        assert!(shared.read().owners[&NodeId(0)].center);
+        assert!(ports.nodes[node].same_allocation(&shared));
     }
     #[test]
     fn coincident_ports_share_one_allocation_and_keep_all_owner_roles() {

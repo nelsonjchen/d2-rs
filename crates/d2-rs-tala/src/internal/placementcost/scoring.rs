@@ -5028,7 +5028,7 @@ impl ArenaGraph {
             ProjectedObstructionSource::Edge => self
                 .sized_projected_obstructions
                 .get(&(node, edge))
-                .map(Vec::as_slice),
+                .map(|projections| projections.as_slice()),
             ProjectedObstructionSource::Ordered(obstructions, _) => Some(obstructions),
             ProjectedObstructionSource::Current => None,
         }

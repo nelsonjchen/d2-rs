@@ -60,6 +60,7 @@ pub(super) fn route_is_clear(
 /// `segmentIntersectsBox`. After broad-phase rejection and endpoint
 /// containment, it clips against the closed box and requires a positive
 /// interval. A corner touch with both endpoints outside is admissible.
+#[inline(always)]
 pub(super) fn recovered_segment_intersects_box(start: Point, end: Point, rect: Rect) -> bool {
     // This is TALA's layoutgraph.segmentIntersectsBox verbatim in geometric
     // terms. A single-point boundary touch is admissible; only a positive
@@ -90,6 +91,15 @@ pub(super) fn recovered_segment_intersects_box(start: Point, end: Point, rect: R
     if contains(start) || contains(end) {
         return true;
     }
+    clip_segment(start, end, left, right, top, bottom)
+}
+
+// The broad phase above usually decides an OVG blocker query. Keep clipping's
+// divisions out of its callers, without packing a temporary Box on the stack
+// for every rejected blocker. This is the remaining tail of the same pinned
+// layoutgraph.segmentIntersectsBox, with the same axis and arithmetic order.
+#[inline(never)]
+fn clip_segment(start: Point, end: Point, left: f64, right: f64, top: f64, bottom: f64) -> bool {
     let mut enter: f64 = 0.0;
     let mut exit: f64 = 1.0;
     let mut clip_axis = |origin: f64, delta: f64, minimum: f64, maximum: f64| {

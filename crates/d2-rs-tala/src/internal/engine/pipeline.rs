@@ -10274,8 +10274,6 @@ impl Pipeline {
     /// above remains useful for source-shaped unit tests that exercise a
     /// route stage without an installed cancellation context.
     fn route_edges_impl_checked(&mut self) -> Result<(), crate::LayoutError> {
-        // A race seed waits for its routing slot; elsewhere this is None.
-        let _routing_permit = super::snapshot::route_stage_permit();
         self.graph.refresh_node_order_membership();
         let routed_edges = routing::route_edges_with_cancellation_and_aggregate(
             &self.graph,

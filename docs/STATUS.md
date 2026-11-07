@@ -24,11 +24,11 @@ fixed every cluster below except the open ones. Each seed's sweep matches all
 but a handful of jobs. Open clusters, with witnesses in
 `oracle-cache/reports/differential/` and `wasm-differential/`:
 
-- **TALA placement:** the nested-hierarchy, SQL-table and deep-nest
-  witnesses now match on amd64; WASM `stable:25`/`stable:27` remain open,
-  as does WASM seed 20261310 row 1193, which reduces to an ordinary nested
-  hierarchy without grid properties (`w50-tala-grid-reduced.d2`): a root
-  leaf receives container dimensions.
+- **TALA placement (resolved):** native arm64 and freshly rebuilt WASM now
+  match pinned Go on the retained `stable:25`/`stable:27`, transpose and
+  seed 20261310 row 1193 witnesses, including `w50-tala-grid-reduced.d2`.
+  The later label-position hierarchy witness also matches in WASM (7/7
+  complete compile/render responses).
 - **Raster pixels:** the recorded simulator PNG, color-emoji GIF, arrowhead
   PNG and markdown cylinder PNG witnesses now match on amd64 and arm64.
 - **Go panics:** five inputs per seed crash the pinned Go itself (no oracle
@@ -72,70 +72,63 @@ rework (sequence PNG 9.7x to 0.68x Go CPU at 50 actors, emoji 3.2x to 0.7x,
 repeated icons 1.9x CPU and 4.4x RSS to 0.7x and 1.0x, animated GIF, code
 blocks, gradients, opacity, nested Dagre).
 
+Fixed in the 0.1.1 round (2026-11-06), each with contract tests:
+
+- **PNG:** right-to-left override controls (Go's bidi runs, controls without
+  ink admitted to native shaping); short `cylinder`, `callout` and
+  `c4-person` shapes (full-box canvas bounds, signed inner-box labels);
+  `--scale=0.05` (route-label interpolation before mask rounding); malformed
+  PNG icons, now rejected after Go's container and configuration probe.
+- **Errors and text:** raw invalid style keywords in diagnostics (Go's `%s`);
+  four LaTeX style/line-break root causes (fenced declarations, trailing
+  binary operators, superscript rows, fraction denominators); nested
+  sequence diagrams (error precedence, empty and populated inner sequences,
+  outer actor roles after message reinjection); escaped-name dimension keys.
+- **Fuzz layouts (seeds 2026110616-18, 1,000 jobs each per engine):** all 19
+  minimized witnesses match: grid direction from the last primary key, root
+  `near` bounds, Dagre fitting below non-square ancestors, ELK padding from
+  original child sizes and resize-time label shifts, inline HTML in
+  Markdown, TALA explicit container widths and filtered-glob placement. The
+  fuzzer now compares complete output inventories (every board and
+  manifest), which earlier runs did not.
+- **TALA:** the 200-node nested work-limit board stops in
+  `AutolayoutTransactions` as Go does. Seeds no longer queue for a routing
+  slot: every seed routes at once, as in Go. Fan-out at 100/200 nodes went
+  from 1.46x/1.66x Go wall to 0.77x/0.80x (x86, five interleaved runs,
+  identical SVGs). Parallel edges are 0.76-0.78x Go CPU at 50-200 edges;
+  nested/100 peak RSS fell to 0.63x Go.
+- **Raster performance:** a shadowed container with 60 children, 240
+  double-bordered shapes, 240 gradient fills and 240/480-item Markdown all
+  beat Go in CPU and RSS (row-bounded shadows, bounds culling before stroke
+  expansion, reused gradient rows, shared code atlases).
+- **WASM performance (first measurement):** Node 22 on arm64 against the
+  pinned `d2js`, the 12 perf-bench inputs on every engine: median wall 0.33x
+  (Dagre), 0.33x (ELK), 0.38x (TALA); worst row 0.69x; all 36 SVGs identical.
+- **Windows:** the default tier passes and all 944 applicable e2e boards
+  match on native MSVC (Windows Server 2025) and under Wine (GNU target,
+  against a Windows build of Go). Paths follow Go's `AbsPath`/`HumanPath` and
+  `filepath.Rel`, file errors use Go's message text, and Go-matching FMA and
+  rounding replace C-library results that differ on Windows. d2-rs and Go
+  also agree on all 933 SVG boards with CRLF line endings. CI compiles the
+  Windows tests without running them.
+
 Open, with witnesses from the sweeps:
 
-- ~~**Raster text:** bidi override controls (U+202E/U+202C) differed in PNG.~~
-  Fixed Go-compatible bidi runs and native admission of controls without ink;
-  the complete hard-text board now matches Go byte for byte on arm64.
-- ~~**Short shapes in PNG:** `cylinder`, `callout` and `c4-person` with an
-  explicit height of 25-31 px differ from Go in PNG; their SVG matches.~~
-  Fixed full-box canvas bounds and signed inner-box label placement.
-- ~~**Small scale:** `--scale=0.05` differed in PNG (100 and 500 nodes).~~
-  Fixed arm64 route-label interpolation before mask-box rounding; both match
-  Go byte for byte.
-- ~~**Malformed images:** a malformed PNG icon that Go rejects
-  (`imageasset: probe ... malformed`) renders in d2-rs.~~ PNG admission now
-  validates the complete container and configuration before retention.
-- **Error text:** a right-to-left override character in an invalid keyword is
-  escaped (`‮`) in d2-rs errors and raw in Go's.
-- **Markdown:** a tab-indented empty heading inside a block differs.
-- **LaTeX:** four probes where a style declaration spans a line break.
-- **TALA work limits:** a 200-node nested board exceeds TALA's work limit in
-  both, but Go stops in `AutolayoutTransactions` and d2-rs in
-  `GapNormalizationTransactions`, so the error text differs.
-- **Fuzz singletons:** duplicated `grid-rows`, `*: suspend` globs, a `package`
-  shape four levels deep, Gujarati next to an emoji; one witness each.
-- ~~**Non-TALA raster performance:** shadowed containers, double borders,
-  gradient fills and Markdown exceeded Go at large sizes.~~ Regional shadow
-  inputs, bounded stroke caches, shared font-size atlases and row gradient
-  sampling bring all four below Go locally on arm64, with identical PNG
-  bytes; quiet-host confirmation is pending.
-- **Performance beyond corpus size** (quiet arm64, d2-rs/Go): TALA
-  with 100 parallel edges at 1.24x CPU and growing; TALA with 100 classes at
-  1.10x RSS; TALA at scale (`scale-sweep.py`): nested at 100 nodes 2.24x
-  RSS, long labels at 100 nodes 1.15x RSS, fan-out at 200-400 nodes 1.5-1.75x
-  wall with CPU near Go; compiling an 80,000-edge board before the engine's edge-limit
-  error at about 1.4x Go wall. Shadows, opacity, 3D, nested fills and dark theme stay under Go
-  but their ratios grow with size. The corpus itself has no row over Go.
-- **Long fuzz:** seeds 2026110616/17/18, 1,000 jobs each on Dagre/ELK/TALA,
-  find 6/6/7 differences. Complete output inventories and all 22 matching
-  empty-output outcomes are checked; no crash, hang, timeout or invalid SVG.
-  Minimized front-end/Markdown/layout witnesses cover root `near`, repeated
-  grid dimensions, circle containers/globs, `0` versus `00` dimensions,
-  inline HTML measurement and diagnostic text/precedence. Three TALA-only
-  witnesses cover explicit container width fitting and filtered-glob placement.
-  Witnesses and owner handoffs: `oracle-cache/reports/x16/handoff.json`.
-  X18 fixes all nine assigned Dagre/ELK output witnesses: HTML self-closing
-  and leading-whitespace measurement, final grid-key order, root-near bounds,
-  Dagre fitting below non-square containers, and ELK child-size estimates and
-  resized-label margins.
-  The shared grid/near causes also cover TALA jobs 740/203; diagnostics and
-  the three TALA-only placement witnesses remain with Q1/T2.
-- **WASM performance:** Node 22.21.1 on arm64, pinned d2js versus current Rust
-  WASM, the 12 perf-bench inputs on every engine, three interleaved samples
-  after warmup. All 36 SVGs match byte for byte. Median wall Rust/Go ratios:
-  Dagre 0.33x, ELK 0.33x, TALA 0.38x; worst row 0.69x. Process CPU samples are
-  retained separately in `oracle-cache/reports/x16/wasm-performance.json`.
-  Two early-call CPU excesses disappear with additional warmup: Dagre
-  arrowhead scaling is 0.32x Go after three warmups, and TALA grid across cells
-  is 0.45x after ten (interleaved samples, 500 ms settling, identical SVGs).
-- **Windows:** the GNU target passes the default tier under Wine 9 and matches
-  Windows Go on all 944 applicable e2e boards, including TALA. CRT FMA and near-halfway
-  rounding are bypassed in the affected math paths. Absolute forward-slash
-  source paths now retain their import base across drives; backslash source
-  paths resolve imports against the working directory in pinned Go too.
-  Diagnostics follow Windows separators, case folding and OS error text.
-  Native MSVC remains unqualified; CI still compiles its tests without running.
+- **TALA routing memory:** with all seeds routing at once, each concurrent
+  seed adds about 1.6x Go's routing memory (fan-out/200 peak RSS 1.05x Go,
+  `tpmjs` 0.94x). Profile one seed's routing state and shrink it.
+- **TALA error path:** a 400-node fan-out fails identically in both at
+  `NodePlacement` (`Dimensions w:859, h:39517`), but d2-rs takes 0.36 s and Go
+  0.04 s to get there.
+- **Performance beyond corpus size** (d2-rs/Go): TALA long labels at 100
+  nodes 1.26x wall (1.05x CPU), measured before the routing change;
+  compiling an 80,000-edge board before the edge-limit error at about 1.4x
+  wall. Shadows, opacity, 3D, nested fills and dark theme stay under Go but
+  their ratios grow with size. The corpus itself has no row over Go.
+- **Unreplayed witnesses:** the original four LaTeX probes and three fuzz
+  singletons (`*: suspend` globs, a `package` shape four levels deep,
+  Gujarati next to an emoji) were not retained; 60 `suspend` and 18
+  `package` variants match. Replay them if a sweep finds them again.
 
 Go progress messages that differ only under concurrent load (identical output
 hashes, not reproducible when Go runs alone) are harness noise, not drift.

@@ -20,6 +20,8 @@ struct Object {
     label_key: Option<Shared<ast::Key>>,
     language: String,
     shape: Vec<u8>,
+    width: Option<NodeId>,
+    height: Option<NodeId>,
     link: bool,
     tooltip: Option<Vec<u8>>,
     source_arrowhead: Option<usize>,
@@ -177,6 +179,41 @@ impl<'a> Board<'a> {
             unreachable!()
         };
         self.ensure(parent, &field.name.clone())
+    }
+    /// validateKey uses HasChild with ScalarString, whereas EnsureChild stores
+    /// formatted key IDs. Escaped and quoted names do not always resolve here.
+    pub(super) fn validation_child(&self, parent: usize, field: NodeId) -> Option<usize> {
+        let Node::Field(field) = self.compiler.arena.node(field) else {
+            return None;
+        };
+        let name = field.name.scalar_string();
+        if name != "style" && is_reserved_keyword(&name) {
+            return Some(parent);
+        }
+        self.objects[parent]
+            .children_by_id
+            .get(&go_lowercase(name.as_bytes()))
+            .copied()
+    }
+    pub(super) fn validation_attributes(
+        &self,
+        object: usize,
+    ) -> (String, Option<NodeId>, Option<NodeId>) {
+        let obj = &self.objects[object];
+        let shape = if obj.shape.is_empty() && object != 0 {
+            if self.sequence(object).is_some() {
+                "rectangle".into()
+            } else {
+                match obj.language.as_str() {
+                    "markdown" | "latex" => "text".into(),
+                    "" => "rectangle".into(),
+                    _ => "code".into(),
+                }
+            }
+        } else {
+            String::from_utf8_lossy(&obj.shape).into_owned()
+        };
+        (shape, obj.width, obj.height)
     }
     pub(super) fn set_label(&mut self, obj: usize, field: NodeId) {
         self.label(obj, field);
@@ -367,6 +404,8 @@ impl<'a> Board<'a> {
         let bytes = scalar.value.scalar_bytes();
         match name {
             "label" => self.label(obj, field),
+            "width" => self.objects[obj].width = Some(field),
+            "height" => self.objects[obj].height = Some(field),
             "shape" => {
                 let lower = go_lowercase(&bytes);
                 if super::arrowhead_validation::valid_shape(&lower) {

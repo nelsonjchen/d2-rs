@@ -371,6 +371,7 @@ pub(super) fn layout_tagged(
         wrap_width: None,
     });
     group.x = x + if center { pad } else { 0.0 };
+    group.x_frame = None;
     group.baseline = baseline;
     group.before_glyph = out.glyphs.len();
     out.ascent = out.ascent.max(baseline + local.ascent);
