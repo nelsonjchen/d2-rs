@@ -10,6 +10,14 @@ Each release names the upstream Go D2 commit it matches, from
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-11-07
+
+### Changed
+
+- Documentation only: the README and the npm package README give the
+  `cargo install d2-rs` and `npm install @d2-rs/wasm` commands and the
+  current known issues. No code changes from 0.1.1.
+
 ## [0.1.1] - 2026-11-07
 
 Matches Go D2 `master` at 6a7b48378, as 0.1.0 does.
@@ -76,5 +84,6 @@ Matches Go D2 `master` at 6a7b48378, as 0.1.0 does.
   path separators in diagnostics and one TALA layout differ in tests.
 
 [Unreleased]: https://github.com/nelsonjchen/d2-rs/commits/main
+[0.1.2]: https://crates.io/crates/d2-rs/0.1.2
 [0.1.1]: https://crates.io/crates/d2-rs/0.1.1
 [0.1.0]: https://crates.io/crates/d2-rs/0.1.0

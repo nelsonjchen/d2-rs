@@ -299,7 +299,7 @@ dependencies = [
 
 [[package]]
 name = "d2-rs"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "base64 0.22.1",
  "brotli-decompressor",
@@ -341,7 +341,7 @@ dependencies = [
 
 [[package]]
 name = "d2-rs-core"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "d2-rs-testdata",
  "libm",
@@ -354,7 +354,7 @@ dependencies = [
 
 [[package]]
 name = "d2-rs-dagre"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "d2-rs-core",
  "d2-rs-testdata",
@@ -364,7 +364,7 @@ dependencies = [
 
 [[package]]
 name = "d2-rs-editor"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "d2-rs-core",
  "d2-rs-language",
@@ -376,7 +376,7 @@ dependencies = [
 
 [[package]]
 name = "d2-rs-elk"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "d2-rs-core",
  "d2-rs-dagre",
@@ -389,7 +389,7 @@ dependencies = [
 
 [[package]]
 name = "d2-rs-export"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "base64 0.22.1",
  "brotli-decompressor",
@@ -429,7 +429,7 @@ dependencies = [
 
 [[package]]
 name = "d2-rs-fontface"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "brotli-decompressor",
  "d2-rs-render",
@@ -446,7 +446,7 @@ dependencies = [
 
 [[package]]
 name = "d2-rs-goflate"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "d2-rs-testdata",
  "sha2",
@@ -454,7 +454,7 @@ dependencies = [
 
 [[package]]
 name = "d2-rs-isometric"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "base64 0.22.1",
  "d2-rs-core",
@@ -478,7 +478,7 @@ dependencies = [
 
 [[package]]
 name = "d2-rs-language"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "d2-rs-core",
  "d2-rs-math",
@@ -490,7 +490,7 @@ dependencies = [
 
 [[package]]
 name = "d2-rs-layout"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "d2-rs-core",
  "d2-rs-dagre",
@@ -503,7 +503,7 @@ dependencies = [
 
 [[package]]
 name = "d2-rs-lib"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "base64 0.22.1",
  "d2-rs-core",
@@ -518,7 +518,7 @@ dependencies = [
 
 [[package]]
 name = "d2-rs-math"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "base64 0.22.1",
  "brotli-decompressor",
@@ -540,7 +540,7 @@ dependencies = [
 
 [[package]]
 name = "d2-rs-raster"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "base64 0.22.1",
  "d2-rs-core",
@@ -562,7 +562,7 @@ dependencies = [
 
 [[package]]
 name = "d2-rs-render"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "base64 0.22.1",
  "d2-rs-core",
@@ -604,7 +604,7 @@ dependencies = [
 
 [[package]]
 name = "d2-rs-scene"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "base64 0.22.1",
  "d2-rs-render",
@@ -614,7 +614,7 @@ dependencies = [
 
 [[package]]
 name = "d2-rs-scenebuild"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "base64 0.22.1",
  "brotli-decompressor",
@@ -642,7 +642,7 @@ dependencies = [
 
 [[package]]
 name = "d2-rs-sketch"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "d2-rs-core",
  "d2-rs-testdata",
@@ -650,7 +650,7 @@ dependencies = [
 
 [[package]]
 name = "d2-rs-tala"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "d2-rs-core",
  "d2-rs-testdata",
@@ -662,7 +662,7 @@ dependencies = [
 
 [[package]]
 name = "d2-rs-target"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "d2-rs-core",
  "serde",
@@ -671,7 +671,7 @@ dependencies = [
 
 [[package]]
 name = "d2-rs-testdata"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "serde_json",
  "sha2",
@@ -679,7 +679,7 @@ dependencies = [
 
 [[package]]
 name = "d2-rs-text"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "base64 0.22.1",
  "d2-rs-core",
@@ -699,7 +699,7 @@ dependencies = [
 
 [[package]]
 name = "d2-rs-wasm"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "base64 0.22.1",
  "d2-rs-core",
