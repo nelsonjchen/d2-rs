@@ -62,14 +62,11 @@ mutations. They found and fixed many gaps; these are still open
   than Go's.
 - **TALA error path:** a 400-node fan-out fails exactly as Go does, but takes
   0.36 s to reach the error against Go's 0.04 s.
-- **Speed at scale:** TALA with long labels at 100 nodes runs about 1.26× Go
-  wall, and compiling an 80,000-edge board before the edge-limit error about
-  1.4×.
+- **Long labels in TALA:** a 100-node chain with long labels runs about 1.22×
+  Go's wall time.
+- **Very large inputs:** an 80,000-edge board takes as long as Go to reach
+  TALA's edge-limit error but peaks at about 1.4× Go's memory.
 - **Binary size:** the native CLI is about 1.2× the size of Go's.
-- **Windows in CI:** CI builds Windows but does not run its tests; they were
-  run natively for this release.
-- **Unreplayed witnesses:** four LaTeX inputs and three fuzz singletons from
-  an earlier sweep were not kept; their variants match Go.
 
 ## Install
 
