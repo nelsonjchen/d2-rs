@@ -1,6 +1,6 @@
 # d2-rs
 
-A Rust port of the [D2](https://github.com/terrastruct/d2) toolchain: the
+A Rust port of the [D2](https://github.com/d2lang/d2) toolchain: the
 compiler, the Dagre, ELK and TALA layout engines, the renderers and exporters,
 and the `d2` command line, for the D2 diagram scripting language. Everything
 runs in process, and it builds as a native CLI and as a WebAssembly package.
@@ -8,6 +8,10 @@ runs in process, and it builds as a native CLI and as a WebAssembly package.
 d2-rs targets byte-identical output with upstream Go D2 `master` at the commit
 pinned in [`reference-manifest.json`](reference-manifest.json) (6a7b48378,
 2026-10-11). Upstream's own test suites are the oracle.
+
+Announced in D2's
+[Show and tell](https://github.com/d2lang/d2/discussions/2958) discussions;
+questions and feedback are welcome there.
 
 ## Status
 
