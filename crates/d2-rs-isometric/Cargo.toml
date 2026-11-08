@@ -20,6 +20,8 @@ name = "isometric-mesh"
 required-features = ["diagnostic-traces"]
 
 [dependencies]
+aho-corasick = "1.1"
+ryu = "1.0"
 d2-rs-core.workspace = true
 d2-rs-target.workspace = true
 d2-rs-language.workspace = true

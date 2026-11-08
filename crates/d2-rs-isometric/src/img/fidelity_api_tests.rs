@@ -87,6 +87,7 @@ fn replay(v: &Value) -> Value {
     assert_eq!(before["error"], "");
     let mut w = SurfaceSvg {
         doc: &doc,
+        assets: &doc.assets,
         context: context(v),
         prefix,
         defs: before["defs"].as_str().unwrap().into(),

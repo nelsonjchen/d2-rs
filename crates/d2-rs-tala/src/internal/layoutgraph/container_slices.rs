@@ -71,6 +71,29 @@ struct NodeSliceBacking {
 struct NodeSlots(Box<[AtomicU64]>);
 const NIL_SLOT: u64 = u64::MAX;
 
+/// A reference into a captured header's fixed backing, not a captured value.
+/// Load only after the caller's item poll so aliases can still change the slot.
+pub(super) struct NodeSlotReader<'a>(&'a AtomicU64);
+
+impl NodeSlotReader<'_> {
+    pub(super) fn get(&self) -> Option<NodeId> {
+        match self.0.load(Relaxed) {
+            NIL_SLOT => None,
+            id => Some(NodeId(id as u32)),
+        }
+    }
+}
+
+/// The header window is validated once; iterating it borrows slot addresses.
+#[derive(Clone, Copy, Default)]
+pub(super) struct BorrowedNodeSlots<'a>(&'a [AtomicU64]);
+
+impl<'a> BorrowedNodeSlots<'a> {
+    pub(super) fn readers(self) -> impl ExactSizeIterator<Item = NodeSlotReader<'a>> {
+        self.0.iter().map(NodeSlotReader)
+    }
+}
+
 impl NodeSlots {
     fn new(len: usize) -> Self {
         Self((0..len).map(|_| AtomicU64::new(NIL_SLOT)).collect())
@@ -235,6 +258,14 @@ impl SharedNodeSlice {
     /// iter_slots instead when the iterator must outlive its header.
     pub(super) fn borrowed_slots(&self) -> impl Iterator<Item = Option<NodeId>> + '_ {
         (0..self.len).map(|index| self.get(index).expect("borrowed slice bound"))
+    }
+
+    /// Like a Go range over the header, but defer each value load until after
+    /// an item poll. The backing never moves and its slots remain atomic.
+    pub(super) fn borrowed_slot_readers(&self) -> BorrowedNodeSlots<'_> {
+        BorrowedNodeSlots(self.backing.as_ref().map_or(&[], |backing| {
+            &backing.slots.0[self.start..self.start + self.len]
+        }))
     }
 
     pub(super) fn require_nodes(&self) -> impl Iterator<Item = NodeId> + use<> {
@@ -1550,7 +1581,16 @@ mod copied_node_contract {
         map.replace_header(None, window.clone());
         let prior = map.get(&None).unwrap();
         assert_eq!(prior, vec![NodeId(1), NodeId(1), NodeId(3)]);
+        // edge_length.go:907-910 loads the pointer after the item poll.
+        // Taking a reader must not snapshot the value before an alias write.
+        let mut readers = window.borrowed_slot_readers().readers();
+        assert_eq!(readers.len(), 3);
+        assert_eq!(readers.next().unwrap().get(), Some(NodeId(1)));
+        let second = readers.next().unwrap();
+        backing.write_capacity_slot(2, None).unwrap();
+        assert_eq!(second.get(), None);
         backing.write_capacity_slot(2, Some(NodeId(7))).unwrap();
+        assert_eq!(second.get(), Some(NodeId(7)));
         assert_eq!(
             map.get(&None).unwrap(),
             vec![NodeId(1), NodeId(7), NodeId(3)]
@@ -1559,6 +1599,11 @@ mod copied_node_contract {
         assert_eq!(map.get(&None).unwrap(), vec![NodeId(4)]);
         assert_eq!(window.copied_nodes(), vec![NodeId(1), NodeId(7), NodeId(3)]);
         assert_eq!(prior, vec![NodeId(1), NodeId(1), NodeId(3)]);
+        assert_eq!(readers.next().unwrap().get(), Some(NodeId(3)));
+        assert!(
+            readers.next().is_none(),
+            "spare capacity is outside the header"
+        );
     }
     #[test]
     fn nil_recovery_does_not_poison_backing_and_empty_entries_stay_present() {

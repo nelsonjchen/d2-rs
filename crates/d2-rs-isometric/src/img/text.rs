@@ -119,9 +119,17 @@ impl TextPainter {
         if self.faces.len() >= 24 || data.len() > MAX_TEXT_FONT_BYTES - self.font_bytes {
             return Err("isometric text exceeds font asset budget".into());
         }
+        // text.go textPainter.face shares the registered bundled source;
+        // only explicit custom font bytes need a new parse.
+        let source = d2_rs_fontface::registered_bundled_face(&data, 0)
+            .map_err(|e| format!("isometric text font: {e}"))?;
         let face = Rc::new(
-            d2_rs_fontface::parse_face(&data, 0)
-                .map_err(|e| format!("isometric text font parse: {e}"))?,
+            if let Some(source) = source {
+                source.clone_read_only()
+            } else {
+                d2_rs_fontface::parse_face(&data, 0)
+            }
+            .map_err(|e| format!("isometric text font parse: {e}"))?,
         );
         self.font_bytes += data.len();
         self.faces.insert(key, face.clone());

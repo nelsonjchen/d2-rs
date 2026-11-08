@@ -228,6 +228,11 @@ impl ArenaGraph {
                 ordered_edge_ids.push(edge_id);
             }
         }
+        // layoutgraph.abductEdges reconnects a descendant endpoint to its
+        // direct-scope ancestor. reconnect appends to that ancestor's Edges;
+        // its existing incidences stay ahead of every promoted endpoint even
+        // when the promoted edge precedes them in Graph.Edges.
+        let mut promoted_incidents = Vec::new();
         for edge_id in ordered_edge_ids {
             let edge = &self.edge_records[edge_id.0 as usize];
             let Some(from) = direct_child(edge.from) else {
@@ -241,9 +246,20 @@ impl ArenaGraph {
             }
             let key = if from <= to { (from, to) } else { (to, from) };
             if allowed.contains(&key) {
-                adjacent.get_mut(&from).unwrap().push(to);
-                adjacent.get_mut(&to).unwrap().push(from);
+                if self.numerical_aggregate_node(edge.from) == from {
+                    adjacent.get_mut(&from).unwrap().push(to);
+                } else {
+                    promoted_incidents.push((from, to));
+                }
+                if self.numerical_aggregate_node(edge.to) == to {
+                    adjacent.get_mut(&to).unwrap().push(from);
+                } else {
+                    promoted_incidents.push((to, from));
+                }
             }
+        }
+        for (node, neighbor) in promoted_incidents {
+            adjacent.get_mut(&node).unwrap().push(neighbor);
         }
         let mut unseen = children.iter().copied().collect::<BTreeSet<_>>();
         let mut components = Vec::new();
@@ -446,10 +462,11 @@ impl ArenaGraph {
         {
             return false;
         }
-        !Self::hierarchy_is_1_n_1(component, edges, rank)
+        !self.hierarchy_is_1_n_1(component, edges, rank)
     }
 
     fn hierarchy_is_1_n_1(
+        &self,
         component: &[NodeId],
         edges: &[(NodeId, NodeId, bool)],
         rank: &HierarchyRank,
@@ -468,6 +485,54 @@ impl ArenaGraph {
             .collect::<Vec<_>>();
         if levels[0].len() != 1 || levels[2].len() != 1 {
             return false;
+        }
+
+        // hierarchy/discovery.go:is1N1 compares the original endpoints of
+        // AbductEdges before treating the outer source and sink as single
+        // nodes. Distinct descendants of either container are distinct
+        // endpoints, even when their projected rank edges are identical.
+        // Retain both optional fields: an unchanged endpoint is nil in Go,
+        // including when the opposite endpoint was abducted.
+        let scope = self.nodes[component[0].0 as usize].container;
+        let mut source_abduction = None;
+        let mut sink_abduction = None;
+        for edge in self.member_edges() {
+            let Some(from) = self.direct_child_in_hierarchy_scope(edge.from, scope) else {
+                continue;
+            };
+            let Some(to) = self.direct_child_in_hierarchy_scope(edge.to, scope) else {
+                continue;
+            };
+            if from == to || (from == edge.from && to == edge.to) {
+                continue;
+            }
+            let original = (
+                (from != edge.from).then_some(edge.from),
+                (to != edge.to).then_some(edge.to),
+            );
+            for (endpoint, prior) in [
+                (levels[0][0], &mut source_abduction),
+                (levels[2][0], &mut sink_abduction),
+            ] {
+                if from == endpoint {
+                    if let Some((original_from, _)) = *prior {
+                        if original.0 != original_from {
+                            return false;
+                        }
+                    } else {
+                        *prior = Some(original);
+                    }
+                }
+                if to == endpoint {
+                    if let Some((_, original_to)) = *prior {
+                        if original.1 != original_to {
+                            return false;
+                        }
+                    } else {
+                        *prior = Some(original);
+                    }
+                }
+            }
         }
         let source = levels[0][0];
         levels[1].iter().all(|middle| {

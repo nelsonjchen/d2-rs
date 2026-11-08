@@ -341,3 +341,45 @@ fn non_nil_assertion_rechecks_a_window_after_any_slot_write() {
     alias.write_capacity_slot(1, Some(EdgeId(1))).unwrap();
     slice.assert_values_non_nil();
 }
+
+#[test]
+fn atomic_range_reads_live_slots_within_the_captured_window() {
+    // Node.Edges ranges over its captured header, including nil slots and
+    // duplicates, without loading later pointers before they are reached.
+    let backing = SharedEdgeSlice::from_slots(&[
+        Some(EdgeId(9)),
+        Some(EdgeId(1)),
+        Some(EdgeId(2)),
+        Some(EdgeId(1)),
+        Some(EdgeId(8)),
+    ])
+    .unwrap();
+    let window = backing.reslice_with_capacity(1, 4, 5).unwrap();
+    let alias = backing.clone();
+    let mut visible = Vec::new();
+    window.for_each_visible(|slot| {
+        visible.push(*slot);
+        if visible.len() == 1 {
+            alias.write_capacity_slot(2, None).unwrap();
+        }
+    });
+    assert_eq!(visible, [Some(EdgeId(1)), None, Some(EdgeId(1))]);
+
+    alias.write_capacity_slot(2, Some(EdgeId(2))).unwrap();
+    let mut values = Vec::new();
+    window.for_each_value(|&edge| {
+        values.push(edge);
+        if values.len() == 1 {
+            alias.write_capacity_slot(2, Some(EdgeId(3))).unwrap();
+        }
+    });
+    assert_eq!(values, [EdgeId(1), EdgeId(3), EdgeId(1)]);
+
+    alias.write_capacity_slot(2, None).unwrap();
+    values.clear();
+    let panicked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        window.for_each_value(|&edge| values.push(edge));
+    }));
+    assert!(panicked.is_err());
+    assert_eq!(values, [EdgeId(1)]);
+}

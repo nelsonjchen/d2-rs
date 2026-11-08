@@ -31,6 +31,7 @@ fn surface(v: &serde_json::Value) -> Result<Rc<VectorSurface>, Box<dyn std::erro
     let mut document: d2_rs_scene::Document = serde_json::from_value(v["document"].clone())?;
     document.load_asset_files()?;
     Ok(Rc::new(VectorSurface {
+        shared_assets: None,
         document: Rc::new(RefCell::new(document)),
         ink_coverage: RefCell::new(v.get("inkCoverage").map(surface).transpose()?),
         coverage_opacity: std::cell::Cell::new(v["coverageOpacity"].as_f64().unwrap_or(0.0)),

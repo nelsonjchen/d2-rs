@@ -1043,6 +1043,74 @@ impl<'a> OwnerScoreSession<'a> {
         Ok((combined, receiver))
     }
 
+    /// Cluster.optimize(true) commits into the same node and group pointers
+    /// later read by direct (node_placement.go:184-216). Publish accepted
+    /// trial changes before refreshing those retained projections.
+    pub(super) fn publish_accepted_cluster_flip(
+        &mut self,
+        vessel: NodeId,
+        before: &ArenaGraph,
+        after: &ArenaGraph,
+        arrangement: ClusterArrangement,
+    ) -> Result<(), OwnerScoreSessionError> {
+        let canonical = self.canonical_node(vessel)?;
+        let group = self
+            .owner
+            .owner_graph_group_entry(self.current_view, OwnerGroupKind::Cluster, Some(canonical))?
+            .flatten()
+            .ok_or(OwnerScoreSessionError::UnsupportedNestedVessel(canonical))?;
+        let changes = after
+            .graph_node_order()
+            .into_iter()
+            .filter_map(|node| {
+                let geometry = OwnerNodeGeometry::from_graph(after, node);
+                (geometry != OwnerNodeGeometry::from_graph(before, node))
+                    .then_some((node, geometry))
+            })
+            .collect::<Vec<_>>();
+        self.publish_direct_geometry(&changes)?;
+        self.publish_projected_direct_geometry(
+            before.transaction_external_containers.iter(),
+            after.transaction_external_containers.iter(),
+        )?;
+        self.publish_projected_direct_geometry(
+            before
+                .transaction_external_container_children
+                .values()
+                .flatten(),
+            after
+                .transaction_external_container_children
+                .values()
+                .flatten(),
+        )?;
+        self.publish_projected_direct_geometry(
+            before
+                .transaction_external_aggregate_children
+                .values()
+                .flatten(),
+            after
+                .transaction_external_aggregate_children
+                .values()
+                .flatten(),
+        )?;
+        let arrangement = match arrangement {
+            ClusterArrangement::Row => "Row",
+            ClusterArrangement::Column => "Column",
+        };
+        let policy = self.owner.owner_cluster_policy(group)?;
+        let padding = after
+            .transaction_external_cluster_layouts
+            .get(&after.nodes[vessel.0 as usize].tala_id)
+            .map_or(policy.padding, |layout| layout.padding);
+        self.owner.set_owner_cluster_orientation_policy(
+            group,
+            arrangement.into(),
+            arrangement.into(),
+            padding,
+        )?;
+        Ok(())
+    }
+
     /// SplitSubgraphs/direct retain Source pointers rather than copying stale
     /// projected boxes. Resolve only explicit owner handles, leave the
     /// numerical transport unmodified unless all of them are valid, and

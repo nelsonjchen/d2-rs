@@ -67,6 +67,7 @@ fn surface(v: &Value) -> Option<Rc<VectorSurface>> {
         return None;
     }
     Some(Rc::new(VectorSurface {
+        shared_assets: None,
         document: Rc::new(RefCell::new(document(&v["document"]))),
         ink_coverage: RefCell::new(surface(&v["coverage"])),
         coverage_opacity: std::cell::Cell::new(n(&v["opacity"])),
@@ -104,7 +105,10 @@ fn document(v: &Value) -> Document {
     serde_json::from_value(v).unwrap()
 }
 fn surf_value(v: Option<&VectorSurface>) -> Value {
-    v.map(|s|json!({"document":&*s.document.borrow(),"coverage":surf_value(s.ink_coverage.borrow().as_deref()),"opacity":s.coverage_opacity.get(),"cap":s.cap_background,"paint":s.cap_paint})).unwrap_or(Value::Null)
+    v.map(|s| {
+        let document = s.with_document(|doc| json!(doc));
+        json!({"document":document,"coverage":surf_value(s.ink_coverage.borrow().as_deref()),"opacity":s.coverage_opacity.get(),"cap":s.cap_background,"paint":s.cap_paint})
+    }).unwrap_or(Value::Null)
 }
 fn image(t: &Texture) -> Value {
     json!({"width":t.width,"height":t.height,"stride":t.width*4,"pixels":base64::engine::general_purpose::STANDARD.encode(&*t.pixels.borrow())})
@@ -198,7 +202,8 @@ fn replay(v: &Value) -> Value {
             let ink = texture(&v["ink"]);
             for (t, s) in [(&fill, &v["fill_vector"]), (&ink, &v["ink_vector"])] {
                 if let Some(s) = surface(s) {
-                    retain_native_vector_surface(&vectors, t, &s.document.borrow()).unwrap();
+                    s.with_document(|doc| retain_native_vector_surface(&vectors, t, doc))
+                        .unwrap();
                 }
             }
             let mut b = MeshBuilder {

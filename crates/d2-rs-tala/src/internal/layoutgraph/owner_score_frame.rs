@@ -124,8 +124,18 @@ impl OwnerObstructionSet {
     /// slot, distinct from an out-of-range index. Source layout.go314–331
     /// makes nil a universal ancestor, so ordinary replacements skip it at
     /// the ancestry predicate before reading TopLeft (edge_length.go914).
+    #[cfg(any(test, feature = "diagnostic-traces"))]
     pub(super) fn raw_slot(&self, index: usize) -> Option<Option<NodeId>> {
         self.header.as_ref()?.get(index)
+    }
+
+    /// edge_length.go:907-910 polls before loading each obstruction pointer.
+    /// Retain the captured window while deferring its actual slot loads.
+    pub(super) fn slot_readers(&self) -> super::container_slices::BorrowedNodeSlots<'_> {
+        self.header
+            .as_ref()
+            .map(SharedNodeSlice::borrowed_slot_readers)
+            .unwrap_or_default()
     }
 }
 

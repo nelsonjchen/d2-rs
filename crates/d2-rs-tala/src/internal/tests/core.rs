@@ -427,6 +427,41 @@ fn retained_member_spacing_does_not_inherit_vessel_edges() {
         target: first,
     });
     let mut graph = ArenaGraph::from_input(&input);
+    graph.set_position(source, Point { x: 0.0, y: 0.0 });
+    graph.set_position(first, Point { x: 1000.0, y: 0.0 });
+    graph.set_position(second, Point { x: 2000.0, y: 0.0 });
+    graph.refresh_node_order_membership();
+    // node.go:799-817 reads each current incident edge, including its live
+    // endpoints and dimensions. Both numerical owner-table paths must agree
+    // after either kind of edge mutation, in both adjacent branches.
+    for reversed in [false, true] {
+        let edge = &mut graph.edge_records[0];
+        (edge.from, edge.to) = if reversed {
+            (first, source)
+        } else {
+            (source, first)
+        };
+        for width in [90.0, 140.0] {
+            graph.edge_records[0].min_width = width;
+            for valid in [true, false] {
+                graph.node_order_membership_valid = valid;
+                for (a, b, expected) in [
+                    (source, first, width),
+                    (first, source, width),
+                    (source, second, 20.0),
+                ] {
+                    assert_eq!(
+                        graph.spacing_delta(a, b, graph.position(a).unwrap()),
+                        expected,
+                        "reversed={reversed}, table={valid}, {a:?}->{b:?}"
+                    );
+                }
+            }
+        }
+    }
+    graph.edge_records[0].from = source;
+    graph.edge_records[0].to = first;
+    graph.edge_records[0].min_width = 0.0;
     graph.clusters.push(ClusterState {
         members: vec![first, second],
         arrangement: ClusterArrangement::Row,
@@ -452,6 +487,38 @@ fn retained_member_spacing_does_not_inherit_vessel_edges() {
     assert_eq!(
         graph.connected_spacing_delta(Active(source), ClusterMember(first)),
         20.0
+    );
+
+    // node.go deltaToGuarded consumes the current node's LoopOffsets. An
+    // active vessel has no member-loop offsets, while the ordinary endpoint
+    // retains its own offsets. Exercise nil, empty and nonempty maps.
+    for offsets in [
+        None,
+        Some(LoopOffsetsMap::new()),
+        Some(LoopOffsetsMap::from([(7, 700.0)])),
+    ] {
+        graph.nodes[first.0 as usize].loop_offsets = offsets;
+        assert_eq!(
+            graph.spacing_delta_with_loops(source, first, graph.position(source).unwrap()),
+            60.0
+        );
+        assert_eq!(
+            graph.spacing_delta_with_loops(
+                first,
+                source,
+                graph.active_node_position(first).unwrap()
+            ),
+            60.0
+        );
+    }
+    graph.nodes[source.0 as usize].loop_offsets = Some(LoopOffsetsMap::from([(5, 150.0)]));
+    assert_eq!(
+        graph.spacing_delta_with_loops(source, first, graph.position(source).unwrap()),
+        170.0
+    );
+    assert_eq!(
+        graph.spacing_delta_with_loops(first, source, graph.active_node_position(first).unwrap()),
+        170.0
     );
 }
 
@@ -2675,6 +2742,63 @@ fn hierarchy_scope_abduction_and_network_simplex_match_pristine_nested_cycle() {
         arena.nodes[i.0 as usize].hierarchy.clone(),
         arena.nodes[g.0 as usize].hierarchy.clone()
     );
+}
+
+#[test]
+fn hierarchy_recognition_preserves_distinct_abducted_endpoints() {
+    // Pinned hierarchy/discovery.go:is1N1 compares OriginallyFrom/To before
+    // rejecting three-rank components. D43's D2 witness is
+    // n; id->x->y.z; id->x.d->y. The two sink endpoints must remain distinct.
+    for nested in [false, true] {
+        for reverse in [false, true] {
+            for distinct_sink in [false, true] {
+                let mut input = Graph::default();
+                let parent = nested.then(|| input.add_node(node("scope", 100.0, 100.0)));
+                let mut add = |name: &str, parent| {
+                    let mut value = node(name, 54.0, 66.0);
+                    value.parent = parent;
+                    input.add_node(value)
+                };
+                let isolated = add("n", parent);
+                let source = add("id", parent);
+                let middle = add("x", parent);
+                let middle_child = add("x.d", Some(middle));
+                let sink = add("y", parent);
+                let sink_child = add("y.z", Some(sink));
+                for (from, to) in [
+                    (source, middle),
+                    (middle, sink_child),
+                    (source, middle_child),
+                    (middle_child, if distinct_sink { sink } else { sink_child }),
+                ] {
+                    let (from, to) = if reverse { (to, from) } else { (from, to) };
+                    let edge = input.add_edge(Edge {
+                        source: from,
+                        target: to,
+                    });
+                    input.set_edge_arrows(
+                        edge,
+                        EdgeArrows {
+                            source: false,
+                            target: true,
+                        },
+                    );
+                }
+                let mut arena = ArenaGraph::from_input(&input);
+                arena.assign_automatic_hierarchies();
+                assert!(arena.nodes[isolated.0 as usize].hierarchy.is_none());
+                for (node, level) in [(source, 0), (middle, 1), (sink, 2)] {
+                    let membership = arena.nodes[node.0 as usize].hierarchy.as_ref();
+                    assert_eq!(membership.is_some(), distinct_sink, "nested={nested}");
+                    if let Some(membership) = membership {
+                        assert_eq!(membership.scope, parent);
+                        assert_eq!(membership.level(), if reverse { 2 - level } else { level });
+                        assert_eq!(membership.level_count(), 3);
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[test]
@@ -4918,6 +5042,46 @@ fn container_alignment_ignores_retained_inactive_siblings() {
     // The two live siblings share an x coordinate. The retained node would
     // create two false penalties if the scorer scanned the stable arena.
     assert_eq!(arena.container_alignment_cost(), 0.0);
+}
+
+#[test]
+fn container_alignment_does_not_inherit_cluster_members_container_flags() {
+    // grouping.CreateVessel constructs a fresh non-container Node. The two
+    // ungrouped peers remain containers and pay one NonCenterPortCost in
+    // placementcost.ContainerAlignmentCost, with or without the cluster.
+    for clustered in [false, true] {
+        let mut input = Graph::default();
+        let first = input.add_node(node("first", 100.0, 100.0));
+        let second = input.add_node(node("second", 100.0, 100.0));
+        let left = input.add_node(node("left", 100.0, 220.0));
+        let right = input.add_node(node("right", 100.0, 220.0));
+        for parent in [first, second, left, right] {
+            let mut child = node(&format!("child{}", parent.0), 10.0, 10.0);
+            child.parent = Some(parent);
+            input.add_node(child);
+        }
+        let mut arena = ArenaGraph::from_input(&input);
+        arena.set_position(first, Point::default());
+        arena.set_position(second, Point { x: 0.0, y: 120.0 });
+        arena.set_position(left, Point { x: 300.0, y: 300.0 });
+        arena.set_position(right, Point { x: 600.0, y: 600.0 });
+        if clustered {
+            arena.clusters.push(ClusterState {
+                members: vec![first, second],
+                arrangement: ClusterArrangement::Column,
+                desired_arrangement: ClusterArrangement::Column,
+                padding: 20.0,
+                vessel_tala_id: 10_001,
+                fixed_size: false,
+            });
+            arena.nodes[first.0 as usize].cluster = Some(0);
+            arena.nodes[second.0 as usize].cluster = Some(0);
+        }
+        arena.rebuild_active_aggregate_node_order();
+        arena.set_non_center_port_cost(37.0);
+
+        assert_eq!(arena.container_alignment_cost(), 37.0, "{clustered}");
+    }
 }
 
 #[test]

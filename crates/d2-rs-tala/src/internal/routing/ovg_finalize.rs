@@ -122,7 +122,7 @@ impl PortBuild {
                     && bounds.origin.y <= point.y
                     && bounds.origin.y + bounds.size.height >= point.y
                 {
-                    self.nodes[node].write().container = Some(container);
+                    self.nodes[node].write().set_container(Some(container));
                     break;
                 }
             }
@@ -193,7 +193,7 @@ impl PortBuild {
     pub(super) fn assign_indices(&mut self, budget: Budget<'_, '_>) -> Result<(), ()> {
         for (index, &node) in self.members.iter().enumerate() {
             step(budget)?;
-            self.nodes[node].write().index = index;
+            self.nodes[node].write().set_index(index);
         }
         Ok(())
     }
@@ -278,10 +278,10 @@ mod tests {
         let mut build = PortBuild::default();
         let node = build.add_point(Point { x: 20.0, y: 20.0 }, None).unwrap();
         let outside = build.add_point(Point { x: -1.0, y: -1.0 }, None).unwrap();
-        build.nodes[outside].write().container = Some(NodeId(1));
+        build.nodes[outside].write().set_container(Some(NodeId(1)));
         build.map_containers(&graph, Some(&budget)).unwrap();
-        assert_eq!(build.nodes[node].read().container, Some(NodeId(0)));
-        assert_eq!(build.nodes[outside].read().container, Some(NodeId(1)));
+        assert_eq!(build.nodes[node].read().container(), Some(NodeId(0)));
+        assert_eq!(build.nodes[outside].read().container(), Some(NodeId(1)));
         assert_eq!(context.polls.get(), 13); // No extra final poll.
     }
     #[test]
@@ -390,7 +390,7 @@ mod tests {
         };
         let budget = OvgBuildBudget::with_context(&context);
         assert!(build.assign_indices(Some(&budget)).is_err());
-        assert_eq!(build.nodes[node].read().index, 1);
+        assert_eq!(build.nodes[node].read().index(), 1);
         let context = Caller {
             polls: Cell::new(0),
             cancel: 4,
@@ -398,7 +398,7 @@ mod tests {
         };
         let budget = OvgBuildBudget::with_context(&context);
         build.assign_indices(Some(&budget)).unwrap();
-        assert_eq!(build.nodes[node].read().index, 2);
+        assert_eq!(build.nodes[node].read().index(), 2);
         assert_eq!(context.polls.get(), 3);
     }
 }

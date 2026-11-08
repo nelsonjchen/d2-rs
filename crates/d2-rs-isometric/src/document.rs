@@ -68,8 +68,16 @@ pub fn wrap_svg(
             replacements.push((from, to));
         }
     }
-    for (from, to) in replacements {
-        body = body.replace(&from, &to);
+    if !replacements.is_empty() {
+        // d2svg/isometric.go namespaceIsometricSVG uses strings.NewReplacer:
+        // scan the original once, without rescanning either the document for
+        // every ID or the inserted namespace for later replacements.
+        let replacer = aho_corasick::AhoCorasick::builder()
+            .match_kind(aho_corasick::MatchKind::LeftmostFirst)
+            .build(replacements.iter().map(|(from, _)| from))
+            .map_err(|error| error.to_string())?;
+        let values: Vec<_> = replacements.iter().map(|(_, to)| to.as_str()).collect();
+        body = replacer.replace_all(&body, &values);
     }
     body = body.replacen(
         "<rect width=\"100%\" height=\"100%\"",
@@ -107,4 +115,20 @@ pub fn wrap_svg(
         return Err("isometric SVG document exceeds output byte limit".into());
     }
     Ok(output.into_bytes())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn namespace_resources_in_one_pass_and_preserve_external_links() {
+        // d2svg/isometric.go namespaceIsometricSVG: NewReplacer replaces only
+        // references to defined IDs and never searches its own replacement.
+        let native = r##"<svg width="100" height="80"><defs><g id="a"/><g id="h-isometric-a"/></defs><use href="#a"/><path fill="url(#h-isometric-a)"/><a href="#unknown"/><a href="https://example.com/#a"/></svg>"##;
+        let output =
+            String::from_utf8(wrap_svg(native, "h", 0, None, false, true, true, "").unwrap())
+                .unwrap();
+        assert!(output.contains(r##"<defs><g id="h-isometric-a"/><g id="h-isometric-h-isometric-a"/></defs><use href="#h-isometric-a"/><path fill="url(#h-isometric-h-isometric-a)"/><a href="#unknown"/><a href="https://example.com/#a"/>"##));
+    }
 }

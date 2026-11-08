@@ -793,7 +793,7 @@ pub(super) struct RouteInteractionIndex {
     /// Retained point allocation by OVG identity (None past a nil point or
     /// beyond the OVG), shared with the visibility graph's canonical view.
     shared_points: std::sync::Arc<[Option<crate::internal::owner_points::SharedOwnerPoint>]>,
-    canonical_nodes: std::sync::Arc<[usize]>,
+    canonical_nodes: std::sync::Arc<Vec<usize>>,
     /// Insertion order of `routes`. Recovered `ovgEdgeRouter.routedEdges` is a
     /// slice, not an identity-sorted set: fixed routes are appended first and
     /// newly accepted routes follow routing order.
@@ -1102,6 +1102,7 @@ impl RouteInteractionIndex {
             None,
             true,
             None,
+            None,
             _trace_flavor,
             budget,
         )
@@ -1127,6 +1128,7 @@ impl RouteInteractionIndex {
             ovg_node_ids,
             false,
             None,
+            None,
             _trace_flavor,
             budget,
         )
@@ -1141,6 +1143,7 @@ impl RouteInteractionIndex {
         edge_index: usize,
         route: &[Point],
         ovg_node_ids: &[usize],
+        visibility: Option<&super::visibility::VisibilityGraph>,
         _trace_flavor: &str,
         budget: Option<&LocalRouteSearchWork>,
     ) -> Result<(), RoutePublicationError> {
@@ -1151,6 +1154,7 @@ impl RouteInteractionIndex {
             Some(ovg_node_ids),
             true,
             None,
+            visibility,
             _trace_flavor,
             budget,
         )
@@ -1171,6 +1175,7 @@ impl RouteInteractionIndex {
             Some(&route.nodes),
             false,
             Some((visibility, route)),
+            None,
             trace_flavor,
             budget,
         )
@@ -1187,14 +1192,15 @@ impl RouteInteractionIndex {
             &super::visibility::VisibilityGraph,
             &super::ovg_import::ExistingRoute,
         )>,
+        generated_visibility: Option<&super::visibility::VisibilityGraph>,
         _trace_flavor: &str,
         budget: Option<&LocalRouteSearchWork>,
     ) -> Result<(), RoutePublicationError> {
-        if route.is_empty() && live_route.is_none() {
+        if route.is_empty() && live_route.is_none() && generated_visibility.is_none() {
             return Ok(());
         }
         let mut route_nodes = Vec::with_capacity(route.len() + 2);
-        // Generated Go routes always contain the source and target center
+        // Generated Go routes normally contain the source and target center
         // pointers, even when a center port has the same coordinates. Those
         // are distinct OVG nodes and both occurrences feed pointToRoute and
         // route-work accounting. Imported fixed routes are different: their
@@ -1217,6 +1223,17 @@ impl RouteInteractionIndex {
                 .iter()
                 .map(|&node| visibility.point(node))
                 .collect();
+        }
+        if let (Some(visibility), Some(ids)) = (generated_visibility, ovg_node_ids) {
+            // bestRoute can traverse through the source center and finish
+            // at another OVG node. Go retains that exact sequence, rather
+            // than replacing the first node with the nominal source center.
+            if let (Some(point), Some(&id)) = (route_nodes.first_mut(), ids.first()) {
+                *point = visibility.point(id);
+            }
+            if let (Some(point), Some(&id)) = (route_nodes.last_mut(), ids.last()) {
+                *point = visibility.point(id);
+            }
         }
         // Generated paths can also reference imported shared points. Retain
         // those allocations independently of their originating graph edge.
@@ -2370,13 +2387,15 @@ fn shared_route_candidates(
 
 #[derive(Clone)]
 struct RouteOvgContext {
-    boxes: BTreeMap<NodeId, Rect>,
-    obstacle_node_order: Vec<NodeId>,
-    node_ports: BTreeMap<NodeId, Vec<Port>>,
+    // Go's routers retain the same *OVG (coordinator.go, ovg_edge_router.go).
+    // These adapter views describe that finished graph and are shared too.
+    boxes: std::sync::Arc<BTreeMap<NodeId, Rect>>,
+    obstacle_node_order: std::sync::Arc<[NodeId]>,
+    node_ports: std::sync::Arc<BTreeMap<NodeId, Vec<Port>>>,
     /// Flavors only read the finished OVG; its node and edge objects were
     /// already shared by every handle copy, so flavors share one graph.
     visibility: std::sync::Arc<super::visibility::VisibilityGraph>,
-    existing_routes: Vec<super::ovg_import::ExistingRoute>,
+    existing_routes: std::sync::Arc<[super::ovg_import::ExistingRoute]>,
 }
 
 fn build_route_ovg_context(
@@ -2554,11 +2573,11 @@ fn build_route_ovg_context_mut(
     #[cfg(feature = "diagnostic-traces")]
     trace_ovg_import_stage(graph, &visibility, &node_ports, "imported");
     Ok(RouteOvgContext {
-        boxes,
-        obstacle_node_order,
-        node_ports,
+        boxes: boxes.into(),
+        obstacle_node_order: obstacle_node_order.into(),
+        node_ports: node_ports.into(),
         visibility: visibility.into_shared(),
-        existing_routes,
+        existing_routes: existing_routes.into(),
     })
 }
 
@@ -2602,9 +2621,9 @@ type RouteFlavorResponse = (
 );
 
 struct PreparedRouteFlavor {
-    boxes: BTreeMap<NodeId, Rect>,
-    obstacle_node_order: Vec<NodeId>,
-    node_ports: BTreeMap<NodeId, Vec<Port>>,
+    boxes: std::sync::Arc<BTreeMap<NodeId, Rect>>,
+    obstacle_node_order: std::sync::Arc<[NodeId]>,
+    node_ports: std::sync::Arc<BTreeMap<NodeId, Vec<Port>>>,
     visibility: std::sync::Arc<super::visibility::VisibilityGraph>,
     interaction_index: RouteInteractionIndex,
     routes: Vec<Vec<Point>>,
@@ -2619,7 +2638,7 @@ fn route_edges_in_order(
     nearby_nodes: &[NodeId],
     ordered_edges: &[usize],
     construction_order: &[usize],
-    trace_flavor: &str,
+    trace_flavor: &'static str,
     fixed_routes: Option<&[Vec<Point>]>,
     shared_context: Option<&RouteOvgContext>,
     ovg_budget: Option<&super::route_search_guard::OvgBuildBudget>,
@@ -2749,7 +2768,7 @@ fn prepare_route_flavor_owned(
                 Vec::new(),
             ));
         }
-        for existing in &existing_routes {
+        for existing in existing_routes.iter() {
             let edge_index = existing.edge.0 as usize;
             if budget.is_some_and(|budget| budget.step().is_err()) {
                 return Err((
@@ -2994,6 +3013,7 @@ fn prepare_route_flavor_owned(
                     edge_index,
                     &routes[edge_index],
                     node_ids,
+                    Some(&visibility),
                     trace_flavor,
                     budget,
                 )
@@ -3042,7 +3062,7 @@ fn generate_route_flavor(
     graph: &ArenaGraph,
     _scope_nodes: &[NodeId],
     ordered_edges: &[usize],
-    trace_flavor: &str,
+    trace_flavor: &'static str,
     fixed_routes: Option<&[Vec<Point>]>,
     budget: Option<&LocalRouteSearchWork>,
     prepared: PreparedRouteFlavor,
@@ -3144,6 +3164,7 @@ fn generate_route_flavor(
                 edge_index,
                 &routes[edge_index],
                 &route.node_ids,
+                Some(&visibility),
                 trace_flavor,
                 budget,
             ) {
@@ -3189,6 +3210,7 @@ fn generate_route_flavor(
                 edge_index,
                 &routes[edge_index],
                 &route.node_ids,
+                Some(&visibility),
                 trace_flavor,
                 budget,
             ) {
@@ -3270,6 +3292,7 @@ fn generate_route_flavor(
                 edge_index,
                 &routes[edge_index],
                 &node_ids,
+                Some(&visibility),
                 trace_flavor,
                 budget,
             ) {
@@ -3351,8 +3374,16 @@ fn generate_route_flavor(
         // endpoints in ArenaGraph, so expose the vessel's combined inventory
         // only for this edge's candidate search.  Do not rewrite graph edges
         // or boxes: those remain the retained member frame used by addRoute.
-        let saved_cluster_source_ports = node_ports.get(&edge.from).cloned();
-        let saved_cluster_target_ports = node_ports.get(&edge.to).cloned();
+        // Only temporary vessel inventories need a private port table. Ordinary
+        // flavors retain the shared OVG view throughout generation.
+        let may_replace_ports = !graph.clusters.is_empty() || !graph.sequences.is_empty();
+        let saved_cluster_source_ports = may_replace_ports
+            .then(|| node_ports.get(&edge.from).cloned())
+            .flatten();
+        let saved_cluster_target_ports = may_replace_ports
+            .then(|| node_ports.get(&edge.to).cloned())
+            .flatten();
+        let mut ports_replaced = false;
         let cluster_port_inventory =
             |node: NodeId, ports: &BTreeMap<NodeId, Vec<Port>>| -> Option<Vec<Port>> {
                 let cluster = graph
@@ -3393,16 +3424,20 @@ fn generate_route_flavor(
             (!combined.is_empty()).then_some(combined)
         };
         if let Some(combined) = cluster_port_inventory(edge.from, &node_ports) {
-            node_ports.insert(edge.from, combined);
+            std::sync::Arc::make_mut(&mut node_ports).insert(edge.from, combined);
+            ports_replaced = true;
         }
         if let Some(combined) = cluster_port_inventory(edge.to, &node_ports) {
-            node_ports.insert(edge.to, combined);
+            std::sync::Arc::make_mut(&mut node_ports).insert(edge.to, combined);
+            ports_replaced = true;
         }
         if let Some(combined) = sequence_port_inventory(edge.from, edge.to, &node_ports) {
-            node_ports.insert(edge.from, combined);
+            std::sync::Arc::make_mut(&mut node_ports).insert(edge.from, combined);
+            ports_replaced = true;
         }
         if let Some(combined) = sequence_port_inventory(edge.to, edge.from, &node_ports) {
-            node_ports.insert(edge.to, combined);
+            std::sync::Arc::make_mut(&mut node_ports).insert(edge.to, combined);
+            ports_replaced = true;
         }
         let undesirable_cluster_arrangement = source_cluster.is_some_and(|cluster| {
             !cluster_has_desirable_arrangement_to(graph, cluster, edge.to, &boxes)
@@ -3908,6 +3943,7 @@ fn generate_route_flavor(
                 edge_index,
                 &routes[edge_index],
                 &node_ids,
+                Some(&visibility),
                 trace_flavor,
                 budget,
             ) {
@@ -3972,6 +4008,7 @@ fn generate_route_flavor(
                 edge_index,
                 &routes[edge_index],
                 &node_ids,
+                Some(&visibility),
                 trace_flavor,
                 budget,
             ) {
@@ -4011,6 +4048,7 @@ fn generate_route_flavor(
                 edge_index,
                 &routes[edge_index],
                 &node_ids,
+                Some(&visibility),
                 trace_flavor,
                 budget,
             ) {
@@ -4039,14 +4077,23 @@ fn generate_route_flavor(
             total_score,
             routes[edge_index].len(),
         );
-        if let Some(ports) = saved_cluster_source_ports {
-            node_ports.insert(edge.from, ports);
-        }
-        if let Some(ports) = saved_cluster_target_ports {
-            node_ports.insert(edge.to, ports);
+        if ports_replaced {
+            let node_ports = std::sync::Arc::make_mut(&mut node_ports);
+            if let Some(ports) = saved_cluster_source_ports {
+                node_ports.insert(edge.from, ports);
+            }
+            if let Some(ports) = saved_cluster_target_ports {
+                node_ports.insert(edge.to, ports);
+            }
         }
     }
-    let failure = if fixed_routes.is_some() {
+    // generateRoutes returns the guard error from slingshot/search/routeLine
+    // before testing the route length. An interrupted generation leaves empty
+    // slots; those are not an independent route invariant. Preserve the cause
+    // before the caller's deferred finish can observe a later cancellation.
+    let failure = if let Some(work) = budget.filter(|work| work.has_failed()) {
+        Some(super::finalize::failure(work, trace_flavor).into_layout_error())
+    } else if fixed_routes.is_some() {
         let failed = ordered_edges.iter().copied().find(|edge_index| {
             let edge = &graph.edge_records[*edge_index];
             edge.from == edge.to || routes[*edge_index].is_empty()
@@ -4595,7 +4642,7 @@ fn route_additional_edge_subset(
             Err(payload) => std::panic::resume_unwind(payload),
         };
         if finished.is_err() && response.4.is_none() {
-            response.4 = Some(work.failure());
+            response.4 = Some(super::finalize::failure(work, flavor).into_layout_error());
             response.1 = requested.len();
         }
         response
@@ -6257,7 +6304,7 @@ mod tests {
             .add_imported_route(&graph, &visibility, &second, "test", None)
             .unwrap();
         index
-            .add_generated_route_with_node_ids(&graph, 0, &a, &first.nodes, "test", None)
+            .add_generated_route_with_node_ids(&graph, 0, &a, &first.nodes, None, "test", None)
             .unwrap();
         let changed = Point { x: 333.0, y: 444.0 };
         shared.set(changed);
@@ -6457,6 +6504,93 @@ mod tests {
     }
 
     #[test]
+    fn route_flavors_share_obstacles_and_keep_vessel_ports_local() {
+        for clustered in [false, true] {
+            let mut input = crate::Graph::default();
+            let source = input.add_node(routing_test_node("source", 20.0, 20.0));
+            let member = input.add_node(routing_test_node("member", 20.0, 20.0));
+            let target = input.add_node(routing_test_node("target", 20.0, 20.0));
+            input.add_edge(crate::Edge { source, target });
+            let mut graph = ArenaGraph::from_input(&input);
+            for (node, x, y) in [
+                (source, 0.0, 0.0),
+                (member, 0.0, 40.0),
+                (target, 100.0, 0.0),
+            ] {
+                graph.set_position(node, Point { x, y });
+            }
+            if clustered {
+                graph.clusters.push(crate::internal::ClusterState {
+                    members: vec![source, member],
+                    arrangement: crate::internal::ClusterArrangement::Column,
+                    desired_arrangement: crate::internal::ClusterArrangement::Column,
+                    padding: 0.0,
+                    vessel_tala_id: 0,
+                    fixed_size: false,
+                });
+                for node in [source, member] {
+                    graph.nodes[node.0 as usize].cluster = Some(0);
+                }
+            }
+            let nodes = [source, member, target];
+            let context = build_route_ovg_context(&graph, &nodes, &[], &[0], None);
+            let original_ports = || {
+                context
+                    .node_ports
+                    .iter()
+                    .map(|(&node, ports)| {
+                        (
+                            node,
+                            ports.iter().copied().map(port_key).collect::<Vec<_>>(),
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            };
+            let before = original_ports();
+            let prepare = |shared| {
+                prepare_route_flavor(
+                    &graph,
+                    &nodes,
+                    &[],
+                    &[0],
+                    &[0],
+                    "Default",
+                    None,
+                    shared,
+                    None,
+                    None,
+                )
+                .unwrap_or_else(|response| panic!("router construction: {:?}", response.4))
+            };
+            // coordinator.go creates every router before generating any route.
+            let first = prepare(Some(&context));
+            let second = prepare(Some(&context));
+            assert!(std::sync::Arc::ptr_eq(&first.boxes, &second.boxes));
+            assert!(std::sync::Arc::ptr_eq(
+                &first.obstacle_node_order,
+                &second.obstacle_node_order
+            ));
+            assert!(std::sync::Arc::ptr_eq(
+                &first.node_ports,
+                &second.node_ports
+            ));
+            let independent =
+                generate_route_flavor(&graph, &nodes, &[0], "Default", None, None, prepare(None));
+            assert!(independent.4.is_none(), "{:?}", independent.4);
+            assert!(!independent.0[0].is_empty());
+            for prepared in [first, second] {
+                let response =
+                    generate_route_flavor(&graph, &nodes, &[0], "Default", None, None, prepared);
+                assert!(response.4.is_none(), "{:?}", response.4);
+                assert_eq!(response.0, independent.0);
+                assert_eq!(response.1, independent.1);
+                assert_eq!(response.2.to_bits(), independent.2.to_bits());
+                assert_eq!(original_ports(), before);
+            }
+        }
+    }
+
+    #[test]
     fn fixed_route_records_follow_edge_occurrences_and_preserve_node_capacity() {
         let mut input = crate::Graph::default();
         let source = input.add_node(routing_test_node("source", 20.0, 20.0));
@@ -6502,7 +6636,7 @@ mod tests {
             context.existing_routes[2].nodes
         );
         let mut interactions = RouteInteractionIndex::new(&context.visibility, &graph);
-        for route in &context.existing_routes {
+        for route in context.existing_routes.iter() {
             interactions
                 .add_imported_route(&graph, &context.visibility, route, "test", None)
                 .unwrap();
@@ -6622,6 +6756,7 @@ mod tests {
                 0,
                 &route,
                 &[100, 101, 102, 103],
+                None,
                 "test",
                 None,
             )
@@ -6729,6 +6864,7 @@ mod tests {
                     usize::MAX,
                     target_center,
                 ],
+                None,
                 "test",
                 None,
             ),
@@ -6752,6 +6888,7 @@ mod tests {
                     usize::MAX - 2,
                     target_center,
                 ],
+                None,
                 "test",
                 None,
             ),
@@ -6815,6 +6952,86 @@ mod tests {
                 ]
             );
         }
+    }
+
+    #[test]
+    fn additional_routing_preserves_generation_work_errors_before_empty_routes() {
+        // Pinned ovg_edge_router.go generateRoutes returns a failed work
+        // operation before testing the route length; its deferred finish
+        // preserves that error. No selected route may be published on failure.
+        let mut input = crate::Graph::default();
+        let source = input.add_node(routing_test_node("source", 20.0, 20.0));
+        let target = input.add_node(routing_test_node("target", 20.0, 20.0));
+        input.add_edge(crate::Edge { source, target });
+        let mut graph = ArenaGraph::from_input(&input);
+        graph.set_position(source, Point { x: 0.0, y: 0.0 });
+        graph.set_position(target, Point { x: 100.0, y: 0.0 });
+        let before = graph.edge_records[0].route.read().to_vec();
+        for limit in [8, 16, 32] {
+            let error =
+                route_additional_edges_with_budget(&graph, &[crate::EdgeId(0)], Some(limit), 0)
+                    .unwrap_err();
+            assert!(
+                matches!(error, crate::LayoutError::RouteSearchWorkLimit {
+                    flavor: "ShortestToLongest", limit: actual,
+                } if actual == limit),
+                "limit {limit}: {error}"
+            );
+            assert_eq!(&*graph.edge_records[0].route.read(), before.as_slice());
+        }
+
+        struct Context(std::cell::Cell<usize>);
+        impl crate::internal::limits::Context for Context {
+            fn done(&self) -> Option<bool> {
+                None
+            }
+            fn error(&self) -> Option<crate::internal::limits::ContextError> {
+                use crate::internal::limits::ContextError;
+                let polls = self.0.get() + 1;
+                self.0.set(polls);
+                match polls {
+                    1 => None,
+                    2 => Some(ContextError::Cancelled),
+                    _ => Some(ContextError::DeadlineExceeded),
+                }
+            }
+        }
+        let nodes = graph.graph_node_order();
+        let fixed_routes = vec![Vec::new()];
+        let prepared = prepare_route_flavor(
+            &graph,
+            &nodes,
+            &[],
+            &[0],
+            &[0],
+            "ShortestToLongest",
+            Some(&fixed_routes),
+            None,
+            None,
+            None,
+        )
+        .unwrap_or_else(|_| panic!("prepare an unlimited router"));
+        let context = Context(std::cell::Cell::new(0));
+        let work = LocalRouteSearchWork::with_context(100, &context).unwrap();
+        let response = generate_route_flavor(
+            &graph,
+            &nodes,
+            &[0],
+            "ShortestToLongest",
+            Some(&fixed_routes),
+            Some(&work),
+            prepared,
+        );
+        assert!(matches!(response.4, Some(crate::LayoutError::Cancelled)));
+        assert_eq!(context.0.get(), 2); // response construction must not poll
+        assert_eq!(work.used(), 0);
+        assert!(work.finish().is_err());
+        assert!(matches!(
+            work.failure(),
+            crate::LayoutError::DeadlineExceeded
+        ));
+        assert!(matches!(response.4, Some(crate::LayoutError::Cancelled)));
+        assert_eq!(&*graph.edge_records[0].route.read(), before.as_slice());
     }
 
     #[test]
@@ -7384,7 +7601,7 @@ mod tests {
         ];
         let mut index = RouteInteractionIndex::new(&visibility, &graph);
         index
-            .add_generated_route_with_node_ids(&graph, 0, &[from, to], &ids, "test", None)
+            .add_generated_route_with_node_ids(&graph, 0, &[from, to], &ids, None, "test", None)
             .unwrap();
         let source_center = index.route_centers[0].unwrap().0;
         index
@@ -7553,7 +7770,15 @@ mod tests {
             visibility.center_index(graph.edge_records[0].to).unwrap(),
         ];
         index
-            .add_generated_route_with_node_ids(&graph, 0, &[source, target], &ids, "test", None)
+            .add_generated_route_with_node_ids(
+                &graph,
+                0,
+                &[source, target],
+                &ids,
+                None,
+                "test",
+                None,
+            )
             .unwrap();
         let points = index.routes[0].points();
         let identities = &index.routes[0].identities;

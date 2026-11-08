@@ -154,6 +154,18 @@ impl<T: AtomicPointer + Send + Sync> SlotStore<T> for AtomicSlots {
             slot => Some(T::from_slot(slot)),
         }
     }
+    fn for_each_in(&self, range: Range<usize>, mut visit: impl FnMut(&Option<T>)) {
+        // Go ranges over the captured backing window. Borrow that window
+        // once, but load each pointer only when reached so alias writes to
+        // later slots stay visible to the visitor.
+        for slot in &self.0[range] {
+            let value = match slot.load(Relaxed) {
+                0 => None,
+                value => Some(T::from_slot(value)),
+            };
+            visit(&value);
+        }
+    }
     fn store(&self, index: usize, value: Option<T>) {
         self.0[index].store(value.map_or(0, T::to_slot), Relaxed);
         self.1.fetch_add(1, Relaxed);
@@ -530,11 +542,13 @@ impl<T: OwnerPointer> SharedOwnerPointerSlice<T> {
         let Some(backing) = &self.backing else {
             return;
         };
+        // Node.deltaToGuarded ranges directly over Node.Edges. This walk
+        // cannot stop early, so keep its visitor statically dispatched as
+        // well as its slot store, just like for_each_visible.
         backing
             .slots
-            .scan(self.start..self.start + self.len, &mut |slot| {
+            .for_each_in(self.start..self.start + self.len, |slot| {
                 visit(slot.as_ref().expect("nil owner pointer"));
-                false
             });
     }
     pub(super) fn contains_value(&self, value: &T) -> bool {

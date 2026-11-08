@@ -3901,9 +3901,19 @@ impl ArenaGraph {
     #[inline(always)]
     pub(super) fn active_adjacent(&self, node: NodeId, edge: EdgeId) -> NodeId {
         let edge = &self.edge_records[edge.0 as usize];
+        self.active_adjacent_for_edge(node, edge)
+    }
+
+    #[inline(always)]
+    pub(super) fn active_adjacent_for_edge(&self, node: NodeId, edge: &ArenaEdge) -> NodeId {
         let from = self.active_aggregate_owner(edge.from);
-        let to = self.active_aggregate_owner(edge.to);
-        if from == node { to } else { from }
+        // node.go adjacent reads To only when From is the receiver. Resolve
+        // the same branch after mapping the source to its current vessel.
+        if from == node {
+            self.active_aggregate_owner(edge.to)
+        } else {
+            from
+        }
     }
 
     /// Returns the stable endpoints represented by the receiver and adjacent
@@ -7724,13 +7734,10 @@ impl ArenaGraph {
     }
 
     fn spacing_overlap_pair_is_exact(&self, left: NodeId, right: NodeId) -> bool {
-        // Graph.IsBadState exempts every ancestor/descendant pair from
-        // ordinary overlap validation; a container necessarily intersects
-        // its children. Keep the spacing-transition check on the same
-        // live-node exceptions.
-        if self.active_is_descendant_of(left, right) || self.active_is_descendant_of(right, left) {
-            return false;
-        }
+        // transaction.go checks DoesOverlapExact on every saved spacing
+        // overlap, including ancestor pairs. A nested trial can begin with
+        // a child outside its container; refitting must not turn that saved
+        // clearance overlap into an exact overlap.
         let Some(a) = self.active_node_position(left) else {
             return false;
         };
@@ -8125,17 +8132,25 @@ impl ArenaGraph {
     }
 
     pub(super) fn materialized_ordinary_container_scoring(&self) -> bool {
-        self.containers.get(&None).is_some_and(|roots| {
-            let Some(first) = roots.first().map(|root| &self.nodes[root.0 as usize]) else {
-                return false;
-            };
-            first.is_container
-                && roots.iter().all(|root| {
-                    let node = &self.nodes[root.0 as usize];
-                    node.is_container
-                        && node.shape == first.shape
-                        && node.declared_size == first.declared_size
-                })
+        // Graph.Containers is shared in Go. Inspect its current root header
+        // without copying every child before testing the first one. This
+        // predicate has no callbacks or polls that can replace the header.
+        self.containers.with_header_entry(&None, |roots| {
+            roots.is_some_and(|roots| {
+                let Some(first) = roots
+                    .get(0)
+                    .map(|root| &self.nodes[root.expect("nil container child").0 as usize])
+                else {
+                    return false;
+                };
+                first.is_container
+                    && roots.borrowed_slots().all(|root| {
+                        let node = &self.nodes[root.expect("nil container child").0 as usize];
+                        node.is_container
+                            && node.shape == first.shape
+                            && node.declared_size == first.declared_size
+                    })
+            })
         })
     }
 
@@ -8161,6 +8176,11 @@ impl ArenaGraph {
             .copied()
             .filter(|node| {
                 self.nodes[node.0 as usize].is_container
+                    // CreateVessel uses a new, non-container Node in Go.
+                    // An active vessel can occupy its first member's arena
+                    // slot here; that member's container flag is not the
+                    // vessel's flag (placementcost/graph.go).
+                    && !self.active_node_is_aggregate(*node)
                     && self.active_node_position(*node).is_some()
             })
             .collect::<Vec<_>>();
@@ -9919,6 +9939,33 @@ mod refinement_overlap_tests {
             graph.set_position(NodeId(index as u32), Point { x, y: 0.0 });
         }
         graph
+    }
+
+    #[test]
+    fn nested_trials_reject_ancestor_spacing_overlaps_that_become_exact() {
+        // transaction.go:1306-1337 applies DoesOverlapExact even to ancestry
+        // pairs. A cluster flip inside a transpose can start before the
+        // enclosing container has been refitted around its rotated child.
+        let mut graph = graph();
+        graph.nodes[0].is_container = true;
+        graph.nodes[1].container = Some(NodeId(0));
+        graph.node_order_membership_valid = false;
+        assert!(graph.active_is_descendant_of(NodeId(1), NodeId(0)));
+        let (overlaps, exact) = graph.refinement_overlap_pairs();
+        assert!(overlaps.contains(&(NodeId(0), NodeId(1))));
+        assert!(!exact.contains(&(NodeId(0), NodeId(1))));
+        assert!(!graph.existing_spacing_overlap_became_exact(&overlaps, &exact));
+
+        graph.set_position(NodeId(1), Point { x: 2.0, y: 2.0 });
+        assert!(graph.existing_spacing_overlap_became_exact(&overlaps, &exact));
+        assert!(graph.existing_spacing_overlap_became_exact_for_moved_nodes(
+            &overlaps,
+            &exact,
+            &BTreeSet::from([NodeId(1)]),
+        ));
+        // Previously exact ancestor overlaps remain permissible.
+        let (_, exact) = graph.refinement_overlap_pairs();
+        assert!(!graph.existing_spacing_overlap_became_exact(&overlaps, &exact));
     }
 
     #[test]

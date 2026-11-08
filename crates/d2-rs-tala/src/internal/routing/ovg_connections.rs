@@ -259,7 +259,7 @@ impl PortBuild {
         let mut eligible = 0;
         for &index in &self.members {
             step(budget).map_err(|_| failure())?;
-            if self.nodes[index].read().is_tunnel {
+            if self.nodes[index].read().is_tunnel() {
                 continue;
             }
             if self

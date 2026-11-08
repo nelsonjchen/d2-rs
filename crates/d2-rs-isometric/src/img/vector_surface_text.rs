@@ -13,7 +13,7 @@ impl SurfaceSvg<'_> {
         }
         let Some(Asset::FontAsset {
             data, face_index, ..
-        }) = self.doc.assets.get(id)
+        }) = self.assets.get(id)
         else {
             return Err(format!("native SVG missing font asset {id:?}"));
         };

@@ -29,6 +29,71 @@ but a handful of jobs. Open clusters, with witnesses in
   seed 20261310 row 1193 witnesses, including `w50-tala-grid-reduced.d2`.
   The later label-position hierarchy witness also matches in WASM (7/7
   complete compile/render responses).
+- **TALA nested placement (resolved):** D4's six-container witness now
+  matches Go's 1,748 x 1,660 SVG. Accepted cluster rotations publish their
+  geometry before the retained owner projections are refreshed for mirroring.
+  Wrapper depths one through six and seeds one through three are covered by
+  `oracle-cache/reports/T32/replay-candidate.json` and a CLI padding contract.
+- **TALA nested-edge placement (resolved):** D43's
+  `n; id->x->y.z; id->x.d->y` now matches Go. Hierarchy recognition keeps
+  the original abducted source/sink endpoints when testing the three-rank
+  exclusion. Root/nested scopes, reversed flow and shared/distinct endpoint
+  variants match in `oracle-cache/reports/T33/replay-candidate.json`.
+  D44's nested-grid-branches witness also matches, with default seeds and
+  explicit seeds one through three (`oracle-cache/reports/T35/handoffs.json`).
+- **TALA ancestor-edge clustering (resolved):** D46 job 47 and D47 jobs
+  372/891 now match Go. Cluster discovery rejects members connected to their
+  ancestors before resizing; child scopes ignore the detached edge incidences.
+  Seeds one through three and nested variants are replayed in
+  `oracle-cache/reports/T36/handoff-final.json`.
+- **TALA nested ancestor routing (resolved):** route reconstruction follows
+  predecessors through the source center until nil or a cycle, preserving
+  Go's exact OVG path during publication. D46 job 47 now matches at wrapper
+  depths zero through five, in both edge directions, with default seeds and
+  explicit seeds one through three (`oracle-cache/reports/T37/variants.json`).
+- **TALA cloud placement/routing (resolved):** D46 job 664 now matches Go
+  with default seeds and explicit seeds one through three. Rejected transpose
+  trials restore cluster arrangement, desired arrangement, padding and vessel
+  dimensions before the next trial or alignment pass. The retained ancestor
+  matrix improves from 40/44 to 44/44 matches; cloud, label, edge-direction,
+  shape and enclosing-container variants improve from 4/84 to 76/84, with no
+  lost matches. The eight enclosing-wrapper rectangle variants now match too:
+  nested flips preserve Go's check for saved ancestor spacing overlaps becoming
+  exact. All 84 retained variants match, up from 76, with no lost matches
+  (`oracle-cache/reports/T328/{cloud-replay,cloud-candidate}.json`).
+- **TALA circle-container alignment (resolved):** D48 job 402 now matches
+  Go with seeds one through three. Container-alignment scoring excludes
+  temporary cluster vessels represented by a container member's arena slot.
+  Explicit children, reversed edges and enclosing-wrapper variants match too.
+  Recursive member fits now resize the retained vessel node as well as its
+  cached size before later components compute their placement cell size.
+  All 28 retained cases match, up from 20, with no lost matches
+  (`oracle-cache/reports/T329/circle-candidate.json`).
+- **TALA route-search errors (resolved):** D48 job 236 now matches Go's
+  work-limit error with default seeds and seeds one through three. Workers
+  preserve the guard failure before deriving an empty-route invariant, and
+  deferred cleanup preserves the original cause without another poll. D49
+  jobs 45/476 already match (`oracle-cache/reports/T326/witness.json`).
+- **TALA hierarchy traversal (resolved):** D413 jobs 198/686 now match Go.
+  Edges promoted from descendants follow the ancestor's existing incidences
+  before component traversal and the seeded hierarchy shuffle. Edge direction,
+  styles, declaration order and two enclosing-wrapper depths improve from 0/60
+  to 60/60 matches; both witnesses have CLI regression contracts for all three
+  seeds (`oracle-cache/reports/T327/{variants,contract-686-comparison}.json`).
+  D413 job 615, D414 job 465 and the D419 expanded witness already match.
+- **TALA NaN-height error:** D43's complex nested board reports a NaN
+  object height in Go and a route-search work-limit error in Rust (the
+  guard error previously became an empty-route invariant). A 77-byte nested
+  sequence/grid reduction still fails Go's `RouteEdges` input validation,
+  while Rust renders it. Go has nonfinite sequence span bounds before routing;
+  compare nested extraction/reinjection and span sizing in `d2-rs-layout`
+  before changing TALA. D4 handoff and complete outcomes:
+  `oracle-cache/reports/T34/{nan-exit-minimized.d2,nan-height.json}`.
+- **Repeated TALA seed flags:** Go appends repeated `--tala-seeds` values;
+  Rust replaces the earlier list, which can select a different layout.
+  This CLI issue predates the nested-placement fix. Witness and comparison:
+  `oracle-cache/reports/T32/nested-minimized.d2` and
+  `repeated-seed-flag-candidate.json` (flags `--tala-seeds=1 --tala-seeds=2`).
 - **Raster pixels:** the recorded simulator PNG, color-emoji GIF, arrowhead
   PNG and markdown cylinder PNG witnesses now match on amd64 and arm64.
 - **Go panics:** five inputs per seed crash the pinned Go itself (no oracle
@@ -115,16 +180,51 @@ Fixed in the 0.1.1 round (2026-11-06), each with contract tests:
 Open, with witnesses from the sweeps:
 
 - **TALA routing memory:** with all seeds routing at once, each concurrent
-  seed adds about 1.6x Go's routing memory (fan-out/200 peak RSS 1.05x Go,
-  `tpmjs` 0.94x). Profile one seed's routing state and shrink it.
+  seed still adds more routing memory than Go. Frozen OVGs now retain compact
+  port-identity lists; flavors share immutable box, obstacle and port tables.
+  Temporary vessel-port changes copy the port table only when needed. The
+  per-hop index, container and flags now occupy eight bytes instead of 16.
+  A fan-out/200 census finds 15,320 records per seed: 122,560 fewer retained
+  payload bytes per seed. Nine interleaved arm64 repeats lower default CPU
+  0.87% and wall 1.16%, with identical SVGs; peak RSS rises 0.65%, so no
+  peak-memory gain is established. Additional-seed RSS remains
+  above Go (about 1.44x in this repeat's
+  separate-process peak estimate, which does not isolate live per-seed heaps)
+  (`oracle-cache/reports/T316/bench.json`). T39's giant-Markdown
+  control increased CPU 4.6% and wall 3.8%; routing was below 0.2% of its CPU
+  samples. The supervisor's quiet-host gate and the remaining per-seed state
+  stay open.
 - **TALA error path:** a 400-node fan-out fails identically in both at
-  `NodePlacement` (`Dimensions w:859, h:39517`), but d2-rs takes 0.36 s and Go
-  0.04 s to get there.
+  `NodePlacement` (`Dimensions w:859, h:39517`). After removing whole-tree
+  searches, reuse each parent's derived degree within an immutable fringe
+  batch. Across 21 interleaved arm64 repeats, CPU falls another 3.28% and
+  wall 2.48% (51.39 to 50.12 ms, Go 51.99 ms; 0.964x Go). Fanout/200 CPU
+  stays unchanged, and its SVG is identical. Quiet-host confirmation remains
+  (`oracle-cache/reports/T324/bench.json`).
+- **TALA oversized inputs:** borrow the dispatcher's measured graph when
+  padding and traversal order already match TALA, avoiding a full edge-metadata
+  copy before validation. Five interleaved arm64 repeats on 80,000 edges lower
+  peak RSS 478 to 405 MB (-15.2%), still 1.19x Go; CPU/wall change +0.48%.
+  The edge-limit error is identical. Compiler IR and measured edge metadata
+  still coexist before TALA entry; their contribution needs attribution
+  (`oracle-cache/reports/T317/bench.json`).
 - **Performance beyond corpus size** (d2-rs/Go): TALA long labels at 100
-  nodes 1.26x wall (1.05x CPU), measured before the routing change;
-  compiling an 80,000-edge board before the edge-limit error at about 1.4x
-  wall. Shadows, opacity, 3D, nested fills and dark theme stay under Go but
-  their ratios grow with size. The corpus itself has no row over Go.
+  nodes measured 1.046x wall before the fringe-degree change (prior CPU
+  0.90x). Three interleaved arm64 phase captures use pinned Go's opt-in
+  stage timing and temporary Rust timers,
+  without enabling diagnostic traces; all complete SVGs match. Critical seed 1
+  wall seconds, Rust/Go: preprocessing 0.00167/0.00329; `NodePlacement`
+  38.409/34.760; `SwapStuff` 0.204/2.118; all later stages 0.409/0.422.
+  `NodePlacement` for seeds 2 and 3 is 28.876/28.984 and 33.147/31.400 s.
+  End-to-end wall is 39.046/37.336 s. The earliest slower phase is seed 1's
+  `NodePlacement`; its 3.65 s excess is partly offset by faster swapping.
+  Every stage and repeat is recorded in
+  `oracle-cache/reports/T324/{phases,phase-summary}.json`; timing edits were
+  removed. Further long-label changes are paused. T322/T323's spacing and
+  sparse-publication candidates raised fanout/200 CPU 17-19% and were rejected.
+  Shadows, opacity, 3D, nested fills and dark
+  theme stay under Go but their ratios grow with size. The corpus itself has
+  no row over Go.
 - **Unreplayed witnesses:** the original four LaTeX probes and three fuzz
   singletons (`*: suspend` globs, a `package` shape four levels deep,
   Gujarati next to an emoji) were not retained; 60 `suspend` and 18

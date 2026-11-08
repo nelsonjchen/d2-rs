@@ -4949,47 +4949,55 @@ impl ArenaGraph {
                         y: start.y,
                     };
                     (
-                        Self::segment_intersects_box(
-                            start,
-                            corner_a,
-                            obstruction_position,
-                            obstruction_size,
-                        ) || Self::segment_intersects_box(
-                            end,
-                            corner_a,
-                            obstruction_position,
-                            obstruction_size,
-                        ),
-                        Self::segment_intersects_box(
-                            start,
-                            corner_b,
-                            obstruction_position,
-                            obstruction_size,
-                        ) || Self::segment_intersects_box(
-                            end,
-                            corner_b,
-                            obstruction_position,
-                            obstruction_size,
-                        ),
+                        !corner_a_blocked
+                            && (Self::segment_intersects_box(
+                                start,
+                                corner_a,
+                                obstruction_position,
+                                obstruction_size,
+                            ) || Self::segment_intersects_box(
+                                end,
+                                corner_a,
+                                obstruction_position,
+                                obstruction_size,
+                            )),
+                        !corner_b_blocked
+                            && (Self::segment_intersects_box(
+                                start,
+                                corner_b,
+                                obstruction_position,
+                                obstruction_size,
+                            ) || Self::segment_intersects_box(
+                                end,
+                                corner_b,
+                                obstruction_position,
+                                obstruction_size,
+                            )),
                         false,
                         false,
                         false,
                     )
                 } else {
-                    let (alternate_a, alternate_b) =
-                        alternate_route_hits(obstruction_position, obstruction_size);
-                    (
-                        false,
-                        false,
-                        Self::segment_intersects_box(
+                    // edge_length.go:935-940 only probes the alternate after
+                    // the best route is blocked, and only for semi-diagonals.
+                    // Intersections are pure; keep all item polls outside
+                    // these guards in the same order as the source.
+                    let direct = !direct_blocked
+                        && Self::segment_intersects_box(
                             start,
                             end,
                             obstruction_position,
                             obstruction_size,
-                        ),
-                        alternate_a,
-                        alternate_b,
-                    )
+                        );
+                    let (alternate_a, alternate_b) = if semi_diagonal
+                        && (direct_blocked || direct)
+                        && !alternate_route_blocked
+                    {
+                        alternate_route_hits(obstruction_position, obstruction_size)
+                    } else {
+                        (false, false)
+                    };
+                    (false, false, direct, alternate_a, alternate_b)
                 }
             }};
         }
@@ -5241,7 +5249,7 @@ impl ArenaGraph {
                 #[cfg(feature = "diagnostic-traces")]
                 context.observe_obstruction_set(set_index);
                 score_interval!(context, self, "node-obstruction-set", Some(node), set_index)?;
-                for index in 0..set.len() {
+                for (index, slot) in set.slot_readers().readers().enumerate() {
                     score_interval!(context, self, "node-obstruction", Some(node), index)?;
                     if index % 64 == 0 {
                         node_chain.invalidate();
@@ -5250,9 +5258,7 @@ impl ArenaGraph {
                         // topology as the chains; refresh it on their schedule.
                         replacement_graph_cache = None;
                     }
-                    let obstruction = set
-                        .raw_slot(index)
-                        .expect("captured owner header has its original length");
+                    let obstruction = slot.get();
                     let geometry = obstruction
                         .map(|node| frame.position_and_size(node))
                         .transpose()
@@ -5712,16 +5718,51 @@ impl ArenaGraph {
         // and the maximum edge dimensions are consumed here, never order.
         let (connected, max_edge_width, max_edge_height) =
             self.spacing_edge_metrics(node, active_other);
+        let first = &self.nodes[node.0 as usize];
+        let second = &self.nodes[other.0 as usize];
+        let table = first.shape == ShapeKind::SqlTable || second.shape == ShapeKind::SqlTable;
+        // node.go deltaToGuarded keeps the incident scan above, then returns
+        // an isotropic gap before reading geometry when loops and margins
+        // cannot affect it. Compaction's numerical view has the same branch.
+        if first.loop_offsets.as_ref().is_none_or(|map| map.is_empty())
+            && second
+                .loop_offsets
+                .as_ref()
+                .is_none_or(|map| map.is_empty())
+            && first.layout_margins == Insets::uniform(0.0)
+            && second.layout_margins == Insets::uniform(0.0)
+        {
+            let (horizontal, vertical) =
+                Self::spacing_axis_deltas(table, (connected, max_edge_width, max_edge_height));
+            if horizontal == vertical {
+                return horizontal;
+            }
+        }
         self.spacing_delta_for_geometry(
             proposed,
             self.active_node_size(node),
             self.active_node_position(other).unwrap(),
             self.active_node_size(other),
-            self.nodes[node.0 as usize].shape == ShapeKind::SqlTable
-                || self.nodes[other.0 as usize].shape == ShapeKind::SqlTable,
-            self.nodes[node.0 as usize].layout_margins,
-            self.nodes[other.0 as usize].layout_margins,
+            table,
+            first.layout_margins,
+            second.layout_margins,
             (connected, max_edge_width, max_edge_height),
+        )
+    }
+
+    #[inline]
+    fn spacing_axis_deltas(
+        table: bool,
+        (connected, max_edge_width, max_edge_height): (bool, f64, f64),
+    ) -> (f64, f64) {
+        let mut horizontal: f64 = if connected { 60.0 } else { 20.0 };
+        let vertical: f64 = if connected { 60.0 } else { 20.0 };
+        if table {
+            horizontal = 120.0;
+        }
+        (
+            horizontal.max(max_edge_width),
+            vertical.max(max_edge_height),
         )
     }
 
@@ -5736,13 +5777,8 @@ impl ArenaGraph {
         other_margins: Insets,
         (connected, max_edge_width, max_edge_height): (bool, f64, f64),
     ) -> f64 {
-        let mut horizontal: f64 = if connected { 60.0 } else { 20.0 };
-        let mut vertical: f64 = if connected { 60.0 } else { 20.0 };
-        if table {
-            horizontal = 120.0;
-        }
-        horizontal = horizontal.max(max_edge_width);
-        vertical = vertical.max(max_edge_height);
+        let (mut horizontal, mut vertical) =
+            Self::spacing_axis_deltas(table, (connected, max_edge_width, max_edge_height));
         let orientation =
             self.sized_box_orientation((proposed, node_size), (other_position, other_size));
         // Recovered Node.getDeltaTo indexes the first node's label margin by
@@ -5777,26 +5813,31 @@ impl ArenaGraph {
         let mut connected = false;
         let mut max_edge_width = f64::NEG_INFINITY;
         let mut max_edge_height = f64::NEG_INFINITY;
+        // Keep the immutable arena header outside the visitor, while reading
+        // each live incident slot and its current endpoints when reached.
+        let edge_records = self.edge_records.as_slice();
         let aggregate =
             self.active_cluster_index(node).is_some() || self.active_sequence_index(node).is_some();
         if aggregate {
             for edge_id in self.active_edge_ids(node) {
-                if self.active_adjacent(node, edge_id) != active_other {
+                let edge = &edge_records[edge_id.0 as usize];
+                if self.active_adjacent_for_edge(node, edge) != active_other {
                     continue;
                 }
                 connected = true;
-                let edge = &self.edge_records[edge_id.0 as usize];
                 max_edge_width = max_edge_width.max(edge.min_width);
                 max_edge_height = max_edge_height.max(edge.min_height);
             }
         } else {
             self.nodes[node.0 as usize].edges.with_header(|edges| {
                 edges.for_each_value(|&edge_id| {
-                    if self.active_adjacent(node, edge_id) != active_other {
+                    // node.go deltaToGuarded retains e through adjacent and
+                    // the dimension reduction. Borrow the arena record once.
+                    let edge = &edge_records[edge_id.0 as usize];
+                    if self.active_adjacent_for_edge(node, edge) != active_other {
                         return;
                     }
                     connected = true;
-                    let edge = &self.edge_records[edge_id.0 as usize];
                     max_edge_width = max_edge_width.max(edge.min_width);
                     max_edge_height = max_edge_height.max(edge.min_height);
                 });
@@ -5861,16 +5902,22 @@ impl ArenaGraph {
         proposed: Point,
     ) -> f64 {
         let delta = self.spacing_delta(node, other, proposed);
-        let node_loop_extents = if self.active_node_is_aggregate(node) {
-            None
-        } else {
-            self.nodes[node.0 as usize].loop_offsets.as_ref()
-        };
-        let other_loop_extents = if self.active_node_is_aggregate(other) {
-            None
-        } else {
-            self.nodes[other.0 as usize].loop_offsets.as_ref()
-        };
+        // node.go deltaToGuarded reads loop offsets directly. An empty map
+        // cannot contribute a gap, so resolve aggregate membership only for
+        // a nonempty member map that a temporary vessel must suppress.
+        let node_loop_extents = self.nodes[node.0 as usize]
+            .loop_offsets
+            .as_ref()
+            .filter(|map| !map.is_empty())
+            .filter(|_| !self.active_node_is_aggregate(node));
+        let other_loop_extents = self.nodes[other.0 as usize]
+            .loop_offsets
+            .as_ref()
+            .filter(|map| !map.is_empty())
+            .filter(|_| !self.active_node_is_aggregate(other));
+        if node_loop_extents.is_none() && other_loop_extents.is_none() {
+            return delta;
+        }
         Self::spacing_delta_with_loop_geometry(
             delta,
             proposed,

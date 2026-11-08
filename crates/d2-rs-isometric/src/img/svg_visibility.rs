@@ -4,6 +4,7 @@
 //! product in the Go source is explicitly rounded (float64(...)), so no
 //! contraction applies.
 
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 
 use d2_rs_scene::{go_max, go_min};
@@ -409,42 +410,53 @@ pub(crate) fn edge_distance(a: SvgPoint, b: SvgPoint) -> impl Fn(SvgPoint) -> f6
     move |p: SvgPoint| (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x)
 }
 
-/// svgSubtractPolygon; the flag reports Go's identity case (the subject
-/// returned unchanged because the cut misses it).
+/// Go returns the original subject slice when a cut misses. Keep that
+/// identity explicit so callers can retain or move their existing buffer.
+enum Subtraction {
+    Same,
+    Pieces(Vec<Vec<SvgPoint>>),
+}
+
+/// svgSubtractPolygon: unchanged intermediate slices remain borrowed.
 fn subtract_polygon(
     subject: &[SvgPoint],
     cut: &[SvgPoint],
     budget: &mut Budget,
-) -> Result<(Vec<Vec<SvgPoint>>, bool), String> {
-    let mut intersection = subject.to_vec();
+) -> Result<Subtraction, String> {
+    let mut intersection = Cow::Borrowed(subject);
     for i in 0..cut.len() {
         budget.spend(intersection.len())?;
         let (inside, _) = split_polygon(
             &intersection,
             &edge_distance(cut[i], cut[(i + 1) % cut.len()]),
         );
-        match inside.resolve(&intersection) {
-            Some(points) => intersection = points,
-            None => return Ok((vec![subject.to_vec()], true)),
+        match inside {
+            Split::Same => {}
+            Split::New(points) => intersection = Cow::Owned(points),
+            Split::None => return Ok(Subtraction::Same),
         }
     }
-    let mut remaining = subject.to_vec();
+    let mut remaining = Cow::Borrowed(subject);
     let mut visible = Vec::new();
     for i in 0..cut.len() {
         budget.spend(remaining.len())?;
         let (inside, outside) =
             split_polygon(&remaining, &edge_distance(cut[i], cut[(i + 1) % cut.len()]));
-        let outside = outside.resolve(&remaining);
-        let inside = inside.resolve(&remaining);
-        if let Some(outside) = outside {
-            visible.push(outside);
+        match outside {
+            Split::Same => {
+                visible.push(remaining.into_owned());
+                break;
+            }
+            Split::New(points) => visible.push(points),
+            Split::None => {}
         }
         match inside {
-            Some(points) => remaining = points,
-            None => break,
+            Split::Same => {}
+            Split::New(points) => remaining = Cow::Owned(points),
+            Split::None => break,
         }
     }
-    Ok((visible, false))
+    Ok(Subtraction::Pieces(visible))
 }
 
 struct TreeNode {
@@ -710,14 +722,14 @@ impl FragmentSet {
     fn subtract(&mut self, cut: &[SvgPoint], budget: &mut Budget) -> Result<(), String> {
         let ids = self.query(&polygon_box(cut), budget)?;
         for id in ids {
-            let (points, b) = self.fragments[&id].clone();
-            let (pieces, unchanged) = subtract_polygon(&points, cut, budget)?;
-            if unchanged {
+            let (points, b) = &self.fragments[&id];
+            let Subtraction::Pieces(pieces) = subtract_polygon(points, cut, budget)? else {
                 continue;
-            }
+            };
+            let (b, vertices) = (*b, points.len());
             self.change_cells(id, &b, false, budget)?;
             self.fragments.remove(&id);
-            self.vertices -= points.len();
+            self.vertices -= vertices;
             for piece in pieces {
                 self.add(piece, budget)?;
             }
@@ -922,7 +934,7 @@ pub fn svg_visible_faces_with_context(
                 );
             }
             let epsilon = go_max(1e-9, depth_magnitude * 2e-14);
-            let mut cut = occluder.points.clone();
+            let mut cut = Cow::Borrowed(occluder.points.as_slice());
             if lo >= -epsilon && hi <= epsilon {
                 if faces[other].order < faces[index].order
                     || (faces[other].order == faces[index].order && other < index)
@@ -933,9 +945,10 @@ pub fn svg_visible_faces_with_context(
                 continue;
             } else if lo < 0.0 {
                 let (inside, _) = split_polygon(&cut, &difference);
-                match inside.resolve(&cut) {
-                    Some(points) => cut = points,
-                    None => continue,
+                match inside {
+                    Split::Same => {}
+                    Split::New(points) => cut = Cow::Owned(points),
+                    Split::None => continue,
                 }
             }
             if let Some(set) = indexed.as_mut() {
@@ -949,12 +962,16 @@ pub fn svg_visible_faces_with_context(
             let cut_box = polygon_box(&cut);
             let mut next = Vec::new();
             let mut vertices = 0;
-            for fragment in &fragments {
+            for fragment in fragments {
                 budget.spend(fragment.len() + 1)?;
-                let pieces = if polygon_box(fragment).overlaps(&cut_box) {
-                    subtract_polygon(fragment, &cut, &mut budget)?.0
+                let subtraction = if polygon_box(&fragment).overlaps(&cut_box) {
+                    subtract_polygon(&fragment, &cut, &mut budget)?
                 } else {
-                    vec![fragment.clone()]
+                    Subtraction::Same
+                };
+                let pieces = match subtraction {
+                    Subtraction::Same => vec![fragment],
+                    Subtraction::Pieces(pieces) => pieces,
                 };
                 vertices += pieces.iter().map(Vec::len).sum::<usize>();
                 next.extend(pieces);

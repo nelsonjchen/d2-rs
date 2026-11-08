@@ -11,6 +11,7 @@ use d2_rs_scene::{Nrgba, go_max, go_min};
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
 use std::{
+    borrow::Cow,
     collections::{HashMap, HashSet},
     rc::Rc,
     time::Duration,
@@ -140,7 +141,8 @@ pub fn render(scene: &super::svg::NativeScene) -> Result<d2_rs_raster::NrgbaImag
         .background_paint
         .as_ref()
         .map(|surface| {
-            super::backends::raster_surface(&surface.document.borrow(), 256, 256)
+            surface
+                .with_document(|doc| super::backends::raster_surface(doc, 256, 256))
                 .map(|pixels| Texture::new(256, 256, pixels))
         })
         .transpose()?;
@@ -238,7 +240,7 @@ pub(crate) fn render_frame(
         .background_paint
         .as_ref()
         .map(|s| {
-            super::backends::raster_surface(&s.document.borrow(), 256, 256)
+            s.with_document(|doc| super::backends::raster_surface(doc, 256, 256))
                 .map(|p| Texture::new(256, 256, p))
         })
         .transpose()?;
@@ -312,10 +314,7 @@ fn render_mesh_frame(
     let ground_triangles = raster_ground_triangles(ts, ground, camera.direction);
     // Ground remapping returns a copy only when a receiver differs. Reusing a
     // map with identical caster positions is exact and avoids a second buffer.
-    let changed = ts
-        .iter()
-        .any(|t| t.shadow_ground.is_some_and(|g| g != ground));
-    let ground_shadow = if changed {
+    let ground_shadow = if matches!(ground_triangles, Cow::Owned(_)) {
         work.charge(ts.len() as i64)?;
         Some(build_shadow_at(
             &ground_triangles,
@@ -365,6 +364,7 @@ fn render_mesh_frame(
             };
         }
     }
+    drop(ground_triangles);
     let raster = Raster {
         camera,
         shadow: &shadow,
@@ -805,19 +805,22 @@ struct Raster<'a> {
     background: Nrgba,
     background_texture: Option<&'a Texture>,
 }
-struct Plan {
-    triangles: std::vec::Vec<Triangle>,
+struct Plan<'a> {
+    triangles: Cow<'a, [Triangle]>,
     order: std::vec::Vec<usize>,
-    paints: std::vec::Vec<RasterPaint>,
-    groups: HashMap<usize, Group>,
+    paints: HashMap<usize, RasterPaint>,
+    groups: HashMap<usize, Group<'a>>,
 }
-struct Group {
-    plan: Box<Plan>,
+struct Group<'a> {
+    plan: Box<Plan<'a>>,
     bounds: Bounds,
     opacity: f64,
     depth: f64,
     opaque: bool,
     write_depth: bool,
+}
+fn material_key(t: &Triangle) -> usize {
+    t.material.as_ref().map_or(0, |m| Rc::as_ptr(m) as usize)
 }
 impl Raster<'_> {
     fn paint_ground(&self, w: &mut Work, pixels: &mut [u8], bounds: Bounds) -> Result<(), String> {
@@ -870,16 +873,26 @@ impl Raster<'_> {
         }
         Ok(())
     }
-    fn prepare(&self, ts: &[Triangle]) -> Plan {
+    fn prepare<'a>(&self, ts: &'a [Triangle]) -> Plan<'a> {
+        self.prepare_triangles(Cow::Borrowed(ts))
+    }
+
+    // rasterPrepare retains its input slice and caches one paint per material.
+    // Opacity-group members already own a private mesh; move it into the inner
+    // plan instead of copying it again (opacity_groups.go).
+    fn prepare_triangles<'a>(&self, triangles: Cow<'a, [Triangle]>) -> Plan<'a> {
         let mut plan = Plan {
-            triangles: ts.to_vec(),
+            triangles,
             order: vec![],
-            paints: ts
-                .iter()
-                .map(|t| raster_material(t.material.as_ref().map(|m| m.borrow()).as_deref()))
-                .collect(),
+            paints: HashMap::new(),
             groups: HashMap::new(),
         };
+        let ts = plan.triangles.as_ref();
+        for t in ts {
+            plan.paints.entry(material_key(t)).or_insert_with(|| {
+                raster_material(t.material.as_ref().map(|m| m.borrow()).as_deref())
+            });
+        }
         if !ts.iter().any(|t| t.opacity_group.is_some()) {
             plan.order = (0..ts.len()).collect();
             plan.order.sort_by(|&a, &b| {
@@ -888,8 +901,8 @@ impl Raster<'_> {
                     return ta.no_depth_write.cmp(&tb.no_depth_write);
                 }
                 let (aa, bb) = (
-                    transparent(ta, &plan.paints[a]),
-                    transparent(tb, &plan.paints[b]),
+                    transparent(ta, &plan.paints[&material_key(ta)]),
+                    transparent(tb, &plan.paints[&material_key(tb)]),
                 );
                 if aa != bb {
                     return aa.cmp(&bb);
@@ -921,9 +934,9 @@ impl Raster<'_> {
             });
             let g = plan.groups.entry(index).or_insert_with(|| Group {
                 plan: Box::new(Plan {
-                    triangles: vec![],
+                    triangles: Cow::Borrowed(&[]),
                     order: vec![],
-                    paints: vec![],
+                    paints: HashMap::new(),
                     groups: HashMap::new(),
                 }),
                 bounds: Bounds::default(),
@@ -954,13 +967,14 @@ impl Raster<'_> {
         for (index, triangles) in members {
             let g = plan.groups.get_mut(&index).unwrap();
             g.depth /= triangles.len() as f64;
-            *g.plan = self.prepare(&triangles);
+            *g.plan = self.prepare_triangles(Cow::Owned(triangles));
         }
         plan.order.sort_by(|&a, &b| {
             let trans = |i| {
-                plan.groups
-                    .get(&i)
-                    .map_or_else(|| transparent(&ts[i], &plan.paints[i]), |g| !g.opaque)
+                plan.groups.get(&i).map_or_else(
+                    || transparent(&ts[i], &plan.paints[&material_key(&ts[i])]),
+                    |g| !g.opaque,
+                )
             };
             let depth = |i| {
                 plan.groups
@@ -987,7 +1001,7 @@ impl Raster<'_> {
         pixels: &mut [u8],
         depth: &mut [f32],
         rect: Bounds,
-        plan: &Plan,
+        plan: &Plan<'_>,
     ) -> Result<(), String> {
         for &index in &plan.order {
             w.charge(1)?;
@@ -996,7 +1010,7 @@ impl Raster<'_> {
                 continue;
             }
             let mut t = plan.triangles[index].clone();
-            let paint = &plan.paints[index];
+            let paint = &plan.paints[&material_key(&t)];
             if paint.alpha == 0.0 {
                 continue;
             }
@@ -1144,7 +1158,7 @@ impl Raster<'_> {
         dst: &mut [u8],
         depth: &mut [f32],
         rect: Bounds,
-        g: &Group,
+        g: &Group<'_>,
     ) -> Result<(), String> {
         if g.opacity <= 0.0 {
             return Ok(());

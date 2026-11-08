@@ -414,7 +414,9 @@ impl<'a> OvgBuildBudget<'a> {
         self.reserve_aggregate_work(amount)
     }
 
-    #[inline]
+    // Keep the aggregate half of reserve_work's ordinary counter update
+    // in the scan too; outlining it loses constant step-size propagation.
+    #[inline(always)]
     fn reserve_aggregate_work(&self, amount: u64) -> Result<(), ()> {
         // The aggregate charge runs in the same installed scope, so it reuses
         // this guard's cached Done presence instead of a thread-local read.
@@ -932,6 +934,12 @@ impl<'a> LocalRouteSearchWork<'a> {
 
     pub(super) fn exhausted(&self) -> bool {
         self.exhausted.get()
+    }
+
+    /// Inspect a failure already observed by a fallible operation. Building a
+    /// worker response must not poll again or replace it with a route invariant.
+    pub(super) fn has_failed(&self) -> bool {
+        self.exhausted.get() || self.context_failure.borrow().is_some()
     }
 
     #[cfg(any(test, feature = "diagnostic-traces"))]

@@ -3019,6 +3019,32 @@ impl ArenaGraph {
             })
             .collect::<Vec<_>>();
         let original_cluster_vessels = self.pending_cluster_vessel_positions.clone();
+        // transpose.go runs optimizeCluster(onlyFlip) inside each trial.
+        // transaction.go:299-309/1401-1405 restores the shared Cluster policy
+        // as well as its vessel's geometry before the next rotation.
+        let original_cluster_policies = self
+            .clusters
+            .iter()
+            .enumerate()
+            .map(|(index, cluster)| {
+                let owner = self
+                    .owner_group_binding(TopologyVessel::Cluster(index))
+                    .map(|group| {
+                        (
+                            group,
+                            self.owner_cluster_policy(group)
+                                .expect("transpose cluster policy"),
+                        )
+                    });
+                (
+                    cluster.arrangement,
+                    cluster.desired_arrangement,
+                    cluster.padding,
+                    owner,
+                )
+            })
+            .collect::<Vec<_>>();
+        let original_cluster_sizes = self.cluster_vessel_sizes.clone();
         // Transaction.Rollback restores the geometry of the shared external
         // node pointers, not whole nodes, so journal only those fields.
         let original_external_containers =
@@ -3291,6 +3317,25 @@ impl ArenaGraph {
                 self.restore_owner_node_point(*node, point)
                     .expect("transpose point rollback");
             }
+            for (index, (arrangement, desired, padding, owner)) in
+                original_cluster_policies.iter().enumerate()
+            {
+                let cluster = &mut self.clusters[index];
+                cluster.arrangement = *arrangement;
+                cluster.desired_arrangement = *desired;
+                cluster.padding = *padding;
+                if let Some((group, policy)) = owner {
+                    self.set_owner_cluster_orientation_policy(
+                        *group,
+                        policy.arrangement.clone(),
+                        policy.desired_arrangement.clone(),
+                        policy.padding,
+                    )
+                    .expect("transpose cluster policy rollback");
+                }
+            }
+            self.cluster_vessel_sizes
+                .clone_from(&original_cluster_sizes);
             super::trial_geometry::restore_trial_external_map_geometry(
                 &mut self.transaction_external_aggregate_children,
                 &original_external_aggregate_children,

@@ -27,64 +27,140 @@ pub(super) struct Metadata {
     center: bool,
 }
 
-/// Go leaves portOwnersByNode nil on ordinary visibility nodes. Keep only a
-/// pointer on those nodes, allocating the map when addPortMetadata writes it.
-/// Read-only walks and direction transforms preserve the unallocated map.
+/// Go leaves portOwnersByNode nil on ordinary visibility nodes. Most port
+/// nodes have one owner: keep that entry in a single small allocation instead
+/// of allocating both a map header and its first tree node. Coincident ports
+/// retain every additional owner in key order, as the previous sorted map did.
 #[derive(Default, Debug)]
-#[allow(clippy::box_collection)]
-pub(super) struct PortOwners(Option<Box<BTreeMap<NodeId, Metadata>>>);
+pub(super) struct PortOwners(Option<Box<OwnerEntries>>);
 
-impl std::ops::Deref for PortOwners {
-    type Target = BTreeMap<NodeId, Metadata>;
-
-    fn deref(&self) -> &Self::Target {
-        static EMPTY: BTreeMap<NodeId, Metadata> = BTreeMap::new();
-        self.0.as_deref().unwrap_or(&EMPTY)
-    }
+#[derive(Debug)]
+struct OwnerEntries {
+    first: (NodeId, Metadata),
+    #[allow(clippy::box_collection)]
+    rest: Option<Box<BTreeMap<NodeId, Metadata>>>,
 }
 
 impl PortOwners {
-    pub(super) fn entry(
-        &mut self,
-        owner: NodeId,
-    ) -> std::collections::btree_map::Entry<'_, NodeId, Metadata> {
-        self.0.get_or_insert_with(Default::default).entry(owner)
+    pub(super) fn is_empty(&self) -> bool {
+        self.0.is_none()
+    }
+
+    pub(super) fn iter(&self) -> impl Iterator<Item = (&NodeId, &Metadata)> {
+        self.0.iter().flat_map(|entries| {
+            std::iter::once((&entries.first.0, &entries.first.1))
+                .chain(entries.rest.iter().flat_map(|rest| rest.iter()))
+        })
+    }
+
+    pub(super) fn keys(&self) -> impl Iterator<Item = &NodeId> {
+        self.iter().map(|(owner, _)| owner)
+    }
+
+    pub(super) fn get(&self, owner: &NodeId) -> Option<&Metadata> {
+        let entries = self.0.as_ref()?;
+        if entries.first.0 == *owner {
+            Some(&entries.first.1)
+        } else {
+            entries.rest.as_ref()?.get(owner)
+        }
+    }
+
+    pub(super) fn contains_key(&self, owner: &NodeId) -> bool {
+        self.get(owner).is_some()
+    }
+
+    fn get_or_insert(&mut self, owner: NodeId) -> &mut Metadata {
+        let entries = self.0.get_or_insert_with(|| {
+            Box::new(OwnerEntries {
+                first: (owner, Metadata::default()),
+                rest: None,
+            })
+        });
+        if owner < entries.first.0 {
+            let old = std::mem::replace(&mut entries.first, (owner, Metadata::default()));
+            entries
+                .rest
+                .get_or_insert_with(Default::default)
+                .insert(old.0, old.1);
+        }
+        if owner == entries.first.0 {
+            &mut entries.first.1
+        } else {
+            entries
+                .rest
+                .get_or_insert_with(Default::default)
+                .entry(owner)
+                .or_default()
+        }
     }
 
     pub(super) fn insert(&mut self, owner: NodeId, metadata: Metadata) -> Option<Metadata> {
-        self.0
-            .get_or_insert_with(Default::default)
-            .insert(owner, metadata)
+        let previous = self.get(&owner).copied();
+        *self.get_or_insert(owner) = metadata;
+        previous
     }
 
     fn values_mut(&mut self) -> impl Iterator<Item = &mut Metadata> {
-        self.0.iter_mut().flat_map(|owners| owners.values_mut())
+        self.0.iter_mut().flat_map(|entries| {
+            std::iter::once(&mut entries.first.1)
+                .chain(entries.rest.iter_mut().flat_map(|rest| rest.values_mut()))
+        })
     }
 
     fn get_mut(&mut self, owner: &NodeId) -> Option<&mut Metadata> {
-        self.0.as_mut()?.get_mut(owner)
+        let entries = self.0.as_mut()?;
+        if entries.first.0 == *owner {
+            Some(&mut entries.first.1)
+        } else {
+            entries.rest.as_mut()?.get_mut(owner)
+        }
     }
 
     #[cfg(test)]
     pub(super) fn remove(&mut self, owner: &NodeId) -> Option<Metadata> {
-        self.0.as_mut()?.remove(owner)
+        let entries = self.0.as_mut()?;
+        if entries.first.0 != *owner {
+            return entries.rest.as_mut()?.remove(owner);
+        }
+        let previous = entries.first.1;
+        if let Some(next) = entries.rest.as_mut().and_then(|rest| rest.pop_first()) {
+            entries.first = next;
+        } else {
+            self.0 = None;
+        }
+        Some(previous)
+    }
+}
+
+impl std::ops::Index<&NodeId> for PortOwners {
+    type Output = Metadata;
+
+    fn index(&self, owner: &NodeId) -> &Metadata {
+        self.get(owner).expect("missing OVG port owner")
     }
 }
 
 #[derive(Debug)]
 pub(super) struct PortNode {
     pub(super) point_ref: Option<crate::internal::owner_points::SharedOwnerPoint>,
-    pub(super) is_node_center: bool,
-    pub(super) index: usize,
-    pub(super) container: Option<NodeId>,
+    // The two source booleans occupy the high bits of the search index.
+    // This is the same 30-bit index range the routing adjacency already uses;
+    // the source OVG budget permits only 200,000 nodes.
+    index_flags: u32,
+    // Zero is nil; every real arena slot is stored one-based. The source
+    // engine admits at most 10,000 graph nodes, far below this representation.
+    container: Option<std::num::NonZeroU32>,
     /// Boxed: most OVG nodes keep the nil set, and the inline set would put
     /// every node allocation in the next allocator size class.
     #[allow(clippy::box_collection)]
     pub(super) near_ports: Option<Box<BTreeSet<NodeId>>>,
     pub(super) owners: PortOwners,
-    pub(super) is_tunnel: bool,
     pub(super) edges: super::ovg_edge_header::EdgeHeader<super::ovg_objects::IncidentEdge>,
 }
+const PORT_NODE_INDEX_MASK: u32 = (1 << 30) - 1;
+const PORT_NODE_CENTER: u32 = 1 << 30;
+const PORT_NODE_TUNNEL: u32 = 1 << 31;
 impl PortEdge {
     pub(super) fn from_slot(&self) -> usize {
         self.from as usize
@@ -94,6 +170,37 @@ impl PortEdge {
     }
 }
 impl PortNode {
+    pub(super) fn index(&self) -> usize {
+        (self.index_flags & PORT_NODE_INDEX_MASK) as usize
+    }
+    pub(super) fn set_index(&mut self, index: usize) {
+        let index = u32::try_from(index)
+            .ok()
+            .filter(|&index| index <= PORT_NODE_INDEX_MASK)
+            .expect("OVG node search index");
+        self.index_flags = (self.index_flags & !PORT_NODE_INDEX_MASK) | index;
+    }
+    pub(super) fn is_node_center(&self) -> bool {
+        self.index_flags & PORT_NODE_CENTER != 0
+    }
+    pub(super) fn set_node_center(&mut self, center: bool) {
+        self.index_flags =
+            (self.index_flags & !PORT_NODE_CENTER) | if center { PORT_NODE_CENTER } else { 0 };
+    }
+    pub(super) fn is_tunnel(&self) -> bool {
+        self.index_flags & PORT_NODE_TUNNEL != 0
+    }
+    fn set_tunnel(&mut self) {
+        self.index_flags |= PORT_NODE_TUNNEL;
+    }
+    pub(super) fn container(&self) -> Option<NodeId> {
+        self.container.map(|owner| NodeId(owner.get() - 1))
+    }
+    pub(super) fn set_container(&mut self, container: Option<NodeId>) {
+        self.container = container.map(|owner| {
+            std::num::NonZeroU32::new(owner.0.wrapping_add(1)).expect("OVG node container slot")
+        });
+    }
     pub(super) fn point(&self) -> Point {
         self.point_ref
             .as_ref()
@@ -135,16 +242,16 @@ impl SharedPortNode {
         self.read().point()
     }
     pub(super) fn container(&self) -> Option<NodeId> {
-        self.read().container
+        self.read().container()
     }
     pub(super) fn near_ports(&self) -> Option<BTreeSet<NodeId>> {
         self.read().near_ports.as_deref().cloned()
     }
     pub(super) fn is_tunnel(&self) -> bool {
-        self.read().is_tunnel
+        self.read().is_tunnel()
     }
     pub(super) fn index(&self) -> usize {
-        self.read().index
+        self.read().index()
     }
 }
 #[derive(Clone, Debug)]
@@ -229,7 +336,7 @@ impl<'a> IntoIterator for &'a PortList {
 }
 
 #[derive(Default, Clone, Debug)]
-pub(super) struct PortLists {
+pub(super) struct PortLists<T = PortList> {
     // OVG.Ports is indexed by dense arena owner id so repeated blocker queries
     // need no tree search. A missing slot differs from a present empty list,
     // just as a missing Go map key differs from an assigned nil slice.
@@ -237,19 +344,19 @@ pub(super) struct PortLists {
     // overflow until a dense prefix fits within twice the number of owners;
     // storage must follow this OVG's owner count, not the whole arena's size.
     // The dense prefix followed by overflow preserves ascending traversal.
-    slots: Vec<Option<(NodeId, PortList)>>,
-    overflow: BTreeMap<NodeId, PortList>,
+    slots: Vec<Option<(NodeId, T)>>,
+    overflow: BTreeMap<NodeId, T>,
     len: usize,
 }
-impl PortLists {
-    pub(super) fn get(&self, owner: &NodeId) -> Option<&PortList> {
+impl<T> PortLists<T> {
+    pub(super) fn get(&self, owner: &NodeId) -> Option<&T> {
         if let Some(slot) = self.slots.get(owner.0 as usize) {
             slot.as_ref().map(|(_, ports)| ports)
         } else {
             self.overflow.get(owner)
         }
     }
-    fn get_mut(&mut self, owner: &NodeId) -> Option<&mut PortList> {
+    fn get_mut(&mut self, owner: &NodeId) -> Option<&mut T> {
         if let Some(slot) = self.slots.get_mut(owner.0 as usize) {
             slot.as_mut().map(|(_, ports)| ports)
         } else {
@@ -259,7 +366,7 @@ impl PortLists {
     fn contains_key(&self, owner: &NodeId) -> bool {
         self.get(owner).is_some()
     }
-    fn insert(&mut self, owner: NodeId, ports: PortList) {
+    fn insert(&mut self, owner: NodeId, ports: T) {
         if !self.contains_key(&owner) {
             self.len += 1;
         }
@@ -282,13 +389,7 @@ impl PortLists {
             self.overflow.insert(owner, ports);
         }
     }
-    fn get_or_default(&mut self, owner: NodeId) -> &mut PortList {
-        if !self.contains_key(&owner) {
-            self.insert(owner, PortList::default());
-        }
-        self.get_mut(&owner).unwrap()
-    }
-    pub(super) fn iter(&self) -> impl Iterator<Item = (&NodeId, &PortList)> {
+    pub(super) fn iter(&self) -> impl Iterator<Item = (&NodeId, &T)> {
         self.slots
             .iter()
             .flatten()
@@ -299,10 +400,10 @@ impl PortLists {
         self.iter().map(|(owner, _)| owner)
     }
     #[cfg(test)]
-    fn values(&self) -> impl Iterator<Item = &PortList> {
+    fn values(&self) -> impl Iterator<Item = &T> {
         self.iter().map(|(_, ports)| ports)
     }
-    fn values_mut(&mut self) -> impl Iterator<Item = &mut PortList> {
+    fn values_mut(&mut self) -> impl Iterator<Item = &mut T> {
         self.slots
             .iter_mut()
             .flatten()
@@ -310,8 +411,42 @@ impl PortLists {
             .chain(self.overflow.values_mut())
     }
 }
-impl std::ops::Index<&NodeId> for PortLists {
-    type Output = PortList;
+impl PortLists {
+    fn get_or_default(&mut self, owner: NodeId) -> &mut PortList {
+        if !self.contains_key(&owner) {
+            self.insert(owner, PortList::default());
+        }
+        self.get_mut(&owner).unwrap()
+    }
+    /// OVG.Ports retains only node pointers in Go (ovg.go:25). Once build
+    /// mutation ends, the adapter's Port values and owning node handles are
+    /// unnecessary: routing reads the same live points by canonical index.
+    /// Preserve every owner's list order, repeated nodes and empty entries.
+    fn into_indices(self, indices: &[usize]) -> PortLists<Vec<usize>> {
+        let compact = |ports: PortList| {
+            ports
+                .records
+                .iter()
+                .map(|(slot, _)| indices[*slot])
+                .collect()
+        };
+        PortLists {
+            slots: self
+                .slots
+                .into_iter()
+                .map(|slot| slot.map(|(owner, ports)| (owner, compact(ports))))
+                .collect(),
+            overflow: self
+                .overflow
+                .into_iter()
+                .map(|(owner, ports)| (owner, compact(ports)))
+                .collect(),
+            len: self.len,
+        }
+    }
+}
+impl<T> std::ops::Index<&NodeId> for PortLists<T> {
+    type Output = T;
 
     fn index(&self, owner: &NodeId) -> &Self::Output {
         self.get(owner).expect("missing port owner")
@@ -371,8 +506,8 @@ impl PortBuild {
         budget: super::ovg_intersections::Budget<'_, '_>,
     ) -> Result<(), ()> {
         super::ovg_intersections::step(budget)?;
-        if (self.nodes[from].read().is_node_center && self.nodes[to].read().owners.is_empty())
-            || (self.nodes[to].read().is_node_center && self.nodes[from].read().owners.is_empty())
+        if (self.nodes[from].read().is_node_center() && self.nodes[to].read().owners.is_empty())
+            || (self.nodes[to].read().is_node_center() && self.nodes[from].read().owners.is_empty())
         {
             return Ok(());
         }
@@ -425,10 +560,8 @@ impl PortBuild {
         self.nodes.push(SharedPortNode::new(
             PortNode {
                 point_ref: Some(crate::internal::owner_points::SharedOwnerPoint::new(point)),
-                is_node_center: false,
-                index: 0,
+                index_flags: 0,
                 owners: PortOwners::default(),
-                is_tunnel: false,
                 edges: super::ovg_edge_header::EdgeHeader::default(),
                 container: None,
                 near_ports: None,
@@ -508,18 +641,35 @@ impl PortBuild {
         self.member_reservations = Vec::new();
         self.fixed_cache = Vec::new();
     }
-    /// A frozen search has published all object fields into its search and
-    /// static edge tables. Point allocations remain shared by those tables;
-    /// lookup maps retain slots, so they need no construction object handles.
-    pub(super) fn release_objects(&mut self) {
-        for ports in self.ports.values_mut() {
-            ports.nodes = Vec::new();
+    /// Publish the surviving lookups in the frozen search's canonical index
+    /// space. They retain Go's object identities directly, including ghosts
+    /// and the last position of a repeated member, without a construction-slot
+    /// translation on every read. Object fields and live Point allocations
+    /// already belong to the search and static edge tables; no mutation can
+    /// follow. The caller retains the source member count for array sizing.
+    pub(super) fn freeze_lookups(&mut self, indices: &[usize]) -> PortLists<Vec<usize>> {
+        for entry in self.occupied.values_mut() {
+            #[cfg(feature = "diagnostic-traces")]
+            let slot = &mut entry.1;
+            #[cfg(not(feature = "diagnostic-traces"))]
+            let slot = entry;
+            *slot = indices[*slot];
         }
+        for (_, slot) in &mut self.nan_occupied {
+            *slot = indices[*slot];
+        }
+        for slot in self.centers.values_mut() {
+            *slot = indices[*slot];
+        }
+        let ports = std::mem::take(&mut self.ports).into_indices(indices);
+        self.port_order = Vec::new();
         self.nodes = Vec::new();
+        self.members = Vec::new();
         self.edges = Vec::new();
         self.root = Default::default();
         self.horizontal_edges = Default::default();
         self.vertical_edges = Default::default();
+        ports
     }
     /// Move this build out exactly as `clone` would copy it, leaving an
     /// empty build behind. Shared node/edge objects and the root are the same
@@ -596,7 +746,9 @@ impl PortBuild {
             step(budget)?;
             let center = self.allocate_node(point);
             self.centers.insert(owner, center);
-            self.nodes[center].write().is_node_center = !graph.nodes[owner.0 as usize].is_invisible;
+            self.nodes[center]
+                .write()
+                .set_node_center(!graph.nodes[owner.0 as usize].is_invisible);
             step(budget)?;
             if let Some(b) = budget {
                 b.reserve_nodes(1)?;
@@ -723,9 +875,8 @@ impl PortBuild {
                 self.nodes[identity]
                     .write()
                     .owners
-                    .entry(entry.owner)
-                    .or_default();
-                self.nodes[identity].write().is_tunnel = true;
+                    .get_or_insert(entry.owner);
+                self.nodes[identity].write().set_tunnel();
                 if !self.ports.contains_key(&entry.owner) {
                     self.port_order.push(entry.owner);
                 }
@@ -884,9 +1035,9 @@ impl PortBuild {
         let objects = pool.iter().map(|&index| {
             let node = &self.nodes[index].read();
             let owners = node.owners.iter().map(|(owner,metadata)| (graph.nodes[owner.0 as usize].tala_id.to_string(),json!({"directions":metadata.directions,"center":metadata.center}))).collect::<serde_json::Map<_,_>>();
-            let mut value = json!({"point":bits(node.point()),"owners":owners,"index":node.index,"is_tunnel":node.is_tunnel,"is_node_center":node.is_node_center,"edges":node.edges,"edge_capacity":node.edges.capacity(),"edges_nil":node.edges.is_nil()});
+            let mut value = json!({"point":bits(node.point()),"owners":owners,"index":node.index(),"is_tunnel":node.is_tunnel(),"is_node_center":node.is_node_center(),"edges":node.edges,"edge_capacity":node.edges.capacity(),"edges_nil":node.edges.is_nil()});
             if finalized {
-                value["container"] = json!(node.container.map(|owner| graph.nodes[owner.0 as usize].tala_id));
+                value["container"] = json!(node.container().map(|owner| graph.nodes[owner.0 as usize].tala_id));
                 value["near_ports"] = json!(node.near_ports.as_ref().map(|owners| owners.iter().map(|owner| graph.nodes[owner.0 as usize].tala_id).collect::<BTreeSet<_>>()));
             }
             value
@@ -1103,7 +1254,7 @@ impl PortBuild {
                         };
                         step(budget)?;
                         let mut node = self.nodes[canonical].write();
-                        let target = node.owners.entry(owner).or_default();
+                        let target = node.owners.get_or_insert(owner);
                         target.directions |= meta.directions;
                         target.center |= meta.center;
                     }
@@ -1236,8 +1387,7 @@ impl PortBuild {
                     self.nodes[index]
                         .write()
                         .owners
-                        .entry(owner)
-                        .or_default()
+                        .get_or_insert(owner)
                         .directions |= 1 << direction;
                 }
             }
@@ -1287,7 +1437,7 @@ impl PortBuild {
                 PortSide::Left => 7,
             };
             let mut node = self.nodes[index].write();
-            let meta = node.owners.entry(owner).or_default();
+            let meta = node.owners.get_or_insert(owner);
             meta.directions |= 1 << direction;
             meta.center |= port.is_center;
         }
@@ -1496,7 +1646,7 @@ mod tests {
             );
             let center = ports.centers[&NodeId(0)];
             assert_eq!(ports.nodes[center].point(), Point { x: 20.0, y: 20.0 });
-            assert!(ports.nodes[center].read().is_node_center);
+            assert!(ports.nodes[center].read().is_node_center());
             assert_eq!(ports.members.len(), count);
             assert_eq!(ports.members_allocated, count != 0);
             assert_eq!(ports.occupied.len(), count);
@@ -1650,6 +1800,59 @@ mod tests {
             assert!(ports.ports[&owner].iter().all(|(index, _)| *index == 0));
         }
     }
+    #[test]
+    fn coincident_ports_keep_every_owner_when_added_in_reverse_order() {
+        // ovg_node.go addPortMetadata merges roles on the same OVGNode;
+        // ovg_hierarchy.go transforms that shared object's complete owner map.
+        let nodes = (0..65)
+            .map(|i| {
+                serde_json::json!({
+                    "id": i + 1, "width": 0, "height": 0,
+                    "topLeft": {"x": 0, "y": 0}
+                })
+            })
+            .collect::<Vec<_>>();
+        let graph = ArenaGraph::from_input(
+            &crate::graphjson::graphjson_to_graph(
+                &serde_json::to_vec(&serde_json::json!({"nodes": nodes, "edges": []})).unwrap(),
+            )
+            .unwrap(),
+        );
+        let mut build = PortBuild::default();
+        for owner in (0..65).rev().map(NodeId) {
+            build.add_ports(&graph, &[owner], None).unwrap();
+        }
+        assert_eq!(build.nodes.len(), 1);
+        let shared = build.nodes[0].clone();
+        build.transform_hierarchy(true, true, false);
+        assert!(shared.same_allocation(&build.nodes[0]));
+        let node = shared.read();
+        assert_eq!(
+            node.owners.keys().copied().collect::<Vec<_>>(),
+            (0..65).map(NodeId).collect::<Vec<_>>()
+        );
+        for owner in (0..65).map(NodeId) {
+            assert_eq!(node.owners[&owner].directions, 240);
+            assert!(node.owners[&owner].center);
+            assert!(build.ports[&owner].iter().all(|(slot, _)| *slot == 0));
+        }
+        // Freeze keeps repeated identities, present empty lists and sparse
+        // owners distinct from missing owners, as Go's Ports map does.
+        let sparse = NodeId(100_000);
+        build.ports.insert(sparse, build.ports[&NodeId(64)].clone());
+        build.ports.insert(NodeId(65), PortList::default());
+        let frozen = std::mem::take(&mut build.ports).into_indices(&[7]);
+        assert_eq!(
+            frozen.keys().copied().collect::<Vec<_>>(),
+            (0..66).map(NodeId).chain([sparse]).collect::<Vec<_>>()
+        );
+        for owner in (0..65).map(NodeId).chain([sparse]) {
+            assert_eq!(frozen[&owner], vec![7; 12]);
+        }
+        assert_eq!(frozen.get(&NodeId(65)), Some(&Vec::new()));
+        assert!(frozen.get(&NodeId(66)).is_none());
+    }
+
     #[test]
     fn port_origin_is_read_before_add_point_check_and_again_for_the_next_port() {
         let mut graph = graph(40.0, true);

@@ -58,7 +58,7 @@ impl PortBuild {
         } else {
             let node = self.allocate_node(point.get());
             self.nodes[node].write().point_ref = Some(point);
-            self.nodes[node].write().index = self.members.len();
+            self.nodes[node].write().set_index(self.members.len());
             push_pointer(&mut route.nodes, node);
             // The local route sees the object before either fallible reservation.
             step(budget)?;
@@ -200,7 +200,7 @@ mod tests {
             .unwrap();
         assert_eq!(route.nodes, [original]);
         assert!(build.members.is_empty());
-        assert_eq!(build.nodes[original].read().index, 0);
+        assert_eq!(build.nodes[original].read().index(), 0);
     }
     #[test]
     fn nan_references_allocate_distinct_objects_with_shared_points() {
@@ -218,7 +218,7 @@ mod tests {
             .unwrap();
         assert_eq!(route.nodes, [0, 1]);
         assert_eq!(build.members, [0, 1]);
-        assert_eq!(build.nodes[1].read().index, 1);
+        assert_eq!(build.nodes[1].read().index(), 1);
         assert_eq!(build.edges.len(), 1);
         assert!(
             build.nodes.iter().all(|n| n

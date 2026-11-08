@@ -170,7 +170,7 @@ impl MeshBuilder {
         }
     }
     fn structured_node_body(&mut self, n: &Node) {
-        let (doc, cells) = match self.structured_document(n) {
+        let (mut doc, cells) = match self.structured_document(n) {
             Ok(v) => v,
             Err(e) => {
                 self.fail(format!("native structured shape {:?}: {e}", n.id));
@@ -220,6 +220,9 @@ impl MeshBuilder {
                 );
             }
         }
+        // Go's part := *doc shares its asset map across every cell. Keep one
+        // map here, lending it to the synchronous foundation raster call.
+        let assets = Rc::new(RefCell::new(std::mem::take(&mut doc.assets)));
         for (cell, row) in &cells {
             if *row < 0 || *row as usize >= rows.len() {
                 self.fail(format!(
@@ -230,6 +233,7 @@ impl MeshBuilder {
             }
             self.structured_cell(
                 &doc,
+                &assets,
                 cell,
                 &rows[*row as usize],
                 n,
@@ -323,6 +327,7 @@ impl MeshBuilder {
     fn structured_cell(
         &mut self,
         doc: &Document,
+        assets: &super::vector_surface::SharedSurfaceAssets,
         cell: &SceneNode,
         row: &StructuredRow,
         n: &Node,
@@ -358,20 +363,31 @@ impl MeshBuilder {
             return;
         }
         self.rich.pixels += w * h;
-        let mut part = doc.clone();
-        part.root = Some(Box::new(cell.clone()));
-        part.view_box = bx;
-        part.logical_width = w as f64;
-        part.logical_height = h as f64;
-        part.viewport_fit = ViewportFit::STRETCH;
-        let tex = match super::backends::render(&part, &super::backends::rich_raster_options()) {
+        let mut part = Document {
+            root: Some(Box::new(cell.clone())),
+            view_box: bx,
+            logical_width: w as f64,
+            logical_height: h as f64,
+            viewport_fit: ViewportFit::STRETCH,
+            viewport_align: doc.viewport_align,
+            links: doc.links.clone(),
+            assets: std::mem::take(&mut *assets.borrow_mut()),
+        };
+        let frame = super::backends::render(&part, &super::backends::rich_raster_options());
+        *assets.borrow_mut() = std::mem::take(&mut part.assets);
+        let tex = match frame {
             Ok(t) => Rc::new(t),
             Err(e) => {
                 self.fail(e);
                 return;
             }
         };
-        if let Err(e) = self.retain_vector_surface(&tex, &part) {
+        if let Err(e) = super::vector_surface::retain_shared_native_vector_surface(
+            &self.vectors,
+            &tex,
+            part,
+            assets,
+        ) {
             self.fail(e);
             return;
         }

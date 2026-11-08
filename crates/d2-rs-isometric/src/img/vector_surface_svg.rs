@@ -10,6 +10,7 @@ use std::{collections::HashMap, rc::Rc};
 
 pub(super) struct SurfaceSvg<'a> {
     pub doc: &'a Document,
+    pub assets: &'a std::collections::BTreeMap<AssetId, Asset>,
     context: super::context::RenderContext,
     prefix: &'a str,
     defs: String,
@@ -114,9 +115,11 @@ pub fn native_surface_svg_with_context(
     }
     let document = surface.document.borrow();
     let doc = &*document;
+    let assets = surface.shared_assets.as_ref().map(|assets| assets.borrow());
     let m = viewport(doc)?;
     let mut w = SurfaceSvg {
         doc,
+        assets: assets.as_deref().unwrap_or(&doc.assets),
         context: context.clone(),
         prefix,
         defs: String::new(),
@@ -519,7 +522,7 @@ impl SurfaceSvg<'_> {
                 )
             }
             Primitive::TextRun(p) => self.text(p, depth),
-            Primitive::Image(p) => match self.doc.assets.get(&p.asset).cloned() {
+            Primitive::Image(p) => match self.assets.get(&p.asset).cloned() {
                 None => {
                     self.fail(format!("native SVG missing image asset {:?}", p.asset));
                     String::new()
@@ -682,36 +685,36 @@ pub(crate) fn format_g(v: f64) -> String {
     if v.is_infinite() {
         return if v > 0.0 { "+Inf" } else { "-Inf" }.to_owned();
     }
-    // Rust's `{:e}` yields the shortest round-tripping digits, as strconv's
-    // shortest mode does.
-    let shortest = format!("{v:e}");
-    let digit_count = shortest
-        .split_once('e')
-        .unwrap()
-        .0
-        .bytes()
-        .filter(u8::is_ascii_digit)
-        .count();
-    let exact = format!("{v:.*e}", digit_count.saturating_sub(1));
-    let sci = if exact.parse::<f64>().ok() == Some(v) {
-        exact
-    } else {
-        shortest
-    };
-    let (mantissa, exp) = sci.split_once('e').expect("{:e} has an exponent");
-    let exp: i32 = exp.parse().expect("{:e} exponent is an integer");
-    let (neg, mantissa) = match mantissa.strip_prefix('-') {
+    // internal/strconv/ftoa.go selects shortest, ties-to-even digits before
+    // fmtEFG applies notation. Ryu supplies the same digits directly, without
+    // a second exact format and float parse. Keep Go's 'g' thresholds and
+    // exponent padding.
+    let mut buffer = ryu::Buffer::new();
+    let shortest = buffer.format_finite(v);
+    let (neg, shortest) = match shortest.strip_prefix('-') {
         Some(rest) => (true, rest),
-        None => (false, mantissa),
+        None => (false, shortest),
     };
-    let digits: String = mantissa.chars().filter(|c| *c != '.').collect();
-    let mut out = String::new();
+    let (mantissa, exponent) = shortest.split_once('e').unwrap_or((shortest, "0"));
+    let decimal = mantissa.find('.').unwrap_or(mantissa.len()) as i32;
+    let mut digits = [0u8; 24];
+    let mut len = 0;
+    for digit in mantissa.bytes().filter(u8::is_ascii_digit) {
+        digits[len] = digit;
+        len += 1;
+    }
+    let start = digits[..len].iter().position(|&d| d != b'0');
+    let Some(start) = start else {
+        return if neg { "-0".into() } else { "0".into() };
+    };
+    let exp = exponent.parse::<i32>().expect("Ryu exponent") + decimal - start as i32 - 1;
+    while digits[len - 1] == b'0' {
+        len -= 1;
+    }
+    let digits = std::str::from_utf8(&digits[start..len]).expect("Ryu digits");
+    let mut out = String::with_capacity(24);
     if neg {
         out.push('-');
-    }
-    if digits == "0" {
-        out.push('0');
-        return out;
     }
     if !(-4..6).contains(&exp) {
         out.push_str(&digits[..1]);
@@ -725,7 +728,7 @@ pub(crate) fn format_g(v: f64) -> String {
     } else if exp >= 0 {
         let int_len = exp as usize + 1;
         if digits.len() <= int_len {
-            out.push_str(&digits);
+            out.push_str(digits);
             out.extend(std::iter::repeat_n('0', int_len - digits.len()));
         } else {
             out.push_str(&digits[..int_len]);
@@ -735,7 +738,7 @@ pub(crate) fn format_g(v: f64) -> String {
     } else {
         out.push_str("0.");
         out.extend(std::iter::repeat_n('0', (-exp - 1) as usize));
-        out.push_str(&digits);
+        out.push_str(digits);
     }
     out
 }
@@ -762,6 +765,22 @@ mod tests {
         assert_eq!(number(1e6), "1e+06");
         assert_eq!(number(1e-5), "1e-05");
         assert_eq!(number(-0.0), "0");
+        // strconv.FormatFloat(v, 'g', -1, 64): fixed/scientific boundaries,
+        // integral Ryu output, subnormal and maximum finite values.
+        for (value, expected) in [
+            (1e-4, "0.0001"),
+            (1e5, "100000"),
+            (12.5, "12.5"),
+            (-1.25e-7, "-1.25e-07"),
+            (f64::from_bits(1), "5e-324"),
+            (f64::MAX, "1.7976931348623157e+308"),
+            (f64::INFINITY, "+Inf"),
+            (f64::NEG_INFINITY, "-Inf"),
+            (f64::NAN, "NaN"),
+        ] {
+            assert_eq!(number(value), expected, "{value}");
+        }
+        assert_eq!(format_g(-0.0), "-0");
     }
     #[test]
     fn invalid_resources_and_viewports_fail() {

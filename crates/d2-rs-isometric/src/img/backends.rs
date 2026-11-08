@@ -112,19 +112,30 @@ pub fn raster_surface_at(
     height: usize,
     seconds: f64,
 ) -> Result<Vec<u8>, String> {
-    let pixels = raster_surface_straight_at(document, width, height, seconds)?;
-    Ok(pixels
-        .chunks_exact(4)
-        .flat_map(|c| {
-            let a = c[3] as u32 * 257;
-            [
-                ((c[0] as u32 * 257 * a / 65535) >> 8) as u8,
-                ((c[1] as u32 * 257 * a / 65535) >> 8) as u8,
-                ((c[2] as u32 * 257 * a / 65535) >> 8) as u8,
-                c[3],
-            ]
-        })
-        .collect())
+    let mut pixels = raster_surface_straight_at(document, width, height, seconds)?;
+    premultiply_surface(&mut pixels);
+    Ok(pixels)
+}
+
+/// surface_document.go's draw.Src conversion from NRGBA to RGBA. This
+/// adapter owns the returned frame, so its buffer can become the texture.
+fn premultiply_surface(pixels: &mut [u8]) {
+    for pixel in pixels.chunks_exact_mut(4) {
+        let alpha = pixel[3] as u32;
+        // image/draw.drawNRGBASrc reduces to the original channels at full
+        // alpha and zero channels at zero alpha. Most native face pixels
+        // have one of those values; partial alpha still needs scaling.
+        if alpha == 255 {
+            continue;
+        }
+        if alpha == 0 {
+            pixel[..3].fill(0);
+            continue;
+        }
+        for channel in &mut pixel[..3] {
+            *channel = ((*channel as u32 * 257 * alpha / 255) >> 8) as u8;
+        }
+    }
 }
 
 pub(crate) use super::rich_labels::rich_raster_options;
@@ -158,21 +169,9 @@ pub fn render(
     doc: &d2_rs_scene::Document,
     opts: &d2_rs_raster::FrameOptions,
 ) -> Result<super::mesh::Texture, String> {
-    let f = d2_rs_raster::render(doc, opts).map_err(|e| e.to_string())?;
-    let pixels = f
-        .pix
-        .chunks_exact(4)
-        .flat_map(|c| {
-            let a = c[3] as u32 * 257;
-            [
-                ((c[0] as u32 * 257 * a / 65535) >> 8) as u8,
-                ((c[1] as u32 * 257 * a / 65535) >> 8) as u8,
-                ((c[2] as u32 * 257 * a / 65535) >> 8) as u8,
-                c[3],
-            ]
-        })
-        .collect();
-    Ok(super::mesh::Texture::new(f.width(), f.height(), pixels))
+    let mut f = d2_rs_raster::render(doc, opts).map_err(|e| e.to_string())?;
+    premultiply_surface(&mut f.pix);
+    Ok(super::mesh::Texture::new(f.width(), f.height(), f.pix))
 }
 pub fn icon_size(b: &d2_rs_scenebuild::golib::geo::Box, position: &str) -> i64 {
     use d2_rs_scenebuild::golib::label::Position;
@@ -487,3 +486,26 @@ mod svg_ownership {
     }
 }
 pub(crate) use svg_ownership::{asset as imported_icon_asset, import as import_icon_svg};
+
+#[cfg(test)]
+mod surface_conversion_tests {
+    #[test]
+    fn all_nrgba_channels_match_go_draw_src() {
+        // Go 1.27 image/draw.drawNRGBASrc and image/color.NRGBA.RGBA:
+        // expand alpha to 16 bits, scale each channel, then keep its high byte.
+        // Include nonzero hidden RGB at zero alpha and every rounding boundary.
+        let mut pixels = Vec::new();
+        let mut expected = Vec::new();
+        for alpha in 0..=255u32 {
+            for channel in 0..=255u32 {
+                let rgb = [channel, 255 - channel, (channel + 127) % 256];
+                pixels.extend(rgb.map(|c| c as u8));
+                pixels.push(alpha as u8);
+                expected.extend(rgb.map(|c| ((c * (alpha * 0x101) / 0xff) >> 8) as u8));
+                expected.push(alpha as u8);
+            }
+        }
+        super::premultiply_surface(&mut pixels);
+        assert_eq!(pixels, expected);
+    }
+}

@@ -370,22 +370,48 @@ impl PreparedRouteSearch {
     }
 }
 
-/// One node's per-hop search fields, packed so a hop reads one record
-/// instead of five node-indexed vectors. Owner-set flags only record
-/// emptiness; membership is still read from the sets themselves. The
-/// search index is stored as u32 (see `compact_search_index`), so a record
-/// is 16 bytes.
+/// The node fields read together by a search hop. Go reads these directly
+/// from OVGNode (routing/ovg_node.go); this immutable adapter needs only the
+/// search index, three flags and a nullable arena owner. The OVG node limit
+/// is 200,000, so the flags fit above a 29-bit index. A one-based container
+/// uses the zero niche, keeping the whole record to eight bytes.
 #[derive(Clone, Copy, Debug)]
 struct SearchNode {
-    search_index: u32,
-    container: Option<NodeId>,
-    flags: u8,
+    index_flags: u32,
+    container: Option<std::num::NonZeroU32>,
 }
 
+const SEARCH_NODE_INDEX_BITS: u32 = 29;
+const SEARCH_NODE_INDEX_MASK: u32 = (1 << SEARCH_NODE_INDEX_BITS) - 1;
+
 impl SearchNode {
+    fn new(search_index: usize, container: Option<NodeId>, flags: u8) -> Self {
+        let search_index = compact_search_index(search_index);
+        assert!(
+            search_index <= SEARCH_NODE_INDEX_MASK,
+            "route search node index"
+        );
+        Self {
+            index_flags: search_index | u32::from(flags) << SEARCH_NODE_INDEX_BITS,
+            container: container.map(|owner| {
+                std::num::NonZeroU32::new(owner.0.wrapping_add(1)).expect("OVG node container slot")
+            }),
+        }
+    }
+
     #[inline]
     fn context(self) -> usize {
-        self.search_index as usize
+        (self.index_flags & SEARCH_NODE_INDEX_MASK) as usize
+    }
+
+    #[inline]
+    fn container(self) -> Option<NodeId> {
+        self.container.map(|owner| NodeId(owner.get() - 1))
+    }
+
+    #[inline]
+    fn flags(self) -> u8 {
+        (self.index_flags >> SEARCH_NODE_INDEX_BITS) as u8
     }
 }
 
@@ -739,7 +765,7 @@ pub(super) struct VisibilityGraph {
 
 pub(super) struct AnyTargetRoute {
     pub(super) points: Vec<Point>,
-    /// Exact OVG identities, including both owner-specific center nodes.
+    /// Exact OVG identities returned by bestRoute's predecessor traversal.
     /// These survive the search so route publication does not infer pointer
     /// identity from coordinate equality.
     pub(super) node_ids: Vec<usize>,
@@ -1988,22 +2014,24 @@ impl VisibilityGraph {
     /// plain fields of this graph, which the search borrows immutably.
     fn build_search_nodes(&self) -> Vec<SearchNode> {
         (0..self.edges.len())
-            .map(|index| SearchNode {
-                search_index: compact_search_index(self.search_indices[index]),
-                container: self.point_containers[index],
-                flags: if self.port_owners[index].is_empty() {
-                    0
-                } else {
-                    SEARCH_NODE_PORT_OWNED
-                } | if self.near_port_owners[index].is_empty() {
-                    0
-                } else {
-                    SEARCH_NODE_NEAR_PORT
-                } | if self.is_node_center(index) {
-                    SEARCH_NODE_CENTER
-                } else {
-                    0
-                },
+            .map(|index| {
+                SearchNode::new(
+                    self.search_indices[index],
+                    self.point_containers[index],
+                    if self.port_owners[index].is_empty() {
+                        0
+                    } else {
+                        SEARCH_NODE_PORT_OWNED
+                    } | if self.near_port_owners[index].is_empty() {
+                        0
+                    } else {
+                        SEARCH_NODE_NEAR_PORT
+                    } | if self.is_node_center(index) {
+                        SEARCH_NODE_CENTER
+                    } else {
+                        0
+                    },
+                )
             })
             .collect()
     }
@@ -2016,7 +2044,7 @@ impl VisibilityGraph {
     /// inventory for callers that only walk it once.
     pub(super) fn segment_iter(&self) -> Box<dyn Iterator<Item = [Point; 2]> + '_> {
         match &self.canonical {
-            Some(view) if view.frozen => {
+            Some(view) if view.frozen_member_count.is_some() => {
                 let edges = view.static_edges.get().unwrap();
                 Box::new((0..edges.edges.len()).map(|index| edges.edge_points(index)))
             }
@@ -2032,7 +2060,11 @@ impl VisibilityGraph {
     }
 
     pub(super) fn segments(&self) -> Vec<[Point; 2]> {
-        if self.canonical.as_ref().is_some_and(|view| view.frozen) {
+        if self
+            .canonical
+            .as_ref()
+            .is_some_and(|view| view.frozen_member_count.is_some())
+        {
             return self.segment_iter().collect();
         }
         if let Some(view) = &self.canonical {
@@ -2203,7 +2235,7 @@ impl VisibilityGraph {
             return view
                 .build
                 .occupied_node(point)
-                .map(|node| view.indices[&node]);
+                .map(|node| view.lookup_index(node));
         }
         self.points
             .iter()
@@ -2214,9 +2246,17 @@ impl VisibilityGraph {
     /// that can have the same coordinates as a canonical port.
     pub(super) fn port_index(&self, owner: NodeId, point: Point) -> Option<usize> {
         if let Some(view) = &self.canonical {
+            if view.frozen_member_count.is_some() {
+                return view
+                    .frozen_ports
+                    .get(&owner)?
+                    .iter()
+                    .copied()
+                    .find(|&index| Self::point_at_canonical(view, index) == point);
+            }
             return view.build.ports.get(&owner)?.iter().find_map(|(node, _)| {
-                (Self::point_at_canonical(view, view.indices[node]) == point)
-                    .then_some(view.indices[node])
+                let index = view.lookup_index(*node);
+                (Self::point_at_canonical(view, index) == point).then_some(index)
             });
         }
         self.points
@@ -3085,7 +3125,16 @@ impl VisibilityGraph {
         )
         .map(|mut route| {
             // The historical single-source API starts at the source port,
-            // whereas TALA's search includes the unit source-center edge.
+            // whereas TALA's search follows predecessors through the center.
+            // Keep the requested launch as this wrapper's route boundary.
+            if let Some(&center) = self.centers.get(&source_node)
+                && let Some(start) = route.node_ids.iter().position(|&id| id == center)
+                && start != 0
+            {
+                route.node_ids.drain(..start);
+                route.points.drain(..start);
+                route.source = source_port;
+            }
             route.cost -= 1.0;
             route
         })
@@ -3582,9 +3631,9 @@ impl VisibilityGraph {
                             && source_container == target_container
                             && !source_descendant_of_target
                             && !target_descendant_of_source
-                            && search_nodes[source_index].container
-                                != search_nodes[source].container
-                            && search_nodes[source].container != source_container
+                            && search_nodes[source_index].container()
+                                != search_nodes[source].container()
+                            && search_nodes[source].container() != source_container
                         {
                             hop_cost += 4.0 * graph.routing_costs.1;
                         }
@@ -3655,7 +3704,7 @@ impl VisibilityGraph {
             let entry_owners = &self.port_owners[entry.node];
             let entry_ports = sources.get(&entry.node);
             let entry_source_ports = entry_ports.filter(|_| entry_owners.contains(&source_node));
-            let entry_container = entry_node.container;
+            let entry_container = entry_node.container();
             let entry_edge_slots = self.canonical_adjacency(entry.node);
             for (adjacency, slot) in self.edges[entry.node].iter().enumerate() {
                 let (next, length) = (slot.neighbor(), slot.distance);
@@ -3683,7 +3732,7 @@ impl VisibilityGraph {
                             "source": source_index, "target": target_index,
                             "source_ports": format!("{:?}", sources.get(&entry.node)),
                             "target_ports": format!("{:?}", targets.get(&next)),
-                            "container": search_nodes[next].container.map(|id|graph.nodes[id.0 as usize].tala_id),
+                            "container": search_nodes[next].container().map(|id|graph.nodes[id.0 as usize].tala_id),
                         })
                     );
                 }
@@ -3693,7 +3742,7 @@ impl VisibilityGraph {
                     continue;
                 }
                 let next_node = search_nodes[next];
-                let next_owned = next_node.flags & SEARCH_NODE_PORT_OWNED != 0;
+                let next_owned = next_node.flags() & SEARCH_NODE_PORT_OWNED != 0;
                 let next_owners = &self.port_owners[next];
                 if any_blocked {
                     let next_key = super::go_point_map_key(next_point);
@@ -3890,7 +3939,7 @@ impl VisibilityGraph {
                 {
                     continue;
                 }
-                let candidate_container = next_node.container;
+                let candidate_container = next_node.container();
                 // Source gates ordinary points by actual endpoint ownership,
                 // then walks both container ancestries with the route guard.
                 if !(next_owned && next_owners.contains(&source_node))
@@ -3920,7 +3969,7 @@ impl VisibilityGraph {
                 {
                     continue;
                 }
-                let adjacent_is_center = next_node.flags & SEARCH_NODE_CENTER != 0;
+                let adjacent_is_center = next_node.flags() & SEARCH_NODE_CENTER != 0;
                 // Go initializes every ordinary hop from its geometric
                 // distance and only replaces that value with the center
                 // sentinel after the container/port-owner penalties. Keep
@@ -4070,7 +4119,7 @@ impl VisibilityGraph {
                 // Both endpoint ports are ordinary OVG nodes. Only TALA's
                 // synthetic source/target centers are exempt from the
                 // line-1045 near-port increment.
-                if next_node.flags & SEARCH_NODE_NEAR_PORT != 0
+                if next_node.flags() & SEARCH_NODE_NEAR_PORT != 0
                     && (self.near_port_owners[next].contains(&source_node)
                         || self.near_port_owners[next].contains(&target_node))
                 {
@@ -4169,14 +4218,6 @@ impl VisibilityGraph {
                 break;
             }
             sequence.push(current_index);
-            // `source` is the synthetic route root. TALA's source-port
-            // outward-direction gate keeps it predecessor-free; stop here
-            // explicitly as the equivalent invariant for the restricted
-            // single-source wrapper as well.
-            if current_index == source_index {
-                break;
-            }
-
             let current_context = self.search_index(current_index);
             let vertical_hop =
                 slots[current_context].previous[Axis::Vertical.index()].map(predecessor_index);
@@ -4254,18 +4295,29 @@ impl VisibilityGraph {
             let right = sequence.len() - 1 - left;
             sequence.swap(left, right);
         }
-        if sequence.first() == Some(&source_index) {
-            sequence.remove(0);
-        }
-        if sequence.last() == Some(&target_index) {
-            sequence.pop();
-        }
-        let source_port_index = *sequence.first()?;
-        let target_port_index = *sequence.last()?;
-        let source = sources.get(&source_port_index)?.first()?.0;
-        let target = targets.get(&target_port_index)?.first()?.0;
-        sequence.insert(0, source_index);
-        sequence.push(target_index);
+        // Go bestRoute follows both hop tables until nil or a repeated node,
+        // including predecessors of the source center. Overlapping ancestor
+        // endpoints can give that center a predecessor. Preserve the returned
+        // path: generateRoutes takes its ports from slots 1 and len-2, even
+        // when one of those slots is a center rather than a shape port.
+        let endpoint = |index, candidates: &crate::internal::IdHashMap<usize, Vec<(Port, f64)>>| {
+            candidates
+                .get(&index)
+                .and_then(|ports| ports.first())
+                .map_or(
+                    Port {
+                        point: self.point(index),
+                        direction: PortSide::Top,
+                        side: PortSide::Top,
+                        index: 0,
+                        tunnel: None,
+                        is_center: false,
+                    },
+                    |(port, _)| *port,
+                )
+        };
+        let source = endpoint(*sequence.get(1)?, &sources);
+        let target = endpoint(*sequence.get(sequence.len().checked_sub(2)?)?, &targets);
         // Keep the complete OVG-node path for route-search scoring. Collinear
         // nodes are semantically relevant while later edges inspect occupied
         // points and decide whether leaving a shared corridor is permitted.
@@ -4276,8 +4328,8 @@ impl VisibilityGraph {
             .take(sequence.len().saturating_sub(2))
             .map(|index| self.point(*index))
             .collect::<Vec<_>>();
-        // generateRoutes validates the full OVG path, including its two
-        // centers. A single shared port is a valid three-node path;
+        // generateRoutes validates the complete returned OVG path.
+        // A single shared port is a valid three-node path;
         // createSegmentEndpoints publishes two distinct copies of that port.
         Some(AnyTargetRoute {
             points: route,
@@ -6213,7 +6265,7 @@ mod tests {
         );
 
         assert_eq!(
-            ovg.search_nodes()[ovg.centers[&nested]].container,
+            ovg.search_nodes()[ovg.centers[&nested]].container(),
             Some(container)
         );
     }

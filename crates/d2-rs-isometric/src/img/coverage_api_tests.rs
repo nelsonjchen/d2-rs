@@ -15,6 +15,31 @@ use std::{
     cell::{Cell, RefCell},
     collections::BTreeMap,
 };
+
+#[test]
+fn ground_receivers_borrow_unchanged_mesh_and_copy_translations() {
+    // ground_receivers_test.go TestGroundReceiversKeepUnchangedSlice and
+    // TestGroundReceiversPreserveMeshAndShadowProjection.
+    let ground = -0.24;
+    for receiver in [None, Some(ground)] {
+        let source = [Triangle {
+            shadow_ground: receiver,
+            ..Default::default()
+        }];
+        let output = raster_ground_triangles(&source, ground, nv(0.0, 1.0, 0.0));
+        assert_eq!(output.as_ptr(), source.as_ptr());
+    }
+    let source = [Triangle {
+        shadow_ground: Some(0.08),
+        ..Default::default()
+    }];
+    let mut output = raster_ground_triangles(&source, ground, nv(0.0, 1.0, 0.0));
+    assert_ne!(output.as_ptr(), source.as_ptr());
+    assert_eq!(output[0].v[0].position.y, ground - 0.08);
+    output.to_mut()[0].v[0].position.x = 10.0;
+    assert_eq!(source[0].v[0].position, nv(0.0, 0.0, 0.0));
+}
+
 fn number(v: &Value) -> f64 {
     match v.as_str() {
         Some("NaN") => f64::NAN,
@@ -75,6 +100,7 @@ fn surface(v: &Value) -> Option<Rc<VectorSurface>> {
         return None;
     };
     Some(Rc::new(VectorSurface {
+        shared_assets: None,
         document: Rc::new(RefCell::new({
             let mut d = v["document"].clone();
             hydrate(&mut d);

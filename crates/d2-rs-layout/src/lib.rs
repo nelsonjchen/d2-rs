@@ -20,6 +20,7 @@ use d2_rs_core::{
     CancellationToken, CanvasPosition, EdgeId, Graph, Insets, LabelPosition,
     LayoutError as CoreLayoutError, LayoutOptions, LayoutReport, LayoutResult, NodeId, Point, Rect,
 };
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::str::FromStr;
@@ -459,24 +460,11 @@ impl LayoutDispatcher {
         // Both shapes therefore start at uniform 60 px in this adapter.
         // Grid cylinders use d2grid fitting and retain their carrier insets.
         let normalized_tala_graph = if matches!(&engine, EngineKind::Tala) {
-            let mut normalized = graph.clone();
-            for (index, node) in graph.nodes() {
-                let tala_cylinder = node.shape == d2_rs_core::ShapeKind::Cylinder
-                    && node.grid_rows.is_none()
-                    && node.grid_columns.is_none();
-                if node.shape == d2_rs_core::ShapeKind::Package || tala_cylinder {
-                    normalized.node_mut(index).unwrap().content_insets = Insets::uniform(60.0);
-                }
-            }
-            // The same adapter traversal applies to full core layout and
-            // standalone routing. Preserve arena IDs while supplying Go's
-            // depth-first ChildrenArray visit order to the parent engine.
-            normalized.set_node_order_override(routing_node_order(&normalized));
-            Some(normalized)
+            Some(normalize_tala_input(graph))
         } else {
             None
         };
-        let graph = normalized_tala_graph.as_ref().unwrap_or(graph);
+        let graph = normalized_tala_graph.as_deref().unwrap_or(graph);
         // D2 removes constant-near graphs from the core layout input and
         // injects them after the ordinary graph has been positioned. Keeping
         // those objects in the ELK/TALA input changes the root dimensions and
@@ -2661,6 +2649,34 @@ fn reroute_reinserted_grid_edges(
         })
         .collect::<Vec<_>>();
     reroute_selected_grid_edges(graph, result, options, engine, cancellation, &selected)
+}
+
+fn normalize_tala_input(graph: &Graph) -> Cow<'_, Graph> {
+    let needs_insets = |node: &d2_rs_core::Node| {
+        (node.shape == d2_rs_core::ShapeKind::Package
+            || (node.shape == d2_rs_core::ShapeKind::Cylinder
+                && node.grid_rows.is_none()
+                && node.grid_columns.is_none()))
+            && node.content_insets != Insets::uniform(60.0)
+    };
+    let order = routing_node_order(graph);
+    let same_order = if graph.node_order_override.is_empty() {
+        order.iter().copied().eq(graph.nodes().map(|(id, _)| id))
+    } else {
+        order == graph.node_order_override
+    };
+    // Go LayoutNested passes g to coreLayout, and translateGraph borrows its
+    // ChildrenArray traversal before validateD2Edges. Do not duplicate the
+    // complete edge metadata merely to restate an already normalized input.
+    if same_order && !graph.nodes().any(|(_, node)| needs_insets(node)) {
+        return Cow::Borrowed(graph);
+    }
+    let mut normalized = graph.clone();
+    for (id, _) in graph.nodes().filter(|(_, node)| needs_insets(node)) {
+        normalized.node_mut(id).unwrap().content_insets = Insets::uniform(60.0);
+    }
+    normalized.set_node_order_override(order);
+    Cow::Owned(normalized)
 }
 
 /// translateGraph collects depth-first ChildrenArray visits. Constant-near
@@ -5933,6 +5949,60 @@ mod tests {
                 .to_string(),
             "failed to ELK layout: context canceled"
         );
+    }
+
+    #[test]
+    fn tala_normalization_borrows_compatible_graphs_and_preserves_authored_state() {
+        // Go's LayoutNested -> translateGraph boundary retains the input edge
+        // inventory while collecting depth-first object visits. In particular,
+        // oversized edge inputs must not acquire a second metadata inventory.
+        let mut graph = Graph::default();
+        let parent = graph.add_node(Node::new("parent", Size::default()));
+        let sibling = graph.add_node(Node::new("sibling", Size::default()));
+        let child = graph.add_node(Node::new("parent.child", Size::default()));
+        graph.add_edge(Edge {
+            source: parent,
+            target: sibling,
+        });
+        assert!(std::ptr::eq(
+            super::normalize_tala_input(&graph).as_ref(),
+            &graph
+        ));
+        graph.node_mut(child).unwrap().parent = Some(parent);
+        let normalized = super::normalize_tala_input(&graph);
+        assert_eq!(normalized.node_order_override, [parent, child, sibling]);
+        assert!(graph.node_order_override.is_empty());
+        drop(normalized);
+        graph.set_node_order_override(vec![parent, child, sibling]);
+        assert!(std::ptr::eq(
+            super::normalize_tala_input(&graph).as_ref(),
+            &graph
+        ));
+        for shape in [ShapeKind::Package, ShapeKind::Cylinder] {
+            graph.node_mut(parent).unwrap().shape = shape;
+            graph.node_mut(parent).unwrap().content_insets = Insets::uniform(79.0);
+            let normalized = super::normalize_tala_input(&graph);
+            assert_eq!(
+                normalized.node(parent).unwrap().content_insets,
+                Insets::uniform(60.0)
+            );
+            assert_eq!(
+                graph.node(parent).unwrap().content_insets,
+                Insets::uniform(79.0)
+            );
+            drop(normalized);
+            graph.node_mut(parent).unwrap().content_insets = Insets::uniform(60.0);
+            assert!(std::ptr::eq(
+                super::normalize_tala_input(&graph).as_ref(),
+                &graph
+            ));
+        }
+        graph.node_mut(parent).unwrap().grid_rows = Some(1);
+        graph.node_mut(parent).unwrap().content_insets = Insets::uniform(79.0);
+        assert!(std::ptr::eq(
+            super::normalize_tala_input(&graph).as_ref(),
+            &graph
+        ));
     }
 
     #[test]

@@ -4,6 +4,7 @@
 //! the SVG writer for a native mesh scene. Contraction sites are marked
 //! `ARM64:`.
 
+use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
 
@@ -904,14 +905,14 @@ pub fn raster_shadow_ground(ts: &[Triangle]) -> f64 {
 }
 
 /// ground_receivers.go rasterGroundTriangles.
-pub fn raster_ground_triangles(ts: &[Triangle], ground: f64, view: Vec) -> Vec2<Triangle> {
+pub fn raster_ground_triangles(ts: &[Triangle], ground: f64, view: Vec) -> Cow<'_, [Triangle]> {
     let changed = ts
         .iter()
         .any(|t| t.shadow_ground.is_some_and(|g| g != ground));
-    let mut out = ts.to_vec();
     if !changed {
-        return out;
+        return Cow::Borrowed(ts);
     }
+    let mut out = ts.to_vec();
     for t in &mut out {
         let Some(shadow_ground) = t.shadow_ground.filter(|g| *g != ground) else {
             continue;
@@ -921,7 +922,7 @@ pub fn raster_ground_triangles(ts: &[Triangle], ground: f64, view: Vec) -> Vec2<
             v.position = nadd(v.position, delta);
         }
     }
-    out
+    Cow::Owned(out)
 }
 
 fn caster_opacity(t: &Triangle) -> u8 {

@@ -476,10 +476,9 @@ mod tests {
         }
         // Compare the retained sweep to fresh NodeEdgeLength calls, including
         // cancellation and unwinding at each poll, plus scoring-work failure.
-        for (sized, scoring_mode) in [false, true]
-            .into_iter()
-            .flat_map(|sized| (0..3).map(move |mode| (sized, mode)))
-        {
+        for (sized, scoring_mode, bound) in [false, true].into_iter().flat_map(|sized| {
+            (0..3).flat_map(move |mode| [false, true].map(|bound| (sized, mode, bound)))
+        }) {
             let mut total_polls = 0;
             for cancel in std::iter::once(None).chain((3..).map(Some)) {
                 if cancel.is_some_and(|cancel| cancel > total_polls) {
@@ -504,6 +503,15 @@ mod tests {
                         .enumerate()
                         {
                             owner.set_position(NodeId(index as u32), point);
+                        }
+                        if bound {
+                            // Go's TopLeft pointers can alias an unrelated
+                            // node. Such a leaf still needs full publication.
+                            let point = owner.allocate_owner_node_point(owner.position(NodeId(0)));
+                            owner
+                                .bind_owner_node_point(NodeId(0), point.clone())
+                                .unwrap();
+                            owner.bind_owner_node_point(NodeId(4), point).unwrap();
                         }
                         let context = Count {
                             stable,
@@ -530,6 +538,11 @@ mod tests {
                                 .collect(),
                         );
                         let mut workspace = owner.clone();
+                        if scoring_mode == 0 {
+                            // The first completed movement must reconcile an
+                            // unrelated stale carrier before symmetry reads it.
+                            workspace.set_position(NodeId(3), Point { x: -600., y: 99. });
+                        }
                         let mut session =
                             OwnerScoreSession::new(&mut owner, OwnerGraphId(0), mapping, None)
                                 .unwrap();
@@ -589,7 +602,7 @@ mod tests {
                     }
                     assert_eq!(
                         outcomes[0], outcomes[1],
-                        "sized={sized}, mode={scoring_mode}, cancel={cancel:?}, limit={limit}, panic={panic}"
+                        "sized={sized}, mode={scoring_mode}, bound={bound}, cancel={cancel:?}, limit={limit}, panic={panic}"
                     );
                 }
             }

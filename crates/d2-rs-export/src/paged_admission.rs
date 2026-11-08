@@ -238,6 +238,12 @@ pub struct GifFontResources {
 }
 
 impl GifFontResources {
+    /// d2cli.newFontFallbackOptions also supplies the isometric CLI. Keep the
+    /// bundled-first chain and its cumulative system search budget shared.
+    pub fn resolver(&self) -> Arc<dyn scene::FallbackResolver> {
+        self.fonts.clone()
+    }
+
     pub fn new() -> Result<Self, ExportError> {
         #[cfg(any(
             target_os = "macos",

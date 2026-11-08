@@ -34,6 +34,75 @@ mod owner_initialization_publication_tests {
     use super::*;
 
     #[test]
+    fn detached_ancestor_edges_do_not_create_external_neighbors_in_child_scopes() {
+        // layoutgraph/layout.go abductEdges removes both incidences of an
+        // ancestor/descendant edge before recursing. The retained Graph.Edges
+        // slot must not create Nears or fringe degree in a child graph.
+        for depth in [1, 2] {
+            for reverse in [false, true] {
+                let mut input = Graph::default();
+                let ancestor = input.add_node(crate::Node::new(
+                    "ancestor",
+                    Size {
+                        width: 100.0,
+                        height: 100.0,
+                    },
+                ));
+                let mut containers = vec![ancestor];
+                if depth == 2 {
+                    let mut inner = crate::Node::new(
+                        "inner",
+                        Size {
+                            width: 100.0,
+                            height: 100.0,
+                        },
+                    );
+                    inner.parent = Some(ancestor);
+                    containers.push(input.add_node(inner));
+                }
+                for name in ["first", "second"] {
+                    let mut child = crate::Node::new(
+                        name,
+                        Size {
+                            width: 60.0,
+                            height: 66.0,
+                        },
+                    );
+                    child.parent = containers.last().copied();
+                    let child = input.add_node(child);
+                    let (source, target) = if reverse {
+                        (child, ancestor)
+                    } else {
+                        (ancestor, child)
+                    };
+                    input.add_edge(crate::Edge { source, target });
+                }
+                let mut pipeline = Pipeline::new_untraced(&input, 1, false, true);
+                let (_, prepared) = pipeline
+                    .prepare_placement_scope_after(None, &BTreeSet::new())
+                    .unwrap()
+                    .unwrap();
+                assert!(prepared.is_some());
+                for container in containers {
+                    let (placement, prepared) = pipeline
+                        .prepare_placement_scope_after(Some(container), &BTreeSet::new())
+                        .unwrap()
+                        .unwrap();
+                    assert!(prepared.is_some());
+                    assert!(placement.assigned_nears.is_empty());
+                    assert!(
+                        placement
+                            .graph
+                            .external_edge_counts
+                            .iter()
+                            .all(|count| *count == 0)
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
     fn combined_root_preserves_nested_cluster_live_point_and_publishes_direct_vessel() {
         for nested in [false, true] {
             let mut input = Graph::default();
@@ -4090,6 +4159,19 @@ impl Pipeline {
             }
             match (source, target) {
                 (Some(child), None) => {
+                    // A parent's AbductEdges can leave an intra-container
+                    // edge in Graph.Edges after removing both Node.Edges
+                    // incidences (layoutgraph/layout.go:197-214). It is not
+                    // an outside neighbor of this recursive child scope.
+                    if !self.graph.nodes[edge.source.0 as usize]
+                        .edges
+                        .contains(&edge_id)
+                        && !self.graph.nodes[edge.target.0 as usize]
+                            .edges
+                            .contains(&edge_id)
+                    {
+                        continue;
+                    }
                     if edge.source == child
                         && let Some(edges) = projected_endpoint_edge_order.get_mut(&child)
                     {
@@ -4115,6 +4197,15 @@ impl Pipeline {
                     continue;
                 }
                 (None, Some(child)) => {
+                    if !self.graph.nodes[edge.source.0 as usize]
+                        .edges
+                        .contains(&edge_id)
+                        && !self.graph.nodes[edge.target.0 as usize]
+                            .edges
+                            .contains(&edge_id)
+                    {
+                        continue;
+                    }
                     if edge.target == child
                         && let Some(edges) = projected_endpoint_edge_order.get_mut(&child)
                     {
@@ -10616,7 +10707,12 @@ impl Pipeline {
                 cluster_desired_arrangements.insert(projection.cluster_index, desired);
                 let optimized = sub_scope
                     .graph
-                    .optimize_projected_cluster_flip(projected_node, projection);
+                    .optimize_projected_cluster_flip(
+                        projected_node,
+                        projection,
+                        owner_session.as_deref_mut(),
+                    )
+                    .map_err(|error| crate::LayoutError::PlacementTransaction(error.to_string()))?;
                 if crate::internal::trace_env_enabled("TALA_TRACE_CLUSTER_STATE") {
                     eprintln!(
                         "CLUSTER_STATE_RUST scope={:?} vessel={} index={} projection={:?} desired={:?} optimized={:?} external={:?}",

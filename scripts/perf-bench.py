@@ -2,7 +2,8 @@
 """Compare d2-rs and the pinned Go D2 oracle on wall time, CPU and peak RSS.
 
 Inputs are e2e case sources from references.E2E_CASES, picked by size so the
-corpus is fixed: the largest N cases plus a spread of smaller ones. Each
+corpus is fixed: the largest N cases plus a spread of smaller ones, and eleven
+isometric exports covering SVG, PNG and every engine. Each
 (case, engine, implementation) runs --repeat times; medians are reported.
 Outputs are compared byte for byte, so a speed-up can never hide a parity
 change. Writes a JSON report and prints a per-engine summary.
@@ -16,6 +17,7 @@ import hashlib
 import json
 import re
 import resource
+import shutil
 import statistics
 import subprocess
 import sys
@@ -27,6 +29,19 @@ import references
 
 ENGINES = ("dagre", "elk", "tala")
 REMOTE_ICON = re.compile(r"^[^#\n]*\bicon\s*:\s*\"?https?://", re.M)
+ISOMETRIC_CASES = (
+    ("real_world/fulcro_rad", "elk", "svg"),
+    ("real_world/fulcro_rad", "elk", "png"),
+    ("stable/arrowhead_scaling", "dagre", "svg"),
+    ("stable/dense", "tala", "svg"),
+    ("regression/ampersand-escape", "dagre", "svg"),
+    ("patterns/paper", "dagre", "svg"),
+    ("stable/us_map", "dagre", "png"),
+    ("stable/grid_animated", "dagre", "svg"),
+    ("stable/grid_animated", "elk", "svg"),
+    ("stable/grid_animated", "tala", "svg"),
+    ("regression/grid_oom", "dagre", "svg"),
+)
 
 
 def pick_cases(count):
@@ -45,12 +60,27 @@ def pick_cases(count):
     return spread + largest
 
 
+def benchmark_jobs(count):
+    for size, name, script in pick_cases(count):
+        for engine in ENGINES:
+            yield size, name, script, engine, "svg", ()
+    for name, engine, fmt in ISOMETRIC_CASES:
+        path = references.E2E_CASES / (name.replace("/", "__") + ".json")
+        script = json.loads(path.read_text())["script"]
+        yield len(script), name, script, engine, fmt, ("--isometric",)
+
+
 def run(binary, engine, source, out, extra=()):
     # Isolate getrusage per invocation: RUSAGE_CHILDREN's maximum RSS is a
     # high-water mark, so measuring all binaries in this process is incorrect.
     # /usr/bin/time -l also requires sysctl privileges unavailable in managed
     # macOS sandboxes. The worker needs only wait4's ordinary child usage.
     out.unlink(missing_ok=True)
+    # Multi-board exports write to the extensionless output directory. A
+    # rejected later invocation must not inherit a previous passing tree.
+    board_output = out.with_suffix("")
+    if board_output.is_dir():
+        shutil.rmtree(board_output)
     result = subprocess.run(
         [sys.executable, str(Path(__file__).resolve()), "--measure-child",
          str(binary.resolve()), f"--layout={engine}", *extra, str(source), str(out)],
@@ -59,6 +89,21 @@ def run(binary, engine, source, out, extra=()):
     if result.returncode:
         raise RuntimeError(result.stderr)
     return tuple(json.loads(result.stdout))
+
+
+def output_inventory(directory):
+    """Hash every board and manifest; a successful empty output cannot pass."""
+    inventory = {}
+    total = 0
+    for path in sorted(directory.rglob("*")):
+        if not path.is_file():
+            continue
+        size = path.stat().st_size
+        total += size
+        if not size or size > 128 << 20 or total > 1 << 30:
+            raise ValueError(f"empty output or capture budget exceeded: {path}")
+        inventory[path.relative_to(directory).as_posix()] = hashlib.sha256(path.read_bytes()).hexdigest()
+    return inventory
 
 
 def measure_child(command):
@@ -84,40 +129,44 @@ def main():
     rows = []
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
-        for size, name, script in pick_cases(args.cases):
+        for size, name, script, engine, fmt, extra in benchmark_jobs(args.cases):
             source = tmp / "input.d2"
             source.write_text(script)
-            for engine in ENGINES:
-                row = {"case": name, "bytes": size, "engine": engine}
-                outputs = {}
-                impls = (("go", args.go), ("rust", args.rust))
-                samples = {impl: [] for impl, _ in impls}
-                hashes = {impl: [] for impl, _ in impls}
-                # Interleave implementations per repeat (after one untimed
-                # warm-up each) so host noise lands on both sides alike.
-                for index in range(args.warmup + args.repeat):
-                    for impl, binary in impls:
-                        out = tmp / f"{impl}.svg"
-                        sample = run(binary, engine, source, out)
-                        if index < args.warmup:
-                            continue
-                        samples[impl].append(sample)
-                        hashes[impl].append(hashlib.sha256(out.read_bytes()).hexdigest() if out.exists() else None)
-                        outputs[impl] = out.read_bytes() if out.exists() else None
-                for impl, _ in impls:
-                    row[impl] = {
-                        "exit": samples[impl][-1][0],
-                        "sample_exits": [sample[0] for sample in samples[impl]],
-                        "output_hashes": hashes[impl],
-                        "wall": statistics.median(s[1] for s in samples[impl]),
-                        "cpu": statistics.median(s[2] for s in samples[impl]),
-                        "rss": statistics.median(s[3] for s in samples[impl]),
-                    }
-                row["identical"] = (outputs["go"] is not None and outputs["go"] == outputs["rust"]
-                                    and all(row[impl]["sample_exits"] == [0] * args.repeat
-                                            and len(set(row[impl]["output_hashes"])) == 1
-                                            for impl in ("go", "rust")))
-                rows.append(row)
+            row = {"case": name, "bytes": size, "engine": engine, "format": fmt, "extra": list(extra)}
+            impls = (("go", args.go), ("rust", args.rust))
+            samples = {impl: [] for impl, _ in impls}
+            hashes = {impl: [] for impl, _ in impls}
+            # Interleave implementations per repeat (after one untimed
+            # warm-up each) so host noise lands on both sides alike.
+            for index in range(args.warmup + args.repeat):
+                for impl, binary in impls:
+                    directory = tmp / impl
+                    if directory.exists():
+                        shutil.rmtree(directory)
+                    directory.mkdir()
+                    # Use the same basename for complete multi-board exports.
+                    out = directory / f"out.{fmt}"
+                    sample = run(binary, engine, source, out, extra)
+                    inventory = output_inventory(directory)
+                    if index < args.warmup:
+                        continue
+                    samples[impl].append(sample)
+                    hashes[impl].append(inventory)
+            for impl, _ in impls:
+                row[impl] = {
+                    "exit": samples[impl][-1][0],
+                    "sample_exits": [sample[0] for sample in samples[impl]],
+                    "output_hashes": hashes[impl],
+                    "wall": statistics.median(s[1] for s in samples[impl]),
+                    "cpu": statistics.median(s[2] for s in samples[impl]),
+                    "rss": statistics.median(s[3] for s in samples[impl]),
+                }
+            row["identical"] = (bool(hashes["go"][0])
+                                and hashes["go"][0] == hashes["rust"][0]
+                                and all(row[impl]["sample_exits"] == [0] * args.repeat
+                                        and all(h == hashes[impl][0] for h in hashes[impl])
+                                        for impl in ("go", "rust")))
+            rows.append(row)
     summary = {}
     for engine in ENGINES:
         sel = [r for r in rows if r["engine"] == engine and r["go"]["exit"] == 0]

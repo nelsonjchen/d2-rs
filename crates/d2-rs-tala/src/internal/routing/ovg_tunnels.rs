@@ -250,7 +250,7 @@ mod tests {
         assert_eq!(e.from, e.to);
         assert_eq!(e.distance, 0.0);
         assert_eq!(ovg.nodes[e.from_slot()].read().edges, [0, 0]);
-        assert!(ovg.nodes[e.from_slot()].read().is_tunnel);
+        assert!(ovg.nodes[e.from_slot()].read().is_tunnel());
         assert_eq!(ovg.port_directions(e.from_slot(), NodeId(0)), 1 << 5);
         assert_eq!(ovg.port_directions(e.from_slot(), NodeId(1)), 1 << 7);
         assert_eq!(

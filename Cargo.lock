@@ -456,6 +456,7 @@ dependencies = [
 name = "d2-rs-isometric"
 version = "0.1.2"
 dependencies = [
+ "aho-corasick",
  "base64 0.22.1",
  "d2-rs-core",
  "d2-rs-export",
@@ -470,6 +471,7 @@ dependencies = [
  "d2-rs-testdata",
  "d2-rs-text",
  "gif 0.13.3",
+ "ryu",
  "serde",
  "serde_json",
  "sha2",

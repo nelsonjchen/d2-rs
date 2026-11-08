@@ -144,14 +144,13 @@ fn resources(
         max_expanded_use_instances: 1024,
     };
     let fonts = foundation::FontFallbackOptions {
-        resolver_impl: Some(Arc::new(foundation::BundledFallbackResolver::new(
-            None,
-            foundation::BundledFallbackLimits {
-                max_requested_runes: 100000,
-                max_bundled_bytes: 8 << 20,
-                max_resolved_bytes: 136 << 20,
-            },
-        )?)),
+        // configuredIsometricImageOptions uses newFontFallbackOptions(1),
+        // the same bundled-first system resolver as raster/GIF exports.
+        resolver_impl: Some(
+            d2_rs_export::GifFontResources::new()
+                .map_err(|error| error.to_string())?
+                .resolver(),
+        ),
         max_assets: 64,
         max_bytes: 64 << 20,
         max_runes_per_text: 100000,
@@ -210,13 +209,22 @@ fn source_diagram_json(
     root: bool,
     copy_slices: bool,
 ) -> Result<serde_json::Value, String> {
-    let mut value: serde_json::Value = serde_json::from_slice(
+    source_diagram_from_json(
         frame
             .target_json
             .as_deref()
             .ok_or("isometric export requires target JSON")?,
+        root,
+        copy_slices,
     )
-    .map_err(|e| e.to_string())?;
+}
+
+fn source_diagram_from_json(
+    json: &[u8],
+    root: bool,
+    copy_slices: bool,
+) -> Result<serde_json::Value, String> {
+    let mut value: serde_json::Value = serde_json::from_slice(json).map_err(|e| e.to_string())?;
     // Export allocates empty slices. relinkIsometricSVGBoard copies only
     // this board with append(nil, slice...), making empty slices nil; child
     // pointers keep the original allocated empties for recursive HashID.
@@ -299,6 +307,97 @@ fn atomic_image(path: &Path, data: &[u8]) -> Result<(), String> {
     })();
     let _ = std::fs::remove_file(&temporary);
     result
+}
+
+fn local_board_key(target: &str, selected: &str) -> String {
+    let local = target
+        .strip_prefix(selected)
+        .unwrap_or(target)
+        .trim_start_matches('.');
+    if local.is_empty() {
+        "root".into()
+    } else {
+        format!("root.{local}")
+    }
+}
+
+fn board_error(error: String, target: &str, selected: &str, workspace: bool) -> String {
+    if workspace {
+        format!(
+            "isometric board {}: {error}",
+            local_board_key(target, selected)
+        )
+    } else {
+        error
+    }
+}
+
+/// Keep atomicIsometricImage's ordered writes and sync-before-publish contract,
+/// while preparing the next SVG during the preceding file's durability wait.
+/// At most one output is outstanding, and the caller observes its result before
+/// the next board's result. Drop joins before the staging workspace is removed.
+struct ImageWriter {
+    jobs: Option<std::sync::mpsc::SyncSender<(PathBuf, Vec<u8>, String)>>,
+    results: std::sync::mpsc::Receiver<Result<(), String>>,
+    worker: Option<std::thread::JoinHandle<()>>,
+    pending: bool,
+}
+
+impl ImageWriter {
+    fn new() -> Option<Self> {
+        let (jobs, receive) = std::sync::mpsc::sync_channel::<(PathBuf, Vec<u8>, String)>(0);
+        let (results, completed) = std::sync::mpsc::channel();
+        let context = watch::AssetWorkerContext::capture();
+        let worker = std::thread::Builder::new()
+            .name("d2-isometric-writer".into())
+            .spawn(move || {
+                context.run(|| {
+                    for (path, data, key) in receive {
+                        let result = atomic_image(&path, &data)
+                            .map_err(|error| format!("isometric board {key}: {error}"));
+                        if results.send(result).is_err() {
+                            break;
+                        }
+                    }
+                })
+            })
+            .ok()?;
+        Some(Self {
+            jobs: Some(jobs),
+            results: completed,
+            worker: Some(worker),
+            pending: false,
+        })
+    }
+
+    fn submit(&mut self, path: PathBuf, data: Vec<u8>, key: String) -> Result<(), String> {
+        self.finish()?;
+        self.jobs
+            .as_ref()
+            .unwrap()
+            .send((path, data, key))
+            .map_err(|_| "isometric image writer stopped".to_owned())?;
+        self.pending = true;
+        Ok(())
+    }
+
+    fn finish(&mut self) -> Result<(), String> {
+        if !std::mem::take(&mut self.pending) {
+            return Ok(());
+        }
+        self.results
+            .recv()
+            .map_err(|_| "isometric image writer stopped".to_owned())?
+    }
+}
+
+impl Drop for ImageWriter {
+    fn drop(&mut self) {
+        self.jobs.take();
+        if let Some(worker) = self.worker.take() {
+            let _ = worker.join();
+        }
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -587,6 +686,7 @@ pub(super) fn run(
         None
     };
     let mut original_children = BTreeMap::new();
+    let mut child_render_options = BTreeMap::new();
     if has_children && format == ExportFormat::Svg {
         for child in &descendants {
             let mut args = base.clone();
@@ -597,39 +697,79 @@ pub(super) fn run(
                 serde_json::to_vec(&source_diagram_json(&frame, false, false)?)
                     .map_err(|e| e.to_string())?,
             );
+            child_render_options.insert(
+                child.clone(),
+                (
+                    frame.render_options.theme_id,
+                    !frame.render_options.dark_theme_overrides.is_empty(),
+                ),
+            );
         }
     }
+    let mut writer = if workspace.is_some() && targets.len() > 1 && format == ExportFormat::Svg {
+        ImageWriter::new()
+    } else {
+        None
+    };
     let mut last = Vec::new();
     for t in targets {
-        let mut args = base.clone();
-        args.push(format!("--target={t}"));
-        let frame = render_source_target_animation(input, &args)?;
-        let mut value = source_diagram_json(&frame, t.is_empty(), format == ExportFormat::Svg)?;
-        // Isometric SVG hashes each local board after rebasing links. Descendant targets remain metadata for the recursive hash.
-        if format == ExportFormat::Svg {
-            relink_svg_board(&mut value, &t, &selected, &paths);
-        }
-        let json = serde_json::to_vec(&value).map_err(|e| e.to_string())?;
-        let diagram: Diagram = serde_json::from_slice(&json).map_err(|e| e.to_string())?;
-        let options = img::render::Options {
-            render: d2_rs_isometric::scene::RenderOpts {
-                theme_id: frame.render_options.theme_id,
-                theme_overrides: diagram
-                    .config
-                    .as_ref()
-                    .and_then(|c| c.theme_overrides.clone()),
-            },
-            width,
-            height,
-            fit_content: true,
-            fonts: Some(fonts.clone()),
-            assets: Some(assets.clone()),
-            ..Default::default()
-        };
-        // isometric_image.go:229–235 wraps rendering and writing errors only
-        // for file-based multiboard exports, using the selected tree's key.
-        let data = (|| -> Result<Vec<u8>, String> {
+        let rendered = (|| -> Result<Vec<u8>, String> {
+            // isometric_image.go renderIsometricImages visits each compiled board
+            // once. SVG's recursive hashes already needed these child targets;
+            // reuse their bytes and options instead of compiling and laying them
+            // out again. Keep originals for hashing after this board is relinked.
+            let (mut value, theme_id, has_dark_overrides) =
+                if let Some((theme, dark)) = child_render_options.remove(&t) {
+                    (
+                        source_diagram_from_json(&original_children[&t], t.is_empty(), true)?,
+                        theme,
+                        dark,
+                    )
+                } else {
+                    let mut args = base.clone();
+                    args.push(format!("--target={t}"));
+                    let frame = render_source_target_animation(input, &args)?;
+                    (
+                        source_diagram_json(&frame, t.is_empty(), format == ExportFormat::Svg)?,
+                        frame.render_options.theme_id,
+                        !frame.render_options.dark_theme_overrides.is_empty(),
+                    )
+                };
+            // Isometric SVG hashes each local board after rebasing links. Descendant targets remain metadata for the recursive hash.
+            if format == ExportFormat::Svg {
+                relink_svg_board(&mut value, &t, &selected, &paths);
+            }
+            let json = serde_json::to_vec(&value).map_err(|e| e.to_string())?;
+            let diagram: Diagram = serde_json::from_slice(&json).map_err(|e| e.to_string())?;
+            let options = img::render::Options {
+                render: d2_rs_isometric::scene::RenderOpts {
+                    theme_id,
+                    theme_overrides: diagram
+                        .config
+                        .as_ref()
+                        .and_then(|c| c.theme_overrides.clone()),
+                },
+                width,
+                height,
+                fit_content: true,
+                fonts: Some(fonts.clone()),
+                assets: Some(assets.clone()),
+                ..Default::default()
+            };
+            // isometric_image.go:229–235 wraps rendering and writing errors only
+            // for file-based multiboard exports, using the selected tree's key.
+            let data = (|| -> Result<Vec<u8>, String> {
             let data = if format == ExportFormat::Svg {
+                // d2svg/isometric.go renderIsometricValidated rejects even
+                // source-configured responsive overrides before native SVG.
+                if has_dark_overrides
+                    || diagram
+                        .config
+                        .as_ref()
+                        .is_some_and(|config| config.dark_theme_overrides.is_some())
+                {
+                    return Err("isometric rendering does not yet support responsive dark themes; select a single theme instead".into());
+                }
                 let hash_json = if has_children {
                     let prefix = if t.is_empty() {
                         String::new()
@@ -671,38 +811,38 @@ pub(super) fn run(
             } else {
                 img::raster::render_png(&diagram, &options)?
             };
-            let final_path = &paths[&t];
-            if output.as_os_str() != "-" {
-                let path = if let Some(workspace) = &workspace {
-                    workspace.stage_root().join(
-                        final_path
-                            .strip_prefix(&out_dir)
-                            .map_err(|e| e.to_string())?,
-                    )
-                } else {
-                    final_path.clone()
-                };
-                atomic_image(&path, &data)?;
-            }
+                Ok(data)
+            })().map_err(|error| board_error(error, &t, &selected, workspace.is_some()))?;
             Ok(data)
-        })()
-        .map_err(|error| {
-            if workspace.is_some() {
-                let local = t
-                    .strip_prefix(&selected)
-                    .unwrap_or(&t)
-                    .trim_start_matches('.');
-                let key = if local.is_empty() {
-                    "root".to_owned()
-                } else {
-                    format!("root.{local}")
-                };
-                format!("isometric board {key}: {error}")
+        })();
+        if let Some(writer) = &mut writer {
+            writer.finish()?;
+        }
+        let data = rendered?;
+        if output.as_os_str() != "-" {
+            let final_path = &paths[&t];
+            let path = if let Some(workspace) = &workspace {
+                workspace.stage_root().join(
+                    final_path
+                        .strip_prefix(&out_dir)
+                        .map_err(|e| board_error(e.to_string(), &t, &selected, true))?,
+                )
             } else {
-                error
+                final_path.clone()
+            };
+            if let Some(writer) = &mut writer {
+                writer.submit(path, data, local_board_key(&t, &selected))?;
+            } else {
+                atomic_image(&path, &data)
+                    .map_err(|error| board_error(error, &t, &selected, workspace.is_some()))?;
+                last = data;
             }
-        })?;
-        last = data;
+        } else {
+            last = data;
+        }
+    }
+    if let Some(writer) = &mut writer {
+        writer.finish()?;
     }
     check_context()?;
     if let Some(workspace) = workspace {
@@ -719,6 +859,58 @@ pub(super) fn run(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn ordered_writer_preserves_errors_cancellation_and_completion() {
+        let directory =
+            std::env::temp_dir().join(format!("d2-rs-isometric-writer-{}", std::process::id()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let output = directory.join("output.svg");
+        let blocked = directory.join("blocked");
+        std::fs::write(&output, b"previous output").unwrap();
+        std::fs::write(&blocked, b"not a directory").unwrap();
+        {
+            let mut writer = ImageWriter::new().unwrap();
+            writer
+                .submit(blocked.join("bad.svg"), vec![1], "root.bad".into())
+                .unwrap();
+            let error = writer
+                .submit(output.clone(), vec![2], "root.next".into())
+                .unwrap_err();
+            assert!(error.starts_with("isometric board root.bad: "), "{error}");
+        }
+        assert_eq!(std::fs::read(&output).unwrap(), b"previous output");
+        {
+            let token = d2_rs_core::CancellationToken::new();
+            let _guard = watch::track_cancellation(token.clone());
+            let mut writer = ImageWriter::new().unwrap();
+            token.cancel();
+            writer
+                .submit(output.clone(), vec![3], "root.canceled".into())
+                .unwrap();
+            assert_eq!(
+                writer.finish().unwrap_err(),
+                "isometric board root.canceled: context canceled"
+            );
+        }
+        assert_eq!(std::fs::read(&output).unwrap(), b"previous output");
+        {
+            let mut writer = ImageWriter::new().unwrap();
+            writer
+                .submit(output.clone(), b"complete SVG".to_vec(), "root".into())
+                .unwrap();
+            // Even unwinding/early-return cleanup joins the outstanding write
+            // before its staging workspace can be removed.
+        }
+        assert_eq!(std::fs::read(&output).unwrap(), b"complete SVG");
+        assert!(std::fs::read_dir(&directory).unwrap().all(|entry| {
+            !entry
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .starts_with(".d2-isometric-")
+        }));
+        std::fs::remove_dir_all(directory).unwrap();
+    }
     #[test]
     fn source_link_target_hash_roundtrip() {
         let input=b"a: {link: layers.detail}\nlayers: {detail: {b: {link: root}}}\nscenarios: {alternate: {c}}\nsteps: {next: {d}}\n";
@@ -774,8 +966,12 @@ mod tests {
                 &["--engine=dagre".into(), format!("--target={target}")],
             )
             .unwrap();
+            // Hash the same original child bytes that the SVG output loop
+            // reuses. Relinking a local copy must preserve descendant slices.
+            let original =
+                serde_json::to_vec(&source_diagram_json(&frame, false, false).unwrap()).unwrap();
             let mut value =
-                source_diagram_json(&frame, target.is_empty(), target.is_empty()).unwrap();
+                source_diagram_from_json(&original, target.is_empty(), target.is_empty()).unwrap();
             if target.is_empty() {
                 value["shapes"][0]["link"] = "layers/detail.svg".into();
             }
@@ -818,6 +1014,44 @@ mod tests {
         ];
         assert!(run_document(&args).is_err());
         assert_eq!(std::fs::read(&output).unwrap(), b"previous output");
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+    #[test]
+    fn source_dark_theme_overrides_reject_isometric_svg_without_replacing_output() {
+        // d2svg/isometric.go renderIsometricValidated rejects populated source
+        // overrides. Go's source compiler omits an empty override map.
+        let directory = std::env::temp_dir().join(format!(
+            "d2-rs-isometric-dark-overrides-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&directory).unwrap();
+        let input = directory.join("input.d2");
+        let output = directory.join("output.svg");
+        for (overrides, rejects) in [("{}", false), ("{N1: red}", true)] {
+            std::fs::write(
+                &input,
+                format!("a\nvars: {{d2-config: {{dark-theme-overrides: {overrides}}}}}\n"),
+            )
+            .unwrap();
+            std::fs::write(&output, b"previous output").unwrap();
+            let result = run_document(&[
+                "--isometric".into(),
+                input.to_string_lossy().into_owned(),
+                output.to_string_lossy().into_owned(),
+            ]);
+            if rejects {
+                let error = result.unwrap_err();
+                assert!(error.ends_with("isometric rendering does not yet support responsive dark themes; select a single theme instead"), "{error}");
+                assert_eq!(std::fs::read(&output).unwrap(), b"previous output");
+            } else {
+                result.unwrap();
+                assert!(
+                    std::fs::read_to_string(&output)
+                        .unwrap()
+                        .contains("d2-isometric")
+                );
+            }
+        }
         std::fs::remove_dir_all(directory).unwrap();
     }
     #[test]

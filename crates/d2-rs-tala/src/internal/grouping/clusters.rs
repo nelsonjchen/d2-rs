@@ -8,6 +8,7 @@
 //! outer scopes can place the cluster as one object.
 
 use super::*;
+use crate::internal::owner_score_session::OwnerScoreSessionError;
 use std::cmp::Ordering;
 
 mod cluster_transactions;
@@ -1991,7 +1992,7 @@ impl ArenaGraph {
                 .cloned()
                 .or_else(|| self.containers.get(&scope))
                 .unwrap_or_default();
-            for (seed_index, seed) in children.iter().copied().enumerate() {
+            for seed in children.iter().copied() {
                 if self.nodes[seed.0 as usize].cluster.is_some()
                     || !self.cluster_eligible(seed, &tree_sentinels)
                 {
@@ -1999,8 +2000,9 @@ impl ArenaGraph {
                 }
                 let mut members = vec![seed];
                 let mut is_connected_to_sequence = false;
-                for candidate in children.iter().copied().skip(seed_index + 1) {
-                    if self.nodes[candidate.0 as usize].cluster.is_some()
+                for candidate in children.iter().copied() {
+                    if candidate == seed
+                        || self.nodes[candidate.0 as usize].cluster.is_some()
                         || !self.cluster_eligible(candidate, &tree_sentinels)
                     {
                         continue;
@@ -2050,6 +2052,28 @@ impl ArenaGraph {
                 ) else {
                     continue;
                 };
+                // grouping/clusters.go maybeCreateCluster rejects a group
+                // when a member connects to its own ancestor, for either
+                // arrangement. AssignArrangement still consumes its random
+                // draw before this check; a rejected group consumes no
+                // vessel ID and must not resize its members.
+                if members.iter().any(|member| {
+                    self.nodes[member.0 as usize]
+                        .edges
+                        .read()
+                        .iter()
+                        .any(|edge_id| {
+                            let edge = &self.edge_records[edge_id.0 as usize];
+                            let adjacent = if edge.from == *member {
+                                edge.to
+                            } else {
+                                edge.from
+                            };
+                            self.active_is_descendant_of(*member, adjacent)
+                        })
+                }) {
+                    continue;
+                }
                 // CreateVessel orders an already-positioned cluster before it
                 // is collapsed: rows follow x and columns follow y. Keep the
                 // same order when a direct graph fixture supplies serialized
@@ -2800,7 +2824,8 @@ impl ArenaGraph {
         &mut self,
         node: NodeId,
         projection: &ProjectedCluster,
-    ) -> Option<ClusterArrangement> {
+        owner_session: Option<&mut OwnerScoreSession<'_>>,
+    ) -> Result<Option<ClusterArrangement>, OwnerScoreSessionError> {
         let desired = self.projected_cluster_desired_arrangement(
             node,
             projection.arrangement,
@@ -2833,17 +2858,23 @@ impl ArenaGraph {
             );
         }
         if desired == projection.arrangement {
-            return None;
+            return Ok(None);
         }
         let layout = match desired {
             ClusterArrangement::Row => &projection.row,
             ClusterArrangement::Column => &projection.column,
         };
-        let committed = self
+        let Some(committed) = self
             .projected_cluster_flip_trial(node, desired, layout, true)
-            .or_else(|| self.projected_cluster_flip_trial(node, desired, layout, false))?;
+            .or_else(|| self.projected_cluster_flip_trial(node, desired, layout, false))
+        else {
+            return Ok(None);
+        };
+        if let Some(session) = owner_session {
+            session.publish_accepted_cluster_flip(node, self, &committed, desired)?;
+        }
         *self = committed;
-        Some(desired)
+        Ok(Some(desired))
     }
 
     /// Recovered `Cluster.ArrangeClusterNodes`.
@@ -3299,6 +3330,13 @@ impl ArenaGraph {
                     .resize(cluster_index + 1, Size::default());
             }
             self.cluster_vessel_sizes[cluster_index] = vessel_size;
+            // node_placement.go resizes c.Vessel itself after fitting a
+            // member. Containers retains that same allocation even before
+            // the vessel is positioned or its component starts placement.
+            if let Some(vessel) = self.topology_vessel_node(TopologyVessel::Cluster(cluster_index))
+            {
+                self.nodes[vessel.0 as usize].rect.size = vessel_size;
+            }
             if trace_resize {
                 eprintln!(
                     "NESTED_RESIZE_AFTER_RUST node={} cluster_size={:?} members={:?}",
@@ -3935,6 +3973,80 @@ mod tests {
     use crate::{ContentAlignment, Edge, Insets, LabelPosition, Node};
 
     #[test]
+    fn fitted_cluster_members_resize_the_retained_unpositioned_vessel() {
+        // node_placement.go:227-234 calls Resize on the actual vessel after
+        // FitToGraph. Its Containers alias must expose the new box before
+        // another split component computes its cell size (graph.go:290-312).
+        for arrangement in [ClusterArrangement::Row, ClusterArrangement::Column] {
+            for fixed_size in [false, true] {
+                let mut input = Graph::default();
+                let first = input.add_node(Node::new(
+                    "first",
+                    Size {
+                        width: 91.0,
+                        height: 91.0,
+                    },
+                ));
+                let second = input.add_node(Node::new(
+                    "second",
+                    Size {
+                        width: 91.0,
+                        height: 91.0,
+                    },
+                ));
+                let mut graph = ArenaGraph::from_input(&input);
+                graph.clusters.push(ClusterState {
+                    members: vec![first, second],
+                    arrangement,
+                    desired_arrangement: arrangement,
+                    padding: 20.0,
+                    vessel_tala_id: 10001,
+                    fixed_size,
+                });
+                for member in [first, second] {
+                    graph.nodes[member.0 as usize].cluster = Some(0);
+                }
+                let mut entity = graph.nodes[first.0 as usize].clone();
+                entity.tala_id = 10001;
+                entity.rect.size = graph.cluster_vessel_size(0);
+                let vessel = graph.retain_topology_node(entity);
+                graph
+                    .bind_topology_vessel(TopologyVessel::Cluster(0), vessel)
+                    .unwrap();
+                graph.containers.insert(None, vec![vessel]);
+                graph.nodes[first.0 as usize].rect.size = Size {
+                    width: 136.0,
+                    height: 136.0,
+                };
+
+                graph.resize_clusters_containing(first);
+
+                let expected = match arrangement {
+                    ClusterArrangement::Row => Size {
+                        width: 292.0,
+                        height: 136.0,
+                    },
+                    ClusterArrangement::Column => Size {
+                        width: 136.0,
+                        height: 292.0,
+                    },
+                };
+                let alias = graph.containers.get(&None).unwrap()[0];
+                assert_eq!(graph.nodes[alias.0 as usize].rect.size, expected);
+                assert_eq!(graph.cluster_vessel_size(0), expected);
+                assert_eq!(graph.position(vessel), None);
+                assert_eq!(
+                    graph.nodes[second.0 as usize].rect.size,
+                    Size {
+                        width: if fixed_size { 91.0 } else { 136.0 },
+                        height: if fixed_size { 91.0 } else { 136.0 },
+                    }
+                );
+            }
+        }
+    }
+
+    #[test]
     fn orientation_resizes_external_cluster_before_moving_its_members() {
         for fixed_size in [true, false] {
             let mut input = Graph::default();
@@ -4199,6 +4311,138 @@ mod tests {
             graph.clusters[0].desired_arrangement,
             ClusterArrangement::Column
         );
+    }
+
+    #[test]
+    fn ancestor_edges_reject_clusters_before_resize_and_vessel_allocation() {
+        // Pinned grouping/clusters.go maybeCreateCluster (both arrangements)
+        // rejects members incident to an ancestor. The outer discovery loop
+        // still retries that group from its next member and consumes the
+        // scope RNG in AssignArrangement, before testing the next group.
+        for seed in [1, 2, 3] {
+            for depth in [1, 2] {
+                for reverse in [false, true] {
+                    for ancestor_edge in [false, true] {
+                        for square in [false, true] {
+                            let mut input = Graph::default();
+                            let ancestor = input.add_node(node("ancestor", ShapeKind::Rectangle));
+                            let mut parent = ancestor;
+                            if depth == 2 {
+                                let mut inner = node("inner", ShapeKind::Rectangle);
+                                inner.parent = Some(ancestor);
+                                parent = input.add_node(inner);
+                            }
+                            let pivot = input.add_node(node("pivot", ShapeKind::Oval));
+                            let other_pivot = input.add_node(node("other-pivot", ShapeKind::Oval));
+                            let mut children = Vec::new();
+                            for (name, width) in [
+                                ("first", if square { 66.0 } else { 60.0 }),
+                                ("second", 66.0),
+                                ("third", 64.0),
+                                ("fourth", 64.0),
+                            ] {
+                                let mut child = node(name, ShapeKind::Rectangle);
+                                child.parent = Some(parent);
+                                child.size = Size {
+                                    width,
+                                    height: if width == 64.0 { 64.0 } else { 66.0 },
+                                };
+                                children.push(input.add_node(child));
+                            }
+                            for (index, &child) in children.iter().enumerate() {
+                                let adjacent = if index >= 2 {
+                                    other_pivot
+                                } else if ancestor_edge {
+                                    ancestor
+                                } else {
+                                    pivot
+                                };
+                                let (source, target) = if reverse {
+                                    (child, adjacent)
+                                } else {
+                                    (adjacent, child)
+                                };
+                                input.add_edge(Edge { source, target });
+                            }
+                            let mut graph = ArenaGraph::from_input(&input);
+                            let mut misc_rng = go_rng::GoRng::new(seed);
+                            graph.assign_clusters_with_rng(seed, false, false, &mut misc_rng);
+                            assert_eq!(graph.clusters.len(), if ancestor_edge { 1 } else { 2 });
+                            for &child in &children[..2] {
+                                assert_eq!(
+                                    graph.nodes[child.0 as usize].cluster.is_none(),
+                                    ancestor_edge
+                                );
+                                let expected = if ancestor_edge {
+                                    input.nodes[child.0 as usize].size
+                                } else {
+                                    Size {
+                                        width: 66.0,
+                                        height: 66.0,
+                                    }
+                                };
+                                assert_eq!(graph.nodes[child.0 as usize].rect.size, expected);
+                            }
+                            let allowed = &graph.clusters
+                                [graph.nodes[children[2].0 as usize].cluster.unwrap()];
+                            assert_eq!(allowed.members, children[2..]);
+                            let mut scope_rng = go_rng::GoRng::with_stream(seed, "cluster-scope");
+                            if square {
+                                scope_rng.float64();
+                                if ancestor_edge {
+                                    scope_rng.float64();
+                                }
+                            }
+                            let arrangement = if scope_rng.float64() > 0.5 {
+                                ClusterArrangement::Column
+                            } else {
+                                ClusterArrangement::Row
+                            };
+                            assert_eq!(allowed.arrangement, arrangement);
+                            let mut expected_misc = go_rng::GoRng::new(seed);
+                            if !ancestor_edge {
+                                expected_misc.int63();
+                            }
+                            assert_eq!(allowed.vessel_tala_id, expected_misc.int63());
+                            assert_eq!(misc_rng.int63(), expected_misc.int63());
+                        }
+                    }
+                }
+            }
+        }
+
+        // clusterIsDescendantOfGuarded also crosses a sequence's vessel:
+        // AddSequences clears member Containers before cluster discovery.
+        let mut input = Graph::default();
+        let first_step = input.add_node(node("first-step", ShapeKind::Step));
+        let second_step = input.add_node(node("second-step", ShapeKind::Step));
+        let mut children = Vec::new();
+        for name in ["first-child", "second-child"] {
+            let mut child = node(name, ShapeKind::Rectangle);
+            child.parent = Some(second_step);
+            let child = input.add_node(child);
+            input.add_edge(Edge {
+                source: first_step,
+                target: child,
+            });
+            children.push(child);
+        }
+        let mut graph = ArenaGraph::from_input(&input);
+        graph.sequences.push(SequenceState {
+            members: vec![first_step, second_step],
+            vessel_tala_id: 10001,
+            container: None,
+            has_edge_abductions: true,
+        });
+        for step in [first_step, second_step] {
+            graph.nodes[step.0 as usize].sequence = Some(0);
+        }
+        graph.rebuild_active_aggregate_node_order();
+        graph.assign_clusters(1, false);
+        assert!(graph.clusters.is_empty());
+        for child in children {
+            assert!(graph.nodes[child.0 as usize].cluster.is_none());
+        }
     }
 
     #[test]
@@ -4548,7 +4792,9 @@ mod tests {
         );
 
         assert_eq!(
-            graph.optimize_projected_cluster_flip(vessel, &projection),
+            graph
+                .optimize_projected_cluster_flip(vessel, &projection, None)
+                .unwrap(),
             None
         );
         assert_eq!(

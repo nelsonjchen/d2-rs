@@ -30,9 +30,17 @@ impl std::ops::Index<&usize> for SlotIndices {
 }
 #[derive(Clone, Debug)]
 struct CanonicalView {
-    frozen: bool,
+    // Routing sizes its search arrays from the source Nodes slice, which may
+    // repeat objects or omit retained ghosts. Once frozen only its length is
+    // needed; the canonical identity inventory below keeps the objects.
+    frozen_member_count: Option<usize>,
+    // Go's Ports lists retain only node identities during routing. The Port
+    // adapter records belong to construction and are released at freeze.
+    frozen_ports: super::ovg_ports::PortLists<Vec<usize>>,
     build: super::ovg_ports::PortBuild,
-    objects: Vec<usize>,
+    // Route indices retain this same immutable identity inventory. A refresh
+    // appends through copy-on-write only when an earlier reader still owns it.
+    objects: std::sync::Arc<Vec<usize>>,
     indices: SlotIndices,
     /// Keyed by allocation address, whose low bits are alignment zeros.
     edge_indices: crate::internal::FloatKeyHashMap<usize, usize>,
@@ -49,8 +57,17 @@ struct CanonicalView {
     /// Static edges for route indices, built on first use after a refresh
     /// and shared by every flavor routing over this view.
     static_edges: std::sync::OnceLock<std::sync::Arc<super::static_edge_index::StaticEdges>>,
-    /// `objects` as route node identities, shared like `static_edges`.
-    route_identities: std::sync::OnceLock<std::sync::Arc<[usize]>>,
+}
+impl CanonicalView {
+    /// Frozen occupied-point and port lookups already hold canonical indices;
+    /// mutable builds still hold construction slots and need the inverse map.
+    fn lookup_index(&self, slot: usize) -> usize {
+        if self.frozen_member_count.is_some() {
+            slot
+        } else {
+            self.indices[&slot]
+        }
+    }
 }
 impl VisibilityGraph {
     fn retain_canonical(&mut self, build: super::ovg_ports::PortBuild) {
@@ -61,15 +78,15 @@ impl VisibilityGraph {
             indices.insert(node, index);
         }
         self.canonical = Some(Box::new(CanonicalView {
-            frozen: false,
+            frozen_member_count: None,
+            frozen_ports: Default::default(),
             build,
-            objects,
+            objects: std::sync::Arc::new(objects),
             indices,
             edge_indices: Default::default(),
             point_refs: Vec::new().into(),
             search_nodes: Vec::new(),
             static_edges: std::sync::OnceLock::new(),
-            route_identities: std::sync::OnceLock::new(),
         }));
         self.refresh_canonical();
     }
@@ -105,8 +122,13 @@ impl VisibilityGraph {
                 // No build mutation follows into_shared. Routing reads the
                 // already published adjacency, ownership and search records,
                 // and the static edges retain the same live Point allocations.
-                view.frozen = true;
-                view.build.release_objects();
+                view.frozen_member_count = Some(view.build.members.len());
+                // Go's OccupiedPoints and Ports refer directly to retained
+                // nodes (ovg.go:21,25). Publish those lookups in the same
+                // index space as the retained points, then release the
+                // construction-slot translation table too.
+                view.frozen_ports = view.build.freeze_lookups(&view.indices.0);
+                view.indices = SlotIndices::default();
             }
         }
         std::sync::Arc::new(self)
@@ -123,7 +145,6 @@ impl VisibilityGraph {
         };
         // Every build mutation is followed by this refresh.
         view.static_edges = std::sync::OnceLock::new();
-        view.route_identities = std::sync::OnceLock::new();
         // Canonical reads use the live point references and packed search
         // records below. These arrays belong only to numerical-only graphs;
         // discard a constructor's preview before publishing the shared view.
@@ -159,7 +180,7 @@ impl VisibilityGraph {
         for node in 0..view.build.nodes.len() {
             if !view.indices.contains(node) {
                 view.indices.insert(node, view.objects.len());
-                view.objects.push(node);
+                std::sync::Arc::make_mut(&mut view.objects).push(node);
             }
         }
         // Every table is laid out by canonical index (the objects order), so
@@ -200,7 +221,7 @@ impl VisibilityGraph {
         let mut near_port_owners = std::mem::take(&mut self.near_port_owners);
         near_port_owners.clear();
         near_port_owners.offsets.reserve(count);
-        for &node in &view.objects {
+        for &node in view.objects.iter() {
             let shared = &view.build.nodes[node];
             let record = shared.read();
             point_refs.push(record.point_ref.clone());
@@ -239,10 +260,10 @@ impl VisibilityGraph {
             // owner_directions yields every owner key in map order.
             port_owners.push(record.owners.keys().copied());
             near_port_owners.push(record.near_ports.as_deref().into_iter().flatten().copied());
-            search_nodes.push(SearchNode {
-                search_index: compact_search_index(record.index),
-                container: record.container,
-                flags: if record.owners.is_empty() {
+            search_nodes.push(SearchNode::new(
+                record.index(),
+                record.container(),
+                if record.owners.is_empty() {
                     0
                 } else {
                     SEARCH_NODE_PORT_OWNED
@@ -254,12 +275,12 @@ impl VisibilityGraph {
                     SEARCH_NODE_NEAR_PORT
                 } else {
                     0
-                } | if record.is_node_center {
+                } | if record.is_node_center() {
                     SEARCH_NODE_CENTER
                 } else {
                     0
                 },
-            });
+            ));
         }
         view.point_refs = point_refs.into();
         view.search_nodes = search_nodes;
@@ -274,14 +295,14 @@ impl VisibilityGraph {
         self.near_port_owners = near_port_owners;
     }
     fn member_count(&self) -> usize {
-        self.canonical
-            .as_ref()
-            .map_or(self.points.len(), |view| view.build.members.len())
+        self.canonical.as_ref().map_or(self.points.len(), |view| {
+            view.frozen_member_count.unwrap_or(view.build.members.len())
+        })
     }
     fn is_node_center(&self, index: usize) -> bool {
         self.canonical.as_ref().map_or_else(
             || self.center_owners[index].is_some(),
-            |view| view.search_nodes[index].flags & SEARCH_NODE_CENTER != 0,
+            |view| view.search_nodes[index].flags() & SEARCH_NODE_CENTER != 0,
         )
     }
     pub(super) fn static_edge_index(&self) -> super::static_edge_index::StaticEdgeIndex {
@@ -331,14 +352,10 @@ impl VisibilityGraph {
             .build
             .node_ports()
     }
-    pub(super) fn route_node_identities(&self) -> std::sync::Arc<[usize]> {
+    pub(super) fn route_node_identities(&self) -> std::sync::Arc<Vec<usize>> {
         self.canonical.as_ref().map_or_else(
-            || (0..self.points.len()).collect(),
-            |view| {
-                view.route_identities
-                    .get_or_init(|| view.objects.as_slice().into())
-                    .clone()
-            },
+            || std::sync::Arc::new((0..self.points.len()).collect()),
+            |view| view.objects.clone(),
         )
     }
     /// Each canonical index's retained `point_ref` allocation (None if nil),
@@ -425,8 +442,8 @@ mod canonical_tests {
                 node.owners.insert(owner, Default::default());
             }
             node.near_ports = Some(Box::new(BTreeSet::from([NodeId(30), NodeId(40)])));
-            node.container = Some(NodeId(70));
-            node.index = 11;
+            node.set_container(Some(NodeId(70)));
+            node.set_index(11);
         }
         let mut receiver = super::super::ovg_ports::PortBuild::default();
         let a = receiver
@@ -440,7 +457,7 @@ mod canonical_tests {
         receiver.add_existing_node(local, None).unwrap();
         let end = receiver.add_point(Point { x: 1.0, y: 12.0 }, None).unwrap();
         receiver.connect(local, end, None).unwrap();
-        receiver.nodes[local].write().is_node_center = true;
+        receiver.nodes[local].write().set_node_center(true);
         drop(source);
         let mut view = VisibilityGraph::default();
         view.retain_canonical(receiver);
@@ -451,9 +468,12 @@ mod canonical_tests {
             .find(|&node| view.point(node) == Point { x: 11.0, y: 2.0 })
             .unwrap();
         assert_eq!(view.search_index(local_index), 11);
-        assert_eq!(view.search_nodes()[local_index].container, Some(NodeId(70)));
         assert_eq!(
-            view.search_nodes()[local_index].flags,
+            view.search_nodes()[local_index].container(),
+            Some(NodeId(70))
+        );
+        assert_eq!(
+            view.search_nodes()[local_index].flags(),
             SEARCH_NODE_PORT_OWNED | SEARCH_NODE_NEAR_PORT | SEARCH_NODE_CENTER
         );
         assert!(view.is_node_center(local_index));
@@ -520,12 +540,30 @@ mod canonical_tests {
         );
         assert!(view.near_port_owners[local_index].is_empty());
         assert_eq!(
-            view.search_nodes()[local_index].flags,
+            view.search_nodes()[local_index].flags(),
             SEARCH_NODE_PORT_OWNED | SEARCH_NODE_CENTER
         );
         assert_eq!(view.canonical_edge_at(local_index, 0), foreign_identity);
         assert_eq!(view.canonical_edge_at(foreign_index, 1), Some(2));
         assert_eq!(view.static_edge_index().edges.len(), 3);
+        // OVGNode.Index is independent of the retained inventory position.
+        // Refresh and freeze must keep it, along with cleared flags and nil
+        // Container (pinned routing/ovg_node.go, ovg.go:224-227).
+        let search_index = super::super::route_search_guard::MAX_OVG_NODES as usize - 1;
+        {
+            let mut node = view.canonical.as_mut().unwrap().build.nodes[local].write();
+            node.set_index(search_index);
+            node.set_container(None);
+            node.set_node_center(false);
+            node.owners = Default::default();
+        }
+        view.refresh_canonical();
+        let view = view.into_shared();
+        assert_eq!(view.search_index(local_index), search_index);
+        assert_eq!(view.search_nodes()[local_index].container(), None);
+        assert_eq!(view.search_nodes()[local_index].flags(), 0);
+        assert!(!view.is_node_center(local_index));
+        assert!(view.port_owners[local_index].is_empty());
     }
     #[test]
     fn search_adjacencies_preserve_distinct_static_edge_objects() {
@@ -591,6 +629,80 @@ mod canonical_tests {
     }
 
     #[test]
+    fn retained_route_identities_keep_membership_across_import_and_freeze() {
+        let mut build = super::super::ovg_ports::PortBuild::default();
+        let first = build.add_point(Point { x: 1.0, y: 2.0 }, None).unwrap();
+        let second = build.add_point(Point { x: 3.0, y: 2.0 }, None).unwrap();
+        // Go's OccupiedPoints and Ports keep the same node pointers when
+        // Nodes repeats an object (ovg.go:18-42). Canonical lookups use its
+        // last occurrence, even when that differs from its allocation slot.
+        let owner = NodeId(10);
+        build.add_tree_port_owner(first, owner, 4, PortSide::Top);
+        build.add_tree_port_owner(second, owner, 4, PortSide::Top);
+        build.connect(first, second, None).unwrap();
+        let point = build.nodes[first].read().point_ref.clone().unwrap();
+        build.members = vec![first, first, second];
+        let mut view = VisibilityGraph::default();
+        view.retain_canonical(build);
+        let retained = view.route_node_identities();
+        let imported = view
+            .canonical
+            .as_mut()
+            .unwrap()
+            .build
+            .add_point(Point { x: 5.0, y: 2.0 }, None)
+            .unwrap();
+        view.refresh_canonical();
+        // Like a captured Go slice header, an existing router retains its
+        // original length and identities after the OVG gains another object.
+        assert_eq!(&retained[..], &[first, first, second]);
+        let current = view.route_node_identities();
+        assert_eq!(&current[..], &[first, first, second, imported]);
+        for (point, index) in [(Point { x: 1.0, y: 2.0 }, 1), (Point { x: 3.0, y: 2.0 }, 2)] {
+            assert_eq!(view.index_of(point), Some(index));
+            assert_eq!(view.port_index(owner, point), Some(index));
+        }
+        let source_member_count = view.member_count();
+        let view = view.into_shared();
+        assert_eq!(&view.route_node_identities()[..], &current[..]);
+        assert_eq!(source_member_count, 4);
+        assert_eq!(view.member_count(), source_member_count);
+        assert_eq!(view.canonical.as_ref().unwrap().build.members.capacity(), 0);
+        assert_eq!(view.canonical.as_ref().unwrap().indices.0.capacity(), 0);
+        assert_eq!(
+            view.canonical.as_ref().unwrap().frozen_ports.get(&owner),
+            Some(&vec![1, 2])
+        );
+        assert!(
+            view.canonical
+                .as_ref()
+                .unwrap()
+                .build
+                .ports
+                .get(&owner)
+                .is_none()
+        );
+        assert_eq!(
+            view.canonical.as_ref().unwrap().build.port_order.capacity(),
+            0
+        );
+        assert_eq!(&retained[..], &[first, first, second]);
+        assert_eq!(view.point(3), Point { x: 5.0, y: 2.0 });
+        assert_eq!(view.index_of(Point { x: 1.0, y: 2.0 }), Some(1));
+        assert_eq!(view.index_of(Point { x: 3.0, y: 2.0 }), Some(2));
+        assert_eq!(view.port_index(owner, Point { x: 3.0, y: 2.0 }), Some(2));
+        point.set(Point { x: 7.0, y: 8.0 });
+        assert_eq!(view.port_index(owner, point.get()), Some(1));
+        assert_eq!(view.port_index(owner, Point { x: 1.0, y: 2.0 }), None);
+        assert_eq!(view.index_of(Point { x: 1.0, y: 2.0 }), Some(1));
+        assert_eq!(view.index_of(point.get()), None);
+        assert_eq!(
+            view.static_edge_index().edge_points(0),
+            [point.get(), view.point(2)]
+        );
+    }
+
+    #[test]
     fn search_projection_keeps_ghost_identity_live_points_and_source_array_length() {
         let mut build = super::super::ovg_ports::PortBuild::default();
         let ghost = build.add_point(Point { x: 1.0, y: 2.0 }, None).unwrap();
@@ -614,6 +726,9 @@ mod canonical_tests {
         assert_eq!(prepared.slots.len(), 1);
         let view = view.into_shared();
         assert_eq!(view.member_count(), 1);
+        assert_eq!(view.route_node_identities().len(), 2);
+        assert_eq!(view.canonical.as_ref().unwrap().build.members.capacity(), 0);
+        assert_eq!(view.canonical.as_ref().unwrap().indices.0.capacity(), 0);
         point.set(Point { x: 9.0, y: 10.0 });
         assert_eq!(view.point(live_view), Point { x: 9.0, y: 10.0 });
         assert_eq!(view.index_of(Point { x: 3.0, y: 4.0 }), Some(live_view));

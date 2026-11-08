@@ -387,6 +387,11 @@ impl ArenaGraph {
                 BTreeMap::<NodeId, BTreeSet<(bool, Option<String>)>>::new();
 
             loop {
+                // trees/layout.go reads len(sentinelNode.Edges) for every
+                // fringe child. The projected edge list and active set stay
+                // unchanged until the entire fringe batch is collected, so
+                // derive each parent's live degree only once per batch.
+                let mut parent_degrees = Vec::<Option<usize>>::new();
                 // Go's treeFringeNodes ranges the container's node slice.
                 // Keep that observable order here instead of iterating the
                 // stable-ID set, since fringe batches become tree-child order.
@@ -446,41 +451,47 @@ impl ArenaGraph {
                         (live_degree == 1 && adjacent.len() == 1 && active.contains(&adjacent[0].0))
                             .then(|| {
                                 let (parent, sentinel_edge) = adjacent[0];
-                                let parent_degree = self.external_edge_counts[parent.0 as usize]
-                                    + self
-                                        .member_edges()
-                                        .filter(|edge| {
-                                            let from = sequence_owner
-                                                .get(&edge.from)
-                                                .copied()
-                                                .unwrap_or(edge.from);
-                                            let to = sequence_owner
-                                                .get(&edge.to)
-                                                .copied()
-                                                .unwrap_or(edge.to);
-                                            if from == to {
-                                                // Match the complete Node.Edges
-                                                // length: a real self-loop is
-                                                // still one incident edge on
-                                                // its owner. Edges collapsed
-                                                // through a sequence alias are
-                                                // not self-loops in the source
-                                                // graph and remain excluded.
-                                                return edge.from == edge.to
-                                                    && from == parent
-                                                    && active.contains(&parent);
-                                            }
-                                            let other = if from == parent {
-                                                to
-                                            } else if to == parent {
-                                                from
-                                            } else {
-                                                return false;
-                                            };
-                                            self.nodes[other.0 as usize].container != *scope
-                                                || active.contains(&other)
-                                        })
-                                        .count();
+                                if parent_degrees.is_empty() {
+                                    parent_degrees.resize(self.nodes.len(), None);
+                                }
+                                let parent_degree = *parent_degrees[parent.0 as usize]
+                                    .get_or_insert_with(|| {
+                                        self.external_edge_counts[parent.0 as usize]
+                                            + self
+                                                .member_edges()
+                                                .filter(|edge| {
+                                                    let from = sequence_owner
+                                                        .get(&edge.from)
+                                                        .copied()
+                                                        .unwrap_or(edge.from);
+                                                    let to = sequence_owner
+                                                        .get(&edge.to)
+                                                        .copied()
+                                                        .unwrap_or(edge.to);
+                                                    if from == to {
+                                                        // Match the complete Node.Edges
+                                                        // length: a real self-loop is
+                                                        // still one incident edge on
+                                                        // its owner. Edges collapsed
+                                                        // through a sequence alias are
+                                                        // not self-loops in the source
+                                                        // graph and remain excluded.
+                                                        return edge.from == edge.to
+                                                            && from == parent
+                                                            && active.contains(&parent);
+                                                    }
+                                                    let other = if from == parent {
+                                                        to
+                                                    } else if to == parent {
+                                                        from
+                                                    } else {
+                                                        return false;
+                                                    };
+                                                    self.nodes[other.0 as usize].container != *scope
+                                                        || active.contains(&other)
+                                                })
+                                                .count()
+                                    });
                                 (node, parent, sentinel_edge, parent_degree)
                             })
                     })
@@ -1410,12 +1421,18 @@ impl ArenaGraph {
         result
     }
 
-    fn tree_levels(tree: &PlacementTree) -> Vec<Vec<NodeId>> {
-        fn visit(tree: &PlacementTree, level: usize, levels: &mut Vec<Vec<NodeId>>) {
+    // Go trees/geometry.go levelsByDepth retains Tree pointers, so each
+    // layout pass can read the subtree directly rather than search from its root.
+    fn tree_levels(tree: &PlacementTree) -> Vec<Vec<&PlacementTree>> {
+        fn visit<'a>(
+            tree: &'a PlacementTree,
+            level: usize,
+            levels: &mut Vec<Vec<&'a PlacementTree>>,
+        ) {
             if levels.len() == level {
                 levels.push(Vec::new());
             }
-            levels[level].push(tree.node);
+            levels[level].push(tree);
             for child in &tree.children {
                 visit(child, level + 1, levels);
             }
@@ -1446,7 +1463,7 @@ impl ArenaGraph {
             .map(|level| {
                 level
                     .into_iter()
-                    .map(|node| self.position(node).expect("positioned tree node").x)
+                    .map(|tree| self.position(tree.node).expect("positioned tree node").x)
                     .fold(f64::INFINITY, f64::min)
             })
             .collect()
@@ -1458,9 +1475,9 @@ impl ArenaGraph {
             .map(|level| {
                 level
                     .into_iter()
-                    .map(|node| {
-                        self.position(node).expect("positioned tree node").x
-                            + self.nodes[node.0 as usize].rect.size.width
+                    .map(|tree| {
+                        self.position(tree.node).expect("positioned tree node").x
+                            + self.nodes[tree.node.0 as usize].rect.size.width
                     })
                     .fold(f64::NEG_INFINITY, f64::max)
             })
@@ -1568,7 +1585,7 @@ impl ArenaGraph {
             .map(|level| {
                 level
                     .iter()
-                    .map(|node| self.nodes[node.0 as usize].rect.size.height)
+                    .map(|tree| self.nodes[tree.node.0 as usize].rect.size.height)
                     .fold(0.0_f64, f64::max)
             })
             .collect::<Vec<_>>();
@@ -1578,8 +1595,7 @@ impl ArenaGraph {
             .enumerate()
             .take(levels.len().saturating_sub(1))
         {
-            for node in nodes {
-                let subtree = Self::find_tree(tree, *node).expect("tree level node");
+            for subtree in nodes {
                 level_spacings[level + 1] =
                     level_spacings[level + 1].max(self.spacing_to_children(subtree));
             }
@@ -1587,13 +1603,14 @@ impl ArenaGraph {
         let mut level_bottom = 0.0;
         for level in 1..levels.len() {
             let level_top = level_bottom + level_spacings[level];
-            for node in &levels[level] {
+            for subtree in &levels[level] {
+                let node = subtree.node;
                 let center_offset =
                     ((level_heights[level] - self.nodes[node.0 as usize].rect.size.height) / 2.0)
                         .round();
-                let x = self.position(*node).unwrap_or_default().x;
+                let x = self.position(node).unwrap_or_default().x;
                 self.move_tree_node_abs(
-                    *node,
+                    node,
                     Point {
                         x,
                         y: level_top + center_offset,
@@ -1605,12 +1622,12 @@ impl ArenaGraph {
 
         for level in (1..levels.len()).rev() {
             let mut next_position = 0.0;
-            for node in &levels[level] {
-                let subtree = Self::find_tree(tree, *node).expect("tree level node");
+            for subtree in &levels[level] {
+                let node = subtree.node;
                 if subtree.children.is_empty() {
-                    let y = self.position(*node).expect("positioned tree node").y;
+                    let y = self.position(node).expect("positioned tree node").y;
                     self.move_tree_node_abs(
-                        *node,
+                        node,
                         Point {
                             x: next_position,
                             y,
@@ -1620,57 +1637,44 @@ impl ArenaGraph {
                     let last_child_position = levels[level + 1]
                         .iter()
                         .rposition(|candidate| {
-                            Self::find_tree(tree, *candidate).is_some_and(|candidate| {
-                                candidate.sentinel_edge.and_then(|_| {
-                                    self.tree_routing_nodes
-                                        .get(&candidate.node)
-                                        .map(|state| state.parent)
-                                }) == Some(*node)
-                            })
+                            candidate.sentinel_edge.and_then(|_| {
+                                self.tree_routing_nodes
+                                    .get(&candidate.node)
+                                    .map(|state| state.parent)
+                            }) == Some(node)
                         })
                         .unwrap_or(levels[level + 1].len());
                     let spacing_before = self.total_children_spacing(subtree);
                     self.space_children_evenly(subtree);
                     let total_shift = self.total_children_spacing(subtree) - spacing_before;
                     if total_shift > 0.0 {
-                        for later in levels[level + 1].iter().skip(last_child_position + 1) {
-                            let later_tree = Self::find_tree(tree, *later).expect("later tree");
+                        for later_tree in levels[level + 1].iter().skip(last_child_position + 1) {
                             self.shift_tree_horizontally(later_tree, total_shift);
                         }
                     }
                     let sibling_center = self.children_center_x(subtree)
                         - self.nodes[node.0 as usize].rect.size.width / 2.0;
-                    let y = self.position(*node).expect("positioned tree node").y;
+                    let y = self.position(node).expect("positioned tree node").y;
                     self.move_tree_node_abs(
-                        *node,
+                        node,
                         Point {
                             x: sibling_center.round(),
                             y,
                         },
                     );
-                    let diff = next_position - self.position(*node).expect("positioned").x;
+                    let diff = next_position - self.position(node).expect("positioned").x;
                     if diff > 0.0 {
                         self.shift_tree_horizontally(subtree, diff);
-                        for later in levels[level + 1].iter().skip(last_child_position + 1) {
-                            let later_tree = Self::find_tree(tree, *later).expect("later tree");
+                        for later_tree in levels[level + 1].iter().skip(last_child_position + 1) {
                             self.shift_tree_horizontally(later_tree, diff);
                         }
                     }
                 }
-                next_position = self.position(*node).expect("positioned").x
+                next_position = self.position(node).expect("positioned").x
                     + self.nodes[node.0 as usize].rect.size.width
                     + 50.0;
             }
         }
-    }
-
-    fn find_tree(tree: &PlacementTree, node: NodeId) -> Option<&PlacementTree> {
-        if tree.node == node {
-            return Some(tree);
-        }
-        tree.children
-            .iter()
-            .find_map(|child| Self::find_tree(child, node))
     }
 
     fn reconnect_tree_edge_order(&mut self, tree: &PlacementTree) {
@@ -2648,7 +2652,10 @@ mod geometry_crosswalk_tests {
         tree.descendants(&mut descendants);
         assert_eq!(descendants, vec![left, right]);
         assert_eq!(
-            ArenaGraph::tree_levels(&tree),
+            ArenaGraph::tree_levels(&tree)
+                .into_iter()
+                .map(|level| level.into_iter().map(|tree| tree.node).collect::<Vec<_>>())
+                .collect::<Vec<_>>(),
             vec![vec![root], vec![left, right]]
         );
         assert_eq!(arena.tree_level_lefts(&tree), vec![100.0, 20.0]);
