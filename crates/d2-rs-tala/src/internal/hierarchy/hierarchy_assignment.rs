@@ -1109,9 +1109,19 @@ impl ArenaGraph {
         }
         for container in containers.into_iter().rev() {
             let children = self.containers.get(&Some(container)).unwrap_or_default();
-            let Some((top_left, bottom_right)) = self.fixed_node_bounds(&children) else {
+            let Some((mut top_left, mut bottom_right)) = self.fixed_node_bounds(&children) else {
                 continue;
             };
+            // hierarchy/brandes_kopf.go syncContainers calls Node.WrapChildren,
+            // whose fixed-bounds pass is followed by expandForLabels.  This is
+            // observable after a horizontal hierarchy transpose: a boundary
+            // child's centered label can overhang its now-narrow body by a
+            // fraction, extending the fitted container by one pixel.
+            Self::expand_for_child_labels(
+                &mut top_left,
+                &mut bottom_right,
+                children.iter().map(|child| &self.nodes[child.0 as usize]),
+            );
             let content = Size {
                 width: bottom_right.x - top_left.x,
                 height: bottom_right.y - top_left.y,

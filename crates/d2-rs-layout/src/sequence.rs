@@ -892,6 +892,11 @@ fn layout_inner(
     d2_rs_core::go_sort::sort_by(&mut message_edges, |left, right| {
         edge_line(graph, left.0) < edge_line(graph, right.0)
     });
+    // d2sequence.addLifelineEdges derives the common endpoint from the last
+    // message in this source-order list, not from every group or route bound.
+    // Keep the identity before consuming the list below so the sequence root
+    // can mirror getHeight(), which returns that endpoint verbatim.
+    let last_message_id = message_edges.last().map(|(id, _)| *id);
     let mut first_messages = BTreeMap::new();
     let mut last_messages = BTreeMap::new();
     for (edge_id, edge) in &message_edges {
@@ -1268,25 +1273,11 @@ fn layout_inner(
             content_right = content_right.max(elbow.x + label_width / 2.0);
         }
     }
-    let content_bottom = boxes
-        .values()
-        .map(|rect| rect.bottom())
-        .chain(
-            routes
-                .values()
-                .flat_map(|route| route.iter().map(|point| point.y)),
-        )
-        .fold(
-            root_origin.y
-                + GROUP_CONTAINER_PADDING
-                + VERTICAL_PADDING
-                + root_label_height
-                + max_actor_height,
-            f64::max,
-        );
-    let lifeline_base = routes
-        .values()
-        .flat_map(|route| route.iter().map(|point| point.y))
+    let lifeline_end = last_message_id
+        .and_then(|id| routes.get(&id))
+        .into_iter()
+        .flatten()
+        .map(|point| point.y)
         .chain(
             notes
                 .iter()
@@ -1297,8 +1288,8 @@ fn layout_inner(
                 .iter()
                 .filter_map(|id| boxes.get(id).map(|rect| rect.bottom())),
         )
-        .fold(root_origin.y, f64::max);
-    let content_bottom = content_bottom.max(lifeline_base + message_step());
+        .fold(root_origin.y, f64::max)
+        + message_step();
     if let Some(root) = root_node {
         boxes.insert(
             root,
@@ -1306,7 +1297,7 @@ fn layout_inner(
                 origin: root_origin,
                 size: Size {
                     width: (content_right - root_origin.x + GROUP_CONTAINER_PADDING).max(1.0),
-                    height: (content_bottom - root_origin.y + GROUP_CONTAINER_PADDING).max(1.0),
+                    height: (lifeline_end - root_origin.y + GROUP_CONTAINER_PADDING).max(1.0),
                 },
             },
         );
@@ -1480,7 +1471,7 @@ fn layout_inner(
             top_left: Some(root_origin),
             size: Size {
                 width: (content_right - root_origin.x + GROUP_CONTAINER_PADDING).max(1.0),
-                height: (content_bottom - root_origin.y + GROUP_CONTAINER_PADDING).max(1.0),
+                height: (lifeline_end - root_origin.y + GROUP_CONTAINER_PADDING).max(1.0),
             },
             label_position: Some(LabelPosition::InsideTopCenter),
             icon_position: None,
@@ -2554,6 +2545,57 @@ mod tests {
             assert_eq!(route[0].y, result.boxes[&actor].bottom());
             assert_eq!(route[1].y, 370.0);
         }
+    }
+
+    #[test]
+    fn sequence_root_height_uses_lifeline_end_not_tall_group_bounds() {
+        let mut graph = Graph {
+            root_sequence_diagram: true,
+            ..Graph::default()
+        };
+        let actor_size = Size {
+            width: 100.0,
+            height: 40.0,
+        };
+        let source = graph.add_node(Node::new("a", actor_size));
+        let target = graph.add_node(Node::new("b", actor_size));
+        let mut outer_node = Node::new("outer", actor_size);
+        outer_node.label_size = Some(Size {
+            width: 20.0,
+            height: 21.0,
+        });
+        let outer = graph.add_node(outer_node);
+        let mut inner_node = Node::new("outer.inner", actor_size);
+        inner_node.parent = Some(outer);
+        inner_node.label_size = Some(Size {
+            width: 20.0,
+            height: 21.0,
+        });
+        let inner = graph.add_node(inner_node);
+        let message = graph.add_edge(Edge { source, target });
+        graph.set_edge_label(
+            message,
+            Some(d2_rs_core::EdgeLabel {
+                text: "six\nline\nmessage\nlabel\nfor\ngroup".to_owned(),
+                size: Size {
+                    width: 60.0,
+                    height: 101.0,
+                },
+                position: LabelPosition::OutsideTopCenter,
+                percentage: 0.5,
+            }),
+        );
+        graph.sequence_group_edges.insert(outer, vec![message]);
+        graph.sequence_group_edges.insert(inner, vec![message]);
+
+        let result = layout(&graph, &LayoutOptions::default()).unwrap();
+        let lifeline_end = result.sequence_lifelines[0].route[1].y;
+        let root = result.synthetic_root.as_ref().unwrap();
+        assert_eq!(
+            root.size.height,
+            lifeline_end + super::GROUP_CONTAINER_PADDING
+        );
+        assert!(result.boxes[&outer].bottom() > lifeline_end);
     }
 
     #[test]

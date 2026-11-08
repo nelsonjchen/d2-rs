@@ -3584,6 +3584,41 @@ fn hierarchy_container_sync_wraps_nested_children_from_pristine_capture() {
 }
 
 #[test]
+fn hierarchy_container_sync_reserves_boundary_child_label_overhang() {
+    // Pinned hierarchy/brandes_kopf.go syncContainers calls WrapChildren,
+    // which expands a boundary child label before fitting the container.  A
+    // horizontal hierarchy transpose can leave the right child one pixel
+    // narrower than its centered label, as in the F13 nested-ID witness.
+    let mut input = Graph::default();
+    let parent = input.add_node(node("parent", 55.0, 71.0));
+    let mut left_node = node("left", 66.0, 52.0);
+    left_node.parent = Some(parent);
+    let left = input.add_node(left_node);
+    let mut right_node = node("right", 66.0, 52.0);
+    right_node.parent = Some(parent);
+    let right = input.add_node(right_node);
+    let mut arena = ArenaGraph::from_input(&input);
+    arena.set_position(left, Point::default());
+    arena.set_position(right, Point { x: 186.0, y: 0.0 });
+    arena.nodes[right.0 as usize].label_size = Some(Size {
+        width: 67.0,
+        height: 21.0,
+    });
+
+    arena.sync_hierarchy_containers(&[parent]);
+
+    assert_eq!(
+        arena.nodes[parent.0 as usize].rect.size,
+        Size {
+            width: 373.0,
+            height: 172.0,
+        }
+    );
+    assert_eq!(arena.position(left), Some(Point::default()));
+    assert_eq!(arena.position(right), Some(Point { x: 186.0, y: 0.0 }));
+}
+
+#[test]
 fn connected_nodes_follow_edges_and_container_hierarchy_without_crossing_exclusions() {
     let mut input = Graph::with_direction(Direction::Down);
     let network = input.add_node(node("network", 100.0, 100.0));

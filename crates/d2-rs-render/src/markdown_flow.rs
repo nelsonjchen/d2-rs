@@ -229,6 +229,16 @@ impl Painter<'_> {
                 }
                 units.push((Some(child), Vec::new(), a));
             } else if child.has_tag_name("br") {
+                // normalizeMarkdownWhitespaceTree clears collapsible text
+                // after a break before paintFlow groups inline nodes. Without
+                // that step, the source newline between consecutive <br>s is
+                // mistaken for a nonempty unit and consumes one empty line.
+                if inline
+                    .iter()
+                    .all(|node| node.is_text() && node.text().unwrap_or_default().trim().is_empty())
+                {
+                    inline.clear();
+                }
                 if inline.is_empty() {
                     units.push((
                         None,
@@ -415,7 +425,11 @@ impl Painter<'_> {
             );
         }
         if let Some(l) = level(n) {
-            let runs = native_markdown_html_inline(&format!("<p>{}</p>\n", inner(n, self.html)))?;
+            // Go paintBlock still paints an h1/h2 rule when the heading has
+            // no inline children. An empty run list is success here rather
+            // than a signal to fall back to the plain-paragraph painter.
+            let heading = inner(n, self.html);
+            let runs = native_markdown_html_inline(&format!("<p>{heading}</p>\n"))?;
             let mut child = String::new();
             let mut height = 0.0;
             if !draw_native_markdown_heading_at_origin(

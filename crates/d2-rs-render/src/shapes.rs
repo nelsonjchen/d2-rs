@@ -2581,7 +2581,7 @@ fn structured_text_precision(index: usize, x: f64, y: f64, prefix: Option<&str>)
         return String::new();
     };
     format!(
-        " id=\"{prefix}-text-{index}\" data-d2-rs-text-x-bits=\"{:016x}\" data-d2-rs-text-y-bits=\"{:016x}\"",
+        " data-d2-rs-text-raw=\"true\" id=\"{prefix}-text-{index}\" data-d2-rs-text-x-bits=\"{:016x}\" data-d2-rs-text-y-bits=\"{:016x}\"",
         x.to_bits(),
         y.to_bits()
     )
@@ -3557,6 +3557,44 @@ mod original_class_text_contract {
 mod multiline_class_header_source_contract {
     use super::*;
     use std::collections::{BTreeMap, BTreeSet};
+
+    #[test]
+    fn private_structured_text_preserves_leading_space_for_native_shaping() {
+        let style = SourceNodeStyle {
+            font_size: Some(20),
+            class_fields: vec![(" t".into(), String::new())],
+            ..Default::default()
+        };
+        let overrides = BTreeMap::new();
+        let palette = PaletteView::new(d2_rs_core::theme::palette(0).unwrap(), &overrides);
+        let mut svg = String::from("<svg>");
+        draw_class_shape(
+            &mut svg,
+            Rect {
+                origin: Point::default(),
+                size: Size {
+                    width: 115.0,
+                    height: 138.0,
+                },
+            },
+            &style,
+            "r",
+            24,
+            Size {
+                width: 12.0,
+                height: 24.0,
+            },
+            palette,
+            Some("class"),
+        );
+        svg.push_str("</svg>");
+        let document = roxmltree::Document::parse(&svg).unwrap();
+        let field = document
+            .descendants()
+            .find(|node| node.has_tag_name("text") && node.text() == Some(" t"))
+            .unwrap_or_else(|| panic!("missing leading-space field: {svg}"));
+        assert_eq!(field.attribute("data-d2-rs-text-raw"), Some("true"));
+    }
 
     #[test]
     fn native_sketch_header_keeps_scene_label_height() {

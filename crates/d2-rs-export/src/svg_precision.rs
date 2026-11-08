@@ -2799,9 +2799,16 @@ pub(crate) fn tag_embedded_svg_images_with_assets(
             // usvg applies SVG whitespace processing before shaping; keep the
             // original XML character data beside the private scene origin.
             if node.attribute("data-d2-rs-text-raw") == Some("true") {
-                sources
-                    .text_contents_by_id
-                    .insert(id.to_owned(), text.to_owned());
+                let text = node
+                    .attribute("data-d2-rs-text-source")
+                    .and_then(|encoded| {
+                        base64::engine::general_purpose::STANDARD
+                            .decode(encoded)
+                            .ok()
+                    })
+                    .and_then(|bytes| String::from_utf8(bytes).ok())
+                    .unwrap_or_else(|| text.to_owned());
+                sources.text_contents_by_id.insert(id.to_owned(), text);
             }
             if let Some(size) = node
                 .attribute("font-size")
@@ -3672,9 +3679,13 @@ mod tests {
     }
     #[test]
     fn private_scene_text_retains_control_character_data() {
-        let input = r#"<svg xmlns="http://www.w3.org/2000/svg"><text id="native" data-d2-rs-text-raw="true" x="5" y="18" data-d2-rs-text-x-bits="4014000000000000" data-d2-rs-text-y-bits="4032000000000000">b&#xD;&#x9;&#xA;b</text><text id="ordinary" x="5" y="18">b&#xD;b</text></svg>"#;
+        let input = r#"<svg xmlns="http://www.w3.org/2000/svg"><text id="native" data-d2-rs-text-raw="true" x="5" y="18" data-d2-rs-text-x-bits="4014000000000000" data-d2-rs-text-y-bits="4032000000000000">b&#xD;&#x9;&#xA;b</text><text id="forbidden" data-d2-rs-text-raw="true" data-d2-rs-text-source="ZS0MIg==" x="6" y="19" data-d2-rs-text-x-bits="4018000000000000" data-d2-rs-text-y-bits="4033000000000000">e-�&#34;</text><text id="ordinary" x="5" y="18">b&#xD;b</text></svg>"#;
         let (_, sources) = tag_embedded_svg_images(input);
         assert_eq!(sources.exact_text_content_by_id("native"), Some("b\r\t\nb"));
+        assert_eq!(
+            sources.exact_text_content_by_id("forbidden"),
+            Some("e-\u{c}\"")
+        );
         assert_eq!(sources.exact_text_content_by_id("ordinary"), None);
     }
     #[test]

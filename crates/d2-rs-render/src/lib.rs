@@ -2629,6 +2629,28 @@ fn escape_xml_text(text: &str) -> String {
     output
 }
 
+/// Private d2scene text bypasses XML's replacement of forbidden controls.
+/// XML-valid text needs no duplicate transport; the parsed character data is
+/// already exact (including tab, LF and CR references).
+fn private_text_source_attribute(text: &str) -> String {
+    if text.chars().all(|c| {
+        matches!(
+            c,
+            '\t' | '\n' | '\r'
+                | '\u{20}'..='\u{d7ff}'
+                | '\u{e000}'..='\u{fffd}'
+                | '\u{10000}'..='\u{10ffff}'
+        )
+    }) {
+        String::new()
+    } else {
+        format!(
+            " data-d2-rs-text-source=\"{}\"",
+            base64::engine::general_purpose::STANDARD.encode(text.as_bytes())
+        )
+    }
+}
+
 // Original d2svg.RenderText splits LF only and retains every empty line.
 fn render_text_content(text: &str, x: f64, height: f64) -> String {
     if !text.contains('\n') {
@@ -5073,9 +5095,11 @@ fn draw_node_text_box(
             let line_y = y + index as f64 * line_height;
             let line = if line.is_empty() { " " } else { line };
             let id = format!("{native_geometry_id}-line-{index}");
+            let source = private_text_source_attribute(line);
             let _ = writeln!(
                 svg,
-                "<text xml:space=\"preserve\" data-d2-rs-text-raw=\"true\" id=\"{}\" data-d2-rs-text-x-bits=\"{:016x}\" data-d2-rs-text-y-bits=\"{:016x}\" x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"{}\" fill=\"{}\"{}{}{}{}{}>{}</text>",
+                "<text xml:space=\"preserve\" data-d2-rs-text-raw=\"true\"{} id=\"{}\" data-d2-rs-text-x-bits=\"{:016x}\" data-d2-rs-text-y-bits=\"{:016x}\" x=\"{}\" y=\"{}\" text-anchor=\"middle\" font-family=\"{}\" font-size=\"{}\" fill=\"{}\"{}{}{}{}{}>{}</text>",
+                source,
                 escape(&id),
                 x.to_bits(),
                 line_y.to_bits(),
@@ -5486,9 +5510,9 @@ fn native_markdown_html_inline_context(
                 // supplied a fetched bitmap; alt text is not a text run.
                 collapse_space_after_image = true;
             } else {
-                let name_end = tag[1..]
-                    .find(|character: char| character.is_ascii_whitespace() || character == '>')?
-                    + 1;
+                let name_end = tag[1..].find(|character: char| {
+                    character.is_ascii_whitespace() || character == '/' || character == '>'
+                })? + 1;
                 let name = &tag[1..name_end];
                 let previous = style.clone();
                 match name {
@@ -5585,10 +5609,10 @@ fn native_markdown_html_inline_context(
         cursor = end;
     }
     markdown_wrap::normalize_whitespace(&mut runs);
-    stack
-        .is_empty()
-        .then_some(runs)
-        .filter(|runs| !runs.is_empty())
+    // net/html treats a slash on non-void start tags as a parse error and
+    // implicitly closes any still-open inline elements at fragment EOF.
+    // Neither condition makes an otherwise supported empty fragment fail.
+    Some(runs)
 }
 
 fn parse_native_markdown_inline(line: &str) -> Option<Vec<NativeMarkdownRun>> {
@@ -7511,10 +7535,10 @@ fn draw_native_markdown_heading_at_origin(
     // with the same atomized wrapInlineTokens as paragraphs: per-word atoms
     // and separately measured spaces, not one kerned run.
     let lines: Vec<Vec<NativeMarkdownRun>> = if runs.is_empty() {
-        vec![Vec::new()]
+        Vec::new()
     } else {
         markdown_wrap::wrap_with_code_padding(
-            &[runs.to_vec()],
+            &split_native_markdown_lines(runs),
             width,
             size,
             0.2 * size,
@@ -8012,9 +8036,11 @@ fn draw_label(
             let line_y = y + index as f64 * line_advance;
             let line = if line.is_empty() { " " } else { line };
             let id = format!("{native_geometry_id}-line-{index}");
+            let source = private_text_source_attribute(line);
             let _ = writeln!(
                 svg,
-                "<text xml:space=\"preserve\" data-d2-rs-text-raw=\"true\" id=\"{}\" data-d2-rs-text-x-bits=\"{:016x}\" data-d2-rs-text-y-bits=\"{:016x}\" x=\"{}\" y=\"{}\" text-anchor=\"{}\" font-family=\"{}\" font-size=\"{}\" fill=\"{}\"{}{}{}{}>{}</text>",
+                "<text xml:space=\"preserve\" data-d2-rs-text-raw=\"true\"{} id=\"{}\" data-d2-rs-text-x-bits=\"{:016x}\" data-d2-rs-text-y-bits=\"{:016x}\" x=\"{}\" y=\"{}\" text-anchor=\"{}\" font-family=\"{}\" font-size=\"{}\" fill=\"{}\"{}{}{}{}>{}</text>",
+                source,
                 escape(&id),
                 x.to_bits(),
                 line_y.to_bits(),
@@ -15002,6 +15028,74 @@ fn salt_id_suffix(salt: &str) -> String {
 #[cfg(test)]
 mod tests {
     #[test]
+    fn empty_and_raw_html_headings_keep_native_primitives() {
+        let mut svg = String::new();
+        super::draw_markdown_label(
+            &mut svg,
+            "{\n# ",
+            super::Rect {
+                origin: super::Point::default(),
+                size: super::Size {
+                    width: 6.0,
+                    height: 88.0,
+                },
+            },
+            16,
+            super::LabelPosition::InsideMiddleCenter,
+            "#170206",
+            None,
+            None,
+            Some("markdown"),
+            super::TextStyle::default(),
+            Some("d2-rs-text-N1"),
+            true,
+            super::MarkdownFamily::HandDrawn,
+        );
+        assert!(
+            svg.contains("y=\"58.000\" width=\"6.000\" height=\"1.000\""),
+            "{svg}"
+        );
+
+        let render = |source: &str| {
+            let mut svg = String::new();
+            super::draw_markdown_label(
+                &mut svg,
+                source,
+                super::Rect {
+                    origin: super::Point::default(),
+                    size: super::Size {
+                        width: 80.0,
+                        height: 120.0,
+                    },
+                },
+                16,
+                super::LabelPosition::InsideMiddleCenter,
+                "#170206",
+                None,
+                None,
+                Some("markdown"),
+                super::TextStyle::default(),
+                Some("d2-rs-text-N1"),
+                true,
+                super::MarkdownFamily::HandDrawn,
+            );
+            svg
+        };
+        let leading_break = render("# \n<br/>3");
+        assert!(leading_break.contains(">3</text>"), "{leading_break}");
+        assert!(
+            leading_break.contains("class=\"fill-B2\""),
+            "{leading_break}"
+        );
+        let implicit_close = render("{\n# \n <b/>");
+        assert!(implicit_close.contains(">{</text>"), "{implicit_close}");
+        assert!(
+            implicit_close.contains("class=\"fill-B2\""),
+            "{implicit_close}"
+        );
+    }
+
+    #[test]
     fn markdown_target_emphasis_and_underline_follow_original_svg_contract() {
         for (mono, sketch) in [(false, false), (true, true), (false, true)] {
             for text in ["Agm", "`Agm`", "plain `Agm` text", "**bold** *italic*"] {
@@ -17514,6 +17608,36 @@ mod tests {
         assert!(svg.contains("y=\"18.000\""));
         assert!(svg.contains("y=\"42.000\""));
         assert!(!svg.contains("foreignObject"));
+    }
+
+    #[test]
+    fn native_markdown_preserves_consecutive_leading_html_line_breaks() {
+        for private in [false, true] {
+            let mut svg = String::new();
+            assert!(super::draw_native_markdown_layout_viewport(
+                &mut svg,
+                "<br/>\n<br/>s",
+                Rect {
+                    origin: Point { x: 0.0, y: 0.0 },
+                    size: Size {
+                        width: 7.0,
+                        height: 72.0,
+                    },
+                },
+                16,
+                "#0A0F25",
+                None,
+                private,
+                super::MarkdownFamily::Sans,
+            ));
+            let document = roxmltree::Document::parse(&svg).unwrap();
+            let text = document
+                .descendants()
+                .find(|node| node.has_tag_name("text"))
+                .unwrap();
+            assert_eq!(text.text(), Some("s"));
+            assert_eq!(text.attribute("y").unwrap().parse::<f64>().unwrap(), 66.0);
+        }
     }
 
     #[test]
@@ -25125,8 +25249,16 @@ mod public_svg_language_admission_contract {
 
 #[cfg(test)]
 mod xml_render_text_source_contract {
-    #[cfg(feature = "oracle-fixtures")]
     use super::*;
+    #[test]
+    fn private_text_transports_only_xml_forbidden_controls() {
+        assert_eq!(private_text_source_attribute("a\tb\r\nc"), "");
+        assert_eq!(
+            private_text_source_attribute("e-\u{c}\""),
+            " data-d2-rs-text-source=\"ZS0MIg==\""
+        );
+    }
+
     #[cfg(feature = "oracle-fixtures")]
     #[test]
     fn original_xml_escaping_and_render_text_preserve_controls_and_empty_lines() {

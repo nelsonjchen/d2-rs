@@ -227,6 +227,26 @@ but a handful of jobs. Open clusters, with witnesses in
   The exact D418 Dagre and ELK seeds and fresh D419 seeds 2026110863/65/67
   now match all 5,000 jobs. Reductions are under
   `oracle-cache/reports/d418/witnesses/`.
+- **Fresh structure fuzz findings (F11–F14):** Dagre/ELK/TALA seeds
+  2026110871/73/75 produced six output differences in 3,000 SVG jobs, plus
+  one malformed input that panics in both CLIs. The ELK SQL-table self-loop
+  finding is fixed (F12): retain RoutingDirector's selected boundary ports
+  before endpoint adjacency is restored, as elk-go's HyperLoop does. The
+  original ELK seed now has 993 rendered matches, six empty-output matches
+  and only the shared panic. Fresh Dagre/ELK seeds 2026110877/79 match all
+  2,000 jobs; TALA seed 2026110881 initially had four placement differences.
+  F15 fixes its horizontal nested-ID reduction: hierarchy container sync now
+  performs `WrapChildren`'s boundary-label expansion before fitting, preserving
+  the extra pixel after transposition. The exact right/left reductions match,
+  down/up remain unchanged matches, and the full seed improves to three
+  differences with no other outcome change. Fresh seeds 2026110883/85/87 found five
+  output differences in 3,000 jobs plus one malformed input that panics in
+  pinned Go first. The visible ELK nested-sequence difference is fixed (F14):
+  sequence roots use the final synthetic lifeline endpoint for height, as
+  `d2sequence.getHeight` does, instead of extending to nested group bounds.
+  Nine TALA placement rows and low-severity Dagre and ELK half-pixel route/frame
+  differences remain. Inputs and exact outcomes are under
+  `oracle-cache/reports/f11/` through `f15/`.
 
 ## Beyond the upstream corpus
 
@@ -271,6 +291,30 @@ d2-rs and the pinned Go CLI on generated inputs (outputs and witnesses go to
   closing the final `grid_oom` fractional-coverage difference. The exact
   replay now has 993 rendered and seven empty-output matches with no findings;
   its summary is under `oracle-cache/reports/d429/`.
+  A fresh 1,000-job Dagre PDF run (seed 20261108251 with the same broad
+  sketch/theme/scale/center flags) initially found six differences. Empty
+  Markdown h1/h2 blocks now follow Go's zero-inline-height path while still
+  painting their padding and rule; the reduced PDF is byte-identical after
+  the fix. Leading raw `<br/>` elements in headings now preserve their empty
+  first line, and self-closing non-void tags follow `x/net/html`'s implicit
+  fragment-EOF close. Their SVG and pixels match Go. Raw labels containing
+  XML-forbidden controls now retain their d2scene shaping text across the
+  private SVG bridge; the form-feed witness matches as SVG, PNG and PDF.
+  Exact replay is 999/1,000; the escaped edge-key row also matches without a
+  related code change, and the only remaining difference is one of Go FPDF's
+  unsorted two-font map orders. Reductions and replay summaries are under
+  `oracle-cache/reports/d432/`, `d433/` and `d434/`.
+  A fresh 1,000-job Dagre PPTX run (seed 20261108261 with broad
+  sketch/theme/scale/center flags) initially found eight embedded-PNG
+  differences. Private structured class/SQL text now carries its exact raw
+  source into native shaping, preserving leading spaces that usvg otherwise
+  collapses. Markdown flow now discards the collapsible source newline
+  between consecutive raw `<br/>` elements before grouping inline units, so
+  every empty line box survives raster export. Exact replay improved from
+  992/1,000 to 994/1,000; the six remaining legend, gradient, paper, edge-label
+  and border-label image differences are structural/rendering witnesses for
+  the structure lane. The summaries and reductions are under
+  `oracle-cache/reports/d435/`.
 
 Fixed through these sweeps: code blocks in every Chroma language (only nine
 were translated), ELK network-simplex order and subtree pruning on large
@@ -377,17 +421,27 @@ Open, with witnesses from the sweeps:
   compiling an 80,000-edge board before the edge-limit error at about 1.4x
   wall. Releasing the full compiler IR before layout reduced that witness's
   peak RSS from about 467 to 396 MiB, but made it about 10% slower because
-  eagerly dropping the arena walks every allocation; that candidate was
-  rejected pending a lifetime design without the destructor cost. Shadows,
+  eagerly dropping the arena walks every allocation. Releasing only graph,
+  class, validation and IR lookup caches is CPU-neutral but does not lower the
+  roughly 480 MiB peak: the lexical arena itself is the overlapping storage.
+  Both candidates were rejected. Closing this needs bulk-owned compiler arena
+  storage, or consume-on-lower ownership, so release does not walk every IR
+  allocation. Shadows,
   opacity, 3D, nested fills and dark theme stay under Go but
   their ratios grow with size. The corpus itself has no row over Go.
+- **Long compile progress:** the CLI now mirrors pinned `d2cli.compile`'s
+  five-second `info: compiling & running layout algorithms...` ticker and
+  cancels it on every compile/layout return path. The dense/800 TALA
+  edge-limit row now has byte-identical stderr and exit status instead of a
+  parity-error mismatch.
 - **Unreplayed witnesses:** the original four LaTeX probes and three fuzz
   singletons (`*: suspend` globs, a `package` shape four levels deep,
   Gujarati next to an emoji) were not retained; 60 `suspend` and 18
   `package` variants match. Replay them if a sweep finds them again.
 
-Go progress messages that differ only under concurrent load (identical output
-hashes, not reproducible when Go runs alone) are harness noise, not drift.
+Go progress-message count differences that are not reproducible when each CLI
+runs alone remain harness timing noise; missing the ticker entirely was real
+drift and is fixed above.
 Historical run details are in the lane reports and d2-rs-history.
 
 ## Verification

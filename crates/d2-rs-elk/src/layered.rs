@@ -598,6 +598,10 @@ pub struct LayeredArena {
     /// Source self-loop preprocessing hides these ports/edges through P3.
     hidden_loop_ports: BTreeMap<LNodeId, Vec<LPortId>>,
     hidden_loop_edges: BTreeSet<LEdgeId>,
+    /// RoutingDirector's choice while self-loop adjacency is still hidden.
+    /// SelfLoopPostprocessor later restores that adjacency, but the source
+    /// keeps each HyperLoop's selected boundary ports unchanged.
+    self_loop_clockwise: BTreeMap<LEdgeId, bool>,
     /// Graph scopes whose translated P3 processor currently preserves ELK's
     /// shared RNG state for the following P5 cycle detector.
     shared_graph_randoms: BTreeSet<LGraphId>,
@@ -2517,6 +2521,37 @@ pub(crate) fn restore_self_loop_edges_after_routing(arena: &mut LayeredArena, gr
         }
         arena.hidden_loop_edges.remove(&id);
     }
+}
+
+/// Retains RoutingDirector's boundary choice before later processors restore
+/// ordinary and self-loop endpoint adjacency. The Go model stores this on
+/// each HyperLoop instead of recomputing penalties during publication.
+pub(crate) fn capture_self_loop_routes(arena: &mut LayeredArena, graph: LGraphId) {
+    let routes = arena
+        .edges
+        .iter()
+        .enumerate()
+        .filter(|(_, edge)| {
+            edge.active
+                && edge.source == edge.target
+                && arena.nodes[edge.source as usize].graph == graph
+        })
+        .filter_map(|(id, edge)| {
+            let source = edge.source_port?;
+            let target = edge.target_port?;
+            let id = id as LEdgeId;
+            Some((
+                id,
+                self_loop_routing_clockwise(
+                    arena,
+                    id,
+                    arena.ports[source as usize].side,
+                    arena.ports[target as usize].side,
+                ),
+            ))
+        })
+        .collect::<Vec<_>>();
+    arena.self_loop_clockwise.extend(routes);
 }
 
 fn restore_pure_loop_port_areas_impl(arena: &mut LayeredArena, graph: Option<LGraphId>) {
@@ -8785,6 +8820,9 @@ pub(crate) fn self_loop_routing_clockwise(
     source_side: PortSide,
     target_side: PortSide,
 ) -> bool {
+    if let Some(clockwise) = arena.self_loop_clockwise.get(&edge_id) {
+        return *clockwise;
+    }
     let Some(edge) = arena.edges.get(edge_id as usize) else {
         return true;
     };
@@ -15759,6 +15797,79 @@ mod tests {
             super::PortConstraints::FixedOrder
         );
         assert_eq!(arena.nodes[1].port_constraints, other_constraints);
+    }
+
+    #[test]
+    fn routing_director_choice_survives_endpoint_adjacency_restore() {
+        let ports = [
+            "NORTH", "NORTH", "NORTH", "EAST", "SOUTH", "SOUTH", "SOUTH", "WEST",
+        ]
+        .into_iter()
+        .enumerate()
+        .map(|(index, side)| {
+            json!({"id": format!("users.p{index}"), "x": 0, "y": 0,
+                "width": 0, "height": 0, "layoutOptions": {"elk.port.side": side}})
+        })
+        .collect::<Vec<_>>();
+        let graph: ElkGraph = serde_json::from_value(json!({
+            "id": "root",
+            "layoutOptions": {},
+            "children": [
+                {"id": "users", "width": 81, "height": 144, "ports": ports,
+                    "layoutOptions": {"elk.portConstraints": "FIXED_ORDER"}},
+                {"id": "service", "width": 52, "height": 66,
+                    "ports": [{"id": "service.p", "x": 0, "y": 0, "width": 0,
+                        "height": 0, "layoutOptions": {"elk.port.side": "WEST"}}]}
+            ],
+            "edges": [
+                {"id": "loop", "sources": ["users.p3"], "targets": ["users.p7"]},
+                {"id": "out", "sources": ["users.p4"], "targets": ["service.p"]}
+            ]
+        }))
+        .unwrap();
+        let (mut arena, root) = LayeredArena::from_elk_graph(&graph).unwrap();
+
+        // RoutingDirector runs while processors have detached endpoint
+        // adjacency. Go retains its HyperLoop boundary choice after the
+        // postprocessor restores those edges.
+        for port in &mut arena.ports {
+            port.incoming_edges.clear();
+            port.outgoing_edges.clear();
+        }
+        super::capture_self_loop_routes(&mut arena, root);
+        let source = arena.edges[0].source_port.unwrap();
+        let target = arena.edges[0].target_port.unwrap();
+        let chosen = super::self_loop_routing_clockwise(
+            &arena,
+            0,
+            arena.ports[source as usize].side,
+            arena.ports[target as usize].side,
+        );
+        assert!(chosen);
+
+        arena.ports[source as usize].outgoing_edges.push(0);
+        arena.ports[target as usize].incoming_edges.push(0);
+        let external_source = arena.edges[1].source_port.unwrap();
+        let external_target = arena.edges[1].target_port.unwrap();
+        arena.ports[external_source as usize].outgoing_edges.push(1);
+        arena.ports[external_target as usize].incoming_edges.push(1);
+        assert_eq!(
+            super::self_loop_routing_clockwise(
+                &arena,
+                0,
+                arena.ports[source as usize].side,
+                arena.ports[target as usize].side,
+            ),
+            chosen
+        );
+
+        arena.self_loop_clockwise.clear();
+        assert!(!super::self_loop_routing_clockwise(
+            &arena,
+            0,
+            arena.ports[source as usize].side,
+            arena.ports[target as usize].side,
+        ));
     }
 
     #[test]

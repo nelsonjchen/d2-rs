@@ -5375,6 +5375,10 @@ fn run_document_with_stdout(
         })?
     };
     let _source_config = SourceConfigScope::enter(&input);
+    // Go starts this ticker after reading the source and constructing its
+    // compile options, immediately before d2lib.Compile. Keep it live across
+    // every Rust compile/layout return path, including limit errors.
+    let compile_progress = CompileProgress::start();
     let display_input_path = PathBuf::from(&input_path);
     let mut partial_written = false;
     let result = (|| -> Result<Vec<u8>, String> {
@@ -5887,6 +5891,7 @@ fn run_document_with_stdout(
             }
         }
     })();
+    drop(compile_progress);
     result.map_err(|error| {
         if partial_written {
             format!(
@@ -5905,6 +5910,55 @@ fn log_compile_success(input: &Path, output: &Path, elapsed: std::time::Duration
         human_path(input),
         human_path(output)
     );
+}
+
+const COMPILE_PROGRESS_MESSAGE: &str = "info: compiling & running layout algorithms...";
+
+/// d2cli.compile reports a long-running d2lib.Compile every five seconds.
+/// The sender wakes the thread on every return path, so a quick compile never
+/// waits for the ticker or prints after its caller has moved on to another
+/// document.
+struct CompileProgress {
+    stop: Option<std::sync::mpsc::Sender<()>>,
+    worker: Option<std::thread::JoinHandle<()>>,
+}
+
+impl CompileProgress {
+    fn start() -> Self {
+        Self::start_with(std::time::Duration::from_secs(5), || {
+            eprintln!("{COMPILE_PROGRESS_MESSAGE}")
+        })
+    }
+
+    fn start_with(
+        interval: std::time::Duration,
+        mut report: impl FnMut() + Send + 'static,
+    ) -> Self {
+        let (send, receive) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            while matches!(
+                receive.recv_timeout(interval),
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout)
+            ) {
+                report();
+            }
+        });
+        Self {
+            stop: Some(send),
+            worker: Some(worker),
+        }
+    }
+}
+
+impl Drop for CompileProgress {
+    fn drop(&mut self) {
+        if let Some(stop) = self.stop.take() {
+            let _ = stop.send(());
+        }
+        if let Some(worker) = self.worker.take() {
+            let _ = worker.join();
+        }
+    }
 }
 
 /// imgbundler.BundleWithResolver's returned error: the worker context's
@@ -6574,6 +6628,29 @@ mod source_profile;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn long_compile_progress_repeats_and_stops_with_go_message() {
+        let (send, receive) = std::sync::mpsc::channel();
+        let progress =
+            CompileProgress::start_with(std::time::Duration::from_millis(5), move || {
+                let _ = send.send(COMPILE_PROGRESS_MESSAGE);
+            });
+        assert_eq!(
+            receive.recv_timeout(std::time::Duration::from_secs(1)),
+            Ok("info: compiling & running layout algorithms...")
+        );
+        assert_eq!(
+            receive.recv_timeout(std::time::Duration::from_secs(1)),
+            Ok("info: compiling & running layout algorithms...")
+        );
+        drop(progress);
+        assert!(
+            receive
+                .recv_timeout(std::time::Duration::from_millis(20))
+                .is_err()
+        );
+    }
 
     fn source_test_path(path: &Path) -> String {
         // d2ir uses Go path, whose separators are slashes on every host.

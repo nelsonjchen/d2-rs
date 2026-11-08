@@ -1596,6 +1596,7 @@ fn deconflict_self_loop_labels(graph: &Graph, result: &mut LayoutResult) {
 }
 
 fn reserve_loop_margins(arena: &mut LayeredArena, graph_id: LGraphId) -> Result<(), LayeringError> {
+    layered::capture_self_loop_routes(arena, graph_id);
     for edge_id in 0..arena.edges.len() {
         let edge = &arena.edges[edge_id];
         if !edge.active
