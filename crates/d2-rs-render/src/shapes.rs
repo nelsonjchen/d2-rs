@@ -1883,6 +1883,9 @@ pub(crate) fn draw_sql_table_shape_with_sketch(
             false,
             native_geometry_id.is_some(),
             streaks,
+            native_geometry_id
+                .map(|id| format!("{id}-streak-body"))
+                .as_deref(),
         );
     } else {
         let radius = structured_radius(style, rect.size.width, rect.size.height);
@@ -1938,6 +1941,9 @@ pub(crate) fn draw_sql_table_shape_with_sketch(
             false,
             native_geometry_id.is_some(),
             streaks,
+            native_geometry_id
+                .map(|id| format!("{id}-streak-header"))
+                .as_deref(),
         );
     } else {
         structured_header(
@@ -2412,19 +2418,18 @@ pub(crate) fn draw_shape_with_id(
     }
 }
 
-/// Source buildDoubleBorderShape/effectPatternNode: paint the outer pattern
-/// before the inner border; the inner primitive never receives the pattern.
-pub(crate) fn draw_native_double_border_pattern(
+/// Source buildDoubleBorderShape/effectPatternNode: both copies retain their
+/// inner border, with pattern paint between eligible outer and inner nodes.
+pub(crate) fn draw_native_double_border(
     svg: &mut String,
     shape: ShapeKind,
     rect: Rect,
     base: &SourceNodeStyle,
-    overlay: &SourceNodeStyle,
+    overlay: Option<&SourceNodeStyle>,
     palette: PaletteView<'_>,
     shape_id: &str,
 ) -> bool {
     if !style_true(base.double_border.as_ref())
-        || style_true(base.multiple.as_ref())
         || !matches!(
             shape,
             ShapeKind::Rectangle
@@ -2442,33 +2447,44 @@ pub(crate) fn draw_native_double_border_pattern(
     }
     let mut outer = base.clone();
     outer.double_border = None;
+    outer.multiple = None;
     outer.shadow = None;
-    let mut pattern = overlay.clone();
-    pattern.double_border = None;
-    draw_shape_with_id(svg, shape, rect, &outer, palette, shape_id);
-    draw_shape_with_id(svg, shape, rect, &pattern, palette, "");
-    let mut inner = outer;
-    if !matches!(shape, ShapeKind::Oval | ShapeKind::Circle) {
-        inner.fill = Some("none".into());
-    }
-    let inset = 5.0;
-    if rect.size.width > 2.0 * inset && rect.size.height > 2.0 * inset {
-        draw_shape(
-            svg,
-            shape,
-            Rect {
-                origin: Point {
-                    x: rect.origin.x + inset,
-                    y: rect.origin.y + inset,
-                },
-                size: d2_rs_core::Size {
-                    width: rect.size.width - 2.0 * inset,
-                    height: rect.size.height - 2.0 * inset,
-                },
-            },
-            &inner,
-            palette,
-        );
+    let pattern = overlay.map(|overlay| {
+        let mut pattern = overlay.clone();
+        pattern.double_border = None;
+        pattern.multiple = None;
+        pattern
+    });
+    let ellipse = matches!(shape, ShapeKind::Oval | ShapeKind::Circle);
+    for back in [true, false] {
+        if back && !style_true(base.multiple.as_ref()) {
+            continue;
+        }
+        let mut bounds = rect;
+        if back {
+            bounds.origin.x += 10.0;
+            bounds.origin.y -= 10.0;
+        }
+        draw_shape_with_id(svg, shape, bounds, &outer, palette, shape_id);
+        // effectPatternNode patterns the back outer rectangle, but never
+        // the back ellipse or either inner border.
+        if let Some(pattern) = &pattern
+            && (!back || !ellipse)
+        {
+            draw_shape_with_id(svg, shape, bounds, pattern, palette, "");
+        }
+        let mut inner = outer.clone();
+        if !back && !ellipse {
+            inner.fill = Some("none".into());
+        }
+        let inset = 5.0;
+        if bounds.size.width > 2.0 * inset && bounds.size.height > 2.0 * inset {
+            bounds.origin.x += inset;
+            bounds.origin.y += inset;
+            bounds.size.width -= 2.0 * inset;
+            bounds.size.height -= 2.0 * inset;
+            draw_shape(svg, shape, bounds, &inner, palette);
+        }
     }
     if shadow {
         svg.push_str("</g>\n");
@@ -2639,7 +2655,7 @@ pub(crate) fn draw_class_shape_with_sketch(
     } else {
         height / row_count as f64
     };
-    let header_height = if sketch_streaks.is_some() {
+    let header_height = if sketch_streaks.is_some() && native_geometry_id.is_none() {
         2.0 * row_height
     } else {
         (2.0 * row_height).max(label_size.height + 10.0)
@@ -2653,6 +2669,9 @@ pub(crate) fn draw_class_shape_with_sketch(
             false,
             native_geometry_id.is_some(),
             streaks,
+            native_geometry_id
+                .map(|id| format!("{id}-streak-body"))
+                .as_deref(),
         );
     } else {
         let radius = structured_radius(style, width, height);
@@ -2708,6 +2727,9 @@ pub(crate) fn draw_class_shape_with_sketch(
             true,
             native_geometry_id.is_some(),
             streaks,
+            native_geometry_id
+                .map(|id| format!("{id}-streak-header"))
+                .as_deref(),
         );
     } else {
         structured_header(
@@ -3535,6 +3557,61 @@ mod original_class_text_contract {
 mod multiline_class_header_source_contract {
     use super::*;
     use std::collections::{BTreeMap, BTreeSet};
+
+    #[test]
+    fn native_sketch_header_keeps_scene_label_height() {
+        // Pinned d2scenebuild structuredSketchHeaderHeight keeps the class
+        // label-height floor; only the public d2sketch SVG uses two rows.
+        let style = SourceNodeStyle {
+            fill: Some("N1".into()),
+            stroke: Some("N7".into()),
+            stroke_width: Some("2".into()),
+            font_size: Some(20),
+            class_fields: vec![
+                ("LeftAligned".into(), String::new()),
+                ("CenterAligned".into(), String::new()),
+            ],
+            ..Default::default()
+        };
+        let overrides = BTreeMap::new();
+        let palette = PaletteView::new(d2_rs_core::theme::palette(102).unwrap(), &overrides);
+        let mut streaks = BTreeSet::new();
+        let mut svg = String::from("<svg>");
+        draw_class_shape_with_sketch(
+            &mut svg,
+            Rect {
+                origin: Point { x: 0.0, y: 0.0 },
+                size: Size {
+                    width: 254.0,
+                    height: 210.0,
+                },
+            },
+            &style,
+            "Alignment\nOf\nAlignment\nOf",
+            20,
+            Size {
+                width: 130.0,
+                height: 103.0,
+            },
+            palette,
+            Some("class"),
+            Some(&mut streaks),
+        );
+        svg.push_str("</svg>");
+        let document = roxmltree::Document::parse(&svg).unwrap();
+        let header_overlay = document
+            .descendants()
+            .find(|node| {
+                node.has_tag_name("rect")
+                    && node
+                        .parent()
+                        .and_then(|parent| parent.attribute("class"))
+                        .is_some_and(|class| class.starts_with("sketch-streak-overlay"))
+            })
+            .unwrap_or_else(|| panic!("missing native sketch header overlay: {svg}"));
+        assert_eq!(header_overlay.attribute("height"), Some("113"));
+    }
+
     #[test]
     fn original_multiline_header_runs_keep_regular_face_and_independent_baselines() {
         // Original d2scenebuild/special_shapes_test.go TestBuildClassShapeMultilineHeader.

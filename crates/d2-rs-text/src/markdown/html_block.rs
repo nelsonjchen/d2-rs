@@ -40,6 +40,11 @@ fn tag_name(line: &[u8]) -> Option<(usize, usize, bool)> {
             start += 1;
         }
     }
+    // Goldmark's type 6/7 regexes require [a-zA-Z] before the remaining
+    // alphanumeric/hyphen tag-name bytes (parser/html_block.go).
+    if !line.get(start).is_some_and(u8::is_ascii_alphabetic) {
+        return None;
+    }
     let end = line[start..]
         .iter()
         .position(|byte| !byte.is_ascii_alphanumeric() && *byte != b'-')?

@@ -7,6 +7,105 @@ use d2_rs_language::{ParseOptions, compiler, parse};
 
 struct ProbeMeasurer;
 
+#[test]
+fn recreated_suspended_endpoints_receive_object_text_defaults() {
+    struct StyleMeasurer;
+    impl compiler::GraphMeasurer for StyleMeasurer {
+        fn measure(&self, _: &str) -> Size {
+            Size::default()
+        }
+        fn measure_styled_label_at_size(&self, _: &str, _: u32, bold: bool, _: bool) -> Size {
+            Size {
+                width: if bold { 12.0 } else { 10.0 },
+                height: 16.0,
+            }
+        }
+    }
+    // d2graph.Connect/EnsureChild recreate suspended fields as newObject;
+    // Object.Text selects bold leaves, regular sequence actors.
+    for (source, bold) in [
+        ("r\nm{}\n*:suspend\n(*->*", true),
+        ("shape: sequence_diagram\nr\nm\n*:suspend\n(*->*", false),
+    ] {
+        let parsed = parse("-", source.as_bytes(), None);
+        assert!(parsed.error.is_none(), "{:?}", parsed.error);
+        let (compiler, root) = compiler::compile_ir_with_options(
+            Shared::new(parsed.map),
+            compiler::CompileOptions::default(),
+        )
+        .unwrap();
+        let (graph, labels, styles) =
+            compiler::lower_graph_with_measurer_and_labels(&compiler, root, &StyleMeasurer)
+                .unwrap();
+        assert_eq!(graph.nodes.len(), 2, "{source}");
+        for (id, node) in graph.nodes() {
+            assert_eq!(styles[&id].bold, bold, "{source}: {}", node.external_id);
+            assert_eq!(node.font_size, Some(16));
+            assert_eq!(
+                node.label_size.unwrap().width,
+                if bold { 12.0 } else { 10.0 }
+            );
+            assert_eq!(labels[&id], node.external_id);
+            assert_eq!(graph.node_labels[&id], node.external_id);
+        }
+    }
+}
+
+#[test]
+fn structured_grid_headers_use_container_level_before_header_adjustment() {
+    struct FontMeasurer;
+    impl compiler::GraphMeasurer for FontMeasurer {
+        fn measure(&self, _: &str) -> Size {
+            Size::default()
+        }
+        fn measure_styled_label_at_size(&self, _: &str, font: u32, _: bool, _: bool) -> Size {
+            Size {
+                width: f64::from(font),
+                height: f64::from(font),
+            }
+        }
+        fn measure_mono_label_at_size(&self, _: &str, font: u32) -> Size {
+            Size {
+                width: f64::from(font),
+                height: f64::from(font),
+            }
+        }
+    }
+    // d2graph.Object.Text: class/table default, grid/container level, explicit
+    // style, then HeaderFontAdd. d2exporter.toShape subtracts HeaderFontAdd.
+    for (source, header, target) in [
+        ("a: {shape: class; grid-columns: 5}", 32, 28),
+        ("outer.a: {shape: class; grid-rows: 1}", 28, 24),
+        ("a: {shape: sql_table; grid-columns: 5}", 32, 28),
+        ("a: {shape: class}", 24, 20),
+        (
+            "a: {shape: class; grid-columns: 5; style.font-size: 22}",
+            26,
+            22,
+        ),
+    ] {
+        let parsed = parse("-", source.as_bytes(), Some(ParseOptions::default()));
+        assert!(parsed.error.is_none(), "{:?}", parsed.error);
+        let (compiler, root) = compiler::compile_ir_with_options(
+            Shared::new(parsed.map),
+            compiler::CompileOptions::default(),
+        )
+        .unwrap();
+        let (graph, _, styles) =
+            compiler::lower_graph_with_measurer_and_labels(&compiler, root, &FontMeasurer).unwrap();
+        let (id, node) = graph
+            .nodes()
+            .find(|(_, node)| node.external_id.ends_with('a'))
+            .unwrap();
+        assert_eq!(
+            node.label_size.unwrap().height,
+            f64::from(header),
+            "{source}"
+        );
+        assert_eq!(styles[&id].target_font_size, Some(target), "{source}");
+    }
+}
+
 impl compiler::GraphMeasurer for ProbeMeasurer {
     fn measure(&self, _label: &str) -> Size {
         Size {
@@ -271,6 +370,40 @@ orders.user_id -> users.id
             target: Some(0),
         }
     );
+}
+
+#[test]
+fn lowering_sql_table_self_loops_omit_column_ports() {
+    // Pinned d2graph/d2graph.go addSQLTableColumnIndices returns immediately
+    // for src == dst, including edges between different columns of one table.
+    let parsed = parse(
+        "sql-self-loops.d2",
+        br#"users: {shape: sql_table; id: int; parent_id: int}
+users.id -> users.parent_id
+users.parent_id -> users.id
+users -> users.id
+users.id -> users
+users -> users
+other: {shape: sql_table; id: int}
+users.parent_id -> other.id
+"#,
+        None,
+    );
+    assert!(parsed.error.is_none(), "{:?}", parsed.error);
+    let (compiler, root) = compiler::compile_ir(Shared::new(parsed.map)).unwrap();
+    let graph = compiler::lower_graph(&compiler, root).unwrap();
+    assert_eq!(graph.edges().count(), 6);
+    for (id, edge) in graph.edges() {
+        let expected = if edge.source == edge.target {
+            d2_rs_core::EdgeTableColumns::default()
+        } else {
+            d2_rs_core::EdgeTableColumns {
+                source: Some(1),
+                target: Some(0),
+            }
+        };
+        assert_eq!(graph.edge_table_columns(id), expected);
+    }
 }
 
 #[test]
@@ -789,11 +922,13 @@ fn lowering_preserves_edges_between_columns_of_the_same_table() {
     assert_eq!(graph.edges().len(), 1);
     let (edge_id, edge) = graph.edges().next().unwrap();
     assert_eq!(edge.source, edge.target);
+    // Pinned d2graph.addSQLTableColumnIndices ignores column ports on a
+    // self-loop; the edge and its label still survive graph lowering.
     assert_eq!(
         graph.edge_table_columns(edge_id),
         d2_rs_core::EdgeTableColumns {
-            source: Some(0),
-            target: Some(1),
+            source: None,
+            target: None,
         }
     );
     assert_eq!(graph.edge_label(edge_id).unwrap().text, "parent");
@@ -849,8 +984,10 @@ fn structured_member_resolution_preserves_quoted_path_components() {
         let (id, edge) = graph.edges().next().unwrap();
         assert_eq!(edge.source, edge.target);
         let columns = graph.edge_table_columns(id);
-        assert_eq!(columns.source, (shape == "sql_table").then_some(0));
-        assert_eq!(columns.target, (shape == "sql_table").then_some(1));
+        // Quoting preserves object identity. Both shapes omit member ports
+        // on self-loops (d2graph.addSQLTableColumnIndices, src == dst).
+        assert_eq!(columns.source, None);
+        assert_eq!(columns.target, None);
     }
 }
 

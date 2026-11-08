@@ -555,7 +555,11 @@ pub fn layout_with_options_and_rank_trace_with_cancellation(
             }
         }
         debug_boxes("nested_cross", graph, &boxes);
-        if !source_expanded && horizontal_for(graph.direction) {
+        // Dagro's border model already positions external nodes relative to
+        // the compound. D2 runs cross-rank spacing then fitPadding directly
+        // (d2dagrelayout/layout.go:287–289); aligning to a child here undoes
+        // that spacing and separates the node from its tracked route.
+        if !source_expanded && !has_dagro_border_model && horizontal_for(graph.direction) {
             align_single_compound_external_cross(graph, &mut boxes);
             debug_boxes("after_single_compound_external_cross", graph, &boxes);
         }
@@ -892,15 +896,51 @@ pub fn route_straight_edge(
     source: Rect,
     target: Rect,
 ) -> Option<Vec<Point>> {
+    route_straight_edge_with_labels(graph, edge_id, source, target, None)
+}
+
+/// Routes against label/icon state already committed by an extracted layout.
+/// LayoutNested reinjects the mutated objects before d2grid traces its edges;
+/// recomputing defaults from the original measured sizes can clip at a label
+/// that the child engine has since placed inside its fitted container.
+pub fn route_straight_edge_with_labels(
+    graph: &Graph,
+    edge_id: EdgeId,
+    source: Rect,
+    target: Rect,
+    labels: Option<&BTreeMap<NodeId, NodeLabelState>>,
+) -> Option<Vec<Point>> {
     let edge = graph.edge(edge_id)?;
     let source_node = graph.node(edge.source)?;
     let target_node = graph.node(edge.target)?;
     let source_center = source.center();
     let target_center = target.center();
-    let source_label = outside_label_box(graph, edge.source, source);
-    let target_label = outside_label_box(graph, edge.target, target);
-    let source_icon = outside_icon_box(graph, edge.source, source, IconEndpointSide::Source);
-    let target_icon = outside_icon_box(graph, edge.target, target, IconEndpointSide::Target);
+    let source_label = outside_label_box_with_state(
+        graph,
+        edge.source,
+        source,
+        labels.and_then(|s| s.get(&edge.source)),
+    );
+    let target_label = outside_label_box_with_state(
+        graph,
+        edge.target,
+        target,
+        labels.and_then(|s| s.get(&edge.target)),
+    );
+    let source_icon = outside_icon_box_with_state(
+        graph,
+        edge.source,
+        source,
+        IconEndpointSide::Source,
+        labels.and_then(|s| s.get(&edge.source)),
+    );
+    let target_icon = outside_icon_box_with_state(
+        graph,
+        edge.target,
+        target,
+        IconEndpointSide::Target,
+        labels.and_then(|s| s.get(&edge.target)),
+    );
     // D2's grid layout starts with the two object centers, then calls
     // Edge.TraceToShape once. That method intersects the source using the
     // reversed center segment and the target using the forward segment; the
@@ -4393,22 +4433,12 @@ fn has_descendant_external_edges_without_direct_container_edge(graph: &Graph) ->
 }
 
 fn adjust_flat_port_cross_lanes(graph: &Graph, boxes: &mut BTreeMap<NodeId, Rect>) {
-    if !has_descendant_external_edges_without_direct_container_edge(graph)
-        || !has_single_source_compound(graph)
-    {
-        return;
-    }
-    let Some(root) = graph.nodes().find_map(|(id, node)| {
-        (node.parent.is_none() && has_rankable_children(graph, id)).then_some(id)
-    }) else {
+    // This correction reconstructs Dagro's two incoming port lanes. Outgoing
+    // child-to-external edges already have distinct BK coordinates; folding
+    // them onto the ingress lane overlaps siblings and disagrees with Dagro.
+    let Some(root) = flat_port_root(graph) else {
         return;
     };
-    if graph
-        .nodes()
-        .any(|(id, node)| id != root && node.parent.is_some() && has_rankable_children(graph, id))
-    {
-        return;
-    }
     let leaves = graph
         .nodes()
         .filter_map(|(id, node)| {
@@ -4416,22 +4446,6 @@ fn adjust_flat_port_cross_lanes(graph: &Graph, boxes: &mut BTreeMap<NodeId, Rect
         })
         .collect::<Vec<_>>();
     if leaves.len() != 2 {
-        return;
-    }
-    let has_incoming_and_outgoing = leaves.iter().all(|leaf| {
-        graph.edges().any(|(_, edge)| {
-            edge.source == *leaf
-                && graph.node(edge.target).is_some_and(|node| {
-                    node.parent.is_none() && !has_rankable_children(graph, edge.target)
-                })
-        }) || graph.edges().any(|(_, edge)| {
-            edge.target == *leaf
-                && graph.node(edge.source).is_some_and(|node| {
-                    node.parent.is_none() && !has_rankable_children(graph, edge.source)
-                })
-        })
-    });
-    if !has_incoming_and_outgoing {
         return;
     }
     let Some(root_rect) = boxes.get(&root).copied() else {
@@ -4524,11 +4538,6 @@ fn flat_port_root(graph: &Graph) -> Option<NodeId> {
         .iter()
         .all(|leaf| {
             graph.edges().any(|(_, edge)| {
-                edge.source == *leaf
-                    && graph.node(edge.target).is_some_and(|node| {
-                        node.parent.is_none() && !has_rankable_children(graph, edge.target)
-                    })
-            }) || graph.edges().any(|(_, edge)| {
                 edge.target == *leaf
                     && graph.node(edge.source).is_some_and(|node| {
                         node.parent.is_none() && !has_rankable_children(graph, edge.source)
@@ -12504,8 +12513,19 @@ fn dagre_self_loop_points(
             y: center.y,
         }
     };
-    let half_width = width / 2.0;
-    let half_height = height / 2.0;
+    // Dagro's coordinate_system.go reflects every control's flow coordinate
+    // for RL/BT before translating the graph. Our center is already in the
+    // published frame, so reflect the offsets around it as well.
+    let half_width = if graph.direction == Direction::Left {
+        -width / 2.0
+    } else {
+        width / 2.0
+    };
+    let half_height = if graph.direction == Direction::Up {
+        -height / 2.0
+    } else {
+        height / 2.0
+    };
     // Dagro lays LR/RL out in its transposed coordinate system, so its
     // centered loop spline is transposed when published. Reconstruct the
     // resulting point order here rather than applying the down-flow order to
@@ -13018,6 +13038,15 @@ fn label_intersections(
 }
 
 fn outside_label_box(graph: &Graph, id: NodeId, rect: Rect) -> Option<(LabelPosition, Rect)> {
+    outside_label_box_with_state(graph, id, rect, None)
+}
+
+fn outside_label_box_with_state(
+    graph: &Graph,
+    id: NodeId,
+    rect: Rect,
+    state: Option<&NodeLabelState>,
+) -> Option<(LabelPosition, Rect)> {
     let node = graph.node(id)?;
     // d2graph.Object.HasLabel excludes intrinsic text/content shapes even
     // when a container default or explicit position is outside the box.
@@ -13034,8 +13063,11 @@ fn outside_label_box(graph: &Graph, id: NodeId, rect: Rect) -> Option<(LabelPosi
     {
         return None;
     }
-    let size = node.label_size?;
-    let position = label_state(graph, id, node).position;
+    let state = state
+        .copied()
+        .unwrap_or_else(|| label_state(graph, id, node));
+    let size = state.size?;
+    let position = state.position;
     let padding = 5.0;
     let top_left = match position {
         LabelPosition::OutsideTopLeft => Point {
@@ -13112,11 +13144,24 @@ fn outside_icon_box(
     rect: Rect,
     endpoint: IconEndpointSide,
 ) -> Option<(LabelPosition, Rect)> {
+    outside_icon_box_with_state(graph, id, rect, endpoint, None)
+}
+
+fn outside_icon_box_with_state(
+    graph: &Graph,
+    id: NodeId,
+    rect: Rect,
+    endpoint: IconEndpointSide,
+    state: Option<&NodeLabelState>,
+) -> Option<(LabelPosition, Rect)> {
     let node = graph.node(id)?;
     if !node.has_icon {
         return None;
     }
-    let position = label_state(graph, id, node).icon_position?;
+    let position = state
+        .copied()
+        .unwrap_or_else(|| label_state(graph, id, node))
+        .icon_position?;
     if !position.is_outside() {
         return None;
     }
@@ -17593,6 +17638,65 @@ mod tests {
         let id = graph.add_node(image);
         let state = label_state(&graph, id, graph.node(id).unwrap());
         assert_eq!(state.icon_position, Some(LabelPosition::InsideMiddleCenter));
+    }
+
+    #[test]
+    fn reversed_flow_reflects_self_loop_controls() {
+        // Pinned Dagro coordinate_system.go: undoCoordinateSystem calls
+        // reverseY for BT/RL, then swapXY for RL. These are the resulting
+        // controls for a 40 x 20 node, with D2's center sentinels.
+        for (direction, expected) in [
+            (
+                Direction::Left,
+                [
+                    (20.0, 10.0),
+                    (40.0, 70.0),
+                    (20.0, 60.0),
+                    (0.0, 50.0),
+                    (20.0, 60.0),
+                    (20.0, 10.0),
+                ],
+            ),
+            (
+                Direction::Up,
+                [
+                    (20.0, 10.0),
+                    (100.0, 20.0),
+                    (80.0, 10.0),
+                    (60.0, 0.0),
+                    (80.0, 10.0),
+                    (20.0, 10.0),
+                ],
+            ),
+        ] {
+            let mut graph = Graph::with_direction(direction);
+            let size = Size {
+                width: 40.0,
+                height: 20.0,
+            };
+            let node = graph.add_node(Node::new("loop", size));
+            let id = graph.add_edge(Edge {
+                source: node,
+                target: node,
+            });
+            let points = super::dagre_self_loop_points(
+                &graph,
+                id,
+                graph.edge(id).unwrap(),
+                Rect {
+                    origin: Point { x: 0.0, y: 0.0 },
+                    size,
+                },
+                None,
+                super::DEFAULT_NODE_SEP,
+                20.0,
+            );
+            assert_eq!(
+                points.iter().map(|p| (p.x, p.y)).collect::<Vec<_>>(),
+                expected,
+                "{direction:?}",
+            );
+        }
     }
 
     #[test]

@@ -23,7 +23,7 @@ pub fn check(name: &str, graph: &Graph) -> Result<(), String> {
     for (id, node) in graph.nodes() {
         if !top_left && (node.constrained_x.is_some() || node.constrained_y.is_some()) {
             return Err(format!(
-                "Object {:?} has attribute \"top\" and/or \"left\" set, but layout engine \"{name}\" does not support locked positions. See https://d2lang.com/tour/layouts/#layout-specific-functionality for more.",
+                "Object \"{}\" has attribute \"top\" and/or \"left\" set, but layout engine \"{name}\" does not support locked positions. See https://d2lang.com/tour/layouts/#layout-specific-functionality for more.",
                 node.external_id
             ));
         }
@@ -34,13 +34,13 @@ pub fn check(name: &str, graph: &Graph) -> Result<(), String> {
             && node.grid_columns.is_none()
         {
             return Err(format!(
-                "Object {:?} has attribute \"width\" and/or \"height\" set, but layout engine \"{name}\" does not support dimensions set on containers. See https://d2lang.com/tour/layouts/#layout-specific-functionality for more.",
+                "Object \"{}\" has attribute \"width\" and/or \"height\" set, but layout engine \"{name}\" does not support dimensions set on containers. See https://d2lang.com/tour/layouts/#layout-specific-functionality for more.",
                 node.external_id
             ));
         }
         if !near_object && node.near.is_some() {
             return Err(format!(
-                "Object {:?} has \"near\" set to another object, but layout engine \"{name}\" only supports constant values for \"near\". See https://d2lang.com/tour/layouts/#layout-specific-functionality for more.",
+                "Object \"{}\" has \"near\" set to another object, but layout engine \"{name}\" only supports constant values for \"near\". See https://d2lang.com/tour/layouts/#layout-specific-functionality for more.",
                 node.external_id
             ));
         }
@@ -89,4 +89,49 @@ pub fn check(name: &str, graph: &Graph) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use d2_rs_core::{Node, Size};
+
+    #[test]
+    fn feature_errors_preserve_raw_absolute_ids() {
+        // internal/d2layoutfeatures.Check uses `Object "%s"`, including
+        // quotes and escape sequences already present in Object.AbsID().
+        let abs_id = r#""I/O\nManager""#;
+        for feature in ["dimensions", "position", "near"] {
+            let mut graph = Graph::default();
+            let container = graph.add_node(Node::new(
+                abs_id,
+                Size {
+                    width: 100.0,
+                    height: 100.0,
+                },
+            ));
+            let child = graph.add_node(Node {
+                parent: Some(container),
+                ..Node::new(
+                    "child",
+                    Size {
+                        width: 10.0,
+                        height: 10.0,
+                    },
+                )
+            });
+            let node = graph.node_mut(container).unwrap();
+            match feature {
+                "dimensions" => node.fixed_width = true,
+                "position" => node.constrained_x = Some(0.0),
+                "near" => node.near = Some(child),
+                _ => unreachable!(),
+            }
+            let error = check("dagre", &graph).unwrap_err();
+            assert!(
+                error.starts_with("Object \"\"I/O\\nManager\"\" has "),
+                "{error}"
+            );
+        }
+    }
 }

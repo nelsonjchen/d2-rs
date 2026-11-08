@@ -1828,56 +1828,6 @@ fn lower_roman(mut index: i64) -> String {
     out
 }
 
-/// validateMarkdownSVGNodes.
-fn validate_markdown_svg_nodes(dom: &Dom, n: NodeId) -> Result<(), String> {
-    if let Some(data) = dom.element_data(n) {
-        if !matches!(
-            data,
-            "html"
-                | "head"
-                | "body"
-                | "p"
-                | "h1"
-                | "h2"
-                | "h3"
-                | "h4"
-                | "h5"
-                | "h6"
-                | "blockquote"
-                | "ul"
-                | "ol"
-                | "li"
-                | "pre"
-                | "code"
-                | "em"
-                | "b"
-                | "strong"
-                | "del"
-                | "s"
-                | "strike"
-                | "a"
-                | "br"
-                | "hr"
-                | "img"
-                | "table"
-                | "thead"
-                | "tbody"
-                | "tfoot"
-                | "tr"
-                | "td"
-                | "th"
-        ) {
-            return Err(format!(
-                "native Markdown SVG does not support HTML element <{data}>"
-            ));
-        }
-    }
-    for child in dom.children(n) {
-        validate_markdown_svg_nodes(dom, child)?;
-    }
-    Ok(())
-}
-
 /// LayoutMarkdown.
 pub(crate) fn layout_markdown(
     md_text: &str,
@@ -1890,7 +1840,7 @@ pub(crate) fn layout_markdown(
     let (legacy_dom, legacy_body) = dom::parse_document(&render);
     let mut dom = legacy_dom.clone();
     let body = legacy_body;
-    validate_markdown_svg_nodes(&dom, body)?;
+    dom::validate_markdown_svg_nodes(&dom, body)?;
     normalize_markdown_whitespace_tree(&mut dom, body);
 
     let original_line_height = ruler.line_height_factor;

@@ -1325,8 +1325,14 @@ fn layout_root_grid_with_nested_cells(
             result.boxes.get(&edge.source),
             result.boxes.get(&edge.target),
         ) {
-            let route = d2_rs_dagre::route_grid_edge(graph, edge_id, *source, *target)
-                .unwrap_or_else(|| vec![source.center(), target.center()]);
+            let route = d2_rs_dagre::route_straight_edge_with_labels(
+                graph,
+                edge_id,
+                *source,
+                *target,
+                Some(&result.node_labels),
+            )
+            .unwrap_or_else(|| vec![source.center(), target.center()]);
             result
                 .route_curves
                 .insert(edge_id, graph.edge_is_curve(edge_id));
@@ -2162,6 +2168,16 @@ fn order_lifelines_like_layout_nested(graph: &Graph, result: &mut LayoutResult) 
                 queue.extend(kids.iter().copied());
             }
         }
+        // d2near.Layout appends each group's edges after placing the whole
+        // group: vertical centers, horizontal centers, then corners. Those
+        // new edges retain that order through LayoutNested's SaveOrder.
+        nears.sort_by_key(
+            |id| match graph.node(*id).and_then(|node| node.canvas_position) {
+                Some(CanvasPosition::TopCenter | CanvasPosition::BottomCenter) => 0,
+                Some(CanvasPosition::CenterLeft | CanvasPosition::CenterRight) => 1,
+                _ => 2,
+            },
+        );
         for id in nears {
             // The near object becomes the nested root's only child.
             visit(graph, children, None, &[id], false, order);
@@ -4552,6 +4568,58 @@ mod tests {
         assert_eq!(
             super::grid_routing_edge_order(&graph, &[crossing]),
             vec![parent_fixed, a_fixed, b_fixed, crossing]
+        );
+    }
+
+    #[test]
+    fn constant_near_lifelines_follow_placement_groups() {
+        // Pinned d2near/layout.go Layout reinjects vertical-center graphs,
+        // horizontal-center graphs, then corners, preserving order per group.
+        let mut graph = Graph::default();
+        let mut actors = Vec::new();
+        for (name, position) in [
+            ("corner", CanvasPosition::BottomRight),
+            ("horizontal", CanvasPosition::CenterRight),
+            ("vertical", CanvasPosition::TopCenter),
+            ("horizontal2", CanvasPosition::CenterLeft),
+        ] {
+            let root = graph.add_node(Node {
+                canvas_position: Some(position),
+                ..Node::new(name, Size::default())
+            });
+            // Include the near root itself in one graph; keep the sequence
+            // nested below the near root in the others, as in the fuzz case.
+            let sequence = if name == "corner" {
+                root
+            } else {
+                graph.add_node(Node {
+                    parent: Some(root),
+                    ..Node::new(format!("{name}.sequence"), Size::default())
+                })
+            };
+            graph.set_sequence_diagram(sequence, true);
+            actors.push(graph.add_node(Node {
+                parent: Some(sequence),
+                ..Node::new(format!("{name}.actor"), Size::default())
+            }));
+        }
+        let mut result = super::empty_layout_result(&LayoutOptions::default());
+        result.sequence_lifelines = actors
+            .iter()
+            .map(|actor| d2_rs_core::SequenceLifeline {
+                actor: *actor,
+                target_id: String::new(),
+                route: Vec::new(),
+            })
+            .collect();
+        super::order_lifelines_like_layout_nested(&graph, &mut result);
+        assert_eq!(
+            result
+                .sequence_lifelines
+                .iter()
+                .map(|line| line.actor)
+                .collect::<Vec<_>>(),
+            vec![actors[2], actors[1], actors[3], actors[0]]
         );
     }
 

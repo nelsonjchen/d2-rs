@@ -671,6 +671,26 @@ mod tests {
     use super::render_html;
 
     #[test]
+    fn list_item_first_block_can_be_another_list() {
+        // Goldmark parser/parser.go openBlocks descends into HasChildren
+        // immediately, including a list item whose content starts with a list.
+        for (source, expected) in [
+            ("- -", "<ul>\n<li>\n<ul>\n<li></li>\n</ul>\n</li>\n</ul>\n"),
+            (
+                "- - item",
+                "<ul>\n<li>\n<ul>\n<li>item</li>\n</ul>\n</li>\n</ul>\n",
+            ),
+            (
+                "- 1. item",
+                "<ul>\n<li>\n<ol>\n<li>item</li>\n</ol>\n</li>\n</ul>\n",
+            ),
+            ("- - -", "<hr />\n"),
+        ] {
+            assert_eq!(render_html(source.as_bytes()), expected, "{source:?}");
+        }
+    }
+
+    #[test]
     fn renders_inline_structure_and_attributes() {
         assert_eq!(
             render_html(b"**bold** [link](https://example.com \"title\")"),

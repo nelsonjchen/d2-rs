@@ -2583,6 +2583,58 @@ pub(crate) fn tag_embedded_svg_images_with_assets(
             },
         );
     }
+    // Private structured-shape SVG carries the scene's f64 streak rectangle
+    // operands. usvg lowers rectangles to f32 paths; retaining these values
+    // keeps d2raster's coverage at fractional row boundaries.
+    for node in document.descendants().filter(|node| {
+        node.is_element()
+            && node.tag_name().namespace() == Some(SVG_NAMESPACE)
+            && node.tag_name().name() == "rect"
+    }) {
+        let Some(id) = node.attribute("id").filter(|id| {
+            identity_counts.get(id) == Some(&1)
+                && (id.contains("-native-class-") || id.contains("-native-sql-"))
+                && (id.ends_with("-streak-body") || id.ends_with("-streak-header"))
+        }) else {
+            continue;
+        };
+        if node.attribute("stroke") != Some("none")
+            || !node
+                .attribute("fill")
+                .is_some_and(|fill| fill.starts_with("url(#d2-rs-sketch-streak-"))
+            || ["style", "transform", "filter", "mask", "clip-path"]
+                .iter()
+                .any(|name| node.attribute(*name).is_some())
+            || !node.ancestors().any(|parent| {
+                parent
+                    .attribute("id")
+                    .is_some_and(|id| sources.native_canvas_geometry.contains_key(id))
+            })
+        {
+            continue;
+        }
+        let number = |name: &str, default: Option<f64>| match node.attribute(name) {
+            Some(value) => value.parse::<f64>().ok().filter(|value| value.is_finite()),
+            None => default,
+        };
+        let Some((x, y, width, height)) = (|| {
+            let x = number("x", Some(0.0))?;
+            let y = number("y", Some(0.0))?;
+            let width = number("width", None)?;
+            let height = number("height", None)?;
+            (width > 0.0 && height > 0.0 && (x + width).is_finite() && (y + height).is_finite())
+                .then_some((x, y, width, height))
+        })() else {
+            continue;
+        };
+        sources.native_rects.insert(
+            id.to_owned(),
+            NativeRect {
+                box_values: [x, y, width, height],
+                radii: [0.0, 0.0],
+            },
+        );
+    }
     for node in document.descendants().filter(|node| {
         node.is_element()
             && node.tag_name().name() == "svg"

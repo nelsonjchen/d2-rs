@@ -3,6 +3,31 @@ use d2_rs_text::markdown::{
     block::{is_thematic_break, process_blockquote},
     reader::Reader,
 };
+
+#[test]
+fn html_block_tag_names_start_with_an_ascii_letter() {
+    use d2_rs_text::markdown::{context::Context, paragraph::BlockState};
+
+    // Pinned goldmark parser/html_block.go: htmlBlockType6Regexp and
+    // htmlBlockType7Regexp use [a-zA-Z]+[a-zA-Z0-9\-]* for tag names.
+    for source in ["<->\n", "</->\n", "<1>\n", "</ 1a>\n", "<é>\n", "<>"] {
+        let mut context = Context::default();
+        let mut reader = Reader::new(source.as_bytes());
+        assert_eq!(
+            context.open_html_block(&mut reader),
+            (None, BlockState::NO_CHILDREN),
+            "{source:?}"
+        );
+    }
+    for source in ["<a-1>\n", "</ a-1>\n", "<DIV>\n", "<h1>\n"] {
+        let mut context = Context::default();
+        let mut reader = Reader::new(source.as_bytes());
+        assert!(
+            context.open_html_block(&mut reader).0.is_some(),
+            "{source:?}"
+        );
+    }
+}
 #[test]
 fn thematic_marker_and_indent_contract() {
     for marker in *b"-*_" {

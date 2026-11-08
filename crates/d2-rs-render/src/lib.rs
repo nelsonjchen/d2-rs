@@ -1909,6 +1909,17 @@ fn draw_shape_with_pattern_overlay(
         draw_native_three_dee_shape(svg, shape, rect, style, palette, shape_id);
         return;
     }
+    if native_scene
+        && style_flag(Some(style), |style| style.double_border.as_ref())
+        && style
+            .fill_pattern
+            .as_deref()
+            .and_then(patternassets::id)
+            .is_none()
+        && shapes::draw_native_double_border(svg, shape, rect, style, None, palette, shape_id)
+    {
+        return;
+    }
     let Some(_pattern) = style
         .fill_pattern
         .as_deref()
@@ -1928,8 +1939,14 @@ fn draw_shape_with_pattern_overlay(
     // `multiple` shape.
     overlay.multiple = None;
     if native_scene
-        && shapes::draw_native_double_border_pattern(
-            svg, shape, rect, &base, &overlay, palette, shape_id,
+        && shapes::draw_native_double_border(
+            svg,
+            shape,
+            rect,
+            &base,
+            Some(&overlay),
+            palette,
+            shape_id,
         )
     {
         return;
@@ -3354,13 +3371,11 @@ fn bounds_with_markdown_family_and_legend(
                     .get(node_id)
                     .map(|state| state.position)
                     .unwrap_or(node.label_position);
-                let rendered_position = if styles.get(node_id).is_some_and(|style| style.markdown)
-                    && position == LabelPosition::Unset
-                {
-                    LabelPosition::InsideMiddleCenter
-                } else {
-                    position
-                };
+                // d2target.Diagram.BoundingBox uses the exported position
+                // verbatim. An unset Markdown position therefore leaves the
+                // label box at the shape's top-left even though the Markdown
+                // painter centers the viewport inside the shape.
+                let rendered_position = position;
                 target_modifier_label_bounds(
                     node_label_box(
                         target_rect,
@@ -7761,6 +7776,14 @@ fn draw_native_markdown_layout_viewport(
     if !fragment.starts_with("<svg ") {
         return false;
     }
+    // d2scenebuild.buildMarkdownLabel validates the layout, then returns an
+    // empty group for a zero-sized viewport. Keep that scene behavior in the
+    // private raster transport, whose SVG parser can discard degenerate clips.
+    if preserve_text_geometry_precision
+        && (viewport.size.width == 0.0 || viewport.size.height == 0.0)
+    {
+        return true;
+    }
     let _ = write!(
         svg,
         "<svg x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" viewBox=\"0 0 {} {}\" overflow=\"hidden\">",
@@ -10457,6 +10480,23 @@ fn draw_root_rectangle(
             }
         }
         fragment.insert_str(at + 5, &format!(" data-d2-rs-root=\"{identity}\""));
+        // d2scenebuild.buildRoot keeps the stroke's float64 dash tuple just
+        // like ordinary shapes. The public SVG rounds that tuple to six
+        // decimals; carry the original operands into native rasterization.
+        if native_scene
+            && let Some((dash, gap)) = stroke_dash_values(
+                style.stroke_width.as_deref().unwrap_or("0"),
+                style.stroke_dash.as_deref(),
+            )
+        {
+            fragment.insert_str(
+                at + 5,
+                &format!(
+                    " data-d2-rs-dash-owner-id=\"d2-rs-root-native-raster-shape-{identity}\"{}",
+                    raster_dash_attributes(dash, gap),
+                ),
+            );
+        }
     }
     svg.push_str(&fragment);
 }
@@ -16120,6 +16160,141 @@ mod tests {
         // shape_document returns only one. One rectangle and the two page
         // paths must remain independently identifiable with the same tuple.
         assert_native_ordinary_dash_operands(std::str::from_utf8(&native).unwrap(), 3);
+    }
+
+    #[test]
+    fn raster_multiple_double_border_keeps_both_pairs_and_pattern_order() {
+        // Pinned d2scenebuild/shape_effects.go buildDoubleBorderShape builds
+        // the back pair with two filled borders, then the front pair.
+        // patterns.go effectPatternNode inserts patterns only after eligible
+        // outer borders; the back ellipse never receives one.
+        let overrides = BTreeMap::new();
+        let palette = super::PaletteView::new(super::active_palette(None), &overrides);
+        for shape in [ShapeKind::Rectangle, ShapeKind::Oval] {
+            for patterned in [false, true] {
+                let style = SourceNodeStyle {
+                    fill: Some("#abcdef".into()),
+                    stroke: Some("#123456".into()),
+                    multiple: Some("true".into()),
+                    double_border: Some("true".into()),
+                    fill_pattern: patterned.then(|| "dots".into()),
+                    ..Default::default()
+                };
+                let mut svg = String::new();
+                super::draw_shape_with_pattern_overlay(
+                    &mut svg,
+                    shape,
+                    Rect {
+                        origin: Point { x: 10.0, y: 20.0 },
+                        size: Size {
+                            width: 100.0,
+                            height: 80.0,
+                        },
+                    },
+                    &style,
+                    palette,
+                    "border-owner",
+                    true,
+                    false,
+                );
+                let xml = format!("<svg>{svg}</svg>");
+                let document = roxmltree::Document::parse(&xml).unwrap();
+                let paints: Vec<_> = document
+                    .root_element()
+                    .children()
+                    .filter(|n| n.is_element())
+                    .collect();
+                let ellipse = shape == ShapeKind::Oval;
+                assert_eq!(
+                    paints.len(),
+                    4 + if patterned {
+                        if ellipse { 1 } else { 2 }
+                    } else {
+                        0
+                    }
+                );
+                let pattern_positions: Vec<_> = paints
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, n)| n.attribute("fill").is_some_and(|v| v.starts_with("url(")))
+                    .map(|(i, _)| i)
+                    .collect();
+                assert_eq!(
+                    pattern_positions,
+                    if !patterned {
+                        vec![]
+                    } else if ellipse {
+                        vec![3]
+                    } else {
+                        vec![1, 4]
+                    }
+                );
+                let borders: Vec<_> = paints
+                    .iter()
+                    .filter(|n| !n.attribute("fill").is_some_and(|v| v.starts_with("url(")))
+                    .collect();
+                assert_eq!(borders.len(), 4);
+                for (index, border) in borders.iter().enumerate() {
+                    assert_eq!(
+                        border.tag_name().name(),
+                        if ellipse { "ellipse" } else { "rect" }
+                    );
+                    assert_eq!(
+                        border.attribute("fill"),
+                        Some(if index == 3 && !ellipse {
+                            "none"
+                        } else {
+                            "#abcdef"
+                        })
+                    );
+                    if !ellipse {
+                        assert_eq!(border.attribute("x"), Some(["20", "25", "10", "15"][index]));
+                        assert_eq!(border.attribute("y"), Some(["10", "15", "20", "25"][index]));
+                        assert_eq!(
+                            border.attribute("width"),
+                            Some(["100", "90", "100", "90"][index])
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn raster_root_dash_keeps_source_operands_for_both_borders() {
+        for double in [false, true] {
+            let mut graph = Graph::default();
+            graph.add_node(Node::new(
+                "a",
+                Size {
+                    width: 100.0,
+                    height: 80.0,
+                },
+            ));
+            graph.root_style = Some(d2_rs_core::RootStyle {
+                stroke: Some("#191970".into()),
+                stroke_width: Some("2".into()),
+                stroke_dash: Some("5".into()),
+                double_border: Some(double.to_string()),
+                ..Default::default()
+            });
+            let result = Engine.layout(&graph, &LayoutOptions::default()).unwrap();
+            let public = render_svg(&graph, &result, &BTreeMap::new(), &BTreeMap::new());
+            assert!(!String::from_utf8_lossy(&public).contains("data-d2-rs-dash-"));
+            let (native, _) = super::render_svg_with_raster_sources_checked(
+                &graph,
+                &result,
+                &BTreeMap::new(),
+                &BTreeMap::new(),
+                RenderOptions::default(),
+                false,
+            )
+            .unwrap();
+            assert_native_ordinary_dash_operands(
+                std::str::from_utf8(&native).unwrap(),
+                if double { 2 } else { 1 },
+            );
+        }
     }
 
     #[test]
@@ -23926,6 +24101,48 @@ mod raw_rich_label_scene_contract {
             )
             .is_ok()
         );
+    }
+}
+
+#[cfg(test)]
+mod empty_markdown_scene_contract {
+    use super::*;
+
+    #[test]
+    fn zero_sized_markdown_viewports_keep_layout_but_have_no_scene_paint() {
+        // Pinned d2scenebuild/markdown.go buildMarkdownLabel returns the empty
+        // root after LayoutMarkdown when either viewport dimension is zero.
+        for size in [
+            Size {
+                width: 64.0,
+                height: 0.0,
+            },
+            Size {
+                width: 0.0,
+                height: 64.0,
+            },
+        ] {
+            for private in [false, true] {
+                let mut svg = String::new();
+                assert!(draw_native_markdown_layout_viewport(
+                    &mut svg,
+                    "- -",
+                    Rect {
+                        origin: Point { x: 12.0, y: 14.5 },
+                        size
+                    },
+                    16,
+                    "#0A0F25",
+                    None,
+                    private,
+                    MarkdownFamily::Sans,
+                ));
+                assert_eq!(svg.is_empty(), private);
+                if !private {
+                    assert!(svg.contains("<rect "));
+                }
+            }
+        }
     }
 }
 

@@ -37,10 +37,12 @@ pub(super) fn is_prepared(
     p: &usvg::Pattern,
     mut device: Affine64,
     origin: Point64,
+    prepared_device: Option<Affine64>,
     instances: &PatternInstances,
 ) -> bool {
     device.tx += origin.x;
     device.ty += origin.y;
+    let device = prepared_device.unwrap_or(device);
     instances
         .get(p.id())
         .is_some_and(|paints| paints.contains_key(&key(matrix(device, p))))
@@ -63,11 +65,13 @@ pub(super) fn sampler<'a>(
     parsed: Transform,
     exact: Option<Affine64>,
     origin: Point64,
+    prepared_device: Option<Affine64>,
     instances: &'a PatternInstances,
 ) -> Option<Sampler<'a>> {
     let mut device = exact.unwrap_or_else(|| canonical_transform(parsed));
     device.tx += origin.x;
     device.ty += origin.y;
+    let device = prepared_device.unwrap_or(device);
     let prepared = instances.get(p.id())?.get(&key(matrix(device, p)))?;
     let tile = &prepared.tile;
     Some(Sampler {

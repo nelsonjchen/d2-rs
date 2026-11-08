@@ -70,6 +70,7 @@ fn validate_with_copies(
         states: Vec::new(),
         object: 0,
         style_errors: HashMap::new(),
+        active_class_maps: HashSet::new(),
         charge_copies: !compiler.graph_copies_accounted.get(),
         copies: Vec::new(),
     };
@@ -159,6 +160,7 @@ pub(super) fn validate_legend_attributes(
         states: vec![super::late_validation::Board::new(compiler, board_root)],
         object: 0,
         style_errors: HashMap::new(),
+        active_class_maps: HashSet::new(),
         charge_copies: !compiler.graph_copies_accounted.get(),
         copies: Vec::new(),
     };
@@ -206,6 +208,9 @@ struct ArrowheadValidation<'a> {
     // IR fields, not the object or board applying it. Replay diagnostics at
     // each visit so their order and final range/message deduplication stay exact.
     style_errors: HashMap<NodeId, Vec<ast::Error>>,
+    // Go's beginClass keeps a class active until its complete compileMap
+    // traversal returns, including invalid child maps inside that class.
+    active_class_maps: HashSet<NodeId>,
 }
 
 // Suspended compileMap visits retain their field cursor and the post-child
@@ -216,6 +221,7 @@ struct ScopeFrame {
     shape: Option<String>,
     parent_shape: Option<String>,
     after_child: Option<(usize, NodeId)>,
+    compile_edges: bool,
 }
 
 struct KeyFrame {
@@ -543,7 +549,7 @@ impl ArrowheadValidation<'_> {
             events
                 .iter()
                 .filter_map(|event| match event {
-                    ClassApplication::Map(map) => Some(*map),
+                    ClassApplication::Map { map, .. } => Some(*map),
                     ClassApplication::Error(_) => None,
                 })
                 .collect()
@@ -552,11 +558,24 @@ impl ArrowheadValidation<'_> {
     }
 
     fn scope(&mut self, map: NodeId, board_root: NodeId) {
-        self.scope_with_parent(map, board_root, None);
+        self.scope_with_parent_mode(map, board_root, None, true, true);
     }
 
-    fn scope_with_parent(&mut self, map: NodeId, board_root: NodeId, parent_shape: Option<&str>) {
-        let Some(frame) = self.scope_frame(map, board_root, parent_shape.map(str::to_owned)) else {
+    fn scope_with_parent_mode(
+        &mut self,
+        map: NodeId,
+        board_root: NodeId,
+        parent_shape: Option<&str>,
+        compile_edges: bool,
+        apply_classes: bool,
+    ) {
+        let Some(frame) = self.scope_frame(
+            map,
+            board_root,
+            parent_shape.map(str::to_owned),
+            compile_edges,
+            apply_classes,
+        ) else {
             return;
         };
         let mut frames = vec![frame];
@@ -567,8 +586,11 @@ impl ArrowheadValidation<'_> {
             }
             let Some(field) = frame.fields.next() else {
                 let map = frame.map;
+                let compile_edges = frame.compile_edges;
                 frames.pop();
-                self.scope_edges(map, board_root);
+                if compile_edges {
+                    self.scope_edges(map, board_root);
+                }
                 continue;
             };
             if self.compiler.graph_copy_failed.get() {
@@ -604,7 +626,7 @@ impl ArrowheadValidation<'_> {
             frame.after_child = Some((parent, field));
             if let Some(map) = self.compiler.arena.map(field) {
                 let parent_shape = frame.shape.clone();
-                if let Some(child) = self.scope_frame(map, board_root, parent_shape) {
+                if let Some(child) = self.scope_frame(map, board_root, parent_shape, true, true) {
                     frames.push(child);
                 }
             }
@@ -616,6 +638,8 @@ impl ArrowheadValidation<'_> {
         map: NodeId,
         board_root: NodeId,
         parent_shape: Option<String>,
+        compile_edges: bool,
+        apply_classes: bool,
     ) -> Option<ScopeFrame> {
         if self.compiler.graph_copy_failed.get() {
             return None;
@@ -623,10 +647,18 @@ impl ArrowheadValidation<'_> {
         // Source compileMap applies classes before direct fields, even if
         // a later direct style overrides an invalid class value. Unused
         // definition maps are not live objects and are never validated here.
-        for event in self.class_applications(map, board_root, false) {
-            match event {
-                ClassApplication::Map(class) => self.object_styles(class),
-                ClassApplication::Error(error) => self.errors.push(error),
+        if apply_classes {
+            for event in self.class_applications(map, board_root, false) {
+                match event {
+                    ClassApplication::Map {
+                        map: class,
+                        field,
+                        name,
+                    } => {
+                        self.object_class(class, field, &name, board_root, parent_shape.as_deref())
+                    }
+                    ClassApplication::Error(error) => self.errors.push(error),
+                }
             }
         }
         self.object_shape(map);
@@ -637,6 +669,7 @@ impl ArrowheadValidation<'_> {
             shape,
             parent_shape,
             after_child: None,
+            compile_edges,
         })
     }
 
@@ -691,7 +724,7 @@ impl ArrowheadValidation<'_> {
             // while validating the shared IR without mutating it.
             for event in self.class_applications(edge, board_root, true) {
                 match event {
-                    ClassApplication::Map(class) => {
+                    ClassApplication::Map { map: class, .. } => {
                         self.edge_map(class);
                     }
                     ClassApplication::Error(error) => self.errors.push(error),
@@ -1077,14 +1110,34 @@ impl ArrowheadValidation<'_> {
         }
     }
 
-    fn object_styles(&mut self, map: NodeId) {
-        self.object_shape(map);
-        for field in self.fields(map) {
-            if self.unquoted_name(field).as_deref() == Some("shape") {
-                continue;
+    fn object_class(
+        &mut self,
+        map: NodeId,
+        field: NodeId,
+        name: &[u8],
+        board_root: NodeId,
+        parent_shape: Option<&str>,
+    ) {
+        if !self.active_class_maps.insert(map) {
+            if let Some(node) = self.compiler.arena.last_ref(field).and_then(|r| r.ast()) {
+                self.errors.push(error(
+                    &node,
+                    format!(
+                        "class {} forms a reference cycle",
+                        crate::parser::quote_input(name)
+                    ),
+                ));
             }
-            self.object_style_field(field);
+            return;
         }
+        // A class map itself contributes no edges, but compileMap still
+        // descends through invalid object children and compiles their maps.
+        // `class_applications` already flattened the class map's own class
+        // chain (and emitted its cycle diagnostic). Compile this root without
+        // resolving that chain a second time; child object maps remain live
+        // scopes and resolve their own classes while this class stays active.
+        self.scope_with_parent_mode(map, board_root, parent_shape, false, false);
+        self.active_class_maps.remove(&map);
     }
 
     fn object_shape_value(&self, map: NodeId, board_root: NodeId) -> Option<String> {
@@ -1784,6 +1837,48 @@ mod tests {
             (
                 "classes: {bad: {target-arrowhead.shape: triangle}}\nlayers: {child: {classes: {bad: {target-arrowhead.shape: line}}; a -> b: {class: bad}}}\n",
                 vec!["validation.d2:2:58: unknown shape \"line\""],
+            ),
+        ];
+        for (source, expected) in cases {
+            assert_eq!(
+                diagnostics(source)
+                    .iter()
+                    .map(|error| error.message.as_str())
+                    .collect::<Vec<_>>(),
+                expected,
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn applied_classes_compile_invalid_child_maps_and_keep_cycles_bounded() {
+        // Pinned d2compiler.compileMap descends into non-reserved class
+        // fields when the class is applied, even though the class catalog
+        // separately rejects those fields. beginClass remains active across
+        // that complete child traversal.
+        let cases = [
+            (
+                "a.class: empty\nclasses: {empty: {st'layersyle: {fill: t}}}\n",
+                vec![
+                    "validation.d2:2:34: fill must be style.fill",
+                    "validation.d2:2:19: st'layersyle is an invalid class field, must be reserved keyword",
+                ],
+            ),
+            (
+                "classes: {x: {foo: {fill: red; bar: {stroke: blue}}}}\na.class: x\n",
+                vec![
+                    "validation.d2:1:15: foo is an invalid class field, must be reserved keyword",
+                    "validation.d2:1:21: fill must be style.fill",
+                    "validation.d2:1:38: stroke must be style.stroke",
+                ],
+            ),
+            (
+                "classes: {x: {foo: {class: x}}}\na.class: x\n",
+                vec![
+                    "validation.d2:1:15: foo is an invalid class field, must be reserved keyword",
+                    "validation.d2:1:21: class \"x\" forms a reference cycle",
+                ],
             ),
         ];
         for (source, expected) in cases {

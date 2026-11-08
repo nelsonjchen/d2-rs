@@ -20,7 +20,7 @@ use d2_rs_core::{
     ast::{self, Child, Node as AstNode, ScalarBox},
     ir::{Node as IrNode, NodeId as IrNodeId},
 };
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::OnceLock;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -36,6 +36,8 @@ pub enum GraphCompileError {
     InvalidAttributes(Vec<ast::Error>),
     /// Native LaTeX intrinsic measurement failed before layout.
     LatexMeasurement(String),
+    /// Native Markdown measurement failed before layout.
+    MarkdownMeasurement(String),
     /// The IR contains an edge without both concrete endpoint paths.
     MissingEdgeEndpoint,
     /// An edge uses a wildcard or underscore path that needs D2 resolution.
@@ -63,6 +65,7 @@ impl std::fmt::Display for GraphCompileError {
                 "variable substitution expansion exceeds limit of {limit} work units"
             ),
             Self::LatexMeasurement(error) => f.write_str(error),
+            Self::MarkdownMeasurement(error) => f.write_str(error),
             Self::InvalidAttributes(errors) => {
                 for (index, error) in errors.iter().enumerate() {
                     if index != 0 {
@@ -361,9 +364,11 @@ fn arrowhead_shape(compiler: &Compiler, edge: IrNodeId, endpoint: &str) -> Optio
 /// compileBoardsField applies the enclosing field's primary label after
 /// compileBoard has consumed the map's `label` property.
 pub fn board_label(compiler: &Compiler, board: IrNodeId) -> Option<String> {
-    compiler
-        .arena
-        .parent_field(board)
+    let field = match compiler.arena.node(board) {
+        IrNode::Field(_) => Some(board),
+        _ => compiler.arena.parent_field(board),
+    };
+    field
         .and_then(|field| compiler.arena.primary(field))
         .and_then(|primary| match compiler.arena.node(primary) {
             IrNode::Scalar(value) => Some(scalar_text(&value.value)),
@@ -604,7 +609,11 @@ fn class_maps(compiler: &Compiler, node: IrNodeId) -> super::graph_fields::Class
 }
 
 pub(super) enum ClassApplication {
-    Map(IrNodeId),
+    Map {
+        map: IrNodeId,
+        field: IrNodeId,
+        name: Vec<u8>,
+    },
     Error(ast::Error),
 }
 
@@ -617,7 +626,7 @@ pub(super) fn class_maps_at_root(
         class_applications_at_root(compiler, node, root, false, &mut |_| true)
             .into_iter()
             .filter_map(|event| match event {
-                ClassApplication::Map(map) => Some(map),
+                ClassApplication::Map { map, .. } => Some(map),
                 ClassApplication::Error(_) => None,
             })
             .collect()
@@ -770,7 +779,11 @@ pub(super) fn class_applications_at_root(
                     if compiler.graph_copy_failed.get() {
                         return;
                     }
-                    output.push(ClassApplication::Map(class));
+                    output.push(ClassApplication::Map {
+                        map: class,
+                        field,
+                        name,
+                    });
                     active.remove(&class);
                 } else if let Some(event) = ref_error(
                     compiler,
@@ -1485,17 +1498,22 @@ fn canonical_graph_fields(
     let mut property_view: Option<Compiler> = None;
     let mut copied = HashSet::new();
     let mut components: Vec<String> = Vec::new();
-    let mut scope_stack = Vec::new();
+    let mut scope_stack: Vec<(String, usize, Option<ast::Position>, bool)> = Vec::new();
     let mut scope_ends = BTreeMap::new();
+    let mut reference_order_committed = HashSet::new();
     for mut field in fields {
         // compileMap connects edges after its complete child-map traversal,
         // before compiling the following sibling's fields. Retain that
         // boundary for EnsureChild's second actor lookup at Connect time.
         while scope_stack
             .last()
-            .is_some_and(|scope| Some(scope) != field.parent_path.as_ref())
+            .is_some_and(|(scope, _, _, _)| Some(scope) != field.parent_path.as_ref())
         {
-            scope_ends.insert(scope_stack.pop().unwrap(), canonical.len());
+            let (scope, index, order, has_references) = scope_stack.pop().unwrap();
+            if has_references && reference_order_committed.insert(index) {
+                canonical[index].source_order = order;
+            }
+            scope_ends.insert(scope, canonical.len());
         }
         let lexical_path = field.path.clone();
         let mut parent = field.parent_path.as_ref().map(|p| aliases[p].clone());
@@ -1583,11 +1601,24 @@ fn canonical_graph_fields(
             }
         }
         if root_sequence || !sequences.is_empty() || !scope_stack.is_empty() {
-            scope_stack.push(lexical_path.clone());
+            // compileField appends references after compileMap returns. A
+            // descendant can resolve back to an existing sequence actor, so
+            // its references can precede that actor's outer declaration.
+            let has_references = matches!(compiler.arena.node(field.field),
+                IrNode::Field(field) if field.references.as_ref().is_some_and(|refs| !refs.is_empty()));
+            scope_stack.push((
+                lexical_path.clone(),
+                index,
+                field.source_order,
+                has_references,
+            ));
         }
         aliases.insert(lexical_path, canonical[index].path.clone());
     }
-    for scope in scope_stack {
+    for (scope, index, order, has_references) in scope_stack.into_iter().rev() {
+        if has_references && reference_order_committed.insert(index) {
+            canonical[index].source_order = order;
+        }
         scope_ends.insert(scope, canonical.len());
     }
     (canonical, aliases, property_view, scope_ends)
@@ -3134,6 +3165,12 @@ fn fit_source_shape(options: ShapeFitOptions) -> Size {
 /// D2 v0.9.0 faces as the CLI and WASM boundaries, so direct library users do
 /// not silently receive character-count geometry.
 pub trait GraphMeasurer {
+    /// Native Markdown rulers can reject unsupported HTML before sizing.
+    /// Callers supplying their own text dimensions need no native SVG tree.
+    fn validate_markdown_label(&self, _label: &str) -> Result<(), String> {
+        Ok(())
+    }
+
     /// Returns the padded node size in layout pixels.
     fn measure(&self, label: &str) -> Size;
 
@@ -3452,6 +3489,10 @@ impl BundledGraphMeasurer {
 }
 
 impl GraphMeasurer for BundledGraphMeasurer {
+    fn validate_markdown_label(&self, label: &str) -> Result<(), String> {
+        d2_rs_text::markdown_measure::validate_markdown_label(label)
+    }
+
     fn supports_shape_fitting(&self) -> bool {
         true
     }
@@ -3848,6 +3889,8 @@ fn add_implicit_node(
         measurer.measure_styled_label_at_size(label, 16, true, false)
     });
     let id = graph.add_node(node);
+    // newObject retains its IDVal as Label even without a compiled field.
+    graph.set_node_label(id, label.to_owned());
     nodes.insert(path.to_owned(), id);
     id
 }
@@ -4397,22 +4440,21 @@ fn lower_graph_in_class_context<M: GraphMeasurer>(
             .as_deref()
             .map(|path| path.split('.').count() + 1)
             .unwrap_or(1);
-        let effective_font_size = if tabular_shape {
-            explicit_font_size.unwrap_or(20).saturating_add(4)
-        } else {
-            explicit_font_size
-                .or_else(|| {
-                    (is_container && !sequence_ancestor && shape_kind != ShapeKind::Text).then_some(
-                        match container_level {
-                            1 => 28,
-                            2 => 24,
-                            3 => 20,
-                            _ => 16,
-                        },
-                    )
-                })
-                .unwrap_or(16)
-        };
+        // Object.Text selects the class/table base first, then the container
+        // level (including childless grids), explicit style, and HeaderFontAdd.
+        let base_font_size = explicit_font_size
+            .or_else(|| {
+                (is_container && !sequence_ancestor && shape_kind != ShapeKind::Text).then_some(
+                    match container_level {
+                        1 => 28,
+                        2 => 24,
+                        3 => 20,
+                        _ => 16,
+                    },
+                )
+            })
+            .unwrap_or(if tabular_shape { 20 } else { 16 });
+        let effective_font_size = base_font_size.saturating_add(if tabular_shape { 4 } else { 0 });
         let has_icon = property_text_inherited(compiler, field, &["icon"]).is_some();
         // validateKeys checks missing image icons only while visiting a local
         // shape key (d2compiler/compile.go). Attribute validation above mirrors
@@ -4427,6 +4469,11 @@ fn lower_graph_in_class_context<M: GraphMeasurer>(
             .is_some_and(|value| value != 0.0);
         let desired_height = property_number_inherited(compiler, field, &["height"])
             .is_some_and(|value| value != 0.0);
+        if measure_markdown && !empty_plain_label {
+            measurer
+                .validate_markdown_label(&label)
+                .map_err(GraphCompileError::MarkdownMeasurement)?;
+        }
         let raw_label_size = if shape_kind == ShapeKind::SqlTable && label.is_empty() {
             if language.as_deref().is_some_and(|value| !value.is_empty()) {
                 measurer.measure_code_label_at_size("Table", effective_font_size)
@@ -4719,7 +4766,7 @@ fn lower_graph_in_class_context<M: GraphMeasurer>(
                     ),
                     filled: property_text_inherited(compiler, field, &["style", "filled"]),
                     font_size: explicit_font_size,
-                    target_font_size: tabular_shape.then_some(explicit_font_size.unwrap_or(20)),
+                    target_font_size: tabular_shape.then_some(base_font_size),
                     target_accents: tabular_shape.then(SourceTargetAccents::structured),
                     language,
                     table_columns: table_column_names.clone(),
@@ -5051,6 +5098,7 @@ fn lower_graph_in_class_context<M: GraphMeasurer>(
         }
     }
 
+    let implicit_node_start = graph.nodes.len();
     let edges = ordered_graph_edges(compiler, root);
     let resolve_sequence =
         graph.root_sequence_diagram || graph.sequence_diagram_nodes.contains(&true);
@@ -5161,6 +5209,13 @@ fn lower_graph_in_class_context<M: GraphMeasurer>(
             );
             (id, None)
         });
+        // d2graph.addSQLTableColumnIndices returns before assigning either
+        // port when both endpoints resolve to the same SQL table.
+        let (source_column, target_column) = if source == target {
+            (None, None)
+        } else {
+            (source_column, target_column)
+        };
         let graph_edge = graph.add_edge(GraphEdge { source, target });
         let classes = target_class_names(compiler, edge);
         if !classes.is_empty() {
@@ -5397,6 +5452,9 @@ fn lower_graph_in_class_context<M: GraphMeasurer>(
                     .measure_latex_label_checked_at_size(&text, edge_font_size.unwrap_or(16))
                     .map_err(GraphCompileError::LatexMeasurement)?
             } else if edge_language.as_deref() == Some("markdown") {
+                measurer
+                    .validate_markdown_label(&text)
+                    .map_err(GraphCompileError::MarkdownMeasurement)?;
                 if edge_mono {
                     measurer.measure_mono_styled_markdown_label_at_size(
                         &text,
@@ -5495,6 +5553,79 @@ fn lower_graph_in_class_context<M: GraphMeasurer>(
                     source_root::icon(compiler, edge, &[name])?;
                 }
             }
+        }
+    }
+    // Connect.EnsureChild can recreate suspended endpoints after compileMap
+    // has omitted their fields. They still receive Object.Text's defaults,
+    // using the completed hierarchy, just like ordinary compiled objects.
+    let implicit_containers = (implicit_node_start < graph.nodes.len()).then(|| {
+        graph
+            .nodes
+            .iter()
+            .filter_map(|node| node.parent)
+            .collect::<BTreeSet<_>>()
+    });
+    for index in implicit_node_start..graph.nodes.len() {
+        let id = GraphNodeId(index as u32);
+        let mut parent = graph.nodes[index].parent;
+        let mut sequence = graph.root_sequence_diagram;
+        let mut level = 1;
+        while let Some(ancestor) = parent {
+            sequence |= graph.is_sequence_diagram(ancestor);
+            parent = graph.node(ancestor).and_then(|node| node.parent);
+            level += 1;
+        }
+        let container = implicit_containers
+            .as_ref()
+            .is_some_and(|parents| parents.contains(&id));
+        let bold = !sequence && !container;
+        let font_size = if container && !sequence {
+            match level {
+                1 => 28,
+                2 => 24,
+                3 => 20,
+                _ => 16,
+            }
+        } else {
+            16
+        };
+        if !bold || font_size != 16 {
+            let label = labels.get(&id).map(String::as_str).unwrap_or("");
+            let raw = if theme_mono {
+                measurer.measure_mono_styled_label_at_size(label, font_size, bold, false)
+            } else {
+                measurer.measure_styled_label_at_size(label, font_size, bold, false)
+            };
+            let size = if measurer.supports_shape_fitting() {
+                fit_source_shape(ShapeFitOptions {
+                    shape: ShapeKind::Rectangle,
+                    raw_label: raw,
+                    font_size,
+                    include_inner_label_padding: true,
+                    desired_width: false,
+                    desired_height: false,
+                    has_icon: false,
+                    has_link_tooltip: false,
+                })
+            } else if theme_mono {
+                measurer.measure_mono_styled_at_size(label, font_size, bold, false)
+            } else {
+                measurer.measure_styled_at_size(label, font_size, bold, false)
+            };
+            let node = &mut graph.nodes[index];
+            node.size = size;
+            node.declared_size = Some(size);
+            node.label_size = Some(raw);
+            node.font_size = Some(font_size);
+        }
+        if retain_source_projection {
+            styles.insert(
+                id,
+                SourceNodeStyle {
+                    bold,
+                    ..SourceNodeStyle::default()
+                },
+            );
         }
     }
     let validation_edges = validation_edges.into_iter().flatten().collect::<Vec<_>>();
@@ -5659,6 +5790,27 @@ mod authored_geometry_handoff_contract {
     use super::*;
     use crate::{compiler::compile_ir, parse};
     use d2_rs_core::ast::Shared;
+
+    #[test]
+    fn sequence_actor_references_are_published_after_child_compilation() {
+        // Pinned d2compiler.compileField compiles child maps before appending
+        // field references. SortObjectsByAST uses the first appended reference.
+        for source in [
+            "shape:sequence_diagram\nr{}\nscorer.c{scorer->e{}}",
+            "shape:sequence_diagram\nr{}\nscorer.c{scorer->e}",
+        ] {
+            let parsed = parse("sequence-order.d2", source.as_bytes(), None);
+            assert!(parsed.error.is_none(), "{:?}", parsed.error);
+            let (compiler, root) = compile_ir(Shared::new(parsed.map)).unwrap();
+            let graph = lower_graph(&compiler, root).unwrap();
+            let order = graph
+                .node_order_override
+                .iter()
+                .map(|id| graph.nodes[id.0 as usize].external_id.as_str())
+                .collect::<Vec<_>>();
+            assert_eq!(order, ["r", "scorer.c", "scorer", "scorer.c.e"]);
+        }
+    }
 
     #[test]
     fn only_document_objects_receive_the_final_ast_sort() {

@@ -111,6 +111,12 @@ impl Compiler {
     ) -> Result<ir::NodeId, GraphCompileError> {
         self.graph_copy_check()?;
         self.graph_check()?;
+        // d2compiler.compileBoardsField substitutes an empty map for a board
+        // field without a map. Do this in the graph view so the public IR keeps
+        // the authored primary value and absent composite unchanged.
+        if matches!(self.arena.node(root), ir::Node::Field(_)) && self.arena.map(root).is_none() {
+            return Ok(self.arena.new_root());
+        }
         // Native graph lowering reads immutable IR, and graph_class_root gives
         // each board its own class namespace. Keep the original lexical parent
         // for graph IDs and document-only sorting; an orphaned arena copy would

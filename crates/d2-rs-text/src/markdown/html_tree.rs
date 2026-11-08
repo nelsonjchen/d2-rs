@@ -791,3 +791,53 @@ impl Dom {
         out
     }
 }
+
+/// validateMarkdownSVGNodes.
+pub fn validate_markdown_svg_nodes(dom: &Dom, n: NodeId) -> Result<(), String> {
+    if let Some(data) = dom.element_data(n) {
+        if !matches!(
+            data,
+            "html"
+                | "head"
+                | "body"
+                | "p"
+                | "h1"
+                | "h2"
+                | "h3"
+                | "h4"
+                | "h5"
+                | "h6"
+                | "blockquote"
+                | "ul"
+                | "ol"
+                | "li"
+                | "pre"
+                | "code"
+                | "em"
+                | "b"
+                | "strong"
+                | "del"
+                | "s"
+                | "strike"
+                | "a"
+                | "br"
+                | "hr"
+                | "img"
+                | "table"
+                | "thead"
+                | "tbody"
+                | "tfoot"
+                | "tr"
+                | "td"
+                | "th"
+        ) {
+            return Err(format!(
+                "native Markdown SVG does not support HTML element <{data}>"
+            ));
+        }
+    }
+    for child in dom.children(n) {
+        validate_markdown_svg_nodes(dom, child)?;
+    }
+    Ok(())
+}

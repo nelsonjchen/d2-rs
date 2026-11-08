@@ -129,7 +129,8 @@ fn attributes(kind: &str, raw: &str) -> Result<(Vec<(String, Value)>, Vec<String
 }
 
 impl Parser {
-    fn mml_argument(&mut self, name: &str) -> Result<String, String> {
+    // tex/parser.go readArgument: shared by MmlToken and BeginEnd.
+    pub(super) fn read_argument(&mut self, name: &str) -> Result<String, String> {
         while self
             .chars
             .get(self.index)
@@ -164,7 +165,7 @@ impl Parser {
     }
 
     fn read_mml_token(&mut self, name: &str) -> Result<Token, String> {
-        let kind = self.mml_argument(name)?;
+        let kind = self.read_argument(name)?;
         while self
             .chars
             .get(self.index)
@@ -187,7 +188,7 @@ impl Parser {
         })?;
         // Text is read before kind/attribute validation. It is literal,
         // including command text, and mspace discards it at zero arity.
-        let text = self.mml_argument(name)?;
+        let text = self.read_argument(name)?;
         if !token_kind(&kind) {
             return Err(format!("{kind} is not a token element"));
         }

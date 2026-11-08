@@ -2613,7 +2613,26 @@ impl Rasterizer {
         if self.output.is_none() {
             self.output = layer_output(pixels);
         }
-        let Some(windows) = go_band_windows(self.width, self.height) else {
+        let windows = go_band_windows(self.width, self.height).or_else(|| {
+            // Root primitives have no effect-layer window, but RenderBands
+            // still resets their rasterizer once per 256-row destination.
+            // A full-frame active list is observably different because its
+            // expired-edge swaps reorder f32 coverage accumulation.
+            (GO_PNG_BANDS.with(std::cell::Cell::get)
+                && go_band_frame_active(self.width, self.height))
+            .then(|| {
+                let rows = frame_band_rows(self.width, self.height);
+                (0..self.height)
+                    .step_by(GO_PNG_BAND_HEIGHT)
+                    .filter_map(|top| {
+                        let bottom = (top + GO_PNG_BAND_HEIGHT).min(self.height);
+                        rows.is_none_or(|(first, end)| bottom > first && top < end)
+                            .then_some((0, top as isize, self.width as isize, bottom as isize))
+                    })
+                    .collect()
+            })
+        });
+        let Some(windows) = windows else {
             self.paint_window(pixels, color_at, go_blend, solid, None);
             return;
         };
@@ -4508,17 +4527,31 @@ fn collect_ellipse_centerline(
     tolerance: f64,
 ) -> Option<(Vec<Point64>, bool)> {
     let segments = path.segments().collect::<Vec<_>>();
-    let [
-        PathSegment::MoveTo(start),
-        PathSegment::CubicTo(_, _, first_end),
-        PathSegment::CubicTo(_, _, second_end),
-        PathSegment::CubicTo(_, _, third_end),
-        PathSegment::CubicTo(_, _, fourth_end),
-        PathSegment::Close,
-    ] = segments.as_slice()
+    let (Some(PathSegment::MoveTo(start)), Some(PathSegment::Close)) =
+        (segments.first(), segments.last())
     else {
         return None;
     };
+    let curves = &segments[1..segments.len() - 1];
+    if !matches!(curves.len(), 4 | 8)
+        || !curves
+            .iter()
+            .all(|segment| matches!(segment, PathSegment::CubicTo(..)))
+    {
+        return None;
+    }
+    let endpoint = |index: usize| match curves[index] {
+        PathSegment::CubicTo(_, _, point) => Some(point),
+        _ => None,
+    };
+    // SVG arc lowering may use one or two cubics per quadrant. Recover the
+    // four axis extrema either way; d2raster builds those four f64 cubics
+    // directly from the scene ellipse before flattening.
+    let quarter = curves.len() / 4;
+    let first_end = endpoint(quarter - 1)?;
+    let second_end = endpoint(quarter * 2 - 1)?;
+    let third_end = endpoint(quarter * 3 - 1)?;
+    let fourth_end = endpoint(quarter * 4 - 1)?;
     // D2 reconstructs the ellipse from f64 scene coordinates, flattens it in
     // scene space using the transform-adjusted tolerance, then applies the
     // output transform. Keep that order here instead of flattening usvg's
@@ -4904,6 +4937,7 @@ fn paint_color_at(
     y: usize,
     pattern_tiles: &PatternInstances,
     exact_transform: Option<Affine64>,
+    prepared_pattern_transform: Option<Affine64>,
     device_origin: Point64,
     raw_stops: &HashMap<String, crate::svg_precision::RawGradient>,
 ) -> Option<[u8; 4]> {
@@ -4934,6 +4968,7 @@ fn paint_color_at(
         device_transform,
         exact_transform,
         device_origin,
+        prepared_pattern_transform,
         pattern_tiles,
     )?
     .color_at(x, y)
@@ -4948,6 +4983,7 @@ fn paint_sampler<'a>(
     device_transform: Transform,
     pattern_tiles: &'a PatternInstances,
     exact_transform: Option<Affine64>,
+    prepared_pattern_transform: Option<Affine64>,
     device_origin: Point64,
     raw_stops: &'a HashMap<String, crate::svg_precision::RawGradient>,
 ) -> impl Fn(usize, usize) -> Option<[u8; 4]> + 'a {
@@ -4958,6 +4994,7 @@ fn paint_sampler<'a>(
             device_transform,
             exact_transform,
             device_origin,
+            prepared_pattern_transform,
             pattern_tiles,
         )),
         _ => None,
@@ -4992,6 +5029,7 @@ fn paint_sampler<'a>(
             y,
             pattern_tiles,
             exact_transform,
+            prepared_pattern_transform,
             device_origin,
             raw_stops,
         ),
@@ -5492,30 +5530,41 @@ fn draw_path_with_transform(
 ) -> bool {
     let _stroke_only = GoStrokeOnlyScope::new(path.fill().is_none() && path.stroke().is_some());
     let scene_transform = path_scene_transform(path.abs_transform(), parent_transform);
-    let device_transform = scene_transform.post_scale(scale, scale);
+    let unshifted_device_transform = scene_transform.post_scale(scale, scale);
     let device_transform = Transform::from_row(
-        device_transform.sx,
-        device_transform.ky,
-        device_transform.kx,
-        device_transform.sy,
-        device_transform.tx - device_origin.x as f32,
-        device_transform.ty - device_origin.y as f32,
+        unshifted_device_transform.sx,
+        unshifted_device_transform.ky,
+        unshifted_device_transform.kx,
+        unshifted_device_transform.sy,
+        unshifted_device_transform.tx - device_origin.x as f32,
+        unshifted_device_transform.ty - device_origin.y as f32,
     );
-    let outer_transform = if parent_transform.is_none() {
+    let unshifted_outer_transform = if parent_transform.is_none() {
         raster_sources
             .native_path_transforms
             .get(&(path as *const usvg::Path))
             .copied()
-            .map(|mut transform| {
-                // Source shifts the f64 device matrix before mapping into
-                // a cropped filter layer, retaining the original operands.
-                transform.tx -= device_origin.x;
-                transform.ty -= device_origin.y;
-                transform
-            })
-            .unwrap_or_else(|| canonical_transform(device_transform))
+            .unwrap_or_else(|| canonical_transform(unshifted_device_transform))
     } else {
-        canonical_transform(device_transform)
+        canonical_transform(unshifted_device_transform)
+    };
+    // Source shifts the retained f64 device matrix into a cropped filter
+    // layer, while prepared paints stay keyed by the unshifted matrix.
+    let mut outer_transform = unshifted_outer_transform;
+    outer_transform.tx -= device_origin.x;
+    outer_transform.ty -= device_origin.y;
+    let local_transform = || {
+        raster_sources
+            .get(path.id())
+            .and_then(|source| source.transform)
+            .map(|[sx, kx, ky, sy, tx, ty]| Affine64 {
+                sx,
+                kx,
+                ky,
+                sy,
+                tx,
+                ty,
+            })
     };
     let transform = exact_svg_source
         .and_then(|source| {
@@ -5523,23 +5572,20 @@ fn draw_path_with_transform(
                 .and_then(|parent| intrinsic_svg_transform(source, parent, scale, device_origin))
         })
         .unwrap_or_else(|| {
-            raster_sources
-                .get(path.id())
-                .and_then(|source| source.transform)
-                .map(|[sx, kx, ky, sy, tx, ty]| {
-                    affine_mul(
-                        outer_transform,
-                        Affine64 {
-                            sx,
-                            kx,
-                            ky,
-                            sy,
-                            tx,
-                            ty,
-                        },
-                    )
-                })
+            local_transform()
+                .map(|local| affine_mul(outer_transform, local))
                 .unwrap_or(outer_transform)
+        });
+    let prepared_pattern_transform = exact_svg_source
+        .and_then(|source| {
+            parent_transform.and_then(|parent| {
+                intrinsic_svg_transform(source, parent, scale, Point64::default())
+            })
+        })
+        .unwrap_or_else(|| {
+            local_transform()
+                .map(|local| affine_mul(unshifted_outer_transform, local))
+                .unwrap_or(unshifted_outer_transform)
         });
     // raster.go:renderNode rejects primitives outside the destination before
     // scan conversion. Bound native geometry before expanding its strokes;
@@ -5612,7 +5658,7 @@ fn draw_path_with_transform(
         if !matches!(
             fill.paint(),
             Paint::Color(_) | Paint::LinearGradient(_) | Paint::RadialGradient(_)
-        ) && !matches!(fill.paint(), Paint::Pattern(pattern) if pattern::is_prepared(pattern, transform, device_origin, &raster_sources.pattern_tiles))
+        ) && !matches!(fill.paint(), Paint::Pattern(pattern) if pattern::is_prepared(pattern, transform, device_origin, Some(prepared_pattern_transform), &raster_sources.pattern_tiles))
         {
             return false;
         }
@@ -5640,6 +5686,7 @@ fn draw_path_with_transform(
             device_transform,
             &raster_sources.pattern_tiles,
             Some(transform),
+            Some(prepared_pattern_transform),
             device_origin,
             &raster_sources.gradient_stops,
         );
@@ -5921,7 +5968,7 @@ fn draw_path_with_transform(
         if !matches!(
             fill.paint(),
             Paint::Color(_) | Paint::LinearGradient(_) | Paint::RadialGradient(_)
-        ) && !matches!(fill.paint(), Paint::Pattern(pattern) if pattern::is_prepared(pattern, transform, device_origin, &raster_sources.pattern_tiles))
+        ) && !matches!(fill.paint(), Paint::Pattern(pattern) if pattern::is_prepared(pattern, transform, device_origin, Some(prepared_pattern_transform), &raster_sources.pattern_tiles))
         {
             return false;
         }
@@ -5939,6 +5986,7 @@ fn draw_path_with_transform(
                 device_transform,
                 &raster_sources.pattern_tiles,
                 Some(transform),
+                Some(prepared_pattern_transform),
                 device_origin,
                 &raster_sources.gradient_stops,
             );
@@ -5995,6 +6043,7 @@ fn draw_path_with_transform(
                 device_transform,
                 &raster_sources.pattern_tiles,
                 Some(transform),
+                Some(prepared_pattern_transform),
                 device_origin,
                 &raster_sources.gradient_stops,
             );
@@ -6076,6 +6125,7 @@ fn draw_path_with_transform(
                     device_transform,
                     &raster_sources.pattern_tiles,
                     Some(transform),
+                    Some(prepared_pattern_transform),
                     device_origin,
                     &raster_sources.gradient_stops,
                 ),
@@ -7589,7 +7639,8 @@ fn native_mixed_font_layout_uncached(
             // its runs; usvg's Unicode bidi layout can order them differently
             // even when every visible glyph uses the primary face.
             || raw_text.chars().any(|value| {
-                matches!(value, '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}')
+                font_shaping::ignorable(value)
+                    || matches!(value, '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}')
             })
             || old
                 .positioned_glyphs
@@ -8154,6 +8205,7 @@ fn draw_text_fixed(
                     y,
                     &tiles,
                     Some(transform),
+                    None,
                     device_origin,
                     svg_text_origins.gradient_stops(),
                 )
@@ -10408,7 +10460,18 @@ fn draw_group_children(
                     PAINT_ROW_PROBE.with(|probe| probe.replace(Some((isize::MAX, isize::MIN))));
                 let drawn = if color_text {
                     Some(draw_color_text_with_local_transforms(
-                        child, text, tree, pixels, width, height, scale, opacity,
+                        child,
+                        text,
+                        tree,
+                        pixels,
+                        width,
+                        height,
+                        scale,
+                        opacity,
+                        raster_sources
+                            .native_text_transforms
+                            .get(&(text.as_ref() as *const usvg::Text))
+                            .copied(),
                     ))
                 } else {
                     draw_text_fixed(
@@ -10684,20 +10747,23 @@ fn draw_color_text_native(
     height: usize,
     scale: f32,
     opacity: f32,
+    precise_device_transform: Option<Affine64>,
 ) -> Option<bool> {
     let layout = native_mixed_font_layout(tree, text)?;
     let (spans, positions) = layout.as_ref();
-    let outer = affine_mul(
-        Affine64 {
-            sx: f64::from(scale),
-            sy: f64::from(scale),
-            kx: 0.0,
-            ky: 0.0,
-            tx: 0.0,
-            ty: 0.0,
-        },
-        glyph_transform64(text.abs_transform()),
-    );
+    let outer = precise_device_transform.unwrap_or_else(|| {
+        affine_mul(
+            Affine64 {
+                sx: f64::from(scale),
+                sy: f64::from(scale),
+                kx: 0.0,
+                ky: 0.0,
+                tx: 0.0,
+                ty: 0.0,
+            },
+            glyph_transform64(text.abs_transform()),
+        )
+    });
     // Source prepareText's vector root has opacity one and renders its
     // monochrome children directly into the destination. Paint there, but
     // keep the original of every row before it is first painted, so an
@@ -10940,10 +11006,18 @@ fn draw_color_text_with_local_transforms(
     height: usize,
     scale: f32,
     opacity: f32,
+    precise_device_transform: Option<Affine64>,
 ) -> bool {
-    if let Some(rendered) =
-        draw_color_text_native(tree, text, destination, width, height, scale, opacity)
-    {
+    if let Some(rendered) = draw_color_text_native(
+        tree,
+        text,
+        destination,
+        width,
+        height,
+        scale,
+        opacity,
+        precise_device_transform,
+    ) {
         return rendered;
     }
     let Some(bounds) = node.abs_layer_bounding_box() else {
@@ -12513,6 +12587,7 @@ fn draw_raw_svg_path(
         device_transform,
         &raster_sources.pattern_tiles,
         Some(transform),
+        None,
         device_origin,
         &raster_sources.gradient_stops,
     );
@@ -15286,6 +15361,27 @@ mod tests {
     }
 
     #[test]
+    fn structured_streak_rect_keeps_scene_fractional_coverage() {
+        // Pinned d2raster receives the structured header as an f64 scene
+        // rectangle. At its bottom-right pixel, 1/2 * 1/3 coverage rounds to
+        // 43; lowering the bottom coordinate through f32 rounds it to 42.
+        let source = r##"<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4" viewBox="0 0 4 4">
+          <svg id="d2-rs-native-canvas-viewport-control" class="d2-svg" data-d2-rs-canvas-reference="ordinary" width="4" height="4" viewBox="0 0 4 4">
+            <defs><pattern id="d2-rs-sketch-streak-darker" width="100" height="100" patternUnits="userSpaceOnUse"><rect width="100" height="100" fill="white" fill-opacity="0.058823529411764705"/></pattern></defs>
+            <rect width="4" height="4" fill="#170206"/>
+            <g style="mix-blend-mode:lighten"><rect id="control-native-class-0-streak-header" x="0.5" y="1" width="2" height="1.3333333333333333" fill="url(#d2-rs-sketch-streak-darker)" stroke="none"/></g>
+          </svg>
+        </svg>"##;
+        let (source, sources) = crate::svg_precision::tag_embedded_svg_images(source);
+        let tree = usvg::Tree::from_str(&source, &usvg::Options::default()).unwrap();
+        let (width, height, pixels) = super::render_simple_with_sources(&tree, 1, &[], &sources)
+            .expect("structured streak stays on the native scene path");
+        assert_eq!((width, height), (4, 4));
+        let offset = (2 * width as usize + 2) * 4;
+        assert_eq!(&pixels[offset..offset + 4], &[26, 5, 9, 255]);
+    }
+
+    #[test]
     fn paper_pattern_vector_tile_is_supported_by_native_scanline() {
         let pattern = d2_rs_render::assets::PAPER_SVG.replace("%[1]s", "paper-probe");
         let source = format!(
@@ -17463,7 +17559,16 @@ mod mixed_color_paint_contract {
                 p.copy_from_slice(&premul)
             }
             assert_eq!(
-                draw_color_text_native(&tree, text, &mut actual, 140, 80, 1.0, opacity as f32),
+                draw_color_text_native(
+                    &tree,
+                    text,
+                    &mut actual,
+                    140,
+                    80,
+                    1.0,
+                    opacity as f32,
+                    None,
+                ),
                 Some(true),
                 "{row}"
             );
@@ -17545,6 +17650,7 @@ mod original_gradient_sample_contract {
                 path.abs_transform(),
                 &tiles,
                 None,
+                None,
                 Point64::default(),
                 &raw,
             );
@@ -17558,6 +17664,7 @@ mod original_gradient_sample_contract {
                     index % 48,
                     index / 48,
                     &HashMap::new(),
+                    None,
                     None,
                     Point64::default(),
                     &raw,

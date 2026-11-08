@@ -1134,6 +1134,10 @@ impl FontGraphMeasurer {
 }
 
 impl compiler::GraphMeasurer for FontGraphMeasurer {
+    fn validate_markdown_label(&self, label: &str) -> Result<(), String> {
+        d2_rs_text::markdown_measure::validate_markdown_label(label)
+    }
+
     fn supports_shape_fitting(&self) -> bool {
         true
     }
@@ -1910,14 +1914,14 @@ fn source_target_hash_metadata_from_compiled(
     if let Some(label) = compiler::board_label(compiler, board) {
         return Ok((Some(label), false));
     }
-    let name =
-        compiler
-            .arena
-            .parent_field(board)
-            .and_then(|field| match compiler.arena.node(field) {
-                d2_rs_core::ir::Node::Field(field) => Some(field.name.scalar_string().to_owned()),
-                _ => None,
-            });
+    let field = match compiler.arena.node(board) {
+        d2_rs_core::ir::Node::Field(_) => Some(board),
+        _ => compiler.arena.parent_field(board),
+    };
+    let name = field.and_then(|field| match compiler.arena.node(field) {
+        d2_rs_core::ir::Node::Field(field) => Some(field.name.scalar_string().to_owned()),
+        _ => None,
+    });
     Ok((name, false))
 }
 
@@ -5604,7 +5608,9 @@ fn run_document_with_stdout(
                 }
                 return Ok(Vec::new());
             }
-            if !board_plan.targets.is_empty()
+            // planBoardOutput uses every child board, including folder-only
+            // steps that precede the root's first drawable object.
+            if !board_plan.all_targets.is_empty()
                 || recursive_subtree.is_some()
                 || matches!(output_format, ExportFormat::Pdf | ExportFormat::Pptx)
                 || (output_format == ExportFormat::Gif && animation_subtree.is_some())
@@ -6914,6 +6920,32 @@ mod tests {
         }
         let ordinary = render_source(b"a: custom\n", &[]).unwrap();
         assert!(!String::from_utf8(ordinary).unwrap().contains(&expected));
+    }
+
+    #[test]
+    fn hash_prefixed_markdown_reaches_unsupported_html_diagnostic() {
+        // Goldmark parser/atx_heading.go rejects hash-prefixed words as ATX
+        // headings. D2 textmeasure.LayoutMarkdown then rejects the HTML node.
+        // The unchecked fallback ruler must also consume hash-prefixed words.
+        let measurer = load_graph_measurer_with_mode(&FontPaths::default(), false)
+            .unwrap()
+            .unwrap();
+        let sources = ["##` a", "#word", "######x", "#", "#######"]
+            .map(|line| format!("x: |md\n# title\n{line}\n<r />\n|"));
+        for source in sources.into_iter().chain(["y:|md #`<r/>|".to_owned()]) {
+            let (_, markdown) = source.split_once("md").unwrap();
+            let markdown = markdown.strip_suffix('|').unwrap();
+            let dimensions = measurer.markdown_dimensions(markdown, 16, false, false, false);
+            assert!(dimensions.width.is_finite() && dimensions.height.is_finite());
+            for engine in ["dagre", "elk", "tala"] {
+                let error =
+                    render_source(source.as_bytes(), &[format!("--engine={engine}")]).unwrap_err();
+                assert_eq!(
+                    error, "native Markdown SVG does not support HTML element <r>",
+                    "{engine} {source:?}: {error}"
+                );
+            }
+        }
     }
 
     #[cfg(feature = "oracle-fixtures")]
@@ -8706,6 +8738,49 @@ layers: {
         assert!(source_dir.join("index.svg").is_file());
         assert!(source_dir.join("child.svg").is_file());
         assert!(!source_dir.join("index").exists());
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn folder_only_steps_still_select_multiboard_output_paths() {
+        let directory = std::env::temp_dir().join(format!(
+            "d2-rs-empty-step-paths-{}-{}",
+            std::process::id(),
+            std::thread::current()
+                .name()
+                .unwrap_or("test")
+                .replace("::", "-")
+        ));
+        std::fs::create_dir_all(&directory).unwrap();
+        let input = directory.join("input.d2");
+        // Pinned Go d2cli/board_output.go planBoardOutput selects index
+        // whenever a child exists, even when none of the children render.
+        for source in [
+            "steps: { first: {} }\nnode\n",
+            "steps: { first: { steps: { inner: {} } } }\nnode\n",
+        ] {
+            std::fs::write(&input, source).unwrap();
+            for engine in ["dagre", "elk", "tala"] {
+                for extension in ["svg", "png"] {
+                    let output = directory.join(format!("{engine}.{extension}"));
+                    let args = vec![
+                        format!("--layout={engine}"),
+                        input.to_string_lossy().into_owned(),
+                        output.to_string_lossy().into_owned(),
+                    ];
+                    assert!(run_document(&args).unwrap().is_empty());
+                    assert!(!output.exists());
+                    let tree = output.with_extension("");
+                    assert!(tree.join(format!("index.{extension}")).is_file());
+                    assert!(
+                        tree.join(board_output::BOARD_OUTPUT_MANIFEST_NAME)
+                            .is_file()
+                    );
+                    assert!(!tree.join(format!("first.{extension}")).exists());
+                    std::fs::remove_dir_all(tree).unwrap();
+                }
+            }
+        }
         std::fs::remove_dir_all(directory).unwrap();
     }
 

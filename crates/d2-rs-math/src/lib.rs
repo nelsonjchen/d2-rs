@@ -3504,8 +3504,25 @@ impl Parser {
             if name == "framebox" {
                 return self.frame_box();
             }
-            if name == "begin" {
-                let environment = self.braced_text()?;
+            if matches!(name.as_str(), "begin" | "end") {
+                // tex/environment_count.go reads the argument before dispatch
+                // for both BeginEnd commands, including malformed/orphan ends.
+                let environment = match self.read_argument(&name) {
+                    Ok(environment) => environment,
+                    Err(message) => return Some(Atom::ErrorDisplay(message)),
+                };
+                if name == "end" {
+                    let message = if environment.contains('\\') {
+                        format!("Invalid environment name '{environment}'")
+                    } else if !known_environment(&environment) {
+                        format!("Unknown environment '{environment}'")
+                    } else if environment == "spreadlines" {
+                        format!("Extra \\end{{{environment}}}")
+                    } else {
+                        format!("Missing \\begin{{{environment}}} or extra \\end{{{environment}}}")
+                    };
+                    return Some(Atom::ErrorDisplay(message));
+                }
                 return self.environment(&environment);
             }
             if styles::size_declaration(&name).is_some() {
@@ -8028,6 +8045,43 @@ fn number(value: f64) -> String {
 mod tests {
     use super::{measure, render};
     use d2_rs_core::Size;
+
+    #[test]
+    fn environment_argument_errors_render_before_structural_fallback() {
+        // Pinned mathjax-go tex/environment_count.go readEnvironmentName and
+        // environment_end.go endEnvironment: argument errors are MathJax
+        // error nodes, as are orphan ends on this parser's input.
+        for (expression, message) in [
+            (r"\end{", "Missing close brace"),
+            (r"\begin{", "Missing close brace"),
+            (r"\end", r"Missing argument for \end"),
+            (r"\begin", r"Missing argument for \begin"),
+            (r"\end}", "Extra close brace or missing open brace"),
+            (r"\end{\foo}", r"Invalid environment name '\foo'"),
+            (r"\end\foo ", r"Invalid environment name '\foo'"),
+            ("\\end\\\n", r"Invalid environment name '\ '"),
+            ("\\end\u{feff}{", "Missing close brace"),
+            ("\\end\u{85}{", "Unknown environment '\u{85}'"),
+            (r"\end{missing}", "Unknown environment 'missing'"),
+            (
+                r"\end{matrix}",
+                r"Missing \begin{matrix} or extra \end{matrix}",
+            ),
+            (r"\end{spreadlines}", r"Extra \end{spreadlines}"),
+        ] {
+            assert_eq!(
+                super::render_exact(expression).unwrap(),
+                super::cd::render_error(message),
+                "{expression}"
+            );
+            assert_eq!(
+                render(expression).unwrap(),
+                super::cd::render_error(message),
+                "{expression}"
+            );
+            assert!(super::measure(expression).is_ok(), "{expression}");
+        }
+    }
 
     #[test]
     fn linebreak_mspace_keeps_operator_spacing_on_the_following_token() {

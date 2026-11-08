@@ -53,6 +53,48 @@ fn enumerates_concrete_boards_in_source_order() {
 }
 
 #[test]
+fn mapless_layers_participate_in_traversal_and_target_selection() {
+    // d2compiler.compileBoardsField substitutes &d2ir.Map{} when f.Map() is nil,
+    // then applies the field's primary label. The raw IR remains mapless.
+    let (compiler, root) = compiled("a\nlayers: { empty; caption: Title; drawn: {b} }");
+    let boards = compiler::board_targets(&compiler, root);
+    assert_eq!(
+        boards
+            .iter()
+            .map(|(path, _)| path.as_str())
+            .collect::<Vec<_>>(),
+        ["layers.empty", "layers.caption", "layers.drawn"]
+    );
+    for (index, name) in ["empty", "caption"].into_iter().enumerate() {
+        let board = boards[index].1;
+        assert!(compiler.arena.map(board).is_none());
+        for path in [
+            name.to_owned(),
+            format!("layers.{name}"),
+            format!("{name}.{name}"),
+        ] {
+            assert_eq!(
+                compiler::resolve_board_target(&compiler, root, &path).unwrap(),
+                board
+            );
+        }
+        assert!(!compiler::board_is_renderable(&compiler, board).unwrap());
+        assert!(
+            compiler::lower_graph(&compiler, board)
+                .unwrap()
+                .nodes
+                .is_empty()
+        );
+        assert!(compiler.arena.map(board).is_none());
+    }
+    assert_eq!(compiler::board_label(&compiler, boards[0].1), None);
+    assert_eq!(
+        compiler::board_label(&compiler, boards[1].1).as_deref(),
+        Some("Title")
+    );
+}
+
+#[test]
 fn board_traversal_uses_original_wrapper_order_in_both_directions() {
     let (compiler, root) = compiled(
         "steps: {s: {step}}\nscenarios: {c: {scenario}}\nlayers: {l: {layer; steps: {n: {nested}}}}",

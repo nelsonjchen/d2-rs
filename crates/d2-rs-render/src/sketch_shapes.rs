@@ -145,7 +145,7 @@ pub(crate) fn draw_rectangle(
         let mask = mask_id
             .map(|id| format!(" mask=\"url(#{})\"", escape(id)))
             .unwrap_or_default();
-        append_streak(svg, shape, rect, &fill, &mask, streaks, native_scene);
+        append_streak(svg, shape, rect, &fill, &mask, streaks, native_scene, None);
     }
     if shadow {
         svg.push_str("</g>");
@@ -255,6 +255,7 @@ fn draw_rectangle_layers(
             &mask,
             streak_categories,
             native_scene,
+            None,
         );
     }
     if shadow {
@@ -311,6 +312,7 @@ pub(crate) fn draw_structured_rect(
     streak: bool,
     raster: bool,
     streak_categories: &mut BTreeSet<&'static str>,
+    streak_rect_id: Option<&str>,
 ) {
     // d2sketch's SVG keeps the default butt cap; d2scenebuild strokes sketch
     // outlines with CapRound/JoinRound (sketch.go).
@@ -348,7 +350,7 @@ pub(crate) fn draw_structured_rect(
         }
     }
     if streak {
-        draw_streak_rect(svg, rect, style, palette, streak_categories);
+        draw_streak_rect_with_id(svg, rect, style, palette, streak_categories, streak_rect_id);
     }
 }
 
@@ -360,8 +362,28 @@ pub(crate) fn draw_streak_rect(
     palette: PaletteView<'_>,
     streaks: &mut BTreeSet<&'static str>,
 ) {
+    draw_streak_rect_with_id(svg, rect, style, palette, streaks, None);
+}
+
+fn draw_streak_rect_with_id(
+    svg: &mut String,
+    rect: Rect,
+    style: &SourceNodeStyle,
+    palette: PaletteView<'_>,
+    streaks: &mut BTreeSet<&'static str>,
+    rect_id: Option<&str>,
+) {
     let fill = themed_color(style.fill.as_deref(), "none", palette);
-    append_streak(svg, ShapeKind::Rectangle, rect, &fill, "", streaks, true);
+    append_streak(
+        svg,
+        ShapeKind::Rectangle,
+        rect,
+        &fill,
+        "",
+        streaks,
+        true,
+        rect_id,
+    );
 }
 fn append_streak(
     svg: &mut String,
@@ -371,6 +393,7 @@ fn append_streak(
     mask: &str,
     streaks: &mut BTreeSet<&'static str>,
     native_scene: bool,
+    rect_id: Option<&str>,
 ) {
     let Some(streak) = streak_style(fill) else {
         return;
@@ -405,8 +428,11 @@ fn append_streak(
             streak.category
         )
     } else {
+        let id = rect_id
+            .map(|id| format!(" id=\"{}\"", escape(id)))
+            .unwrap_or_default();
         format!(
-            "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"url(#d2-rs-sketch-streak-{})\" stroke=\"none\"/>",
+            "<rect{id} x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"url(#d2-rs-sketch-streak-{})\" stroke=\"none\"/>",
             number(rect.origin.x),
             number(rect.origin.y),
             number(rect.size.width),

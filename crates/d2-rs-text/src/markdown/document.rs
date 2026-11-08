@@ -272,6 +272,12 @@ fn append_list_item_content(
         reader.advance_line();
         return append_list_continuation(context, item, reader, source, false).1;
     }
+    // Goldmark openBlocks tries the block parsers again after opening a
+    // container with HasChildren. A marker on the item's opening line can
+    // therefore open a nested list before any paragraph exists.
+    if let Some((_, trailing_blank)) = parse_list(context, item, reader, source, blank_before) {
+        return append_list_continuation(context, item, reader, source, trailing_blank).1;
+    }
     if let (Some(node), _) = context.open_html_block(reader) {
         context.set_node_position(node, segment.start + offset);
         context.set_block_blank_previous_lines(node, blank_before);

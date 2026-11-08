@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 """Mutation fuzzer: d2-rs vs Go on randomly broken corpus inputs.
 
-usage: fuzz-differential.py <d2-rs> [--go GO] [--cases DIR] [--jobs 2000] [--seed 1] [--layout dagre] [--out DIR]
+usage: fuzz-differential.py <d2-rs> [--go GO] [--cases DIR] [--jobs 2000]
+       [--seed 1] [--layout dagre] [--format svg]
+       [--render-flag=--sketch] [--out DIR]
 
 Each job takes a corpus script, applies 1-4 random structural mutations and
-renders it with both binaries (SVG, timeout 20 s). Findings, written as
+renders it with both binaries. The output format and exact CLI render flags
+are selectable, and the corpus includes upstream .d2 files and raw `script:`
+literals from Go tests. Findings, written as
 input files under --out with a JSONL index:
   rust-panic     d2-rs exited 101 or printed "panicked"
   rust-signal    d2-rs died on a signal
@@ -14,7 +18,8 @@ input files under --out with a JSONL index:
   error-diff     both failed with different first error lines (paths masked)
   go/rust-invalid-output  exit 0 without complete, valid SVG output
 """
-import argparse, json, os, random, subprocess, tempfile
+import argparse, json, os, random, re, subprocess, tempfile
+from pathlib import Path
 
 import references
 from fuzz_common import EMPTY_INVENTORY, first_error, run
@@ -23,6 +28,8 @@ TOKENS = ["{", "}", "->", "<-", "<->", "--", ":", ".", "*", "**", "|", "||", "`"
           "$", "${x}", "vars", "classes", "layers", "scenarios", "steps", "shape", "style", "near", "icon",
           "grid-rows", "grid-columns", "label", "width", "height", "direction", "(a -> b)[0]", "&", "!&",
           "null", "_", "#", "\\", "\n", "  ", "é", "漢", "😀", "‍", "‮", "1e309", "-1", "0"]
+SCRIPT = re.compile(r"\bscript\s*:\s*`([^`]*)`", re.S)
+FORMATS = ("svg", "png", "pdf", "pptx", "gif", "txt")
 
 def mutate(text, rng):
     lines = text.split("\n")
@@ -49,22 +56,68 @@ def mutate(text, rng):
             lines.insert(i, rng.choice(["a -> b", "x: {", "}", "a.style.fill: red", "...@missing", "a: |md\n# h\n|", "*.shape: circle"]))
     return "\n".join(lines)
 
-def main():
-    a = argparse.ArgumentParser(); a.add_argument("rust"); a.add_argument("--go", default=str(references.GO_ORACLE)); a.add_argument("--cases", default=str(references.E2E_CASES))
-    a.add_argument("--jobs", type=int, default=2000); a.add_argument("--seed", type=int, default=1)
-    a.add_argument("--layout", default="dagre"); a.add_argument("--out", default=str(references.REPORTS / "fuzz"))
-    o = a.parse_args(); rng = random.Random(o.seed); os.makedirs(o.out, exist_ok=True)
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser()
+    parser.add_argument("rust")
+    parser.add_argument("--go", default=str(references.GO_ORACLE))
+    parser.add_argument("--cases", default=str(references.E2E_CASES))
+    parser.add_argument(
+        "--upstream",
+        default=str((Path(__file__).resolve().parents[1] / references.MANIFEST["d2"]["checkout"]).resolve()),
+    )
+    parser.add_argument("--jobs", type=int, default=2000)
+    parser.add_argument("--seed", type=int, default=1)
+    parser.add_argument("--layout", choices=("dagre", "elk", "tala"), default="dagre")
+    parser.add_argument("--format", choices=FORMATS, default="svg")
+    parser.add_argument(
+        "--render-flag",
+        action="append",
+        default=[],
+        help="exact render flag, normally passed as --render-flag=--sketch",
+    )
+    parser.add_argument("--out", default=str(references.REPORTS / "fuzz"))
+    return parser.parse_args(argv)
+
+
+def load_scripts(cases, upstream):
     scripts = []
-    for f in sorted(os.listdir(o.cases)):
+    for f in sorted(os.listdir(cases)):
         if f.endswith(".json"):
-            s = json.load(open(os.path.join(o.cases, f))).get("script") or ""
+            s = json.loads(Path(cases, f).read_text()).get("script") or ""
             if s.strip() and "http" not in s:
-                scripts.append((f[:-5], s))
+                scripts.append((f"e2e:{f[:-5]}", s))
+    upstream = Path(upstream)
+    for path in sorted(upstream.rglob("*.d2")):
+        source = path.read_text(errors="replace")
+        if source.strip() and "http" not in source:
+            scripts.append((f"upstream:{path.relative_to(upstream)}", source))
+    for path in sorted(upstream.rglob("*_test.go")):
+        source = path.read_text(errors="replace")
+        for index, match in enumerate(SCRIPT.finditer(source)):
+            script = match.group(1)
+            if script.strip() and "http" not in script:
+                scripts.append((f"upstream:{path.relative_to(upstream)}:script:{index}", script))
+    return scripts
+
+
+def main(argv=None):
+    o = parse_args(argv)
+    if o.format == "pdf" and Path(o.go).resolve() == Path(references.GO_ORACLE).resolve():
+        raise SystemExit(
+            "PDF fuzzing requires --go with the clock-injected pinned oracle "
+            "from scripts/build-cli-clock-oracle.py"
+        )
+    rng = random.Random(o.seed)
+    os.makedirs(o.out, exist_ok=True)
+    scripts = load_scripts(o.cases, o.upstream)
+    if not scripts:
+        raise SystemExit("no fuzz corpus inputs found")
     counts, outcomes, index = {}, {}, open(os.path.join(o.out, "findings.jsonl"), "a")
     for job in range(o.jobs):
         case, src = rng.choice(scripts); text = mutate(src, rng)
         d = tempfile.mkdtemp(prefix="fz-"); open(os.path.join(d, "input.d2"), "w").write(text)
-        rg, eg, hg = run(o.go, d, o.layout, "go"); rr, er, hr = run(o.rust, d, o.layout, "rust")
+        rg, eg, hg = run(o.go, d, o.layout, "go", o.format, o.render_flag)
+        rr, er, hr = run(o.rust, d, o.layout, "rust", o.format, o.render_flag)
         kind = None
         if rr == 101 or "panicked" in er: kind = "rust-panic"
         elif isinstance(rr, int) and rr < 0: kind = "rust-signal"
@@ -80,14 +133,17 @@ def main():
         outcomes[outcome] = outcomes.get(outcome, 0) + 1
         if kind:
             counts[kind] = counts.get(kind, 0) + 1
-            name = f"{kind}-{job}-{case}.d2"; open(os.path.join(o.out, name), "w").write(text)
+            safe_case = re.sub(r"[^A-Za-z0-9_.-]+", "_", case)
+            name = f"{kind}-{job}-{safe_case}.d2"; open(os.path.join(o.out, name), "w").write(text)
             index.write(json.dumps({"job": job, "kind": kind, "case": case, "file": name, "go_exit": rg, "rust_exit": rr,
+                                    "format": o.format, "render_flags": o.render_flag,
                                     "go_err": first_error(eg, d)[:300], "rust_err": first_error(er, d)[:300] or er[-300:]}) + "\n"); index.flush()
         subprocess.run(["rm", "-rf", d])
         if (job + 1) % 250 == 0:
             print(f"{job + 1}/{o.jobs} findings {counts}", flush=True)
     with open(os.path.join(o.out, "summary.json"), "w") as summary:
-        json.dump({"seed": o.seed, "layout": o.layout, "jobs": o.jobs,
+        json.dump({"seed": o.seed, "layout": o.layout, "format": o.format,
+                   "render_flags": o.render_flag, "corpus_inputs": len(scripts), "jobs": o.jobs,
                    "findings": counts, "outcomes": outcomes}, summary, indent=2)
     print("DONE", counts, "outcomes", outcomes, flush=True)
 

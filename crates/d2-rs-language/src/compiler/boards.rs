@@ -57,7 +57,8 @@ impl std::fmt::Display for BoardTargetError {
 
 impl std::error::Error for BoardTargetError {}
 
-/// Resolve a D2 board path to its compiled IR map.
+/// Resolve a D2 board path to its compiled IR map, or its field when mapless.
+/// Graph lowering gives mapless boards an empty map, as compileBoardsField does.
 ///
 /// Follows pinned d2target.Diagram.GetBoard (d2target.go:108–169): wrapper
 /// components are optional, and a final component matching the current board
@@ -88,7 +89,7 @@ pub fn resolve_board_target(
         let board = compiler
             .arena
             .get_field(wrapper_map, &[ast::raw_string_box(name, true)])?;
-        compiler.arena.map(board)
+        Some(compiler.arena.map(board).unwrap_or(board))
     }
     fn resolve(compiler: &Compiler, map: NodeId, parts: &[String]) -> Option<NodeId> {
         let Some(head) = parts.first() else {
@@ -96,7 +97,10 @@ pub fn resolve_board_target(
         };
         if parts.len() == 1
             && !compiler.arena.root(map)
-            && let Some(field) = compiler.arena.parent_field(map)
+            && let Some(field) = match compiler.arena.node(map) {
+                Node::Field(_) => Some(map),
+                _ => compiler.arena.parent_field(map),
+            }
             && let Node::Field(field) = compiler.arena.node(field)
             && field.name.scalar_string() == *head
         {
@@ -118,12 +122,12 @@ pub fn resolve_board_target(
     resolve(compiler, root, &parts).ok_or_else(|| BoardTargetError::NotFound(parts.join(".")))
 }
 
-/// Return every concrete layer/scenario/step board in source order.
+/// Return every layer/scenario/step board in source order, including mapless fields.
 ///
 /// The root board is intentionally omitted. Callers that package a complete
-/// document can render it separately and then append these paths. The map IDs
-/// are the already overlaid compiler maps, so selecting a board here preserves
-/// the same inheritance and glob replay decisions as an explicit target.
+/// document can render it separately and then append these paths. IDs identify
+/// already overlaid maps, or fields without maps, preserving the inheritance
+/// and glob replay decisions of an explicit target.
 pub fn board_targets(compiler: &Compiler, root: NodeId) -> Vec<(String, NodeId)> {
     collect_board_targets(compiler, root, false)
 }
@@ -182,9 +186,7 @@ fn collect_board_targets(
                 let Node::Field(board_field) = compiler.arena.node(board) else {
                     continue;
                 };
-                let Some(board_map) = compiler.arena.map(board) else {
-                    continue;
-                };
+                let board_map = compiler.arena.map(board).unwrap_or(board);
                 // Board names are key components, not dot-separated paths.
                 let suffix = String::from_utf8(crate::format::format_key_path(&[
                     wrapper_field.name.clone(),

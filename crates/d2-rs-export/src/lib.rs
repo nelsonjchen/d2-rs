@@ -4162,9 +4162,11 @@ fn set_animated_dash_offsets(svg: &str, animation_time_ns: Option<i64>) -> Strin
                         from + (to - from) * progress
                     }
                 };
-                if animation_time_ns.is_some()
-                    && let Some((_, exact_target, _, _)) = exact_parameters
-                {
+                // The scene keeps the unrounded base offset for both the
+                // time-zero raster frame and later animation samples.  The
+                // public SVG rounds it to six decimals, so recover the scene
+                // value before selecting either endpoint of the track.
+                if let Some((_, exact_target, _, _)) = exact_parameters {
                     target = exact_target;
                 }
                 let value = animation_time_ns
@@ -5621,7 +5623,16 @@ mod tests {
     #[test]
     fn native_raster_keeps_exact_animated_dash_f64_values() {
         let svg = r#"<path stroke-width="5" stroke-dasharray="45,42.318306"
-stroke-dashoffset="-873.183058" animation="dashdraw 21.159153s linear infinite" />"#;
+stroke-dashoffset="-873.183058" animation="dashdraw 21.159153s linear infinite reverse" />"#;
+        let initial = reset_animated_dash_offsets(svg);
+        assert!(
+            initial.contains("stroke-dashoffset=\"-873.18305826317805440\""),
+            "{initial}"
+        );
+        assert!(
+            initial.contains("data-d2-rs-dash-offset-bits=\"c08b4976e7402ce6\""),
+            "{initial}"
+        );
         let sampled = set_animated_dash_offsets(svg, Some(10_579_576_500));
         assert!(sampled.contains("stroke-dasharray=\"45.00000000000000000,42.31830582631780402\""));
         assert!(sampled.contains("id=\"d2rs-exact-dash-"));

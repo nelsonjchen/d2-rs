@@ -3021,6 +3021,27 @@ fn boundary_port_for_hierarchy(
     }
 }
 
+/// Restores ElkGraphImporter's default output/input sides before the first
+/// hierarchy dummy fixes a compound node's port constraints.
+fn restore_compound_implicit_loop_import_sides(arena: &mut LayeredArena, node_id: LNodeId) {
+    let direction = arena.graphs[arena.nodes[node_id as usize].graph as usize].direction;
+    let loops = arena
+        .edges
+        .iter()
+        .filter_map(|edge| {
+            (edge.active && edge.source == node_id && edge.target == node_id)
+                .then_some((edge.source_port?, edge.target_port?))
+        })
+        .filter(|(source, target)| {
+            arena.ports[*source as usize].implicit && arena.ports[*target as usize].implicit
+        })
+        .collect::<Vec<_>>();
+    for (source, target) in loops {
+        arena.ports[source as usize].side = direction_boundary_side(direction, true);
+        arena.ports[target as usize].side = direction_boundary_side(direction, false);
+    }
+}
+
 /// Mirrors compound.go `compoundPortNetFlow` (ELK's
 /// `CompoundGraphPreprocessor.calculateNetFlow`). Positive values make a port
 /// an output of its compound node; negative values make it an input. An edge
@@ -3254,6 +3275,7 @@ pub fn split_deep_cross_hierarchy_edges(
                 .parent_node
                 .ok_or_else(|| LayeringError::Import("deep edge source has no parent".into()))?;
             let parent_scope = arena.nodes[parent_node as usize].graph;
+            restore_compound_implicit_loop_import_sides(arena, parent_node);
             let side = direction_boundary_side(arena.graphs[parent_scope as usize].direction, true);
             let border_offset = arena.graphs[source_scope as usize].edge_edge_spacing / 2.0;
             let (boundary, reused) = boundary_port_for_hierarchy(
@@ -3310,6 +3332,7 @@ pub fn split_deep_cross_hierarchy_edges(
                 .parent_node
                 .ok_or_else(|| LayeringError::Import("deep edge target has no parent".into()))?;
             let parent_scope = arena.nodes[parent_node as usize].graph;
+            restore_compound_implicit_loop_import_sides(arena, parent_node);
             let side =
                 direction_boundary_side(arena.graphs[parent_scope as usize].direction, false);
             let border_offset = arena.graphs[target_scope as usize].edge_edge_spacing / 2.0;
@@ -10012,14 +10035,7 @@ impl<'a> InputModelPortComparator<'a> {
             return self.record(first_id, second_id, side_order);
         }
 
-        let mut reverse_order = if matches!(
-            first.side,
-            PortSide::West | PortSide::North | PortSide::South
-        ) {
-            -1_i8
-        } else {
-            1_i8
-        };
+        let mut reverse_order = 1_i8;
         let first_incoming = first
             .incoming_edges
             .iter()
@@ -10032,6 +10048,12 @@ impl<'a> InputModelPortComparator<'a> {
             .find(|edge_id| self.arena.edges[*edge_id as usize].active);
 
         if let (Some(first_edge), Some(second_edge)) = (first_incoming, second_incoming) {
+            if matches!(
+                first.side,
+                PortSide::West | PortSide::North | PortSide::South
+            ) {
+                reverse_order = -reverse_order;
+            }
             let first_edge = &self.arena.edges[first_edge as usize];
             let second_edge = &self.arena.edges[second_edge as usize];
             let first_source = first_edge.source;
@@ -16903,6 +16925,44 @@ mod tests {
                 .collect::<Vec<_>>();
             assert_eq!(target_port_order, vec!["3", "1"]);
         }
+    }
+
+    #[test]
+    fn model_order_keeps_unconnected_loop_port_before_one_sided_input() {
+        // preserveorder.PortComparator starts its direction reversal only
+        // when both ports have incoming edges. A compound self-loop is
+        // detached before P3, so its west target must stay ahead of a later
+        // hierarchy input instead of being reversed with it.
+        let mut elk = graph(vec![node("A"), node("B")], vec![("A", "A"), ("B", "A")]);
+        elk.layout_options = json!({
+            "elk.direction":"RIGHT",
+            "elk.layered.considerModelOrder.strategy":"NODES_AND_EDGES",
+        });
+        let (mut arena, root) = LayeredArena::from_elk_graph(&elk).unwrap();
+        materialize_implicit_ports(&mut arena, root).unwrap();
+        let loop_source = arena.edges[0].source_port.unwrap();
+        let loop_target = arena.edges[0].target_port.unwrap();
+        let hierarchy_input = arena.edges[1].target_port.unwrap();
+        arena.ports[loop_source as usize]
+            .outgoing_edges
+            .retain(|edge| *edge != 0);
+        arena.ports[loop_target as usize]
+            .incoming_edges
+            .retain(|edge| *edge != 0);
+        arena.nodes[0].port_constraints = super::PortConstraints::FixedSide;
+        break_cycles_greedy_model_order(&mut arena, root).unwrap();
+        assign_network_simplex_layers(&mut arena, root).unwrap();
+        split_long_edges(&mut arena, root).unwrap();
+
+        assert_eq!(
+            arena.nodes[0].ports,
+            [loop_source, loop_target, hierarchy_input]
+        );
+        sort_layers_by_input_model_order(&mut arena, root);
+        assert_eq!(
+            arena.nodes[0].ports,
+            [loop_source, loop_target, hierarchy_input]
+        );
     }
 
     #[test]

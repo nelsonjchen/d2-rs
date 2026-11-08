@@ -1,4 +1,5 @@
 """Fuzz outcomes must cover every board and reject incomplete captures."""
+import base64
 import json
 from pathlib import Path
 import sys
@@ -19,6 +20,19 @@ class FuzzCaptureTests(unittest.TestCase):
         )
         binary.chmod(0o755)
         return run(binary, directory, "dagre", name)
+
+    def capture_bytes(self, directory, name, files, output_format, render_flags=()):
+        binary = directory / f"{name}.py"
+        encoded = {path: base64.b64encode(data).decode() for path, data in files.items()}
+        binary.write_text(
+            f"#!{sys.executable}\nimport base64, sys\nfrom pathlib import Path\n"
+            f"files = {encoded!r}\n"
+            "for name, data in files.items():\n"
+            " p = Path(name); p.parent.mkdir(parents=True, exist_ok=True); "
+            "p.write_bytes(base64.b64decode(data))\n"
+        )
+        binary.chmod(0o755)
+        return run(binary, directory, "dagre", name, output_format, render_flags)
 
     def test_complete_board_inventory_and_manifest_bytes_are_compared(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -59,6 +73,20 @@ class FuzzCaptureTests(unittest.TestCase):
             self.assertEqual(empty[0], 0)
             self.assertEqual(empty[2], EMPTY_INVENTORY)
             self.assertNotEqual(empty[2], extra[2])
+
+    def test_selected_raster_format_is_validated_and_hashed(self):
+        png = base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            (directory / "input.d2").write_text("a")
+            valid = self.capture_bytes(directory, "png", {"output.png": png}, "png", ("--sketch",))
+            invalid = self.capture_bytes(directory, "badpng", {"output.png": png[:-1]}, "png")
+        self.assertEqual(valid[0], 0)
+        self.assertIsNotNone(valid[2])
+        self.assertEqual(invalid[0], "invalid-output")
+        self.assertIsNone(invalid[2])
 
 
 if __name__ == "__main__":

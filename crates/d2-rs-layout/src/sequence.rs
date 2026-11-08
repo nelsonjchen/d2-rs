@@ -625,10 +625,16 @@ fn layout_inner(
     }
     groups.sort();
     groups.dedup();
-    let actors = graph
+    let mut actors = graph
         .nodes()
         .filter_map(|(id, node)| (node.parent == root_node && !groups.contains(&id)).then_some(id))
         .collect::<Vec<_>>();
+    // newSequenceDiagram sorts objects by their earliest non-glob MapKey.
+    // An actor created only through a glob sorts after declared actors,
+    // regardless of its position in Graph.Objects or ChildrenArray.
+    d2_rs_core::go_sort::sort_by(&mut actors, |left, right| {
+        note_line(graph, *left) < note_line(graph, *right)
+    });
     // LayoutNested retains special diagram roots, even after extracting their
     // contents. They remain in ChildrenArray, where newSequenceDiagram rejects
     // nested sequence actors in declaration order, before the empty-actor check.
@@ -752,7 +758,7 @@ fn layout_inner(
     }
     for (edge_id, edge) in graph.edges() {
         if !edge_belongs_to_sequence_scope(graph, edge, root_node)
-            || edge_belongs_to_extracted_actor(graph, edge, &actor_layouts)
+            || edge_removed_with_extracted_actor(graph, edge, &actor_layouts)
         {
             continue;
         }
@@ -880,7 +886,7 @@ fn layout_inner(
         .edges()
         .filter(|(_, edge)| {
             edge_belongs_to_sequence_scope(graph, edge, root_node)
-                && !edge_belongs_to_extracted_actor(graph, edge, &actor_layouts)
+                && !edge_removed_with_extracted_actor(graph, edge, &actor_layouts)
         })
         .collect::<Vec<_>>();
     d2_rs_core::go_sort::sort_by(&mut message_edges, |left, right| {
@@ -1109,7 +1115,7 @@ fn layout_inner(
 
     // Adjust route endpoints from actor centers to span borders.
     for (edge_id, edge) in graph.edges() {
-        if edge_belongs_to_extracted_actor(graph, edge, &actor_layouts) {
+        if edge_removed_with_extracted_actor(graph, edge, &actor_layouts) {
             continue;
         }
         let Some(route) = routes.get_mut(&edge_id) else {
@@ -1151,7 +1157,7 @@ fn layout_inner(
         let mut max_x = f64::NEG_INFINITY;
         let mut max_y = f64::NEG_INFINITY;
         for (edge_id, edge) in graph.edges() {
-            if !edge_belongs_to_extracted_actor(graph, edge, &actor_layouts)
+            if !edge_removed_with_extracted_actor(graph, edge, &actor_layouts)
                 && edge_belongs_to_group(graph, edge_id, edge, group)
                 && let Some(route) = routes.get(&edge_id)
             {
@@ -1431,7 +1437,7 @@ fn layout_inner(
             // own messages; extracted actor graphs retain their engine state.
             if !label.text.is_empty()
                 && edge_belongs_to_sequence_scope(graph, edge, root_node)
-                && !edge_belongs_to_extracted_actor(graph, edge, &actor_layouts)
+                && !edge_removed_with_extracted_actor(graph, edge, &actor_layouts)
             {
                 label.position = LabelPosition::InsideMiddleCenter;
             }
@@ -1480,28 +1486,35 @@ fn layout_inner(
             icon_position: None,
         });
     }
-    result.sequence_lifelines = fixed_lifeline_routes_with_labels(graph, &result, &lifeline_labels)
-        .into_iter()
-        .filter(|(actor, _)| actors.contains(actor))
-        .map(|(actor, route)| {
-            let node = graph.node(actor).expect("actor exists");
-            let parent = node.parent.and_then(|id| graph.node(id));
-            let prefix = parent.map_or(String::new(), |p| format!("{}.", p.external_id));
-            let local = node
-                .external_id
-                .strip_prefix(&prefix)
-                .unwrap_or(&node.external_id);
-            let target = format!("{local}-lifeline-end");
-            let hash = target.bytes().fold(2_166_136_261u32, |h, b| {
-                (h ^ u32::from(b)).wrapping_mul(16_777_619)
-            });
-            d2_rs_core::SequenceLifeline {
-                actor,
-                target_id: format!("{target}-{hash}"),
-                route,
-            }
+    let extracted_messages = graph
+        .edges()
+        .filter_map(|(id, edge)| {
+            edge_removed_with_extracted_actor(graph, edge, &actor_layouts).then_some(id)
         })
         .collect();
+    result.sequence_lifelines =
+        fixed_lifeline_routes_with_labels(graph, &result, &lifeline_labels, &extracted_messages)
+            .into_iter()
+            .filter(|(actor, _)| actors.contains(actor))
+            .map(|(actor, route)| {
+                let node = graph.node(actor).expect("actor exists");
+                let parent = node.parent.and_then(|id| graph.node(id));
+                let prefix = parent.map_or(String::new(), |p| format!("{}.", p.external_id));
+                let local = node
+                    .external_id
+                    .strip_prefix(&prefix)
+                    .unwrap_or(&node.external_id);
+                let target = format!("{local}-lifeline-end");
+                let hash = target.bytes().fold(2_166_136_261u32, |h, b| {
+                    (h ^ u32::from(b)).wrapping_mul(16_777_619)
+                });
+                d2_rs_core::SequenceLifeline {
+                    actor,
+                    target_id: format!("{target}-{hash}"),
+                    route,
+                }
+            })
+            .collect();
     for (actor, local) in &actor_layouts {
         let (Some(before), Some(after)) = (local.boxes.get(actor), result.boxes.get(actor)) else {
             continue;
@@ -1534,13 +1547,14 @@ pub(super) fn fixed_lifeline_routes(
     graph: &Graph,
     result: &LayoutResult,
 ) -> Vec<(NodeId, Vec<Point>)> {
-    fixed_lifeline_routes_with_labels(graph, result, &result.node_labels)
+    fixed_lifeline_routes_with_labels(graph, result, &result.node_labels, &BTreeSet::new())
 }
 
 fn fixed_lifeline_routes_with_labels(
     graph: &Graph,
     result: &LayoutResult,
     label_states: &BTreeMap<NodeId, NodeLabelState>,
+    extracted_messages: &BTreeSet<EdgeId>,
 ) -> Vec<(NodeId, Vec<Point>)> {
     let mut scopes = graph
         .nodes()
@@ -1551,19 +1565,26 @@ fn fixed_lifeline_routes_with_labels(
     }
     let mut output = Vec::new();
     for scope in scopes {
-        let actors = graph
+        let mut actors = graph
             .nodes()
             .filter_map(|(id, node)| {
                 (node.parent == scope && !is_sequence_group(graph, id, scope)).then_some(id)
             })
             .collect::<Vec<_>>();
+        // addLifelineEdges walks the same sorted actors as placeActors.
+        d2_rs_core::go_sort::sort_by(&mut actors, |left, right| {
+            note_line(graph, *left) < note_line(graph, *right)
+        });
         let mut end_y = actors
             .iter()
             .filter_map(|id| result.boxes.get(id).map(|rect| rect.bottom()))
             .fold(f64::NEG_INFINITY, f64::max);
         let mut messages = graph
             .edges()
-            .filter(|(_, edge)| {
+            .filter(|(id, edge)| {
+                if extracted_messages.contains(id) {
+                    return false;
+                }
                 if !edge_belongs_to_sequence_scope(graph, edge, scope) {
                     return false;
                 }
@@ -1772,16 +1793,14 @@ fn layout_actor_subgraphs(
     Ok(layouts)
 }
 
-fn edge_belongs_to_extracted_actor(
+fn edge_removed_with_extracted_actor(
     graph: &Graph,
     edge: &Edge,
     extracted_actors: &BTreeMap<NodeId, LayoutResult>,
 ) -> bool {
     extracted_actors.keys().any(|actor| {
-        edge.source != *actor
-            && edge.target != *actor
-            && is_descendant_or_self(graph, edge.source, Some(*actor))
-            && is_descendant_or_self(graph, edge.target, Some(*actor))
+        (edge.source != *actor && is_descendant_or_self(graph, edge.source, Some(*actor)))
+            || (edge.target != *actor && is_descendant_or_self(graph, edge.target, Some(*actor)))
     })
 }
 
@@ -2313,6 +2332,51 @@ mod tests {
                     assert_eq!(result.routes, expected.routes);
                     assert_eq!(result.sequence_lifelines, expected.sequence_lifelines);
                 }
+            }
+        }
+    }
+
+    #[test]
+    fn sequence_actors_use_non_glob_declaration_order_for_placement_and_lifelines() {
+        // d2sequence/sequence_diagram.go newSequenceDiagram/getObjEarliestLineNum:
+        // `a.*; b` creates a first, but its only reference is a glob, so b
+        // precedes a in the actor and synthetic lifeline arrays.
+        for implicit in [false, true] {
+            let mut graph = Graph::default();
+            let size = Size {
+                width: 100.0,
+                height: 66.0,
+            };
+            let root = if implicit {
+                graph.root_sequence_diagram = true;
+                None
+            } else {
+                let root = graph.add_node(Node::new("scope", size));
+                graph.set_sequence_diagram(root, true);
+                Some(root)
+            };
+            let a = graph.add_node(Node {
+                parent: root,
+                ..Node::new("a", size)
+            });
+            let b = graph.add_node(Node {
+                parent: root,
+                ..Node::new("b", size)
+            });
+            graph.sequence_node_lines.insert(b, 2);
+            for engine in [EngineKind::Dagre, EngineKind::Elk, EngineKind::Tala] {
+                let result = super::LayoutDispatcher
+                    .layout(&graph, engine, &LayoutOptions::default())
+                    .unwrap();
+                assert!(result.boxes[&b].origin.x < result.boxes[&a].origin.x);
+                assert_eq!(
+                    result
+                        .sequence_lifelines
+                        .iter()
+                        .map(|line| line.actor)
+                        .collect::<Vec<_>>(),
+                    vec![b, a]
+                );
             }
         }
     }

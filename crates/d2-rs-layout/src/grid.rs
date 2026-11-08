@@ -951,9 +951,10 @@ fn apply_scope(
                 result.boxes.get(&edge.source),
                 result.boxes.get(&edge.target),
             ) {
-                result
-                    .routes
-                    .insert(edge_id, grid_edge_route(graph, edge_id, *source, *target));
+                result.routes.insert(
+                    edge_id,
+                    grid_edge_route(graph, edge_id, *source, *target, &result.node_labels),
+                );
                 set_grid_edge_label(graph, result, edge_id);
             }
             continue;
@@ -974,9 +975,10 @@ fn apply_scope(
             result.boxes.get(&edge.source),
             result.boxes.get(&edge.target),
         ) {
-            result
-                .routes
-                .insert(edge_id, grid_edge_route(graph, edge_id, *source, *target));
+            result.routes.insert(
+                edge_id,
+                grid_edge_route(graph, edge_id, *source, *target, &result.node_labels),
+            );
         }
     }
 }
@@ -2253,9 +2255,10 @@ fn update_grid_routes(
                 result.boxes.get(&edge.target),
             )
         {
-            result
-                .routes
-                .insert(edge_id, grid_edge_route(graph, edge_id, *source, *target));
+            result.routes.insert(
+                edge_id,
+                grid_edge_route(graph, edge_id, *source, *target, &result.node_labels),
+            );
             set_grid_edge_label(graph, result, edge_id);
             continue;
         }
@@ -2277,9 +2280,10 @@ fn update_grid_routes(
             result.boxes.get(&edge.source),
             result.boxes.get(&edge.target),
         ) {
-            result
-                .routes
-                .insert(edge_id, grid_edge_route(graph, edge_id, *source, *target));
+            result.routes.insert(
+                edge_id,
+                grid_edge_route(graph, edge_id, *source, *target, &result.node_labels),
+            );
         }
     }
 }
@@ -3098,6 +3102,7 @@ pub fn layout(graph: &Graph, options: &LayoutOptions) -> Result<LayoutResult, La
                     id,
                     *result.boxes.get(&edge.source)?,
                     *result.boxes.get(&edge.target)?,
+                    &result.node_labels,
                 ),
             ))
         })
@@ -3113,8 +3118,9 @@ fn grid_edge_route(
     edge_id: d2_rs_core::EdgeId,
     source: Rect,
     target: Rect,
+    labels: &BTreeMap<NodeId, NodeLabelState>,
 ) -> Vec<Point> {
-    d2_rs_dagre::route_grid_edge(graph, edge_id, source, target)
+    d2_rs_dagre::route_straight_edge_with_labels(graph, edge_id, source, target, Some(labels))
         .unwrap_or_else(|| vec![source.center(), target.center()])
 }
 
@@ -3122,8 +3128,8 @@ fn validate(graph: &Graph) -> Result<(), LayoutError> {
     for (id, node) in graph.nodes() {
         if !node.size.width.is_finite()
             || !node.size.height.is_finite()
-            || node.size.width <= 0.0
-            || node.size.height <= 0.0
+            || node.size.width < 0.0
+            || node.size.height < 0.0
         {
             return Err(LayoutError::InvalidSize {
                 node: id,

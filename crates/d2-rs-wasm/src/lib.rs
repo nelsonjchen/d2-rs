@@ -1610,6 +1610,10 @@ impl WasmFontGraphMeasurer {
 }
 
 impl compiler::GraphMeasurer for WasmFontGraphMeasurer {
+    fn validate_markdown_label(&self, label: &str) -> Result<(), String> {
+        d2_rs_text::markdown_measure::validate_markdown_label(label)
+    }
+
     fn supports_shape_fitting(&self) -> bool {
         true
     }
@@ -1968,7 +1972,12 @@ fn source_ast_raw(
     };
     // compileBoard copies the IR before constructing child Graph.ASTs.
     // Field names stay shared with the parsed AST; scalar values are cloned.
-    let map = if format_selected {
+    let map = if matches!(compiler.arena.node(map), d2_rs_core::ir::Node::Field(_))
+        && compiler.arena.map(map).is_none()
+    {
+        // compileBoardsField gives a mapless board an empty graph AST.
+        compiler.arena.new_root()
+    } else if format_selected {
         map
     } else {
         let parent = compiler.arena.parent(map);
@@ -2051,9 +2060,11 @@ fn source_board_metadata_in(
     let target = target.strip_suffix(".*").unwrap_or(target);
     let board =
         compiler::resolve_board_target(compiler, root, target).map_err(|e| e.to_string())?;
-    let name = compiler
-        .arena
-        .parent_field(board)
+    let field = match compiler.arena.node(board) {
+        d2_rs_core::ir::Node::Field(_) => Some(board),
+        _ => compiler.arena.parent_field(board),
+    };
+    let name = field
         .and_then(|field| match compiler.arena.node(field) {
             d2_rs_core::ir::Node::Field(field) => Some(field.name.scalar_string().to_owned()),
             _ => None,
@@ -3390,6 +3401,29 @@ mod tests {
         );
         assert_eq!(output["boards"][0]["graph"]["nodes"][0]["id"], "child");
         assert!(output["boards"][0]["graph"]["ast"]["nodes"].is_array());
+    }
+
+    #[test]
+    fn mapless_board_metadata_preserves_empty_graph_ast_and_label() {
+        let output = compile_d2_target_json_impl(
+            "root\nlayers: {empty; caption: Title; drawn: {child}}",
+            r#"{"layout":"dagre"}"#,
+        )
+        .unwrap();
+        let output: serde_json::Value = serde_json::from_str(&output).unwrap();
+        let boards = output["boards"].as_array().unwrap();
+        assert_eq!(boards.len(), 3);
+        for (board, name, label) in [
+            (&boards[0], "empty", "empty"),
+            (&boards[1], "caption", "Title"),
+        ] {
+            assert_eq!(board["path"], format!("layers.{name}"));
+            assert_eq!(board["graph"]["diagram"]["name"], name);
+            assert_eq!(board["graph"]["diagram"]["root"]["label"], label);
+            assert!(board["graph"]["nodes"].as_array().unwrap().is_empty());
+            assert!(board["graph"]["ast"]["nodes"].is_null());
+            assert!(board["graph"]["ast"]["range"].is_string());
+        }
     }
 
     #[test]

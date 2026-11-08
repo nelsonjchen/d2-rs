@@ -39,6 +39,30 @@ fn is_markdown_thematic_break(line: &str) -> bool {
         && line.chars().filter(|character| *character == first).count() >= 3
 }
 
+// Goldmark parser/atx_heading.go Open accepts one to six hashes followed by
+// whitespace or the end of the line. A hash-prefixed word stays in a paragraph.
+fn atx_heading_level(line: &str) -> Option<usize> {
+    let level = line.bytes().take_while(|&byte| byte == b'#').count();
+    ((1..=6).contains(&level)
+        && line
+            .as_bytes()
+            .get(level)
+            .is_none_or(|byte| matches!(byte, b' ' | b'\t' | b'\r' | b'\n')))
+    .then_some(level)
+}
+
+/// LayoutMarkdown validates the HTML tree before attempting native sizing.
+pub fn validate_markdown_label(source: &str) -> Result<(), String> {
+    // Goldmark can emit an unsupported element only through raw HTML, whose
+    // opening delimiter must occur literally in the Markdown source.
+    if !source.contains('<') {
+        return Ok(());
+    }
+    let html = render_html(source.as_bytes());
+    let (dom, body) = crate::markdown::html_tree::parse_document(&html);
+    crate::markdown::html_tree::validate_markdown_svg_nodes(&dom, body)
+}
+
 impl MarkdownMeasurer<'_> {
     fn mono_fallback(&self, bold: bool, italic: bool) -> &TrueTypeFont {
         if bold {
@@ -780,16 +804,7 @@ impl MarkdownMeasurer<'_> {
                 index += consumed;
                 continue;
             }
-            let heading_level = trimmed
-                .chars()
-                .take_while(|character| *character == '#')
-                .count();
-            if (1..=6).contains(&heading_level)
-                && trimmed
-                    .as_bytes()
-                    .get(heading_level)
-                    .is_some_and(|byte| byte.is_ascii_whitespace())
-            {
+            if let Some(heading_level) = atx_heading_level(trimmed) {
                 let heading_markup = trimmed[heading_level..].trim_start();
                 let scale = match heading_level {
                     1 => 2.0,
@@ -881,17 +896,14 @@ impl MarkdownMeasurer<'_> {
                 if candidate.trim().is_empty() {
                     break;
                 }
-                let candidate_heading = candidate_trimmed
-                    .chars()
-                    .take_while(|character| *character == '#')
-                    .count();
+                let candidate_heading = atx_heading_level(candidate_trimmed);
                 let candidate_list = candidate_trimmed.starts_with("- ")
                     || candidate_trimmed.starts_with("* ")
                     || candidate_trimmed.starts_with("+ ")
                     || candidate_trimmed.find(". ").is_some_and(|dot| {
                         dot > 0 && candidate_trimmed[..dot].chars().all(|c| c.is_ascii_digit())
                     });
-                if (1..=6).contains(&candidate_heading) || candidate_list {
+                if candidate_heading.is_some() || candidate_list {
                     break;
                 }
                 let hard_break = candidate.ends_with("  ");

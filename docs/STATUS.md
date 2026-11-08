@@ -100,6 +100,133 @@ but a handful of jobs. Open clusters, with witnesses in
   output); d2-rs reports an error instead. Recovered Go panic messages carry
   Go runtime stacks in the WASM API; the fault descriptions agree, but the
   stacks include Go addresses and goroutine state.
+- **Fresh fuzz findings (D41):** Dagre horizontal compound cross-axis
+  spacing now matches (D45): retain the border model's external-node lanes
+  after cross-rank spacing. The reversed-flow self-loop, constant-`near`
+  sequence lifeline ordering and malformed LaTeX `\end{` findings are fixed.
+  Seeds 2026110741–43 produced four findings in 3,000 jobs. Minimized
+  inputs are in `oracle-cache/reports/d41/witnesses/`.
+- **Fresh fuzz findings (D42):** SQL-table self-loop column ports now match
+  pinned Go's `d2graph.addSQLTableColumnIndices` early return. The sketch
+  root-border PNG/PDF findings are fixed by preserving exact dash operands.
+  Minimized witnesses and options are in `oracle-cache/reports/d42/witnesses/`.
+- **Fresh fuzz findings (D43):** seeds 2026110753/55/57 (1,000 jobs per
+  engine) found the known Dagre compound-spacing cluster, an ELK nested-grid
+  edge-clipping mismatch, and TALA nested-edge placement/error-path differences.
+  The ELK finding is fixed (D44): grid edges now use reinjected label/icon
+  state rather than recomputing defaults from the original measured boxes.
+  Reduced witnesses are in `oracle-cache/reports/d43/witnesses/`; TALA
+  handoffs are `witness-D4-tala-{nested-edge-placement,nan-height}.d2`.
+  Two other inputs crash pinned Go. The original ELK seed now has no SVG diff.
+- **Fresh fuzz findings (D44):** feature-check diagnostics now preserve raw
+  object IDs, and structured grid headers use the container-level font before
+  the header adjustment. The Dagre compound-spacing cluster is fixed (D45); the new
+  TALA-only nested-grid branch witness is
+  `witness-D4-tala-nested-grid-branches.d2` in the lane reports directory.
+- **TALA nested placement:** expanded seed 2026110745 differs on
+  `fixed:tala-nested-sequence-placement` (theme 102, dark theme 200,
+  pad 20, scale 1, center). Witness and exact options are retained in the
+  same D41 directory for Lane T3; D419 reconfirmed it unchanged and retained
+  `witness-D4-tala-D419-expanded.d2` in the lane reports directory.
+- **Fresh fuzz findings (D45):** seeds 2026110769/71/73 found suspended
+  endpoint label styles, Unicode capitalization, zero-sized grid children
+  and containers, ELK `multiple: t`, and nested empty Markdown list drift.
+  The Markdown list drift is fixed (D412): a list item's opening content
+  can immediately open a child list, matching Goldmark's block descent;
+  zero-sized Markdown viewports also retain Go's empty raster paint.
+  Suspended endpoint styles and ELK label placement are fixed (D46):
+  recreated objects retain their label text and completed-hierarchy defaults,
+  including regular sequence-actor text.
+  Seven findings are minimized in `oracle-cache/reports/d45/witnesses/`;
+  the TALA-only fan-in witness is handed to T3 as
+  `witness-D4-tala-fan-in-empty-endpoints.d2` in the lane reports directory.
+- **Fresh fuzz findings (D46):** seeds 2026110777/79/81 produced six
+  findings in 3,000 jobs. Two repeat the nested empty Markdown list drift
+  fixed in D412;
+  the empty-first-step root output path is fixed (D47): CLI dispatch counts
+  folder-only children, matching Go's `output/index.svg`. Reductions are under
+  `oracle-cache/reports/d46/witnesses/`. Three TALA findings reduce to two
+  TALA-only clusters, handed to T3 as `witness-D4-tala-D46-{47,664}.d2`
+  in the lane reports directory.
+- **Fresh fuzz findings (D47):** seeds 2026110785/87/89 found four output
+  differences in 3,000 jobs, plus one pinned-Go panic. Two shared-code
+  reductions: the multiboard recursive hash is fixed (D48), retaining mapless
+  sibling boards in traversal and target selection; sequence/grid sizing
+  beside a disconnected container remains open. Reductions and
+  cross-engine replays are in `oracle-cache/reports/d47/`. Two TALA-only
+  container-edge witnesses are handed to T3 as
+  `witness-D4-tala-D47-{372,891}.d2` in the lane reports directory.
+- **Fresh fuzz findings (D48):** seeds 2026110793/95/97 found three
+  mismatches in 3,000 jobs, plus one input that panics in pinned Go and Rust.
+  The shared sequence target-hash finding is fixed (D49): actor references
+  retain Go's child-before-parent compilation order before the AST sort.
+  Reductions are under
+  `oracle-cache/reports/d48/witnesses/`. TALA-only routing-error and tree
+  placement handoffs are `witness-D4-tala-D48-{236,402}.d2` in the lane
+  reports directory; the routing-error reduction reached its 180-second budget.
+- **Fresh fuzz findings (D49):** seeds 2026110801/03/05 found three
+  mismatches in 3,000 jobs. Markdown `<->` now renders correctly (D410):
+  HTML block tag names require an initial ASCII letter, matching goldmark.
+  Two TALA container-edge outputs differ (handoffs
+  `witness-D4-tala-D49-{45,476}.d2`). Expanded seed 2026110807 exposes
+  small-scale multiple/double-border raster drift is fixed (D411): the
+  native painter now retains both borders on the back copy and Go's pattern
+  order. The sketch animated-edge drift is fixed (D418): time-zero raster
+  frames retain the scene's exact reverse dash phase instead of the public
+  SVG's six-decimal value. Reduced witnesses and exact options are under
+  `oracle-cache/reports/d49/`.
+- **D410 search:** fresh Dagre/ELK/TALA seeds 2026110809/11/13 match all
+  3,000 SVG jobs. Expanded seed 2026110815 matches 4,408 jobs; its only
+  mismatch is the retained TALA nested-sequence handoff (five Go failures).
+
+- **Fresh fuzz findings (D411):** the Dagre seed 2026110817 sequence-actor
+  ordering finding is fixed: actors now sort by their earliest reference
+  outside a glob before placement and lifeline creation, matching Go. The
+  32-byte reduction and original source are under `oracle-cache/reports/d411/`.
+  Seeds 2026110817/19/21 now match all 3,000 SVG jobs (one finding before
+  the fix); no panic, signal or hang findings. Expanded seed 2026110823
+  matches 4,405 jobs, with only the existing TALA nested-sequence handoff
+  and five pinned-Go failures.
+
+- **Fresh fuzz findings (D413):** seeds 2026110833/35/37 found five
+  differences in 3,000 SVG jobs. The Markdown hang is fixed: fallback sizing
+  now uses Goldmark's ATX heading rule for both heading recognition and
+  paragraph termination. Native Markdown validation also precedes sizing, so
+  raster/text exports report Go's error before layout. The 13-byte reduction
+  is under `oracle-cache/reports/d413/witnesses/`. Its initial same-seed replay
+  had 2,996 matches and four retained differences, with no Rust hang or panic.
+  D414 fixed the fourth: applied classes now recursively validate invalid child
+  maps before the class-field diagnostic, while keeping `beginClass` cycle
+  protection active for the full traversal. Three TALA-only reductions remain as
+  `witness-D4-tala-D413-{198,615,686}.d2` in the lane reports directory.
+  D417 fixes D412's three small-scale Unicode PNG rows: native COLRv1 text now
+  reuses the retained f64 canvas transform instead of rebuilding it from f32
+  renderer state. The family-emoji reduction and all 37 one-level pixels in
+  the original now match pinned Go across Dagre, ELK, and TALA.
+- **Fresh fuzz findings (D414):** Dagre seed 2026110841 matched all 1,000
+  jobs. ELK seed 2026110843 found one compound self-loop failure: hierarchy
+  preprocessing now preserves the default output/input port sides, its
+  positional refresh no longer reruns free-loop side assignment, and the
+  model-order port comparator reverses a side only when both ports have
+  incoming edges, matching pinned elk-go. The same ELK seed now has 990
+  rendered and 10 empty-output matches with no findings. TALA seed
+  2026110845 has 999 matches and one TALA-only container fan-in difference;
+  its reduction is `witness-D4-tala-D414-465.d2` in the lane reports directory.
+- **Fresh fuzz findings (D415):** Dagre/ELK/TALA seeds 2026110849/51/53
+  produced one difference in 3,000 SVG jobs. The ELK nested sequence/grid
+  finding is fixed: crossings removed with an extracted grid actor no longer
+  consume a parent sequence message row before reinjection, matching
+  `d2layouts.LayoutNested`. The minimized witness is under
+  `oracle-cache/reports/d415/witnesses/`. Expanded seed 2026110855 retains
+  three D412 small-scale Unicode PNG rows and the known TALA nested-sequence
+  row; the other 4,212 jobs match and five inputs fail in pinned Go.
+- **Fresh fuzz findings (D418/D419):** Dagre/ELK/TALA seeds
+  2026110857/59/61 produced two differences in 3,000 SVG jobs. Both are fixed:
+  the Dagre-only ingress-lane correction no longer collapses outgoing
+  child-to-external lanes, and d2grid accepts zero-sized cells as Go does.
+  The exact D418 Dagre and ELK seeds and fresh D419 seeds 2026110863/65/67
+  now match all 5,000 jobs. Reductions are under
+  `oracle-cache/reports/d418/witnesses/`.
 
 ## Beyond the upstream corpus
 
@@ -123,6 +250,27 @@ d2-rs and the pinned Go CLI on generated inputs (outputs and witnesses go to
 - `scripts/fuzz-differential.py` and `scripts/fuzz-minimize.py`: random
   structural mutations of corpus inputs, flagging Rust panics, hangs and
   exit, error-text or output divergence, then line/character minimization.
+  The differential fuzzer accepts SVG, PNG, PDF, PPTX, GIF and TXT plus exact
+  render flags, and includes upstream `.d2` files and raw Go-test scripts.
+  A fresh 2026-11-08 sample matched all 250 selected format/flag jobs; PDF
+  runs require the repository's clock-injected pinned oracle. A further
+  1,000-job Dagre PNG run (seed 20261108241, sketch/theme/scale/center flags)
+  found ten raster differences. Default-ignorable ZWJ shaping is fixed; its
+  exact replay exposed a multiline class-header mismatch: private raster
+  geometry now keeps Go's `labelHeight + 10` floor instead of the public
+  sketch SVG's two-row height. Unset Markdown label positions now retain
+  `d2target.Diagram.BoundingBox`'s top-left canvas bounds independently of
+  the centered Markdown painter. Translated sketch-shadow patterns are also
+  fixed: filter crops retain the prepared unshifted f64 paint matrix instead
+  of reconstructing it after local translation. Native sketch ellipses now
+  recover Go's four f64 cubic quadrants from usvg's eight-cubic lowering
+  before flattening. Root PNG primitives now restart their scanline active
+  lists for each 256-row destination just like `RenderBands`, preserving f32
+  winding order after expired-edge swaps. Structured class and SQL-table
+  streak rectangles now retain their f64 scene operands through SVG lowering,
+  closing the final `grid_oom` fractional-coverage difference. The exact
+  replay now has 993 rendered and seven empty-output matches with no findings;
+  its summary is under `oracle-cache/reports/d429/`.
 
 Fixed through these sweeps: code blocks in every Chroma language (only nine
 were translated), ELK network-simplex order and subtree pruning on large
@@ -225,6 +373,14 @@ Open, with witnesses from the sweeps:
   Shadows, opacity, 3D, nested fills and dark
   theme stay under Go but their ratios grow with size. The corpus itself has
   no row over Go.
+  nodes 1.26x wall (1.05x CPU), measured before the routing change;
+  compiling an 80,000-edge board before the edge-limit error at about 1.4x
+  wall. Releasing the full compiler IR before layout reduced that witness's
+  peak RSS from about 467 to 396 MiB, but made it about 10% slower because
+  eagerly dropping the arena walks every allocation; that candidate was
+  rejected pending a lifetime design without the destructor cost. Shadows,
+  opacity, 3D, nested fills and dark theme stay under Go but
+  their ratios grow with size. The corpus itself has no row over Go.
 - **Unreplayed witnesses:** the original four LaTeX probes and three fuzz
   singletons (`*: suspend` globs, a `package` shape four levels deep,
   Gujarati next to an emoji) were not retained; 60 `suspend` and 18

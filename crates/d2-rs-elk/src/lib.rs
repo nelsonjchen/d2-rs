@@ -436,7 +436,8 @@ fn layout_elk_graph_with_edge_bindings(
     // Nested sizing can change a compound node's vessel dimensions after its
     // root-facing default ports were synthesized. Re-run the positional part
     // of the importer step so those anchors follow the resized parent.
-    materialize_implicit_ports(&mut arena, root)?;
+    let imported_nodes = (0..arena.nodes.len() as LNodeId).collect::<Vec<_>>();
+    refresh_implicit_port_positions(&mut arena, &imported_nodes);
     trace_phase!("import", "refresh_ports");
     trace_arena!("import", "refresh_ports", &arena);
     let consider_model_order = graph
