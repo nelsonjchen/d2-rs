@@ -62,14 +62,14 @@ mutations. They found and fixed many gaps; these are still open
 ([details](docs/STATUS.md#beyond-the-upstream-corpus)):
 
 - **TALA memory:** with every seed routing at once, as in Go, a 200-node
-  fan-out peaks at about 1.04× Go's memory; per-seed routing state is larger
-  than Go's ([#4](https://github.com/nelsonjchen/d2-rs/issues/4)).
+  fan-out peaks at about Go's memory (1.005×, down from 1.05×); per-seed
+  routing state is still larger than Go's ([#4](https://github.com/nelsonjchen/d2-rs/issues/4)).
 - **TALA error path:** a 400-node fan-out fails exactly as Go does, but takes
-  0.36 s to reach the error against Go's 0.04 s ([#5](https://github.com/nelsonjchen/d2-rs/issues/5)).
-- **Long labels in TALA:** a 100-node chain with long labels runs about 1.22×
-  Go's wall time ([#6](https://github.com/nelsonjchen/d2-rs/issues/6)).
-- **Very large inputs:** an 80,000-edge board takes as long as Go to reach
-  TALA's edge-limit error but peaks at about 1.4× Go's memory ([#7](https://github.com/nelsonjchen/d2-rs/issues/7)).
+  about 1.07× Go's wall time to reach the error, down from 1.55× ([#5](https://github.com/nelsonjchen/d2-rs/issues/5)).
+- **Long labels in TALA:** a 100-node chain with long labels now runs at
+  Go's wall time (1.00×, down from 1.24×) ([#6](https://github.com/nelsonjchen/d2-rs/issues/6)).
+- **Very large inputs:** an 80,000-edge board reaches TALA's edge-limit error
+  in 0.7× Go's time but peaks at about 1.33× Go's memory, down from 1.48× ([#7](https://github.com/nelsonjchen/d2-rs/issues/7)).
 - **Binary size:** the native CLI is about 1.2× the size of Go's ([#8](https://github.com/nelsonjchen/d2-rs/issues/8)).
 
 ## Install
