@@ -120,7 +120,8 @@ impl Painter<'_> {
         }
     }
     fn attrs(&self, n: Node<'_, '_>, ctx: PaintContext) -> Option<BlockAttrs> {
-        let measurer = native_markdown_measurer(ctx.family)?;
+        let fonts = native_markdown_measurer(ctx.family)?;
+        let measurer = fonts.measurer();
         measurer.legacy_block_node(
             n,
             Context {
@@ -290,7 +291,8 @@ impl Painter<'_> {
         ctx: PaintContext,
         inset: f64,
     ) -> Option<()> {
-        let m = native_markdown_measurer(ctx.family)?;
+        let fonts = native_markdown_measurer(ctx.family)?;
+        let m = fonts.measurer();
         let size = f64::from(ctx.size);
         let (a, d) = m.font.css_box_metrics(size);
         let mut baseline = origin.y + (size * 1.5 - a - d).max(0.0) / 2.0 + a;
@@ -470,7 +472,8 @@ impl Painter<'_> {
             if text.ends_with('\n') {
                 lines.pop();
             }
-            let mono = native_markdown_measurer(ctx.family)?.mono_font;
+            let fonts = native_markdown_measurer(ctx.family)?;
+            let mono = fonts.measurer().mono_font;
             let font_size = 0.85 * size;
             let line_height = 1.45 * font_size;
             let height = lines.len() as f64 * line_height + 32.0;

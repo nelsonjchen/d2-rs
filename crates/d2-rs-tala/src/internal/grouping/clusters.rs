@@ -810,7 +810,10 @@ impl ArenaGraph {
         Self::cluster_padding_for_nodes(&nodes, arrangement)
     }
 
-    fn cluster_padding_for_nodes(members: &[&ArenaNode], arrangement: ClusterArrangement) -> f64 {
+    pub(super) fn cluster_padding_for_nodes(
+        members: &[&ArenaNode],
+        arrangement: ClusterArrangement,
+    ) -> f64 {
         let count = members.len() as f64;
         let average_extent = members
             .iter()
@@ -912,7 +915,7 @@ impl ArenaGraph {
     }
 
     /// Recovered `Node.distanceTo(other, true)` for positioned node boxes.
-    fn cluster_rect_distance(first: Rect, second: Rect) -> f64 {
+    pub(super) fn cluster_rect_distance(first: Rect, second: Rect) -> f64 {
         let horizontal = if first.right() < second.origin.x {
             second.origin.x - first.right()
         } else if second.right() < first.origin.x {

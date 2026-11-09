@@ -1874,14 +1874,11 @@ impl<'a> SizedOptimizer<'a> {
             {
                 return false;
             }
-            let delta = if self.graph.container_direction_is_unset(node)
-                && self.graph.container_direction_is_unset(other.input_id)
-            {
-                self.graph
-                    .spacing_delta_with_loops(node, other.input_id, point)
-            } else {
-                self.graph.spacing_delta(node, other.input_id, point)
-            };
+            // optimizerDoesOverlap uses Node.DeltaTo, which includes loop
+            // clearance even when the enclosing graph has an explicit direction.
+            let delta = self
+                .graph
+                .spacing_delta_with_loops(node, other.input_id, point);
             point.x < other_position.x + other.rect.size.width + delta
                 && point.x + node_size.width + delta > other_position.x
                 && point.y < other_position.y + other.rect.size.height + delta

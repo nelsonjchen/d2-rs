@@ -2287,6 +2287,19 @@ pub fn materialize_implicit_ports(
     arena: &mut LayeredArena,
     graph_id: LGraphId,
 ) -> Result<(), LayeringError> {
+    materialize_implicit_ports_in_import_order(arena, graph_id)?;
+    restore_pure_loop_port_areas(arena);
+    Ok(())
+}
+
+/// Keeps the importer's port order until compound preprocessing has created
+/// every external dummy. Go runs PortRestorer after compound preprocessing;
+/// restoring free loops here would reverse their source ports before
+/// ensureCompoundPortDummies visits them.
+pub(crate) fn materialize_implicit_ports_in_import_order(
+    arena: &mut LayeredArena,
+    graph_id: LGraphId,
+) -> Result<(), LayeringError> {
     if graph_id as usize >= arena.graphs.len() {
         return Err(LayeringError::UnknownGraph(graph_id));
     }
@@ -2319,7 +2332,6 @@ pub fn materialize_implicit_ports(
     assign_implicit_self_loop_sides(arena);
     position_constrained_ports(arena);
     distribute_implicit_port_positions(arena);
-    restore_pure_loop_port_areas(arena);
     Ok(())
 }
 
@@ -2332,98 +2344,6 @@ pub fn materialize_implicit_ports(
 pub fn refresh_implicit_port_positions(arena: &mut LayeredArena, node_ids: &[LNodeId]) {
     for &node_id in node_ids {
         distribute_implicit_port_positions_for_node(arena, node_id);
-    }
-}
-
-/// Places restored self-loop ports beside hierarchy ports whose final
-/// positions have just been transferred from a nested graph.
-///
-/// elk-go's bottom-up hierarchy scheduler transfers the external port before
-/// the owning scope runs `LabelAndNodeSizeProcessor`. `PortRestorer` has
-/// already put the loop ports before or after that external port, so the
-/// processor preserves the transferred coordinate and advances restored loop
-/// ports by the default port spacing. Rust finishes the child scope before
-/// resuming the owner too, but its earlier provisional loop position can
-/// otherwise survive the owner's new `FixedPosition` constraint.
-pub(crate) fn position_restored_loop_ports_after_hierarchy_transfer(
-    arena: &mut LayeredArena,
-    node_ids: &[LNodeId],
-) {
-    for &node_id in node_ids {
-        let loops = arena
-            .edges
-            .iter()
-            .filter(|edge| edge.active && edge.source == node_id && edge.target == node_id)
-            .filter_map(|edge| Some((edge.source_port?, edge.target_port?)))
-            .collect::<Vec<_>>();
-        for (source, target) in loops {
-            let source_side = arena.ports[source as usize].side;
-            let target_side = arena.ports[target as usize].side;
-            if loop_side_right(loop_side_right(source_side)) != target_side {
-                continue;
-            }
-            let first_side = if (source_side == PortSide::North && target_side == PortSide::West)
-                || (target_side == PortSide::North && source_side == PortSide::West)
-            {
-                PortSide::West
-            } else {
-                source_side.min(target_side)
-            };
-            for port in [source, target] {
-                let side = arena.ports[port as usize].side;
-                let transferred = arena
-                    .reused_parent_ports
-                    .iter()
-                    .copied()
-                    .filter(|candidate| {
-                        arena.ports[*candidate as usize].node == node_id
-                            && arena.ports[*candidate as usize].side == side
-                    })
-                    .collect::<Vec<_>>();
-                if transferred.is_empty() {
-                    continue;
-                }
-                // Opposing loops are restored into areaEnd on the first
-                // sorted side and areaStart on the second. South and West
-                // have reversed physical order in LabelAndNodeSizeProcessor.
-                let area_end = side == first_side;
-                let after = area_end == matches!(side, PortSide::North | PortSide::East);
-                let horizontal = matches!(side, PortSide::North | PortSide::South);
-                let coordinate = |candidate: LPortId| {
-                    if horizontal {
-                        arena.ports[candidate as usize].x
-                    } else {
-                        arena.ports[candidate as usize].y
-                    }
-                };
-                let extent = |candidate: LPortId| {
-                    if horizontal {
-                        arena.ports[candidate as usize].width
-                    } else {
-                        arena.ports[candidate as usize].height
-                    }
-                };
-                let value = if after {
-                    transferred
-                        .iter()
-                        .map(|candidate| coordinate(*candidate) + extent(*candidate))
-                        .fold(f64::NEG_INFINITY, f64::max)
-                        + 10.0
-                } else {
-                    transferred
-                        .iter()
-                        .map(|candidate| coordinate(*candidate))
-                        .fold(f64::INFINITY, f64::min)
-                        - extent(port)
-                        - 10.0
-                };
-                if horizontal {
-                    arena.ports[port as usize].x = value;
-                } else {
-                    arena.ports[port as usize].y = value;
-                }
-            }
-        }
     }
 }
 
@@ -2654,6 +2574,23 @@ pub(crate) fn capture_self_loop_routes(arena: &mut LayeredArena, graph: LGraphId
 fn restore_pure_loop_port_areas_impl(arena: &mut LayeredArena, graph: Option<LGraphId>) {
     for node_id in 0..arena.nodes.len() as LNodeId {
         if graph.is_some_and(|graph| arena.nodes[node_id as usize].graph != graph) {
+            continue;
+        }
+        // SelfLoopPreprocessor leaves ordered and hierarchical ports attached;
+        // PortRestorer must preserve that order even when compound splitting
+        // has temporarily detached every ordinary edge from the parent ports.
+        let node = &arena.nodes[node_id as usize];
+        if matches!(
+            node.port_constraints,
+            PortConstraints::FixedOrder
+                | PortConstraints::FixedRatio
+                | PortConstraints::FixedPosition
+        ) || node.nested_graph.is_some_and(|nested| {
+            arena
+                .external_port_origins
+                .keys()
+                .any(|dummy| arena.nodes[*dummy as usize].graph == nested)
+        }) {
             continue;
         }
         let ports = &arena.nodes[node_id as usize].ports;
@@ -5843,6 +5780,15 @@ fn source_layering_connected_components(
 /// appends each outgoing segment, so traces can compare the same allocation
 /// order as elk-go before the later join phase restores the original edge.
 pub fn split_long_edges(arena: &mut LayeredArena, graph_id: LGraphId) -> Result<(), LayeringError> {
+    // The public arena API also accepts graphs before implicit ports exist.
+    // Go's importer creates those ports before SplitLongEdges visits them.
+    if arena.edges.iter().any(|edge| {
+        edge.active
+            && arena.nodes[edge.source as usize].graph == graph_id
+            && (edge.source_port.is_none() || edge.target_port.is_none())
+    }) {
+        materialize_implicit_ports(arena, graph_id)?;
+    }
     split_long_edges_impl(arena, graph_id)
 }
 
@@ -6476,10 +6422,10 @@ fn split_long_edges_impl(
         let next_layer_id = layer_ids[layer_index + 1];
         let nodes = arena.layers[layer_id as usize].nodes.clone();
         for node_id in nodes {
-            let edge_ids = arena
-                .outgoing_edges(node_id)
-                .map(|(edge_id, _)| edge_id)
-                .collect::<Vec<_>>();
+            // SplitLongEdges visits each attached port's outgoing slice.
+            // Arena insertion order can differ after compound splitting and
+            // cycle reversal, changing dummy order and the first P3 sweep.
+            let edge_ids = arena.node_outgoing_edges(node_id);
             for edge_id in edge_ids {
                 let (target, target_layer) = {
                     let edge = &arena.edges[edge_id as usize];
@@ -6514,7 +6460,6 @@ pub(crate) fn redistribute_ordered_implicit_ports(arena: &mut LayeredArena, grap
                 .then_some(node_id as LNodeId)
         })
         .collect::<Vec<_>>();
-    position_restored_loop_ports_after_hierarchy_transfer(arena, &node_ids);
     for node_id in node_ids {
         let node = &arena.nodes[node_id as usize];
         if matches!(
@@ -6524,6 +6469,9 @@ pub(crate) fn redistribute_ordered_implicit_ports(arena: &mut LayeredArena, grap
             // Source placePortOnBorder preserves only the along-side
             // coordinate for FIXED_RATIO/FIXED_POS, including after a proxy
             // crosses its owner and SweepCopy changes that port's side.
+            // Hierarchy transfer also positions self-loop ports represented
+            // by external dummies. Preserve those coordinates just like the
+            // ordinary ports instead of placing loops beside a boundary again.
             let width = node.width;
             let height = node.height;
             let ports = node.ports.clone();
@@ -8427,7 +8375,7 @@ fn edge_junction_points_in_frame(
                 }),
         );
     }
-    if node_is_ancestor(arena, edge.source, edge.target) {
+    if flow.is_none() && node_is_ancestor(arena, edge.source, edge.target) {
         let node = &arena.nodes[edge.source as usize];
         let origin = translate_point_to_graph(
             arena,
@@ -8460,9 +8408,10 @@ pub(crate) fn self_loop_node_local_points(
     edge_route_points_in_frame(arena, edge_id, false, true, false, None)
 }
 
-/// Hierarchy cross-axis ordinates include source edgeLayoutOffsets. When
-/// mirror_flow is supplied, the flow axis includes GraphTransformer and the
-/// transferrer's offsets too; otherwise it retains the arena frame.
+/// Hierarchy and nested self-loop cross-axis ordinates include source
+/// edgeLayoutOffsets. When mirror_flow is supplied, the flow axis includes
+/// GraphTransformer and the transferrer's offsets too; otherwise it retains
+/// the arena frame.
 pub(crate) fn edge_route_points_for_publication(
     arena: &LayeredArena,
     edge_id: LEdgeId,
@@ -8490,8 +8439,15 @@ fn edge_route_points_in_frame(
     // a single generic horizontal bend.
     if edge.active && edge.source == edge.target {
         let node = &arena.nodes[edge.source as usize];
+        let publication_y = (!node_local && source_publication)
+            .then(|| arena.nested_transfer_y.get(&edge.source).copied())
+            .flatten();
         let mut node_x = if node_local { 0.0 } else { node.position_x };
-        let node_y = if node_local { 0.0 } else { node.position_y };
+        let node_y = if node_local || publication_y.is_some() {
+            0.0
+        } else {
+            node.position_y
+        };
         let mut source = edge_endpoint_anchor(arena, edge, node.graph, true);
         let mut target = edge_endpoint_anchor(arena, edge, node.graph, false);
         if node_local {
@@ -8508,6 +8464,10 @@ fn edge_route_points_in_frame(
                 y: target_port.y,
             };
         }
+        if publication_y.is_some() {
+            source.y = arena.ports[edge.source_port.expect("routed loop source port") as usize].y;
+            target.y = arena.ports[edge.target_port.expect("routed loop target port") as usize].y;
+        }
         if !node_local && let Some(&(internal, offset)) = arena.nested_transfer_x.get(&edge.source)
         {
             let offset = if apply_transfer { offset } else { 0.0 };
@@ -8519,7 +8479,9 @@ fn edge_route_points_in_frame(
                 target.x = (internal + arena.ports[port as usize].x) + offset;
             }
         }
-        if !node_local && let Some(&(internal, offset)) = arena.nested_transfer_y.get(&edge.source)
+        if !node_local
+            && publication_y.is_none()
+            && let Some(&(internal, offset)) = arena.nested_transfer_y.get(&edge.source)
         {
             if let Some(port) = edge.source_port {
                 source.y = (internal + arena.ports[port as usize].y) + offset;
@@ -8695,6 +8657,15 @@ fn edge_route_points_in_frame(
             return Err(LayeringError::PortWithUndefinedSide);
         }
         route.extend([target_outer, target]);
+        if let Some((internal, transfer)) = publication_y {
+            // PostprocessSelfLoops offsets node-local bends by the unpadded
+            // node position, then Transferrer adds Graph.Offset+Padding.
+            // Keep the residual before padding so it can cancel Graph.Offset.
+            let offset = transfer + arena.graphs[node.graph as usize].offset_y;
+            for point in &mut route {
+                point.y = (point.y + internal) + offset;
+            }
+        }
         return Ok(route);
     }
     if !edge.active {
@@ -8747,9 +8718,8 @@ fn edge_route_points_in_frame(
                 target_anchor.y = coordinates::hierarchy_endpoint_y(arena, edge, false);
             }
             if let Some(flow) = &flow {
-                source_anchor.x = flow.local_anchor(edge, true);
-                target_anchor.x = flow.local_anchor(edge, false)
-                    + flow.change(0.0, arena.nodes[edge.target as usize].graph, reference);
+                source_anchor.x = flow.hierarchy_endpoint(edge, true);
+                target_anchor.x = flow.hierarchy_endpoint(edge, false);
             }
             joined.push(source_anchor);
             let mut last_point: Option<Point> = None;
@@ -12017,7 +11987,7 @@ fn order_hierarchical_layers_by_barycenter(
             arena.graphs[graph_id as usize].consider_model_order
         };
         let source_crossings = if model_order {
-            count_hierarchy_all_p3_crossings(arena, graph_id)
+            count_hierarchy_all_p3_crossings(arena, graph_id, &context.use_bottom_up)
         } else {
             1
         };
@@ -12205,7 +12175,8 @@ fn minimize_hierarchical_randomized_scope(
             },
         )?;
         did_sweep = true;
-        let mut crossings = count_hierarchy_all_p3_crossings(arena, graph_id);
+        let mut crossings =
+            count_hierarchy_all_p3_crossings(arena, graph_id, &hierarchy.use_bottom_up);
         #[cfg(feature = "diagnostic-traces")]
         crate::trace::emit_value(
             "ordering",
@@ -12236,7 +12207,7 @@ fn minimize_hierarchical_randomized_scope(
                     hierarchy_first_sweep: Some(false),
                 },
             )?;
-            crossings = count_hierarchy_all_p3_crossings(arena, graph_id);
+            crossings = count_hierarchy_all_p3_crossings(arena, graph_id, &hierarchy.use_bottom_up);
             #[cfg(feature = "diagnostic-traces")]
             crate::trace::emit_value(
                 "ordering",
@@ -13184,14 +13155,21 @@ fn count_p3_all_crossings(arena: &LayeredArena, graph_id: LGraphId) -> usize {
     crossings
 }
 
-fn count_hierarchy_all_p3_crossings(arena: &LayeredArena, graph_id: LGraphId) -> usize {
+fn count_hierarchy_all_p3_crossings(
+    arena: &LayeredArena,
+    graph_id: LGraphId,
+    use_bottom_up: &BTreeMap<LGraphId, bool>,
+) -> usize {
     let mut crossings = count_p3_all_crossings(arena, graph_id);
     for node in arena.nodes.iter().filter(|node| node.graph == graph_id) {
         let Some(child_graph) = node.nested_graph else {
             continue;
         };
-        if !p3_sweep_decision(arena, child_graph).use_bottom_up {
-            crossings += count_hierarchy_all_p3_crossings(arena, child_graph);
+        // GraphInfoHolder stores UseBottomUp at initialization. A sweep can
+        // change the decider's path counts by reordering in-layer dependencies,
+        // but the child must still contribute to its original sweep scope.
+        if !use_bottom_up.get(&child_graph).copied().unwrap_or(true) {
+            crossings += count_hierarchy_all_p3_crossings(arena, child_graph, use_bottom_up);
         }
     }
     crossings

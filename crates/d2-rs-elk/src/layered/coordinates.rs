@@ -93,6 +93,28 @@ impl<'a> SourceFlow<'a> {
         (self.node(node) + port) + 0.0
     }
 
+    pub(crate) fn hierarchy_endpoint(&self, edge: &LEdge, source: bool) -> f64 {
+        let reference = hierarchy_reference_graph(self.arena, edge);
+        if source && node_is_ancestor(self.arena, edge.source, edge.target) {
+            let node = &self.arena.nodes[edge.source as usize];
+            let port = edge.source_port.map_or(node.width / 2.0, |id| {
+                let port = &self.arena.ports[id as usize];
+                if self.mirrored {
+                    (node.width - port.width) - port.x
+                } else {
+                    port.x
+                }
+            });
+            return (port + 0.0) - (self.graph_offset(reference) + self.padding(reference));
+        }
+        let anchor = self.local_anchor(edge, source);
+        if source {
+            anchor
+        } else {
+            anchor + self.change(0.0, self.arena.nodes[edge.target as usize].graph, reference)
+        }
+    }
+
     pub(crate) fn change(&self, mut value: f64, from: LGraphId, to: LGraphId) -> f64 {
         if from == to {
             return value;
@@ -124,12 +146,7 @@ impl<'a> SourceFlow<'a> {
 
     pub(crate) fn offset(&self, edge: &LEdge) -> f64 {
         let reference = hierarchy_reference_graph(self.arena, edge);
-        let origin = lowest_common_graph(
-            self.arena,
-            self.arena.nodes[edge.source as usize].graph,
-            self.arena.nodes[edge.target as usize].graph,
-            0,
-        );
+        let origin = hierarchy_coordinate_origin(self.arena, edge);
         let base = self.graph_offset(reference) + self.padding(reference);
         let mut hierarchy = 0.0;
         let mut current = self.arena.nodes[edge.source as usize].graph;
@@ -241,29 +258,7 @@ pub(crate) fn change_graph_y(
     point
 }
 pub(crate) fn hierarchy_edge_offset_y(arena: &LayeredArena, edge: &LEdge) -> f64 {
-    let root = arena
-        .graphs
-        .iter()
-        .position(|g| g.parent_node.is_none())
-        .unwrap_or(0) as LGraphId;
-    // Codec.UpdateContainment assigns ancestor edges to that ancestor's
-    // own contained graph, rather than its parent's graph.
-    let origin = if node_is_ancestor(arena, edge.source, edge.target) {
-        arena.nodes[edge.source as usize]
-            .nested_graph
-            .unwrap_or(root)
-    } else if node_is_ancestor(arena, edge.target, edge.source) {
-        arena.nodes[edge.target as usize]
-            .nested_graph
-            .unwrap_or(root)
-    } else {
-        lowest_common_graph(
-            arena,
-            arena.nodes[edge.source as usize].graph,
-            arena.nodes[edge.target as usize].graph,
-            root,
-        )
-    };
+    let origin = hierarchy_coordinate_origin(arena, edge);
     // Transferrer.edgeLayoutOffsets takes the base offset from the layout
     // (reference) graph, but walks the hierarchical offset from the source
     // node's own graph. For an ancestor source those differ: the walk starts
@@ -283,6 +278,32 @@ pub(crate) fn hierarchy_edge_offset_y(arena: &LayeredArena, edge: &LEdge) -> f64
         hierarchy += padding_y(arena, current);
     }
     base + hierarchy
+}
+
+fn hierarchy_coordinate_origin(arena: &LayeredArena, edge: &LEdge) -> LGraphId {
+    let root = arena
+        .graphs
+        .iter()
+        .position(|g| g.parent_node.is_none())
+        .unwrap_or(0) as LGraphId;
+    // Codec.UpdateContainment assigns ancestor edges to that ancestor's
+    // own contained graph, rather than its parent's graph.
+    if node_is_ancestor(arena, edge.source, edge.target) {
+        arena.nodes[edge.source as usize]
+            .nested_graph
+            .unwrap_or(root)
+    } else if node_is_ancestor(arena, edge.target, edge.source) {
+        arena.nodes[edge.target as usize]
+            .nested_graph
+            .unwrap_or(root)
+    } else {
+        lowest_common_graph(
+            arena,
+            arena.nodes[edge.source as usize].graph,
+            arena.nodes[edge.target as usize].graph,
+            root,
+        )
+    }
 }
 /// Flow-axis counterpart of [`hierarchy_edge_offset_y`] for joined
 /// cross-hierarchy routes, which arrive in the endpoints' common graph frame.

@@ -46,6 +46,7 @@ mod source_contract {
             };
             let actual = native_markdown_measurer(family)
                 .unwrap()
+                .measurer()
                 .markdown_dimensions(
                     request["Markdown"].as_str().unwrap(),
                     request["FontSize"].as_u64().unwrap() as u32,
@@ -127,6 +128,7 @@ mod table_source_contract {
             );
             let actual = native_markdown_measurer(family)
                 .unwrap()
+                .measurer()
                 .markdown_dimensions(
                     text,
                     r["FontSize"].as_u64().unwrap() as u32,
@@ -176,6 +178,7 @@ mod mixed_block_source_contract {
             };
             let actual = native_markdown_measurer(family)
                 .unwrap()
+                .measurer()
                 .markdown_dimensions(
                     r["Markdown"].as_str().unwrap(),
                     r["FontSize"].as_u64().unwrap() as u32,
@@ -242,7 +245,8 @@ mod block_tree_source_contract {
                 continue;
             }
             accepted += 1;
-            let measurer = native_markdown_measurer(family).unwrap();
+            let fonts = native_markdown_measurer(family).unwrap();
+            let measurer = fonts.measurer();
             let mono = matches!(family, MarkdownFamily::Mono);
             let size = r["FontSize"].as_u64().unwrap() as u32;
             let actual = measurer
@@ -311,6 +315,7 @@ mod block_document_source_contract {
             assert!(error.is_none());
             let actual = native_markdown_measurer(family)
                 .unwrap()
+                .measurer()
                 .markdown_dimensions(
                     r["Markdown"].as_str().unwrap(),
                     r["FontSize"].as_u64().unwrap() as u32,
@@ -382,6 +387,7 @@ mod recursive_document_source_contract {
             assert!(error.is_none());
             let actual = native_markdown_measurer(family)
                 .unwrap()
+                .measurer()
                 .markdown_dimensions(
                     r["Markdown"].as_str().unwrap(),
                     r["FontSize"].as_u64().unwrap() as u32,

@@ -11,6 +11,14 @@ use super::*;
 
 impl ArenaGraph {
     pub(super) fn from_input(input: &Graph) -> Self {
+        let mut graph = Self::from_input_without_tree_routing(input);
+        graph.initialize_tree_routing_state();
+        graph
+    }
+
+    /// Construct a fresh graph for callers that do not run tree preprocessing,
+    /// such as hierarchy.PlaceCompound's isolated placement proxy.
+    pub(super) fn from_input_without_tree_routing(input: &Graph) -> Self {
         if crate::internal::trace_env_enabled("TALA_TRACE_SOURCE_EDGES") {
             eprintln!(
                 "SOURCE_EDGES_ARENA input_edges={} vec={} map={} first={:?}",
@@ -949,7 +957,6 @@ impl ArenaGraph {
         if input.tala_decoded_members.is_none() {
             graph.assign_forced_hierarchies();
         }
-        graph.initialize_tree_routing_state();
         graph
     }
 

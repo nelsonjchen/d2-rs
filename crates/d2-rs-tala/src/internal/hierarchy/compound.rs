@@ -127,7 +127,10 @@ pub(super) fn build_compound_proxy(
     if !detailed || !compound_connected(roots.len(), &interfaces) {
         return Ok(None);
     }
-    let mut graph = super::ArenaGraph::from_input(&input);
+    // PlaceCompound creates a fresh proxy and calls hierarchy.Place directly
+    // (hierarchy/compound.go:50-60,153), without ExtractTrees. Peeling
+    // its fringe here would reorder incidences before the placement shuffle.
+    let mut graph = super::ArenaGraph::from_input_without_tree_routing(&input);
     for (i, &root) in roots.iter().enumerate() {
         graph.nodes[i].tala_id = original.nodes[root.0 as usize].tala_id;
         graph.set_position(

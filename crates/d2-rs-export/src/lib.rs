@@ -3049,6 +3049,7 @@ fn rasterize_frame(
     }
     options.force_appendix = true;
     options.transparent_background = transparent_background;
+    let custom_fonts = options.custom_fonts.clone();
     let (svg, raster_sources) = d2_rs_render::render_svg_with_raster_sources_checked(
         graph, result, labels, styles, options, sketch,
     )
@@ -3102,6 +3103,14 @@ fn rasterize_frame(
     // including when it recursively parses an embedded SVG.
     options.image_href_resolver.resolve_string = Box::new(|_, _| None);
     load_bundled_fonts_for_primary(&mut options, appendix_mono, sketch);
+    if !custom_fonts.regular.is_empty() || !custom_fonts.mono.is_empty() {
+        svg_for_native_raster = configure_custom_raster_fonts(
+            &svg_for_native_raster,
+            &custom_fonts,
+            &mut options,
+            appendix_mono,
+        )?;
+    }
     load_cached_system_fonts(options.fontdb_mut());
     let emoji_resolver =
         std::sync::Arc::new(std::sync::Mutex::new(bundled_emoji::Resolver::default()));
@@ -4611,6 +4620,144 @@ fn load_bundled_fonts_for_primary(
             options.fontdb_mut().push_face_info(face);
         }
     }
+}
+
+// d2scenebuild builder.font retains the selected family's original face,
+// independently of its internal family/weight names. AddFontFamily fills
+// missing custom styles with SourceSansPro, including for a mono override.
+fn configure_custom_raster_fonts(
+    svg: &str,
+    fonts: &d2_rs_text::d2fonts::CustomFonts,
+    options: &mut resvg::usvg::Options,
+    primary_mono: bool,
+) -> Result<String, ExportError> {
+    use d2_rs_text::d2fonts::{FontFamily, FontStyle, font_face};
+    use resvg::usvg::fontdb::{Language, Source, Style, Weight};
+    let roles = [
+        (FontStyle::Regular, "regular", 400, Style::Normal),
+        (FontStyle::Semibold, "semibold", 600, Style::Normal),
+        (FontStyle::Bold, "bold", 700, Style::Normal),
+        (FontStyle::Italic, "italic", 400, Style::Italic),
+    ];
+    for (mono, faces) in [(false, &fonts.regular), (true, &fonts.mono)] {
+        if faces.is_empty() {
+            continue;
+        }
+        // Appendix text and numbered badges use builder.font's default role,
+        // hence the diagram's primary family too (d2scenebuild/appendix.go).
+        // Their stylesheet aliases take precedence over the text's own family.
+        let appendix = mono == primary_mono;
+        if appendix {
+            let ids: Vec<_> = options
+                .fontdb
+                .faces()
+                .filter(|face| {
+                    face.families
+                        .iter()
+                        .any(|(family, _)| family.starts_with("d2-rs-appendix-font-"))
+                })
+                .map(|face| face.id)
+                .collect();
+            for id in ids {
+                options.fontdb_mut().remove_face(id);
+            }
+        }
+        for &(role, name, weight, style) in &roles {
+            let data = faces
+                .get(&role)
+                .map(Vec::as_slice)
+                .unwrap_or_else(|| font_face(FontFamily::SourceSansPro.font(role)));
+            let alias = format!(
+                "d2-rs-custom-{}-{name}",
+                if mono { "mono" } else { "primary" }
+            );
+            let ids = options
+                .fontdb_mut()
+                .load_font_source(Source::Binary(std::sync::Arc::new(data.to_vec())));
+            for id in ids {
+                let Some(mut face) = options.fontdb.face(id).cloned() else {
+                    continue;
+                };
+                // A CLI role chooses these bytes even when the font's own
+                // metadata says regular (e.g. --font-bold regular.ttf).
+                face.families = vec![(alias.clone(), Language::English_UnitedStates)];
+                if appendix && matches!(role, FontStyle::Regular | FontStyle::Bold) {
+                    face.families.push((
+                        format!("d2-rs-appendix-font-{name}"),
+                        Language::English_UnitedStates,
+                    ));
+                }
+                face.weight = Weight(weight);
+                face.style = style;
+                options.fontdb_mut().remove_face(id);
+                options.fontdb_mut().push_face_info(face);
+            }
+        }
+    }
+    let document = roxmltree::Document::parse(svg)
+        .map_err(|error| ExportError::Png(format!("invalid SVG: {error}")))?;
+    let mut replacements = Vec::new();
+    for node in document
+        .descendants()
+        .filter(|node| node.has_tag_name("text"))
+    {
+        let class = node.attribute("class").unwrap_or_default();
+        let family = node.attribute("font-family").unwrap_or_default();
+        let mono = family.contains("Code Pro")
+            || family.contains("font-mono")
+            || class
+                .split_ascii_whitespace()
+                .any(|class| class.starts_with("text-mono"))
+            || (primary_mono && !class.contains("text-mono"));
+        let faces = if mono { &fonts.mono } else { &fonts.regular };
+        if faces.is_empty() {
+            continue;
+        }
+        // Leave text inside imported vector assets to their own font rules.
+        if node
+            .ancestors()
+            .any(|ancestor| ancestor.attribute("data-d2-language") == Some("latex"))
+        {
+            continue;
+        }
+        let markdown = class
+            .split_ascii_whitespace()
+            .any(|class| class == "md-text");
+        let role = if class.contains("text-mono-semibold") || class.contains("text-semibold") {
+            "semibold"
+        } else if class.contains("text-mono-bold")
+            || class.contains("text-bold")
+            || (!markdown && matches!(node.attribute("font-weight"), Some("bold" | "700")))
+        {
+            "bold"
+        } else if class.contains("text-mono-italic")
+            || class.contains("text-italic")
+            || (!markdown && node.attribute("font-style") == Some("italic"))
+        {
+            "italic"
+        } else {
+            "regular"
+        };
+        let start = node.range().start;
+        let end = start + svg[start..].find('>').unwrap();
+        let mut tag = svg[start..end].to_owned();
+        let alias = format!(
+            "d2-rs-custom-{}-{role}",
+            if mono { "mono" } else { "primary" }
+        );
+        let rule = format!("font-family:{alias} !important;");
+        if let Some(style) = node.attribute("style") {
+            replace_svg_attribute(&mut tag, "style", &format!("{style};{rule}"));
+        } else {
+            tag.push_str(&format!(" style=\"{rule}\""));
+        }
+        replacements.push((start..end, tag));
+    }
+    let mut output = svg.to_owned();
+    for (range, tag) in replacements.into_iter().rev() {
+        output.replace_range(range, &tag);
+    }
+    Ok(output)
 }
 
 /// Renders a deterministic ASCII projection of a layout.

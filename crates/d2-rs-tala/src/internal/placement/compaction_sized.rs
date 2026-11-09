@@ -569,13 +569,9 @@ impl ArenaGraph {
         let other_position = self.position(other).unwrap();
         let size = self.nodes[node.0 as usize].rect.size;
         let other_size = self.nodes[other.0 as usize].rect.size;
-        let delta = if self.container_direction_is_unset(node)
-            && self.container_direction_is_unset(other)
-        {
-            self.spacing_delta_with_loops(node, other, point)
-        } else {
-            self.spacing_delta(node, other, point)
-        };
+        // layoutgraph.Node.DoesOverlapAt uses deltaTo, including loop
+        // clearance for every container direction (node.go:846-860).
+        let delta = self.spacing_delta_with_loops(node, other, point);
         point.x < other_position.x + other_size.width + delta
             && point.x + size.width + delta > other_position.x
             && point.y < other_position.y + other_size.height + delta

@@ -573,6 +573,7 @@ mod native_pipeline_contract {
             let size = r["FontSize"].as_u64().unwrap() as u32;
             let natural = native_markdown_measurer(family)
                 .unwrap()
+                .measurer()
                 .markdown_dimensions(
                     r["Markdown"].as_str().unwrap(),
                     size,

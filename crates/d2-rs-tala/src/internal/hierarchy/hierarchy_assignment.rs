@@ -72,12 +72,18 @@ impl ArenaGraph {
                 .iter()
                 .any(|edge_id| {
                     let edge = &self.edge_records[edge_id.0 as usize];
+                    // hierarchy/eligibility.go ignores self-loops: they
+                    // reserve routing space but do not connect hierarchy ranks.
+                    if edge.from == edge.to {
+                        return false;
+                    }
                     let adjacent = if edge.from == child {
                         edge.to
                     } else {
                         edge.from
                     };
-                    descendants.contains(&adjacent)
+                    // Node.IsDescendantOf includes the container itself.
+                    adjacent == node || descendants.contains(&adjacent)
                 })
             {
                 return false;

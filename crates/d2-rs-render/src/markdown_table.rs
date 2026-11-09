@@ -110,7 +110,8 @@ fn collect(
         if child.has_tag_name("tr") {
             let header = header || child.children().any(|n| n.has_tag_name("th"));
             let mut cells = Vec::new();
-            let m = native_markdown_measurer(family)?;
+            let fonts = native_markdown_measurer(family)?;
+            let m = fonts.measurer();
             for cell in child
                 .children()
                 .filter(|n| n.has_tag_name("td") || n.has_tag_name("th"))

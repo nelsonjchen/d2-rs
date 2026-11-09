@@ -8,6 +8,7 @@
 //! back the whole trial under recovered score and order rules.
 
 use super::limits::OptimizationError;
+use super::owner_score_session::OwnerScoreSessionError;
 use super::*;
 
 #[derive(Clone)]
@@ -2737,6 +2738,44 @@ impl ArenaGraph {
         }
     }
 
+    fn transpose_cluster_only_flip(
+        &mut self,
+        moved: NodeId,
+        owner_session: &mut Option<&mut OwnerScoreSession>,
+    ) -> Result<(), OptimizationError> {
+        if crate::internal::trace_env_enabled("TALA_TRACE_DISABLE_CLUSTER_FLIP") {
+            return Ok(());
+        }
+        if let Some(index) = self
+            .active_cluster_index(moved)
+            .filter(|index| self.clusters[*index].members.first() == Some(&moved))
+        {
+            self.optimize_cluster_only_flip(index);
+        } else if self.projected_node_is_cluster_vessel(self.nodes[moved.0 as usize].tala_id)
+            && let Some(session) = owner_session.as_deref_mut()
+        {
+            let flip = |graph: &mut ArenaGraph,
+                        session: &mut OwnerScoreSession|
+             -> Result<(), OwnerScoreSessionError> {
+                session.publish_packed_scope_geometry(graph)?;
+                if let Some(projection) = session.transpose_cluster_projection(moved)? {
+                    let desired = graph.projected_cluster_desired_arrangement(
+                        moved,
+                        projection.arrangement,
+                        projection.desired_arrangement,
+                    );
+                    // optimizeCluster updates DesiredArrangement even when
+                    // both geometry transactions reject the requested flip.
+                    session.set_transpose_cluster_desired(moved, desired)?;
+                    graph.optimize_projected_cluster_flip(moved, &projection, Some(session))?;
+                }
+                Ok(())
+            };
+            flip(self, session).map_err(|error| OptimizationError::Invalid(error.to_string()))?;
+        }
+        Ok(())
+    }
+
     fn transpose_node_with_mode(
         &mut self,
         node: NodeId,
@@ -3045,6 +3084,18 @@ impl ArenaGraph {
             })
             .collect::<Vec<_>>();
         let original_cluster_sizes = self.cluster_vessel_sizes.clone();
+        let original_external_cluster_layouts = self.transaction_external_cluster_layouts.clone();
+        let original_projected_arrangements = self
+            .nodes
+            .iter()
+            .map(|node| node.scoring_cluster_arrangement)
+            .collect::<Vec<_>>();
+        let original_owner_cluster_policies = owner_session
+            .as_deref()
+            .map(|session| session.transpose_cluster_policies(&transpose_nodes))
+            .transpose()
+            .map_err(|error| OptimizationError::Invalid(error.to_string()))?
+            .unwrap_or_default();
         // Transaction.Rollback restores the geometry of the shared external
         // node pointers, not whole nodes, so journal only those fields.
         let original_external_containers =
@@ -3147,19 +3198,12 @@ impl ArenaGraph {
             );
         }
         for rotations in 1..=3 {
+            let mut trial_error = None;
             for moved in transpose_nodes.iter().copied() {
                 self.rotate_around(moved, center, rotations, local_edge_score);
-                // Go's transpose operation optimizes a moved cluster vessel
-                // immediately after rotating it.  The stable arena aliases
-                // that temporary vessel to the cluster's first member, so
-                // identify the carrier explicitly before running the narrow
-                // only-flip transaction.
-                if !crate::internal::trace_env_enabled("TALA_TRACE_DISABLE_CLUSTER_FLIP")
-                    && let Some(cluster_index) = self
-                        .active_cluster_index(moved)
-                        .filter(|index| self.clusters[*index].members.first() == Some(&moved))
-                {
-                    self.optimize_cluster_only_flip(cluster_index);
+                if let Err(error) = self.transpose_cluster_only_flip(moved, &mut owner_session) {
+                    trial_error = Some(error);
+                    break;
                 }
             }
             if trace_transpose_candidate {
@@ -3191,7 +3235,10 @@ impl ArenaGraph {
             let external_containers_valid =
                 refit_valid && self.transaction_external_containers_are_valid();
             if external_containers_valid {
-                self.sync_clusters();
+                // Transaction.Commit calls Cluster.SyncGeometry after the
+                // refit. A container member can resize its live vessel even
+                // when the vessel's position did not change.
+                self.sync_clusters_after_container_refit();
                 self.sync_sequences();
             }
             // Transaction.Commit also runs the per-node IsBadState overlap
@@ -3227,8 +3274,8 @@ impl ArenaGraph {
                 && containment_valid
                 && fixed_positions_valid
                 && fixed_origin_valid
-                && external_containers_valid;
-            let mut trial_error = None;
+                && external_containers_valid
+                && trial_error.is_none();
             if valid {
                 match transpose_length(self, &mut owner_session) {
                     Ok(length) => {
@@ -3336,6 +3383,11 @@ impl ArenaGraph {
             }
             self.cluster_vessel_sizes
                 .clone_from(&original_cluster_sizes);
+            self.transaction_external_cluster_layouts
+                .clone_from(&original_external_cluster_layouts);
+            for (node, arrangement) in self.nodes.iter_mut().zip(&original_projected_arrangements) {
+                node.scoring_cluster_arrangement = *arrangement;
+            }
             super::trial_geometry::restore_trial_external_map_geometry(
                 &mut self.transaction_external_aggregate_children,
                 &original_external_aggregate_children,
@@ -3469,6 +3521,9 @@ impl ArenaGraph {
             self.reconcile_projected_offsets_after_rollback();
             if let Some(session) = owner_session.as_deref_mut() {
                 session
+                    .restore_transpose_cluster_policies(&original_owner_cluster_policies)
+                    .map_err(|error| OptimizationError::Invalid(error.to_string()))?;
+                session
                     .publish_packed_scope_geometry(self)
                     .map_err(|error| OptimizationError::Invalid(error.to_string()))?;
             }
@@ -3487,13 +3542,7 @@ impl ArenaGraph {
         };
         for moved in transpose_nodes {
             self.rotate_around(moved, center, rotations, local_edge_score);
-            if !crate::internal::trace_env_enabled("TALA_TRACE_DISABLE_CLUSTER_FLIP")
-                && let Some(cluster_index) = self
-                    .active_cluster_index(moved)
-                    .filter(|index| self.clusters[*index].members.first() == Some(&moved))
-            {
-                self.optimize_cluster_only_flip(cluster_index);
-            }
+            self.transpose_cluster_only_flip(moved, &mut owner_session)?;
         }
         if crate::internal::trace_env_enabled("TALA_TRACE_TRANSPOSE_RESULT") {
             eprintln!(
@@ -3508,7 +3557,9 @@ impl ArenaGraph {
                     .collect::<Vec<_>>()
             );
         }
-        self.reposition_ordinary_containers();
+        self.reposition_ordinary_containers_without_sync();
+        self.sync_clusters_after_container_refit();
+        self.sync_sequences();
         if let Some(session) = owner_session {
             session
                 .publish_packed_scope_geometry(self)
@@ -3537,6 +3588,8 @@ impl ArenaGraph {
     }
 
     pub(super) fn transpose_all(&mut self) {
+        // placement.TransposeAll recomputes after Swap's direct pass.
+        self.compute_cell_size();
         let _transpose_buffers = TransposeRollbackBuffers;
         let nodes = self.graph_node_order();
         for node in nodes {

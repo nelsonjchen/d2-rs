@@ -33,13 +33,51 @@ but a handful of jobs. Open clusters, with witnesses in
   complete SVGs; the default/oracle tiers and all 944 applicable e2e boards pass.
 - **ELK small-graph enumeration:** 3,136 canonical two/three-node cases and
   1,024 seeded four/five-node cases (down/right, up to four edges) improve
-  from 3,895 matches / 265 differences to 3,919 / 241, with no lost baseline
-  or initial-candidate match. Remaining findings retain every text, shape
-  and connection inventory; four have different canvases. The smallest
-  retained family is `n0: {n1}; n0 -> n0; n0.n1 -> n0`: the loop takes the
-  opposite side and shifts its container by 50 px. Compare RoutingDirector
-  and loop margins around hierarchy-port restoration next. Inputs and full
-  outcomes are under `oracle-cache/reports/e11/enumeration-final/`.
+  from 3,895 matches / 265 differences through 3,919 / 241 and 4,034 / 126
+  to 4,156 / 4 and 4,160 / 0,
+  with no lost match. Fixed and hierarchical ports now keep their order
+  while ordinary edges are detached, preserving RoutingDirector's penalties;
+  `n0: {n1}; n0 -> n0; n0.n1 -> n0` matches in all four directions.
+  Self-loop ports now retain all transferred external-dummy coordinates;
+  a redundant adjustment had moved them beside the reused hierarchy port
+  again. Both the peer and enclosing-container witnesses match in all four
+  directions. Long-edge splitting now follows Go's node-port adjacency,
+  preserving dummy allocation order before P3; the nested placement and
+  canvas-size case 03787 matches in all four directions too. The final four
+  loop-path differences are resolved: node-local bends retain the unpadded
+  node coordinate before adding the combined graph offset and padding.
+  Mirroring preserves that cross-axis result. Three witnesses now match in
+  all four directions, and the exact enumeration replay has no difference,
+  Go failure or lost match. Expanded enumeration covers 115,782 canonical
+  four-node cases through four edges and 59,984 five-node cases through two
+  edges, down/right, with at most two containers and three children per
+  container. It improves from 175,744 matches / 22 differences to 175,766 / 0,
+  with no lost match or Go failure; all 4,160 earlier cases still match.
+  Compound bounds now measure the content before translating geometry by
+  padding, matching ComponentsCompactor and GraphActualSize arithmetic;
+  a one-ULP excess had enlarged the container and canvas by one pixel.
+  A CLI contract covers the reduced board, a self-loop and an enclosing
+  container in all four directions. A seeded labeled/parallel-edge extension
+  covers another 24,000 four/five-node cases and improves from 23,930 matches
+  / 70 differences to 23,995 / 5, with no lost match or Go failure. All
+  179,926 earlier enumeration outputs remain unchanged. Compound
+  dummy creation now retains imported port order until PortRestorer runs;
+  early free-loop restoration had reversed multiple-loop source ports.
+  Labeled, unlabeled and enclosed triple-loop contracts cover all directions.
+  The labeled extension now matches 23,996 / 24,000 cases, with no lost match.
+  Case 12416's placement is fixed: crossing counts retain GraphInfoHolder's
+  initial child-sweep membership after in-layer dependencies change order.
+  The reduced board and longer-label variant match in all four directions.
+  Ancestor edges now retain GraphTransformer's flow-axis frame through
+  compound joining and Transferrer.edgeLayoutOffsets, including the ancestor
+  source's base-offset subtraction. This fixes cases 12839, 18277 and 20619
+  and the wrapped 12416 up/left route shifts; the labeled extension now
+  matches 23,999 / 24,000 cases with no lost match. All 32 wrapper, direction
+  and reversed-edge variants match, up from 26. Two CLI contracts cover
+  24 complete SVGs. Case 21573 retains one-ULP root-loop bends/labels before
+  adapter rounding; compare node-local routing with PostprocessSelfLoops.
+  Exhaustive five-node cases with three/four edges remain. Inputs, outcomes
+  and traces are under `oracle-cache/reports/e13/` through `e18/`.
 - **TALA placement (resolved):** native arm64 and freshly rebuilt WASM now
   match pinned Go on the retained `stable:25`/`stable:27`, transpose and
   seed 20261310 row 1193 witnesses, including `w50-tala-grid-reduced.d2`.
@@ -107,13 +145,73 @@ but a handful of jobs. Open clusters, with witnesses in
   checks exclude the active cluster vessel's sibling slot by its vessel
   identity, preserving the symmetry credit used by Equidistance. The reduced
   Mocha input has a CLI geometry contract.
-- **TALA hunt flat-cluster transpose:** `c06_net80.d2` still differs with
-  seed three. Its ten-edge reduction agrees through sizeless placement and
-  sized iteration 153. In iteration 154, Go flips the cluster moved by
-  `transpose(n60)` to a row; Rust's induced graph retains a plain vessel and
-  its local cluster lookup cannot run `onlyFlip`. The next change needs
-  owner-backed cluster flips, with policy and member geometry restored between
-  speculative rotations (`oracle-cache/reports/T41/c06_net80-reduced.d2`).
+- **TALA hunt cluster transpose and lattice (resolved):** `c06_net80.d2`
+  now matches with default seeds and seeds one through three. Its ten-edge
+  reduction also matches: transpose resolves induced vessels through their
+  owner cluster, runs `onlyFlip`, and
+  restores policy and member geometry between speculative rotations. On the
+  complete board, Swap and Transpose now recompute the owning lattice after
+  cluster placement, as Go does; retaining 152 instead of 99 changed alignment
+  scores. Both inputs have CLI contracts; 108 original, direction, reversal
+  and wrapper replays improve from 45 to 108 matches without losing a match
+  (`oracle-cache/reports/T42/replay.json`).
+- **TALA small-graph enumeration:** all 7,328 cases match (two or
+  three leaves, up to two disjoint containers and four directed edges,
+  down/right).
+  The two self-loop fan-outs now match: shifted subgraphs preserve loop
+  clearance with explicit directions, as `Node.DoesOverlapAt` does. Candidate
+  scores agree; the first difference was the compaction after sized iteration
+  99. A CLI geometry contract and 64 direction, wrapper and seed variants
+  cover the fix, with no lost matches. Canonical endpoint restorations now
+  survive the later incidence rebuild, preserving the child-edge order used
+  by Transpose's branch-size tie. This fixes 59 container cases; both retained
+  container representatives match all 64 direction, wrapper and seed replays.
+  A CLI contract covers the complete two-container geometry and routes.
+  The final 72 container/self-loop differences now match too: hierarchy
+  eligibility ignores self-loops when checking for internal connections,
+  as pinned `hierarchy/eligibility.go` does. A CLI contract covers the
+  retained triangle's complete 531 x 880 canvas, rectangles and routes.
+  Complete enumeration outcomes are in
+  `oracle-cache/reports/T47/enumeration/summary.json`.
+  A 1,024-case four/five-leaf sample, including nested containers and
+  edges incident to container vertices, now matches completely with no lost
+  match. Internal connections include edges to the container
+  itself, as Go's `Node.IsDescendantOf` does. A second CLI contract covers
+  the reduced 540 x 572 layout; all 160 retained direction, wrapper and seed
+  replays match. The two remaining witnesses now match too: sized swaps
+  preserve self-loop clearance under explicit directions, as Go's
+  `optimizerDoesOverlap` does. Initialization and all 77 sizeless iterations
+  agree; the first difference was the swap after sized pass 85. Global
+  symmetry subtraction now fuses only on arm64, retaining Go amd64's exact
+  zero score and rejecting the chain's one-pixel Equidistance move. Both
+  reductions have complete CLI geometry and route contracts; all 224 retained
+  direction, wrapper and seed replays match with no lost match. Witnesses are
+  in the lane reports directory; outcomes and traces are under
+  `oracle-cache/reports/T46/`.
+  The clustered-container transpose witness now matches Go's complete
+  586 x 733 SVG instead of widening it to 850 px. Transpose synchronizes
+  the vessel's dimensions after wrapping its container members, as
+  `Transaction.Commit` and `Cluster.SyncGeometry` do. The previous cached
+  width understated rotation costs and admitted a move Go rejects. A CLI
+  contract covers every rectangle and route. The additional 1,022-case
+  sample now matches completely, up from 1,021, and all 256 retained
+  direction, wrapper and seed replays match, up from 242, with no lost match
+  (`oracle-cache/reports/T47/{contract-comparison,replay}.json` and
+  `fresh/summary.json`). Fresh seed 2026110947 also matches all 1,022
+  four/five-leaf cases, with no findings or lost match
+  (`T47/new-sample/summary.json`).
+  Seed 2026110948 now matches 4,087 of 4,088 cases, up from 4,080 with
+  no lost match. Compound proxies enter hierarchy placement without
+  Rust's eager tree-routing state, as Go's fresh `NewGraph` does. This keeps
+  the incoming-edge traversal and placement shuffle in Go's order; a CLI
+  contract covers every rectangle and route. Nested opposing routes now
+  retain the OVG search's selected ports, as Go's `generateRoutes` does;
+  removing Rust's extra direct-tunnel search fixes the exchanged source ports.
+  A CLI contract covers the complete canvas, rectangles and routes, and the
+  sample replay loses no match. `witness-T4-container-fanin-placement.d2`
+  remains: it first differs in NodePlacement and changes the canvas height,
+  with identical content inventories. Sources and stage comparisons are under
+  `oracle-cache/reports/T48/` and `T49/`.
 - **TALA NaN-height error:** D43's complex nested board reports a NaN
   object height in Go and a route-search work-limit error in Rust (the
   guard error previously became an empty-route invariant). A 77-byte nested

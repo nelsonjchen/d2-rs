@@ -421,7 +421,7 @@ fn layout_elk_graph_with_edge_bindings(
     } else if direction == "LEFT" {
         normalize_left_to_right(&mut arena);
     }
-    materialize_implicit_ports(&mut arena, root)?;
+    layered::materialize_implicit_ports_in_import_order(&mut arena, root)?;
     trace_phase!("import", "materialize_ports");
     trace_arena!("import", "materialize_ports", &arena);
     split_deep_cross_hierarchy_edges(&mut arena, root)?;
@@ -720,17 +720,13 @@ fn layout_elk_graph_with_edge_bindings(
         let vertical = matches!(direction.as_str(), "DOWN" | "UP");
         let reference = layered::hierarchy_reference_graph(&arena, original);
         let offset = layered::hierarchy_edge_offset_y(&arena, original);
-        let flow = (!layered::node_is_ancestor(&arena, original.source, original.target)
-            && !layered::node_is_ancestor(&arena, original.target, original.source))
-        .then(|| layered::SourceFlow::new(&arena, matches!(direction.as_str(), "UP" | "LEFT")));
+        let flow = layered::SourceFlow::new(&arena, matches!(direction.as_str(), "UP" | "LEFT"));
         for index in &dummy.label_indices {
             let label = &mut edge.labels[*index];
-            if let Some(flow) = &flow {
-                if vertical {
-                    label.y = flow.label(label.y, node.graph, original);
-                } else {
-                    label.x = flow.label(label.x, node.graph, original);
-                }
+            if vertical {
+                label.y = flow.label(label.y, node.graph, original);
+            } else {
+                label.x = flow.label(label.x, node.graph, original);
             }
             let mut ordinate = if vertical {
                 if dummy.inline {
@@ -842,9 +838,7 @@ fn layout_elk_graph_with_edge_bindings(
             .is_some_and(|container| container == &graph.id);
         let routed = &arena.edges[index];
         let source_cross_axis = !routed.active && !routed.hierarchy_segments.is_empty();
-        let source_flow_axis = source_cross_axis
-            && !layered::node_is_ancestor(&arena, routed.source, routed.target)
-            && !layered::node_is_ancestor(&arena, routed.target, routed.source);
+        let source_flow_axis = source_cross_axis;
         let component = arena.component_transfers.get(&routed.source);
         let route_axis_max = if let Some(component) = component {
             component.axis_width
@@ -970,17 +964,18 @@ fn layout_elk_graph_with_edge_bindings(
                 let mirror = minimum + maximum;
                 points = layered::edge_route_points_transfer(&arena, edge_id, false)?
                     .into_iter()
-                    .map(|point| {
+                    .zip(&points)
+                    .map(|(point, published)| {
                         let reflected = (mirror - point.x) + offset;
                         if direction == "UP" {
                             Point {
-                                x: point.y,
+                                x: published.x,
                                 y: reflected,
                             }
                         } else {
                             Point {
                                 x: reflected,
-                                y: point.y,
+                                y: published.y,
                             }
                         }
                     })
@@ -1023,12 +1018,14 @@ fn layout_elk_graph_with_edge_bindings(
             }
         }
         // Transferrer.edgeLayoutOffsets applies Graph.Offset to the final
-        // section. Mirrored loop reconstruction above replaces the point
-        // vector, so apply this offset after that reconstruction as well.
+        // section. Nested loops already combine it with padding while their
+        // node-local cross-axis coordinates are still available.
         if routed.active
             && arena.nodes[routed.source as usize].graph
                 == arena.nodes[routed.target as usize].graph
             && arena.nodes[routed.source as usize].graph != root
+            && (routed.source != routed.target
+                || !arena.nested_transfer_y.contains_key(&routed.source))
         {
             let graph_id = arena.nodes[routed.source as usize].graph;
             let scope_offset = graph_offset_in_output_coordinates(
@@ -2374,44 +2371,6 @@ fn pad_nested_graph(arena: &mut LayeredArena, graph_id: LGraphId) {
     // P4 records the normalization in Graph.Offset rather than moving nodes.
     // Compute the hull in that frame; publication applies the offset once.
     let shift_y = padding.top - (minimum_y + arena.graphs[graph_id as usize].offset_y);
-    for node_id in &node_ids {
-        arena
-            .nested_transfer_x
-            .entry(*node_id)
-            .and_modify(|(internal, _)| *internal += shift_x)
-            .or_insert((arena.nodes[*node_id as usize].position_x, shift_x));
-        arena
-            .nested_transfer_y
-            .entry(*node_id)
-            .and_modify(|(internal, _)| *internal += shift_y)
-            .or_insert((arena.nodes[*node_id as usize].position_y, shift_y));
-        arena.nodes[*node_id as usize].position_x += shift_x;
-        arena.nodes[*node_id as usize].position_y += shift_y;
-    }
-    for (edge_id, edge) in arena.edges.iter_mut().enumerate() {
-        if edge.active
-            && arena.nodes[edge.source as usize].graph == graph_id
-            && arena.nodes[edge.target as usize].graph == graph_id
-        {
-            if edge.source != edge.target {
-                arena
-                    .nested_edge_transfer
-                    .insert(edge_id as LEdgeId, (edge.bend_points.clone(), shift_y));
-                arena
-                    .nested_junction_transfer
-                    .insert(edge_id as LEdgeId, (edge.junction_points.clone(), shift_y));
-            }
-            for point in edge
-                .bend_points
-                .iter_mut()
-                .chain(edge.junction_points.iter_mut())
-            {
-                point.x += shift_x;
-                point.y += shift_y;
-            }
-        }
-    }
-    shift_removed_center_label_proxies(arena, graph_id, &node_ids, shift_x, shift_y);
     let node_width = node_ids
         .iter()
         .map(|node_id| {
@@ -2470,7 +2429,11 @@ fn pad_nested_graph(arena: &mut LayeredArena, graph_id: LGraphId) {
             })
         })
         .fold(0.0, f64::max);
-    let mut width = node_width.max(port_width).max(edge_width) + padding.right;
+    // ComponentsCompactor measures the content hull before graph padding is
+    // applied. HierarchicalNodeResizer then uses GraphActualSize, adding each
+    // inset to that extent. Measuring translated nodes changes the rounding.
+    let mut width =
+        node_width.max(port_width).max(edge_width) - minimum_x + padding.left + padding.right;
     let node_height = node_ids
         .iter()
         .map(|node_id| {
@@ -2525,16 +2488,50 @@ fn pad_nested_graph(arena: &mut LayeredArena, graph_id: LGraphId) {
             })
         })
         .fold(0.0, f64::max);
-    // P4 keeps cross-axis normalization in Graph.Offset. The local nodes,
-    // ports and bends above still exclude that offset, whereas the compound
-    // hull and GraphActualSize are in the normalized content frame.
-    let mut height = node_height.max(port_height).max(edge_height)
-        + arena.graphs[graph_id as usize].offset_y
-        + padding.bottom;
+    let mut height =
+        node_height.max(port_height).max(edge_height) - minimum_y + padding.top + padding.bottom;
     // HierarchicalNodeResizer uses GraphActualSize from P4/P5, even after
     // long-edge dummies are removed. Their thickness remains in graph size.
     width = width.max(arena.graphs[graph_id as usize].width + padding.left + padding.right);
     height = height.max(arena.graphs[graph_id as usize].height + padding.top + padding.bottom);
+    for node_id in &node_ids {
+        arena
+            .nested_transfer_x
+            .entry(*node_id)
+            .and_modify(|(internal, _)| *internal += shift_x)
+            .or_insert((arena.nodes[*node_id as usize].position_x, shift_x));
+        arena
+            .nested_transfer_y
+            .entry(*node_id)
+            .and_modify(|(internal, _)| *internal += shift_y)
+            .or_insert((arena.nodes[*node_id as usize].position_y, shift_y));
+        arena.nodes[*node_id as usize].position_x += shift_x;
+        arena.nodes[*node_id as usize].position_y += shift_y;
+    }
+    for (edge_id, edge) in arena.edges.iter_mut().enumerate() {
+        if edge.active
+            && arena.nodes[edge.source as usize].graph == graph_id
+            && arena.nodes[edge.target as usize].graph == graph_id
+        {
+            if edge.source != edge.target {
+                arena
+                    .nested_edge_transfer
+                    .insert(edge_id as LEdgeId, (edge.bend_points.clone(), shift_y));
+                arena
+                    .nested_junction_transfer
+                    .insert(edge_id as LEdgeId, (edge.junction_points.clone(), shift_y));
+            }
+            for point in edge
+                .bend_points
+                .iter_mut()
+                .chain(edge.junction_points.iter_mut())
+            {
+                point.x += shift_x;
+                point.y += shift_y;
+            }
+        }
+    }
+    shift_removed_center_label_proxies(arena, graph_id, &node_ids, shift_x, shift_y);
     let mut envelope_shift_x = 0.0;
     let mut envelope_shift_y = 0.0;
     if let Some(side_mask) = arena.reused_hierarchy_sides.get(&graph_id).copied() {

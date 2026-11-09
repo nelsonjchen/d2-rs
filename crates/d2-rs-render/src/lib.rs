@@ -22,6 +22,7 @@ mod markdown_flow;
 pub mod markdown_scene;
 mod markdown_table;
 mod markdown_wrap;
+mod native_markdown_fonts;
 pub mod target;
 /// Direct d2svg document options. Mode dispatch is provided by
 /// d2-rs-isometric::svg; this crate also exposes the flat-only primitive.
@@ -6070,6 +6071,7 @@ fn draw_native_markdown_blocks(
     let Some(measurer) = native_markdown_measurer(family) else {
         return false;
     };
+    let measurer = measurer.measurer();
     let regular = measurer.font;
     let local_class = class.unwrap_or("");
     let base_size = f64::from(font_size);
@@ -6288,6 +6290,7 @@ fn draw_native_markdown_list_at(
     let Some(measurer) = native_markdown_measurer(family) else {
         return false;
     };
+    let measurer = measurer.measurer();
     let regular = measurer.font;
     let local_class = class.unwrap_or("");
     let _ = write!(
@@ -6758,6 +6761,7 @@ fn draw_native_markdown_inline_context(
     let Some(measurer) = native_markdown_measurer(family) else {
         return false;
     };
+    let measurer = measurer.measurer();
     let (regular, bold, italic, mono) = (
         measurer.font,
         measurer.bold_font,
@@ -6784,7 +6788,8 @@ fn draw_native_markdown_inline_context(
     );
     let base_size = f64::from(font_size);
     let default_line_height = base_size * 1.5;
-    let measurer = native_markdown_measurer(family).unwrap();
+    let fonts = native_markdown_measurer(family).unwrap();
+    let measurer = fonts.measurer();
     let measure = |run: &NativeMarkdownRun, text: &str| {
         let font = if run.code && run.code_bold {
             measurer.mono_bold_font
@@ -7247,6 +7252,7 @@ fn draw_native_markdown_subset_in_family(
     let Some(measurer) = native_markdown_measurer(family) else {
         return false;
     };
+    let measurer = measurer.measurer();
     let regular = measurer.font;
     let bold = measurer.bold_font;
     let italic = measurer.italic_font;
@@ -7502,6 +7508,7 @@ fn draw_native_markdown_heading_at_origin(
     let Some(measurer) = native_markdown_measurer(family) else {
         return false;
     };
+    let measurer = measurer.measurer();
     let (semibold, bold, italic, mono) = (
         measurer.semibold_font,
         measurer.bold_font,
@@ -7802,6 +7809,7 @@ fn draw_native_markdown_layout_viewport(
     let Some(measurer) = native_markdown_measurer(family) else {
         return false;
     };
+    let measurer = measurer.measurer();
     let natural =
         measurer.markdown_dimensions(text, font_size, false, false, family.uses_mono_css());
     let mut fragment = String::new();
@@ -10640,6 +10648,7 @@ fn render_svg_with_sketch_inner(
     code_streams: Option<&code_budget::Streams>,
     target: Option<&target::PaintContext<'_>>,
 ) -> Vec<u8> {
+    let _markdown_fonts = native_markdown_fonts::Scope::new(&options.custom_fonts);
     // D2 derives every target-level SVG identifier from the compact diagram
     // hash, including ordinary (unsalted) renders. A caller-provided salt is
     // part of the same target byte stream; it only adds isolation to the
@@ -12965,7 +12974,7 @@ fn append_static_appendix_with_theme_and_bounds(
                 |font| {
                     let measured = native_markdown_measurer(MarkdownFamily::Sans).map_or_else(
                         || font.measure(entry, 16.0),
-                        |measurer| font.measure_with_fallback(entry, 16.0, measurer.mono_font),
+                        |fonts| font.measure_with_fallback(entry, 16.0, fonts.measurer().mono_font),
                     );
                     (measured.width.ceil(), measured.height.ceil())
                 },
@@ -21373,7 +21382,9 @@ mod tooltip_target_handoff_source_contract {
     }
 }
 
-fn native_markdown_measurer(
+use native_markdown_fonts::native_markdown_measurer;
+
+fn bundled_markdown_measurer(
     family: MarkdownFamily,
 ) -> Option<markdown_measure::MarkdownMeasurer<'static>> {
     use d2_rs_text::measure as fonts;
@@ -21459,6 +21470,7 @@ mod positioned_tooltip_measure_source_contract {
             }
             let dimensions = native_markdown_measurer(family)
                 .unwrap()
+                .measurer()
                 .markdown_dimensions(text, 16, false, false, family.uses_mono_css());
             let expected = &row["layout"];
             if dimensions.width != expected["Width"].as_f64().unwrap()
@@ -21496,7 +21508,9 @@ fn positioned_tooltip_rect(
     let size = if let Some(measurer) = native_markdown_measurer(family)
         .filter(|_| first_unsupported_markdown_html(tooltip).is_none())
     {
-        measurer.markdown_dimensions(tooltip, 16, false, false, family.uses_mono_css())
+        measurer
+            .measurer()
+            .markdown_dimensions(tooltip, 16, false, false, family.uses_mono_css())
     } else {
         // Original target bounding fallback; checked SVG font construction is
         // backed by the bundled immutable faces in normal native operation.
@@ -21981,6 +21995,7 @@ fn draw_native_markdown_paragraph_document(
     let Some(measurer) = native_markdown_measurer(family) else {
         return false;
     };
+    let measurer = measurer.measurer();
     let mut content = String::new();
     let mut y = 0.0;
     for (index, paragraph) in paragraphs.iter().enumerate() {
@@ -22146,6 +22161,7 @@ mod markdown_flow_source_contract {
             );
             let measured = native_markdown_measurer(family)
                 .unwrap()
+                .measurer()
                 .markdown_dimensions(
                     row["source"].as_str().unwrap(),
                     row["size"].as_u64().unwrap() as u32,
@@ -22474,6 +22490,7 @@ mod markdown_list_width_source_contract {
             };
             let actual = native_markdown_measurer(family)
                 .unwrap()
+                .measurer()
                 .markdown_dimensions(
                     row["source"].as_str().unwrap(),
                     row["size"].as_u64().unwrap() as u32,
@@ -22544,6 +22561,7 @@ mod markdown_html_case_source_contract {
             assert_eq!(
                 native_markdown_measurer(family)
                     .unwrap()
+                    .measurer()
                     .markdown_dimensions(text, size, false, false, family.uses_mono_css()),
                 expected_size,
                 "Source viewport {}",
@@ -22822,6 +22840,7 @@ mod markdown_background_source_contract {
                 compiler::lower_graph_with_measurer_and_labels(&compiler, root, &|label: &str| {
                     native_markdown_measurer(MarkdownFamily::Sans)
                         .unwrap()
+                        .measurer()
                         .markdown_dimensions(label, size, false, false, false)
                 });
             if let Some(error) = row["error"].as_str() {

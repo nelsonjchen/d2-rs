@@ -8380,11 +8380,14 @@ impl ArenaGraph {
                 self.column_to_column_crossing_cost_checked(node, false, node_context)?;
             let symmetry = self.sized_symmetry_checked(node, true, node_context)?;
             let active_edges = self.scoring_edge_count(node);
-            // Go 1.27 ARM64 graph.go rounds symmetry*CellSize, then
-            // FMSUB fuses the edge-count product with the subtraction.
-            // Separately rounding that product changes SQL-table gap scores.
+            // graph.go rounds symmetry*CellSize before the edge-count product.
+            // Go fuses the final subtraction only on arm64. On amd64 a fused
+            // residual can turn an exact zero into an accepted Equidistance move.
+            #[cfg(target_arch = "aarch64")]
             let value =
                 (-(symmetry * self.cell_size)).mul_add(active_edges as f64, sized + crossing);
+            #[cfg(not(target_arch = "aarch64"))]
+            let value = (sized + crossing) - (symmetry * self.cell_size) * active_edges as f64;
             #[cfg(feature = "diagnostic-traces")]
             if let Some(terms) = &edge_total_trace_terms {
                 terms

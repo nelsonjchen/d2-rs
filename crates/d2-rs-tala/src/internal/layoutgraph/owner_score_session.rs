@@ -16,7 +16,7 @@
 //! ancestor origin. Inline Option<Point> is not Go heap Point pointer identity.
 
 use super::limits::{OptimizationError, OptimizationWorkGuard};
-use super::owner_groups::OwnerGroupKind;
+use super::owner_groups::{OwnerClusterPolicy, OwnerGroupId, OwnerGroupKind};
 use super::*;
 use std::fmt;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -1041,6 +1041,195 @@ impl<'a> OwnerScoreSession<'a> {
             )?;
         }
         Ok((combined, receiver))
+    }
+
+    /// transpose.go:233-241 retains the actual Graph.Clusters entries even
+    /// when SplitSubgraphs materializes only their vessel in the workspace.
+    pub(super) fn transpose_cluster_policies(
+        &self,
+        nodes: &[NodeId],
+    ) -> Result<Vec<(OwnerGroupId, OwnerClusterPolicy)>, OwnerScoreSessionError> {
+        let mut policies = Vec::new();
+        for &local in nodes {
+            let canonical = self.canonical_node(local)?;
+            if !self.owner.owner_is_cluster_vessel(canonical) {
+                continue;
+            }
+            if let Some(group) = self
+                .owner
+                .owner_graph_group_entry(
+                    self.current_view,
+                    OwnerGroupKind::Cluster,
+                    Some(canonical),
+                )?
+                .flatten()
+            {
+                policies.push((group, self.owner.owner_cluster_policy(group)?));
+            }
+        }
+        Ok(policies)
+    }
+
+    pub(super) fn restore_transpose_cluster_policies(
+        &mut self,
+        policies: &[(OwnerGroupId, OwnerClusterPolicy)],
+    ) -> Result<(), OwnerScoreSessionError> {
+        for (group, policy) in policies {
+            self.owner.set_owner_cluster_orientation_policy(
+                *group,
+                policy.arrangement.clone(),
+                policy.desired_arrangement.clone(),
+                policy.padding,
+            )?;
+        }
+        Ok(())
+    }
+
+    /// Read live member boxes after the moved vessel has been published.
+    /// grouping.PaddingBetween(true), Cluster.Resize and ArrangeClusterNodes
+    /// supply the two layouts; the normal projected transaction validates them.
+    pub(super) fn transpose_cluster_projection(
+        &self,
+        local: NodeId,
+    ) -> Result<Option<ProjectedCluster>, OwnerScoreSessionError> {
+        let canonical = self.canonical_node(local)?;
+        if !self.owner.owner_is_cluster_vessel(canonical) {
+            return Ok(None);
+        }
+        let Some(group) = self
+            .owner
+            .owner_graph_group_entry(self.current_view, OwnerGroupKind::Cluster, Some(canonical))?
+            .flatten()
+        else {
+            return Ok(None);
+        };
+        let fields = self.owner.owner_group_fields(group)?;
+        let members = (0..fields.nodes.len())
+            .map(|index| {
+                fields
+                    .nodes
+                    .get(index)
+                    .expect("logical cluster member")
+                    .expect("nil cluster member")
+            })
+            .collect::<Vec<_>>();
+        let policy = self.owner.owner_cluster_policy(group)?;
+        let member_nodes = members
+            .iter()
+            .map(|member| &self.owner.nodes[member.0 as usize])
+            .collect::<Vec<_>>();
+        let maximum = member_nodes
+            .iter()
+            .fold(Size::default(), |size, member| Size {
+                width: size.width.max(member.rect.size.width),
+                height: size.height.max(member.rect.size.height),
+            });
+        let layout = |arrangement| {
+            let given = ArenaGraph::cluster_padding_for_nodes(&member_nodes, arrangement);
+            let mut total = 0.0;
+            for pair in members.windows(2) {
+                let first = OwnerNodeGeometry::from_graph(self.owner, pair[0]);
+                let second = OwnerNodeGeometry::from_graph(self.owner, pair[1]);
+                if let (Some(a), Some(b)) = (first.position, second.position) {
+                    total += ArenaGraph::cluster_rect_distance(
+                        Rect {
+                            origin: a,
+                            size: first.rect.size,
+                        },
+                        Rect {
+                            origin: b,
+                            size: second.rect.size,
+                        },
+                    );
+                }
+            }
+            let positioned = total / (members.len() as f64 - 1.0);
+            let padding = if positioned > 0.0 {
+                positioned.min(given).round()
+            } else {
+                given
+            };
+            let count = members.len() as f64;
+            let size = match arrangement {
+                ClusterArrangement::Row => Size {
+                    width: maximum.width * count + padding * (count - 1.0),
+                    height: maximum.height,
+                },
+                ClusterArrangement::Column => Size {
+                    width: maximum.width,
+                    height: maximum.height * count + padding * (count - 1.0),
+                },
+            };
+            let mut cursor = 0.0;
+            let members = member_nodes
+                .iter()
+                .map(|member| {
+                    let member_size = if policy.fixed_size {
+                        member.rect.size
+                    } else {
+                        maximum
+                    };
+                    let offset = match arrangement {
+                        ClusterArrangement::Row => Point {
+                            x: cursor,
+                            y: (size.height / 2.0 - member_size.height / 2.0).round(),
+                        },
+                        ClusterArrangement::Column => Point {
+                            x: (size.width / 2.0 - member_size.width / 2.0).round(),
+                            y: cursor,
+                        },
+                    };
+                    cursor += match arrangement {
+                        ClusterArrangement::Row => member_size.width,
+                        ClusterArrangement::Column => member_size.height,
+                    } + padding;
+                    (member.tala_id, (offset, member_size))
+                })
+                .collect();
+            ProjectedClusterLayout {
+                size,
+                padding,
+                members,
+            }
+        };
+        let arrangement = |value: &str| match value {
+            "Row" => Ok(ClusterArrangement::Row),
+            "Column" => Ok(ClusterArrangement::Column),
+            _ => Err(OwnerScoreSessionError::UnsupportedNestedVessel(canonical)),
+        };
+        Ok(Some(ProjectedCluster {
+            node: local,
+            cluster_index: group.index(),
+            arrangement: arrangement(&policy.arrangement)?,
+            desired_arrangement: arrangement(&policy.desired_arrangement)?,
+            row: layout(ClusterArrangement::Row),
+            column: layout(ClusterArrangement::Column),
+        }))
+    }
+
+    pub(super) fn set_transpose_cluster_desired(
+        &mut self,
+        local: NodeId,
+        desired: ClusterArrangement,
+    ) -> Result<(), OwnerScoreSessionError> {
+        let canonical = self.canonical_node(local)?;
+        let group = self
+            .owner
+            .owner_graph_group_entry(self.current_view, OwnerGroupKind::Cluster, Some(canonical))?
+            .flatten()
+            .ok_or(OwnerScoreSessionError::UnsupportedNestedVessel(canonical))?;
+        let policy = self.owner.owner_cluster_policy(group)?;
+        self.owner.set_owner_cluster_orientation_policy(
+            group,
+            policy.arrangement,
+            match desired {
+                ClusterArrangement::Row => "Row",
+                ClusterArrangement::Column => "Column",
+            }
+            .into(),
+            policy.padding,
+        )?;
+        Ok(())
     }
 
     /// Cluster.optimize(true) commits into the same node and group pointers

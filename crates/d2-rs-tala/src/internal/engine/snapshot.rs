@@ -540,6 +540,10 @@ pub fn layout_snapshot(input: &Graph, seed: i64, stage: LayoutStage) -> LayoutSn
             _ => 0,
         };
         if swap_passes > 0 {
+            // placement.Swap recomputes the owning graph's cell size after
+            // placement has flipped/resized its temporary cluster vessels.
+            // A retained component lattice can describe their old axis.
+            pipeline.graph.compute_cell_size();
             // TALA's placement subgraphs own independent lazy score caches.
             // The main graph first materializes getTurnCost/getNonCenterPortCost
             // against the combined NodePlacement geometry used by SwapStuff.

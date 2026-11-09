@@ -3818,6 +3818,13 @@ impl ArenaGraph {
                             original,
                             is_to,
                         );
+                        // layout.go restoreEdgeAbductions appends this
+                        // endpoint after the child's retained tree edges.
+                        // The arena later rebuilds incidences from Graph.Edges;
+                        // retain this return-order event so that rebuild does
+                        // not undo the canonical pointer's reconnect order.
+                        self.restored_hierarchy_endpoint_order
+                            .push((original, record.source_edge.expect("restored source edge")));
                     }
                 }
             }
