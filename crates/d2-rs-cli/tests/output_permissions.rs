@@ -8,9 +8,13 @@ use std::process::Command;
 struct Directory(std::path::PathBuf);
 impl Directory {
     fn new() -> Self {
+        // macOS clocks tick in microseconds, so parallel tests can read the
+        // same time; a per-process counter keeps the directories distinct.
+        static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
         let path = std::env::temp_dir().join(format!(
-            "d2-output-modes-{}-{}",
+            "d2-output-modes-{}-{}-{}",
             std::process::id(),
+            NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
