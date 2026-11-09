@@ -75,7 +75,25 @@ mutations. They found and fixed many gaps; these are still open
 
 ## Install
 
-The command line, from [crates.io](https://crates.io/crates/d2-rs). It needs
+Prebuilt `d2-rs` binaries for Linux, macOS and Windows on x86-64 (amd64) and
+arm64 are attached to each
+[GitHub release](https://github.com/nelsonjchen/d2-rs/releases), packaged
+like Go D2's release archives as `d2-rs-<version>-<os>-<arch>.tar.gz`, with a
+`SHA256SUMS` file. Each archive holds `bin/d2-rs` (`bin/d2-rs.exe` on
+Windows), the license and third-party notices, and a `Makefile` that installs
+the binary:
+
+```sh
+curl -fsSLO https://github.com/nelsonjchen/d2-rs/releases/download/v0.1.4/d2-rs-v0.1.4-linux-amd64.tar.gz
+tar -xzf d2-rs-v0.1.4-linux-amd64.tar.gz
+make -C d2-rs-v0.1.4 install   # to /usr/local, or ~/.local if that is not writable
+```
+
+The Linux binaries need glibc 2.35 or newer. On macOS, a binary downloaded with
+a browser is quarantined; clear that with
+`xattr -d com.apple.quarantine bin/d2-rs` (`curl` downloads are not affected).
+
+Or the command line, from [crates.io](https://crates.io/crates/d2-rs). It needs
 Rust 1.98.1 or newer:
 
 ```sh

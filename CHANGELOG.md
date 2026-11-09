@@ -10,6 +10,17 @@ Each release names the upstream Go D2 commit it matches, from
 
 ## [Unreleased]
 
+### Added
+
+- Prebuilt `d2-rs` binaries on GitHub releases, for the platforms Go D2
+  ships: Linux, macOS and Windows on amd64 and arm64. They are packaged like
+  D2's archives (`d2-rs-<version>-<os>-<arch>.tar.gz`, with `bin/`, license,
+  notices, README and a `make install` Makefile) and listed in `SHA256SUMS`.
+  `.github/workflows/release.yml` builds them on every `v*` tag; v0.1.4 got
+  them retroactively.
+- Tag pushes no longer rerun the CI test matrix, which already ran on the
+  tagged commit's branch push.
+
 ## [0.1.4] - 2026-11-09
 
 Matches Go D2 `master` at 6a7b48378, as 0.1.0 does. Crates only; the npm
