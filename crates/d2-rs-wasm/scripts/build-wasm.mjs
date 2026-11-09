@@ -22,6 +22,10 @@ function run(command, args) {
 }
 
 run("cargo", ["build", "--locked", "--release", "--target", "wasm32-unknown-unknown", "-p", "d2-rs-wasm"]);
+// Start from empty output directories so files from an older build (such as
+// wasm-bindgen snippets) never reach the published package.
+rmSync(webOutputDir, { recursive: true, force: true });
+rmSync(nodeOutputDir, { recursive: true, force: true });
 mkdirSync(webOutputDir, { recursive: true });
 mkdirSync(nodeOutputDir, { recursive: true });
 run("wasm-bindgen", [wasmPath, "--target", "web", "--typescript", "--out-dir", webOutputDir]);
