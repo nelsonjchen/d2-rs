@@ -389,9 +389,9 @@ pub fn layout_with_options_and_rank_trace_with_cancellation(
         if !skip_sequence_external_alignment {
             if !has_dagro_border_model {
                 adjust_parallel_external_lanes(graph, &mut boxes);
+                adjust_long_compound_external_lanes(graph, &mut boxes);
             }
             debug_boxes("after_parallel_external_lanes", graph, &boxes);
-            adjust_long_compound_external_lanes(graph, &mut boxes);
         }
         debug_boxes("after_long_compound_external_lanes", graph, &boxes);
         if !source_expanded && !has_single_source_compound(graph) && !has_dagro_border_model {
@@ -597,9 +597,9 @@ pub fn layout_with_options_and_rank_trace_with_cancellation(
             // spacing; the legacy lane correction would shift them again.
             if !has_dagro_border_model {
                 adjust_parallel_external_lanes(graph, &mut boxes);
+                adjust_long_compound_external_lanes(graph, &mut boxes);
             }
             debug_boxes("after_parallel_external_lanes", graph, &boxes);
-            adjust_long_compound_external_lanes(graph, &mut boxes);
             debug_boxes("after_long_compound_external_lanes", graph, &boxes);
         }
         debug_boxes("compound_rank", graph, &boxes);
@@ -9029,8 +9029,9 @@ fn curve_fitted_routes(
                 ) {
                     // Dagro's adapter performs a second TraceToShape after
                     // fitPadding for every edge, including vessel endpoints.
-                    // Use the published integer boxes; the rank-stage route
-                    // was already clipped against these before spacing.
+                    // fitPadding can write fractional origins and sizes after
+                    // D2's initial rounding. Trace those fitted boxes as-is
+                    // (layout.go:289–358), without rounding them a second time.
                     #[cfg(feature = "diagnostic-traces")]
                     if trace_enabled() && std::env::var_os("DAGRE_DEBUG_CURVE").is_some() {
                         eprintln!(
@@ -9040,7 +9041,7 @@ fn curve_fitted_routes(
                     let source = modifier_trace_box(
                         graph,
                         edge.source,
-                        published_dagre_box(source),
+                        source,
                         points[0],
                     );
                     let source_icon = outside_icon_box(
@@ -9052,7 +9053,7 @@ fn curve_fitted_routes(
                     let target = modifier_trace_box(
                         graph,
                         edge.target,
-                        published_dagre_box(target),
+                        target,
                         points[points.len() - 1],
                     );
                     let target_icon = outside_icon_box(

@@ -25,6 +25,7 @@ d2-rs-goflate.workspace = true
 d2-rs-math.workspace = true
 d2-rs-language.workspace = true
 d2-rs-render.workspace = true
+d2-rs-scene.workspace = true
 d2-rs-raster.workspace = true
 d2-rs-scenebuild.workspace = true
 d2-rs-fontface.workspace = true

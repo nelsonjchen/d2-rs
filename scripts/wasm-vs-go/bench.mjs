@@ -30,7 +30,7 @@ const goBuild = goBytes.subarray(infoStart, infoEnd + "build\tvcs.modified=false
 if (!goBuild.includes(`vcs.revision=${manifest.d2.commit}`) || !goBytes.includes(manifest.d2.go_toolchain)) {
   throw Error("Go WASM source/toolchain does not match the reference pin");
 }
-const rustWasm = new URL("pkg/node/d2_rs_wasm_bg.wasm", pathToFileURL(`${process.env.RS_DIR}/`));
+const rustWasm = new URL("pkg/web/d2_rs_wasm_bg.wasm", pathToFileURL(`${process.env.RS_DIR}/`));
 const before = {go: hash(goBytes), rust: hash(readFileSync(rustWasm)), cases: hash(readFileSync(caseFile))};
 const median = values => {
   const xs = values.toSorted((a, b) => a - b), mid = Math.floor(xs.length / 2);

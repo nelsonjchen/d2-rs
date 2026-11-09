@@ -1408,6 +1408,14 @@ fn load_graph_measurer_with_mode(
     paths: &FontPaths,
     hand_drawn: bool,
 ) -> Result<Option<FontGraphMeasurer>, String> {
+    // d2lib.applyDefaults selects HandDrawn only without a primary family.
+    // d2cli.loadFonts creates that family if any proportional face is supplied;
+    // AddFontFamily fills its other styles from SourceSansPro.
+    let hand_drawn = hand_drawn
+        && paths.regular.is_none()
+        && paths.italic.is_none()
+        && paths.bold.is_none()
+        && paths.semibold.is_none();
     fn load_face<F>(path: Option<&str>, bundled: F, role: &str) -> Result<TrueTypeFont, String>
     where
         F: FnOnce() -> Result<TrueTypeFont, String>,
@@ -3682,6 +3690,28 @@ fn atomic_write_file(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     result
 }
 
+// d2cli writeWithStatus and writePNGWithStatus publish private staged files.
+// PDF and PPTX instead use os.Create, retaining an existing destination's mode.
+fn write_document_file(path: &Path, bytes: &[u8], format: ExportFormat) -> std::io::Result<()> {
+    if !matches!(format, ExportFormat::Pdf | ExportFormat::Pptx)
+        && atomic_write_file(path, bytes).is_ok()
+    {
+        return Ok(());
+    }
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        // The non-atomic fallback uses 0644; os.Create uses 0666.
+        if !matches!(format, ExportFormat::Pdf | ExportFormat::Pptx) {
+            options.mode(0o644);
+        }
+    }
+    let mut file = options.open(path)?;
+    file.write_all(bytes)
+}
+
 // d2cli's text branch returns before SVG's MkdirAll and falls back from an
 // atomic write to OpenFile(O_WRONLY|O_CREATE|O_TRUNC, 0644).
 fn write_ascii_file(path: &Path, bytes: &[u8]) -> Result<(), String> {
@@ -4230,7 +4260,7 @@ fn run_multiboard_document(
             std::fs::create_dir_all(parent)
                 .map_err(|error| format!("could not create {}: {error}", parent.display()))?;
         }
-        std::fs::write(&requested_output, packaged)
+        write_document_file(&requested_output, &packaged, output_format)
             .map_err(|error| format!("could not write {}: {error}", requested_output.display()))?;
         log_compile_success(Path::new(input_path), &requested_output, started.elapsed());
         return Ok(Vec::new());
@@ -4388,7 +4418,7 @@ fn run_multiboard_document(
             std::fs::create_dir_all(parent)
                 .map_err(|error| format!("could not create {}: {error}", parent.display()))?;
         }
-        std::fs::write(&requested_output, packaged)
+        write_document_file(&requested_output, &packaged, output_format)
             .map_err(|error| format!("could not write {}: {error}", requested_output.display()))?;
         log_compile_success(Path::new(input_path), &requested_output, started.elapsed());
         return Ok(Vec::new());
@@ -4500,7 +4530,7 @@ fn run_multiboard_document(
                 std::fs::create_dir_all(parent)
                     .map_err(|error| format!("could not create {}: {error}", parent.display()))?;
             }
-            std::fs::write(&requested_output, packaged).map_err(|error| {
+            write_document_file(&requested_output, &packaged, output_format).map_err(|error| {
                 format!("could not write {}: {error}", requested_output.display())
             })?;
             log_compile_success(Path::new(input_path), &requested_output, started.elapsed());
@@ -4527,7 +4557,7 @@ fn run_multiboard_document(
             log_compile_success(Path::new(input_path), &requested_output, started.elapsed());
             return Ok(packaged);
         }
-        std::fs::write(&requested_output, packaged)
+        write_document_file(&requested_output, &packaged, output_format)
             .map_err(|error| format!("could not write {}: {error}", requested_output.display()))?;
         log_compile_success(Path::new(input_path), &requested_output, started.elapsed());
         return Ok(Vec::new());
@@ -4617,7 +4647,7 @@ fn run_multiboard_document(
             std::fs::create_dir_all(parent)
                 .map_err(|error| format!("could not create {}: {error}", parent.display()))?;
         }
-        std::fs::write(&requested_output, packaged)
+        write_document_file(&requested_output, &packaged, output_format)
             .map_err(|error| format!("could not write {}: {error}", requested_output.display()))?;
         log_compile_success(Path::new(input_path), &requested_output, started.elapsed());
         return Ok(Vec::new());
@@ -4806,13 +4836,8 @@ fn run_multiboard_document(
                 std::fs::create_dir_all(parent)
                     .map_err(|error| format!("could not create {}: {error}", parent.display()))?;
             }
-            (if output_format == ExportFormat::Svg {
-                atomic_write_file(&output, &rendered)
-                    .or_else(|_| std::fs::write(&output, &rendered))
-            } else {
-                std::fs::write(&output, &rendered)
-            })
-            .map_err(|error| format!("could not write {}: {error}", output.display()))?;
+            write_document_file(&output, &rendered, output_format)
+                .map_err(|error| format!("could not write {}: {error}", output.display()))?;
         }
         *output_written = workspace.is_none();
         if !asset_failures.is_empty() {
@@ -5874,13 +5899,8 @@ fn run_document_with_stdout(
                     {
                         file_bytes.push(b'\n');
                     }
-                    (if output_format == ExportFormat::Svg {
-                        atomic_write_file(&path, &file_bytes)
-                            .or_else(|_| std::fs::write(&path, &file_bytes))
-                    } else {
-                        std::fs::write(&path, &file_bytes)
-                    })
-                    .map_err(|error| format!("could not write {}: {error}", path.display()))?;
+                    write_document_file(&path, &file_bytes, output_format)
+                        .map_err(|error| format!("could not write {}: {error}", path.display()))?;
                 }
                 if !asset_failures.is_empty() {
                     partial_written = true;

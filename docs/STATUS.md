@@ -269,12 +269,38 @@ but a handful of jobs. Open clusters, with witnesses in
   Both hunt repros, connected-child and outgoing variants match in all four
   directions; 136 nested feedback variants match too
   (`oracle-cache/reports/B11/{final,quarter-variants}.json`).
-- **Dagre small-graph routes:** enumeration matches all 8,860 two/three-node
-  jobs through four edges. Four/five-node jobs through two edges improve
-  from 94 to 60 route differences in 51,750 jobs. All remaining outputs are
-  unchanged from the original binary, with matching canvas sizes. Endpoint
-  clipping is a lead; repros and full outcomes are under
-  `oracle-cache/reports/B11/enumeration-4-5/`.
+- **Dagre small-graph routes (retained findings resolved):** final clipping
+  now preserves the fractional container bounds written by `fitPadding`.
+  Border-model layouts also skip the obsolete outside-node lane shift,
+  preserving reciprocal container routes. Both retained witnesses match in
+  all four directions. Enumeration matches all 8,860 two/three-node jobs
+  through four edges and all 464,640 four/five-node jobs through three edges
+  (60 retained differences fixed), including all 380,250 five-node three-edge
+  jobs. All 155,040 four-node four-edge jobs now match too. B17 adds the
+  first 100,000 five-node four-edge matches (73,840 SVGs and 26,160 errors),
+  and B18 adds 1,000 matching errors, bringing cumulative coverage to
+  729,540 outcomes with no differences,
+  timeouts or signals. No previous match is lost.
+  Five-node enumeration through four edges remains incomplete;
+  continue at index 720,680. B18's additional rebase replay matches 244 SVGs
+  and 12 errors from the beginning of the queue. Repros and outcomes:
+  `oracle-cache/reports/B12/`, `oracle-cache/reports/B13/` and
+  `oracle-cache/reports/B14/` through `oracle-cache/reports/B18/`.
+- **Connection gradients and label paints (resolved):** the private raster
+  bridge retains gradient references, original per-path paint identities,
+  local arrowhead bounds and transforms, and each label line's measured ink
+  box. A 240-case PNG matrix improves from 72 to 240 exact Go outcomes,
+  including linear/radial paints, sketch, two themes and all three engines.
+  Three CLI contracts cover the original edge/text loss and multiline labels
+  (`oracle-cache/reports/B18/`). A separate sketch shape-stroke probe still
+  has 16 one-channel pixel differences, unchanged from the baseline; its
+  constant-color gradient also differs, pointing next to fill/stroke coverage
+  and compositing rather than gradient coordinates.
+- **Crate packaging (resolved):** CLI declarations, help and graph field
+  schemas are Rust source instead of embedded oracle JSON/text files.
+  The library package excludes 14 oracle/diagnostic example drivers.
+  Both package inventories retain their runtime sources and omit the former
+  internal material (`oracle-cache/reports/B18/package-{lib,cli}.log`).
 - **Fresh structure fuzz findings (F11–F14):** Dagre/ELK/TALA seeds
   2026110871/73/75 produced six output differences in 3,000 SVG jobs, plus
   one malformed input that panics in both CLIs. The ELK SQL-table self-loop

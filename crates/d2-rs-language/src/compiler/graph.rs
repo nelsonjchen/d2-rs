@@ -257,7 +257,7 @@ fn field_name(compiler: &Compiler, field: IrNodeId) -> Option<String> {
 fn is_metadata_name(name: &str) -> bool {
     // d2ast.SimpleReservedKeywords does not reserve d2-config. Configuration
     // is extracted only from vars.d2-config; elsewhere it is an object name.
-    matches!(
+    if matches!(
         name,
         "style"
             | "shape"
@@ -283,7 +283,22 @@ fn is_metadata_name(name: &str) -> bool {
             | "classes"
             | "class"
             | "vars"
-    )
+    ) {
+        return true;
+    }
+    // compileField lowercases only the SimpleReservedKeywords lookup;
+    // holder dispatch (style/classes) and compileReserved remain case-sensitive.
+    // Avoid allocating for the common, already-lowercase ASCII object name.
+    if name
+        .bytes()
+        .all(|b| b.is_ascii() && !b.is_ascii_uppercase())
+    {
+        return false;
+    }
+    let lower = d2_rs_core::ir::go_lowercase(name.as_bytes());
+    ast::keywords::SIMPLE_RESERVED_KEYWORDS
+        .iter()
+        .any(|keyword| lower == keyword.as_bytes())
 }
 
 fn is_metadata_field(compiler: &Compiler, field: IrNodeId) -> bool {

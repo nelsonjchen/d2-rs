@@ -6,37 +6,21 @@
 //! Field metadata is a translation of the pinned source, not fixture output.
 
 use super::{D2Error, Map, Value, decode_go_json_integer};
-use serde::Deserialize;
 use std::{collections::BTreeMap, sync::OnceLock};
 
-#[derive(Deserialize)]
-struct Schema {
-    types: BTreeMap<String, Type>,
-}
-#[derive(Deserialize)]
 struct Type {
     kind: String,
-    #[serde(default)]
     elem: String,
-    #[serde(default)]
     fields: Vec<Field>,
 }
-#[derive(Deserialize)]
 struct Field {
     name: String,
-    #[serde(rename = "type")]
     kind: String,
-    #[serde(default)]
     omit: bool,
 }
 fn types() -> &'static BTreeMap<String, Type> {
-    static SCHEMA: OnceLock<Schema> = OnceLock::new();
-    &SCHEMA
-        .get_or_init(|| {
-            serde_json::from_str(include_str!("json-records-v090.json"))
-                .expect("pinned record schema")
-        })
-        .types
+    static TYPES: OnceLock<BTreeMap<String, Type>> = OnceLock::new();
+    TYPES.get_or_init(|| include!("json_record_types.rs").into_iter().collect())
 }
 
 enum State {

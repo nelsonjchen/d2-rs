@@ -296,6 +296,9 @@ pub(crate) struct GradientStop64 {
 pub(crate) struct RawGradient {
     pub stops: Vec<GradientStop64>,
     pub vector: Option<[f64; 4]>,
+    pub object_bounding_box: bool,
+    pub source_transform: Option<[f64; 6]>,
+    pub native_transform: Option<[f64; 6]>,
 }
 
 #[cfg(all(test, feature = "oracle-fixtures"))]
@@ -431,6 +434,14 @@ fn gradient_stops_in_document(document: &roxmltree::Document<'_>) -> HashMap<Str
                 RawGradient {
                     stops,
                     vector: vector.flatten(),
+                    object_bounding_box: !user_space && !inherited,
+                    source_transform: gradient
+                        .attribute("gradientTransform")
+                        .unwrap_or("")
+                        .parse::<svgtypes::Transform>()
+                        .ok()
+                        .map(|m| [m.a, m.b, m.c, m.d, m.e, m.f]),
+                    native_transform: None,
                 },
             );
         }
@@ -465,6 +476,7 @@ pub(crate) struct SvgImagePathSources {
     native_cache: Option<d2_rs_math::svg_asset_cache::AssetCache>,
     prepared_jpegs: std::collections::BTreeMap<String, Vec<u8>>,
     gradient_stops: HashMap<String, RawGradient>,
+    native_gradient_ids: HashMap<String, [Option<String>; 2]>,
     images: HashMap<String, Vec<SvgPath>>,
     image_paths_by_id: HashMap<String, HashMap<String, SvgPath>>,
     raw_paths: HashMap<String, SvgPath>,
@@ -505,6 +517,34 @@ pub(crate) struct NativeImage<'a> {
         &'a std::collections::BTreeMap<String, Option<d2_rs_math::svg_image::RasterAsset>>,
 }
 impl SvgImagePathSources {
+    pub(crate) fn native_gradient_id(&self, path: &str, role: usize) -> Option<&str> {
+        self.native_gradient_ids.get(path)?[role].as_deref()
+    }
+
+    fn retain_native_gradient_ids(&mut self, svg: &str) {
+        if self.gradient_stops.is_empty() {
+            return;
+        }
+        let Ok(document) = roxmltree::Document::parse(svg) else {
+            return;
+        };
+        for path in document.descendants().filter(|n| n.has_tag_name("path")) {
+            let Some(id) = path.attribute("id") else {
+                continue;
+            };
+            let ids = ["fill", "stroke"].map(|role| {
+                let svgtypes::Paint::FuncIRI(id, _) =
+                    svgtypes::Paint::from_str(path.attribute(role)?).ok()?
+                else {
+                    return None;
+                };
+                self.gradient_stops.contains_key(id).then(|| id.to_owned())
+            });
+            if ids.iter().any(Option::is_some) {
+                self.native_gradient_ids.insert(id.to_owned(), ids);
+            }
+        }
+    }
     pub(crate) fn native_image_clip(&self, id: &str) -> Option<&SvgPath> {
         self.native_image_clips.get(id)
     }
@@ -3524,6 +3564,7 @@ pub(crate) fn tag_embedded_svg_images_with_assets(
 
     replacements.extend(code_lines);
     if insertions.is_empty() && replacements.is_empty() {
+        sources.retain_native_gradient_ids(svg);
         if svg.contains("<pattern") {
             sources.pattern_document = Some(svg.to_owned());
         }
@@ -3552,6 +3593,7 @@ pub(crate) fn tag_embedded_svg_images_with_assets(
         copied = range.end;
     }
     tagged.push_str(&svg[copied..]);
+    sources.retain_native_gradient_ids(&tagged);
     if tagged.contains("<pattern") {
         sources.pattern_document = Some(tagged.clone());
     }

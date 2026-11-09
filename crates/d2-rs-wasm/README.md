@@ -38,9 +38,13 @@ pnpm build
 `cargo build --locked --release --target wasm32-unknown-unknown -p d2-rs-wasm`,
 then `wasm-bindgen` twice: once with `--target web` into `pkg/web/` and once
 with `--target nodejs` into `pkg/node/`. It also generates the browser ESM
-copy of the `D2` facade. `pkg/` is not checked in, so rebuild it for every
+copy of the `D2` facade. Both loaders share the single WASM payload in
+`pkg/web/`; Node reads and compiles it once per isolate, including when a
+replacement instance is needed after a trap. Workers have separate isolates.
+`pkg/` is not checked in, so rebuild it for every
 distribution. `pnpm test` runs the Node contract tests against the built
-package.
+package. `pnpm test:types` checks the browser declarations and real Node
+CommonJS and ESM imports, including `@d2-rs/wasm/raw`.
 
 To use a local build from another project, depend on this directory, for
 example `pnpm add file:path/to/d2-rs/crates/d2-rs-wasm`.
@@ -70,6 +74,9 @@ await d2.dispose();
 From CommonJS, use `const { D2 } = require("@d2-rs/wasm")`. TypeScript picks
 up the matching types for each entry point (`src/node.d.cts` in Node,
 `src/index.d.ts` elsewhere).
+The generated raw bindings use TypeScript's `ESNext.Disposable` library for
+explicit token disposal. Include it alongside `ES2022` and `DOM` in `lib`
+when your project does not already include it through its Node types.
 
 ### Browser
 
@@ -88,8 +95,7 @@ document.body.innerHTML = await d2.render(result.diagram, {
 ```
 
 The browser entry point (`src/index.js`) loads `src/d2-worker.browser.js`
-and the generated `pkg/web/` files (`d2_api.js`, `d2_rs_wasm.js`,
-`d2_rs_wasm_bg.wasm`, `go_js_string_args.js` and `snippets/`) relative to its
+and the generated `pkg/web/` modules and `d2_rs_wasm_bg.wasm` relative to its
 own URL, so serve or bundle `src/` and `pkg/web/` together with your app.
 
 ### Imports and multiple files
@@ -119,6 +125,14 @@ The `D2` class (see `src/index.d.ts` for the full types):
 | `dispose()` | `Promise<void>`; rejects any pending requests |
 
 `CompileRequest` is `{ fs: Record<string, string>, inputPath?: string, options?: CompileOptions }`.
+
+`version()` returns `"0.9.0"`, the pinned D2 compatibility version, rather
+than this npm package's version. Upstream d2js returns Go's build-injected
+version (`"v0.8.1-HEAD"` in an unstamped source build, `"v0.9.0"` in our
+stamped oracle); the existing d2-rs API omits the `v` prefix.
+`jsVersion()` returns `"HEAD"`, matching d2js's default for a source build.
+Upstream d2js's release build injects its own npm version into that field.
+The installed d2-rs package version is recorded separately in `package.json`.
 
 `CompileOptions` extends `RenderOptions` with:
 

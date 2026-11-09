@@ -4475,7 +4475,12 @@ fn load_cached_system_fonts(database: &mut resvg::usvg::fontdb::Database) {
         host.set_monospace_family(UNSET);
         host.set_cursive_family(UNSET);
         host.set_fantasy_family(UNSET);
-        host.load_system_fonts();
+        if let Some(directory) = std::env::var_os("D2RS_SYSTEM_FONT_DIR") {
+            // Match the typed scene resolver's explicit discovery root.
+            host.load_fonts_dir(directory);
+        } else {
+            host.load_system_fonts();
+        }
         let family = |family: Family<'_>| {
             let name = host.family_name(&family);
             (name != UNSET).then(|| name.to_owned())

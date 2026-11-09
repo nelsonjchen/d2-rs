@@ -599,8 +599,21 @@ impl BoardOutputWorkspace {
         manifest.files.sort();
         manifest.directories.sort();
         let manifest_source = stage.join(BOARD_OUTPUT_MANIFEST_NAME);
-        std::fs::write(&manifest_source, manifest.encode())
+        // d2cli/board_output_publish.go writeBoardOutputManifest creates
+        // the staged manifest exclusively with 0644, before publication.
+        let mut options = std::fs::OpenOptions::new();
+        options.write(true).create_new(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o644);
+        }
+        let mut manifest_file = options
+            .open(&manifest_source)
+            .map_err(|error| format!("create board output manifest: {error}"))?;
+        std::io::Write::write_all(&mut manifest_file, &manifest.encode())
             .map_err(|error| format!("write board output manifest: {error}"))?;
+        drop(manifest_file);
 
         if std::fs::symlink_metadata(&self.final_root).is_err() {
             set_mode(&stage, 0o755).map_err(|error| {

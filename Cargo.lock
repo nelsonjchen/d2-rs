@@ -401,6 +401,7 @@ dependencies = [
  "d2-rs-raster",
  "d2-rs-render",
  "d2-rs-rustybuzz",
+ "d2-rs-scene",
  "d2-rs-scenebuild",
  "d2-rs-tala",
  "d2-rs-target",

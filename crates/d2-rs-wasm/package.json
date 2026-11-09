@@ -33,7 +33,7 @@
     },
     "./raw": {
       "node": {
-        "types": "./pkg/node/d2_rs_wasm.d.ts",
+        "types": "./pkg/node/d2_rs_wasm.d.cts",
         "default": "./pkg/node/d2_rs_wasm.cjs"
       },
       "types": "./pkg/web/d2_rs_wasm.d.ts",
@@ -53,9 +53,9 @@
   "scripts": {
     "build": "node ./scripts/build-wasm.mjs",
     "check": "node --check ./src/index.js && cargo check --release --target wasm32-unknown-unknown -p d2-rs-wasm",
-    "test": "node ./scripts/test-runtime-recovery.mjs && node ./scripts/test-node.mjs",
+    "test": "node ./scripts/test-package.mjs && node ./scripts/test-runtime-recovery.mjs && node ./scripts/test-node.mjs",
     "test:browser": "node ./scripts/test-browser.mjs",
-    "test:types": "tsc --noEmit --strict --module NodeNext --target ES2022 --lib ES2022,DOM tests/target-text-types.mts",
+    "test:types": "tsc --noEmit --strict --module NodeNext --target ES2022 --lib ES2022,DOM,ESNext.Disposable tests/target-text-types.mts tests/node-import-types.cts tests/node-import-types.mts",
     "test:target": "node ./scripts/test-target-render.mjs",
     "test:ascii": "node ./scripts/test-target-ascii.mjs",
     "test:target-sdk": "node ./scripts/test-target-sdk.mjs"

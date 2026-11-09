@@ -84,13 +84,11 @@ fn default_ignorable_space_glyph_keeps_zero_advance() {
 
 #[cfg(target_os = "linux")]
 #[test]
-#[ignore = "expected hashes depend on the host's fallback fonts under /usr/share/fonts; \
-            GitHub's Ubuntu runners ship different faces. Run with --ignored on the \
-            qualification VM until the test pins its own font directory."]
 fn paged_default_ignorable_uses_system_fallback_after_bundled_fonts() {
     // Pinned d2cli.newFontFallbackOptions chains d2fonts' bundled resolver to
     // SystemFallbackResolver for PDF/PPTX as well as GIF. ZWJ keeps no ink or
-    // advance, while Arabic alef must come from the same host fallback face.
+    // advance, while Arabic alef must come from the pinned DejaVu Sans face.
+    let fonts = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fonts");
     for (source, format, expected) in [
         (
             "e\u{200d}ا\n",
@@ -121,6 +119,7 @@ fn paged_default_ignorable_uses_system_fallback_after_bundled_fonts() {
                 "-",
             ])
             .env("SOURCE_DATE_EPOCH", "946782245")
+            .env("D2RS_SYSTEM_FONT_DIR", &fonts)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())

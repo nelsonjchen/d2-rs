@@ -197,10 +197,10 @@ orphans were deleted; their data remains at `9b706ac1`.
 
 ### Kept in place
 
-- `crates/d2-rs-cli/src/cli_flags_v090.json`, `crates/d2-rs-lib/src/json-records-v090.json`:
-  runtime data compiled into the library (`include_str!` outside tests: the
-  CLI flag table and the Go record schema used by `json_records`), like the
-  generated Unicode table in docs/FIXTURES.md.
+- The CLI flag table and Go record schema are Rust source declarations in
+  `crates/d2-rs-cli/src/command_line_flags.rs` and
+  `crates/d2-rs-lib/src/json_record_types.rs`; their former JSON probe
+  envelopes are no longer runtime inputs or package contents.
 - `crates/d2-rs-lib/tests/fixtures/simple.json`: hand-written serialized graph
   input (it carries `futureField: "preserve me"` probes), also the base of the
   `lib-raw-labeled-opposing` recipe's requests.

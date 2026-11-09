@@ -20,6 +20,8 @@
 
 #[path = "colr_paint.rs"]
 mod colr_paint;
+#[path = "native_gradient.rs"]
+mod native_gradient;
 #[path = "pattern.rs"]
 mod pattern;
 #[path = "zeroed_layer.rs"]
@@ -1125,6 +1127,7 @@ struct RasterSourceMap<'a> {
     native_shadow_transforms: HashMap<*const usvg::Group, Affine64>,
     native_rects: HashMap<String, NativeRect>,
     gradient_stops: HashMap<String, crate::svg_precision::RawGradient>,
+    native_gradient_paints: HashMap<String, HashMap<String, crate::svg_precision::RawGradient>>,
 }
 
 impl<'a> RasterSourceMap<'a> {
@@ -1159,6 +1162,7 @@ impl<'a> RasterSourceMap<'a> {
             native_shadow_transforms: HashMap::new(),
             native_rects: HashMap::new(),
             gradient_stops: HashMap::new(),
+            native_gradient_paints: HashMap::new(),
             device_origin: Point64::default(),
             banded: false,
             canvas_height: 0,
@@ -5009,7 +5013,10 @@ fn paint_sampler<'a>(
         Paint::LinearGradient(gradient) => Some(linear_gradient_sampler(
             gradient,
             opacity,
-            glyph_transform64(device_transform),
+            stops
+                .and_then(|raw| raw.native_transform)
+                .and(exact_transform)
+                .unwrap_or_else(|| glyph_transform64(device_transform)),
             Point64::default(),
             stops,
         )),
@@ -5018,9 +5025,17 @@ fn paint_sampler<'a>(
     move |x, y| match (&pattern, paint) {
         (Some(sampler), _) => sampler.as_ref()?.color_at(x, y),
         (None, Paint::LinearGradient(_)) => linear.as_ref()?(x, y),
-        (None, Paint::RadialGradient(gradient)) => {
-            radial_gradient_color_at(gradient, opacity, device_transform, x, y, stops)
-        }
+        (None, Paint::RadialGradient(gradient)) => radial_gradient_color_at64(
+            gradient,
+            opacity,
+            stops
+                .and_then(|raw| raw.native_transform)
+                .and(exact_transform)
+                .unwrap_or_else(|| glyph_transform64(device_transform)),
+            x,
+            y,
+            stops,
+        ),
         (None, _) => paint_color_at(
             paint,
             opacity,
@@ -5036,6 +5051,7 @@ fn paint_sampler<'a>(
     }
 }
 
+#[cfg(all(test, feature = "oracle-fixtures"))]
 fn gradient_inverse(transform: Transform, device_transform: Transform) -> Option<Affine64> {
     // Source prepares objectToDevice * unitsToObject * gradientTransform.
     // usvg folds the last two together; preserve matrix order and f64
@@ -5045,20 +5061,6 @@ fn gradient_inverse(transform: Transform, device_transform: Transform) -> Option
         glyph_transform64(transform),
     ))
 }
-fn gradient_point(
-    transform: Transform,
-    device_transform: Transform,
-    x: usize,
-    y: usize,
-) -> Option<Point64> {
-    let inverse = gradient_inverse(transform, device_transform)?;
-    let (x, y) = (x as f64 + 0.5, y as f64 + 0.5);
-    Some(Point64 {
-        x: d2_rs_render::go_float::go_fmadd(inverse.sx, x, inverse.kx * y) + inverse.tx,
-        y: d2_rs_render::go_float::go_fmadd(inverse.ky, x, inverse.sy * y) + inverse.ty,
-    })
-}
-
 fn spread_gradient_parameter(value: f64, spread: usvg::SpreadMethod) -> Option<f64> {
     if !value.is_finite() {
         return None;
@@ -5145,7 +5147,17 @@ fn linear_gradient_sampler<'a>(
         .then(|| {
             affine_inverse(source_affine_mul(
                 device_transform,
-                glyph_transform64(gradient.transform()),
+                raw_stops
+                    .and_then(|raw| raw.native_transform)
+                    .map(|m| Affine64 {
+                        sx: m[0],
+                        ky: m[1],
+                        kx: m[2],
+                        sy: m[3],
+                        tx: m[4],
+                        ty: m[5],
+                    })
+                    .unwrap_or_else(|| glyph_transform64(gradient.transform())),
             ))
         })
         .flatten();
@@ -5220,10 +5232,50 @@ fn radial_gradient_color_at(
     y: usize,
     raw_stops: Option<&crate::svg_precision::RawGradient>,
 ) -> Option<[u8; 4]> {
+    radial_gradient_color_at64(
+        gradient,
+        opacity,
+        glyph_transform64(device_transform),
+        x,
+        y,
+        raw_stops,
+    )
+}
+
+fn radial_gradient_color_at64(
+    gradient: &usvg::RadialGradient,
+    opacity: f32,
+    device_transform: Affine64,
+    x: usize,
+    y: usize,
+    raw_stops: Option<&crate::svg_precision::RawGradient>,
+) -> Option<[u8; 4]> {
     if gradient.stops().len() == 1 {
         return gradient_color_with_raw(gradient.stops(), raw_stops, 1.0, opacity);
     }
-    let point = gradient_point(gradient.transform(), device_transform, x, y)?;
+    let local = raw_stops
+        .and_then(|raw| raw.native_transform)
+        .map(|m| Affine64 {
+            sx: m[0],
+            ky: m[1],
+            kx: m[2],
+            sy: m[3],
+            tx: m[4],
+            ty: m[5],
+        })
+        .unwrap_or_else(|| glyph_transform64(gradient.transform()));
+    let inverse = affine_inverse(
+        if raw_stops.is_some_and(|raw| raw.native_transform.is_some()) {
+            source_affine_mul(device_transform, local)
+        } else {
+            affine_mul(device_transform, local)
+        },
+    )?;
+    let (x, y) = (x as f64 + 0.5, y as f64 + 0.5);
+    let point = Point64 {
+        x: d2_rs_render::go_float::go_fmadd(inverse.sx, x, inverse.kx * y) + inverse.tx,
+        y: d2_rs_render::go_float::go_fmadd(inverse.ky, x, inverse.sy * y) + inverse.ty,
+    };
     let circles = [
         f64::from(gradient.fx()),
         f64::from(gradient.fy()),
@@ -5528,6 +5580,10 @@ fn draw_path_with_transform(
     device_origin: Point64,
     exact_svg_source: Option<&SvgPath>,
 ) -> bool {
+    let gradient_stops = raster_sources
+        .native_gradient_paints
+        .get(path.id())
+        .unwrap_or(&raster_sources.gradient_stops);
     let _stroke_only = GoStrokeOnlyScope::new(path.fill().is_none() && path.stroke().is_some());
     let scene_transform = path_scene_transform(path.abs_transform(), parent_transform);
     let unshifted_device_transform = scene_transform.post_scale(scale, scale);
@@ -5688,7 +5744,7 @@ fn draw_path_with_transform(
             Some(transform),
             Some(prepared_pattern_transform),
             device_origin,
-            &raster_sources.gradient_stops,
+            gradient_stops,
         );
         // Source drawPaintCoverage composites every non-solid paint sample
         // with compositeNRGBAOverRGBA, not DrawRGBA's wide-alpha kernel.
@@ -5988,7 +6044,7 @@ fn draw_path_with_transform(
                 Some(transform),
                 Some(prepared_pattern_transform),
                 device_origin,
-                &raster_sources.gradient_stops,
+                gradient_stops,
             );
             paint_even_odd_paths(pixels, width, height, &mapped, |x, y| {
                 exact_color.or_else(|| sample(x, y))
@@ -6045,7 +6101,7 @@ fn draw_path_with_transform(
                 Some(transform),
                 Some(prepared_pattern_transform),
                 device_origin,
-                &raster_sources.gradient_stops,
+                gradient_stops,
             );
             let paint = |x, y| exact_color.or_else(|| sample(x, y));
             if let Some(color) = exact_color.filter(|_| !go_blend) {
@@ -6127,7 +6183,7 @@ fn draw_path_with_transform(
                     Some(transform),
                     Some(prepared_pattern_transform),
                     device_origin,
-                    &raster_sources.gradient_stops,
+                    gradient_stops,
                 ),
             );
         }
@@ -13767,6 +13823,11 @@ fn render_simple_with_band_height(
     let mut raster_sources = RasterSourceMap::from_paths(sources, exact_dash_parameters);
     raster_sources.native_rects = svg_image_paths.native_rects().clone();
     raster_sources.gradient_stops = svg_image_paths.gradient_stops().clone();
+    if !raster_sources.gradient_stops.is_empty() {
+        let mut paints = HashMap::new();
+        native_gradient::collect(tree.root(), &raster_sources, svg_image_paths, &mut paints);
+        raster_sources.native_gradient_paints = paints;
+    }
     let [logical_width, logical_height] = svg_image_paths.logical_size(tree.size());
     let width = usize::try_from(crate::svg_precision::scaled_dimension(
         logical_width,

@@ -1,4 +1,6 @@
-{program} {version}
+// SPDX-License-Identifier: MPL-2.0
+// Template from pinned d2cli/help.go.
+r###"{program} {version}
 Usage:
   {program} [--watch=false] [--theme=0] file.d2 [file.svg | file.png | file.pdf | file.pptx | file.gif | file.txt]
   {program} layout [name]
@@ -42,3 +44,4 @@ Subcommands:
 See more docs and the source code at https://github.com/d2lang/d2.
 Hosted icons at https://icons.d2lang.com.
 Playground runner at https://play.d2lang.com.
+"###

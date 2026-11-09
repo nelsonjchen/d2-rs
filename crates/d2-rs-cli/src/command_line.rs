@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: MPL-2.0
 // D2 v0.9.0 d2cli/main.go, help.go and util-go/xmain/opts.go.
 // The ordered flag declarations and help template come from the pinned source.
-use serde::Deserialize;
 
 pub const VERSION: &str = "v0.9.0\n";
 
-#[derive(Clone, Deserialize)]
+#[derive(Clone)]
 struct Flag {
     kind: String,
     env: String,
@@ -13,21 +12,17 @@ struct Flag {
     short: String,
     default: String,
     usage: String,
-    #[serde(default)]
     hidden: bool,
     /// An environment variable read by a d2cli helper (rather than
     /// xmain.Opts) to choose the flag's default, e.g. privateNetworkEnvDefault.
-    #[serde(default)]
     default_env: String,
 }
 
-/// The pinned declarations, decoded once per process: one invocation reads
+/// The pinned declarations, initialized once per process: one invocation reads
 /// them from several argument scans.
 fn flags() -> &'static [Flag] {
     static FLAGS: std::sync::OnceLock<Vec<Flag>> = std::sync::OnceLock::new();
-    FLAGS.get_or_init(|| {
-        serde_json::from_str(include_str!("cli_flags_v090.json")).expect("pinned CLI declarations")
-    })
+    FLAGS.get_or_init(|| include!("command_line_flags.rs"))
 }
 
 pub fn usage(detail: impl std::fmt::Display) -> String {
@@ -239,7 +234,7 @@ fn help_with(flags: &[Flag], values: &[String], program: &str) -> Vec<u8> {
         .filter(|(flag, _)| !flag.hidden)
         .collect::<Vec<_>>();
     let text = flag_table(&visible);
-    include_str!("cli_help_v090.txt")
+    include!("command_line_help.rs")
         .replace("{program}", program)
         .replace("{version}", VERSION.trim_end())
         .replace("{flags}", &text)

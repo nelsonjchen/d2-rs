@@ -1621,8 +1621,7 @@ fn required_patterns(
 /// d2scenebuild gives each plain label line a TextRun.Ink box (label
 /// top-left, LabelWidth by one line advance) and d2raster resolves the
 /// text's objectBoundingBox gradient against it, not against glyph ink.
-/// Re-express a single-line raster label's gradient in user space over that
-/// box; multi-line labels keep the shared definition.
+/// Re-express each raster label line's gradient in user space over that box.
 fn raster_label_gradient_fill(
     svg: &mut String,
     fill: &str,
@@ -1635,8 +1634,12 @@ fn raster_label_gradient_fill(
     let Some(raw) = font_color.filter(|value| shapes::gradient_definition(value).is_some()) else {
         return fill.to_owned();
     };
-    if !raster || label.contains('\n') {
+    if !raster {
         return fill.to_owned();
+    }
+    if label.contains('\n') {
+        // The line emitter resolves each TextRun.Ink independently.
+        return raw.to_owned();
     }
     let Some(definition) = shapes::gradient_definition(raw) else {
         return fill.to_owned();
@@ -5093,6 +5096,29 @@ fn draw_node_text_box(
         // standalone SVG text otherwise applies whitespace normalization.
         for (index, line) in lines.iter().enumerate() {
             let line_y = y + index as f64 * line_height;
+            let gradient_fill = (fill.starts_with("linear-gradient(")
+                || fill.starts_with("radial-gradient("))
+            .then(|| {
+                raster_label_gradient_fill(
+                    svg,
+                    fill,
+                    Some(fill),
+                    line,
+                    Rect {
+                        origin: Point {
+                            x: label_box.origin.x,
+                            y: label_box.origin.y + index as f64 * line_height,
+                        },
+                        size: Size {
+                            width: label_box.size.width,
+                            height: line_height,
+                        },
+                    },
+                    true,
+                    &format!("{native_geometry_id}-gradient-line-{index}"),
+                )
+            });
+            let fill = gradient_fill.as_deref().unwrap_or(fill);
             let line = if line.is_empty() { " " } else { line };
             let id = format!("{native_geometry_id}-line-{index}");
             let source = private_text_source_attribute(line);
@@ -8034,6 +8060,29 @@ fn draw_label(
         let line_advance = rect.size.height / lines.len() as f64;
         for (index, line) in lines.iter().enumerate() {
             let line_y = y + index as f64 * line_advance;
+            let gradient_fill = (fill.starts_with("linear-gradient(")
+                || fill.starts_with("radial-gradient("))
+            .then(|| {
+                raster_label_gradient_fill(
+                    svg,
+                    fill,
+                    Some(fill),
+                    line,
+                    Rect {
+                        origin: Point {
+                            x: rect.origin.x,
+                            y: rect.origin.y + index as f64 * line_advance,
+                        },
+                        size: Size {
+                            width: rect.size.width,
+                            height: line_advance,
+                        },
+                    },
+                    true,
+                    &format!("{native_geometry_id}-gradient-line-{index}"),
+                )
+            });
+            let fill = gradient_fill.as_deref().unwrap_or(fill);
             let line = if line.is_empty() { " " } else { line };
             let id = format!("{native_geometry_id}-line-{index}");
             let source = private_text_source_attribute(line);
@@ -11760,6 +11809,14 @@ fn render_svg_with_sketch_inner(
             &default_marker_stroke,
             palette,
         );
+        // d2scenebuild carries the typed gradient through both the rough
+        // route and arrowheads. The private SVG bridge needs a paint-server
+        // reference, as ThemableElement.Render supplies for public SVG.
+        let stroke = if gradient_definition(&stroke).is_some() {
+            format!("url(#{})", gradient_id(&stroke))
+        } else {
+            stroke
+        };
         let hash_stroke = edge_style.stroke.as_deref().unwrap_or("B1");
         let source_marker_id = arrows
             .source
@@ -12478,6 +12535,19 @@ fn render_svg_with_sketch_inner(
                     markdown_family,
                 );
             } else if !code_rendered {
+                let label_fill = if linked.is_none() {
+                    raster_label_gradient_fill(
+                        &mut svg,
+                        &label_fill,
+                        edge_style.font_color.as_deref(),
+                        &label.text,
+                        label_rect,
+                        raster_text_geometry_precision,
+                        &format!("{diagram_hash}-edge-label-{}", edge_id.0),
+                    )
+                } else {
+                    label_fill
+                };
                 draw_label(
                     &mut svg,
                     &theme_edge_label(&label.text, &edge_style, palette),

@@ -3,6 +3,55 @@ use std::io::Write;
 use std::process::{Command, Stdio};
 
 #[test]
+fn capitalized_simple_reserved_fields_do_not_create_objects() {
+    // Pinned compileField uses strings.ToLower for SimpleReservedKeywords,
+    // then compileReserved switches on the original spelling. These values
+    // are consequently ignored, rather than becoming visible shape labels.
+    for engine in ["dagre", "elk", "tala"] {
+        for key in [
+            "Label",
+            "Shape",
+            "Icon",
+            "Constraint",
+            "Tooltip",
+            "Link",
+            "Near",
+            "Width",
+            "Height",
+            "Direction",
+            "Top",
+            "Left",
+            "Grid-rows",
+            "Grid-columns",
+            "Grid-gap",
+            "Vertical-gap",
+            "Horizontal-gap",
+            "Class",
+            "Vars",
+            "LİNK",
+        ] {
+            let source = format!("{key}: rectangle\n");
+            let output = compile(&source, engine);
+            assert!(output.status.success(), "{engine}: {source}");
+            assert!(output.stdout.is_empty(), "{engine}: {source}");
+            assert!(output.stderr.is_empty(), "{engine}: {source}");
+        }
+        // Holders and quoted names do not use the simple-keyword lookup.
+        for key in ["Style", "Classes", "\"Width\""] {
+            let source = format!("{key}: rectangle\n");
+            let output = compile(&source, engine);
+            assert!(output.status.success(), "{engine}: {source}");
+            assert!(
+                String::from_utf8(output.stdout)
+                    .unwrap()
+                    .contains(">rectangle</text>"),
+                "{engine}: {source}"
+            );
+        }
+    }
+}
+
+#[test]
 fn shape_prepass_uses_go_equal_fold_and_preserves_field_diagnostic_order() {
     // Pinned d2compiler.compileMap uses d2ir.Map.GetField("shape") before
     // compileField, then skips only the literal unquoted lowercase spelling.
@@ -65,6 +114,17 @@ fn shape_prepass_uses_go_equal_fold_and_preserves_field_diagnostic_order() {
 }
 
 fn assert_diagnostic(source: &str, engine: &str, diagnostic: &str) {
+    let output = compile(source, engine);
+    assert_eq!(output.status.code(), Some(1), "{engine}: {source}");
+    assert!(output.stdout.is_empty(), "{engine}: {source}");
+    assert_eq!(
+        String::from_utf8(output.stderr).unwrap(),
+        format!("err: failed to compile -: {diagnostic}"),
+        "{engine}: {source}"
+    );
+}
+
+fn compile(source: &str, engine: &str) -> std::process::Output {
     let mut child = Command::new(env!("CARGO_BIN_EXE_d2-rs"))
         .args([&format!("--layout={engine}"), "-", "-"])
         .stdin(Stdio::piped())
@@ -78,12 +138,5 @@ fn assert_diagnostic(source: &str, engine: &str, diagnostic: &str) {
         .unwrap()
         .write_all(source.as_bytes())
         .unwrap();
-    let output = child.wait_with_output().unwrap();
-    assert_eq!(output.status.code(), Some(1), "{engine}: {source}");
-    assert!(output.stdout.is_empty(), "{engine}: {source}");
-    assert_eq!(
-        String::from_utf8(output.stderr).unwrap(),
-        format!("err: failed to compile -: {diagnostic}"),
-        "{engine}: {source}"
-    );
+    child.wait_with_output().unwrap()
 }

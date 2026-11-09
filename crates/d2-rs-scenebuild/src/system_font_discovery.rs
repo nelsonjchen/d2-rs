@@ -18,6 +18,11 @@ pub(crate) struct DiscoveryWork {
 /// Conventional roots from d2fonts.systemFontRoots, excluding user fonts.
 #[allow(dead_code)] // Used by the forthcoming system resolver.
 pub(crate) fn system_font_roots() -> Vec<PathBuf> {
+    // An explicit directory makes font-dependent exports reproducible. With
+    // no override, retain d2fonts.systemFontRoots' conventional host roots.
+    if let Some(directory) = std::env::var_os("D2RS_SYSTEM_FONT_DIR") {
+        return vec![directory.into()];
+    }
     if cfg!(target_os = "macos") {
         vec!["/System/Library/Fonts".into(), "/Library/Fonts".into()]
     } else if cfg!(any(

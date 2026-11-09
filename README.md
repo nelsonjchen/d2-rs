@@ -90,6 +90,10 @@ as Go's `d2`:
 - multiboard output;
 - PNG, PDF, PPTX, GIF and ASCII export.
 
+For reproducible native raster and paged exports, `D2RS_SYSTEM_FONT_DIR` can
+restrict system font fallback to one directory, searched recursively. Bundled
+fonts still take precedence. Without it, d2-rs uses the host's system fonts.
+
 The WebAssembly package, from [npm](https://www.npmjs.com/package/@d2-rs/wasm),
 for Node and browsers. Its `D2` class has the same `compile` / `render` shape
 as D2.js ([usage](https://github.com/nelsonjchen/d2-rs/blob/main/crates/d2-rs-wasm/README.md)):

@@ -11,6 +11,8 @@ homepage.workspace = true
 keywords.workspace = true
 categories.workspace = true
 readme = "../../README.md"
+# Test-oracle drivers are repository tooling, not library examples.
+exclude = ["examples/*-oracle.rs", "examples/library-source-scoreboard.rs", "examples/tala-seed-report.rs"]
 
 [features]
 default = []

@@ -14,6 +14,7 @@
 // resolve to this same object.
 
 import type * as Api from "./index.js" with { "resolution-mode": "import" };
+import type * as Raw from "../pkg/node/d2_rs_wasm.cjs";
 
 type Sync<F> = F extends (...args: infer A) => Promise<infer R> ? (...args: A) => R : never;
 type FacadeExports = "init" | "load" | "raw" | "D2" | "WasmCancellationToken";
@@ -21,7 +22,7 @@ type Functions = { [K in Exclude<keyof typeof Api, FacadeExports>]: Sync<(typeof
 
 interface NodeExports extends Omit<Api.Runtime, "default" | keyof Functions>, Functions {
   D2: typeof Api.D2;
-  WasmCancellationToken: typeof Api.WasmCancellationToken;
+  WasmCancellationToken: typeof Raw.WasmCancellationToken;
   load(): Promise<NodeExports>;
   raw(): Promise<NodeExports>;
 }
@@ -30,7 +31,7 @@ declare const d2rs: NodeExports;
 
 declare namespace d2rs {
   export type D2 = Api.D2;
-  export type WasmCancellationToken = Api.WasmCancellationToken;
+  export type WasmCancellationToken = Raw.WasmCancellationToken;
   export type RenderOptions = Api.RenderOptions;
   export type CompileOptions = Api.CompileOptions;
   export type CompileRequest = Api.CompileRequest;
