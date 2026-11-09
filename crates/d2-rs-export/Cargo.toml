@@ -48,7 +48,6 @@ png.workspace = true
 zune-jpeg.workspace = true
 image-webp.workspace = true
 thiserror.workspace = true
-zip.workspace = true
 
 sha2.workspace = true
 brotli-decompressor.workspace = true
@@ -58,6 +57,7 @@ flate2.workspace = true
 libc = "0.2"
 
 [dev-dependencies]
+zip.workspace = true
 d2-rs-testdata.workspace = true
 serde.workspace = true
 

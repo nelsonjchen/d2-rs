@@ -36,6 +36,7 @@ fn pptx_contract(bytes: Vec<u8>, count: usize) -> (Value, Value) {
     let relns = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
     assert_eq!(
         z.file_names()
+            .map(Result::unwrap)
             .filter(|n| n.starts_with("ppt/slides/slide") && n.ends_with(".xml"))
             .count(),
         count

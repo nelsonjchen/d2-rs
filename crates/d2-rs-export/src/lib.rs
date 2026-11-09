@@ -6467,7 +6467,10 @@ stroke-dashoffset="-873.183058" animation="dashdraw 21.159153s linear infinite" 
         labels.insert(node, "a".to_owned());
         let bytes = render_pptx(&graph, &result, &labels, &BTreeMap::new()).unwrap();
         let mut archive = zip::ZipArchive::new(std::io::Cursor::new(bytes)).unwrap();
-        assert_eq!(archive.by_index(0).unwrap().name(), "[Content_Types].xml");
+        assert_eq!(
+            archive.by_index(0).unwrap().name().unwrap(),
+            "[Content_Types].xml"
+        );
         let mut template = zip::ZipArchive::new(std::io::Cursor::new(include_bytes!(
             "../assets/d2-template.pptx"
         )))
@@ -6477,17 +6480,27 @@ stroke-dashoffset="-873.183058" animation="dashdraw 21.159153s linear infinite" 
         assert_eq!(archive.len(), template.len() - 2 + 7 + 3);
         let mut names = std::collections::BTreeSet::new();
         for index in 0..archive.len() {
-            assert!(names.insert(archive.by_index(index).unwrap().name().to_owned()));
+            assert!(
+                names.insert(
+                    archive
+                        .by_index(index)
+                        .unwrap()
+                        .name()
+                        .unwrap()
+                        .into_owned()
+                )
+            );
         }
         for index in 0..template.len() {
             let mut original = template.by_index(index).unwrap();
+            let original_name = original.name().unwrap().into_owned();
             if matches!(
-                original.name(),
+                original_name.as_str(),
                 "_rels/.rels" | "ppt/slideMasters/_rels/slideMaster1.xml.rels"
             ) {
                 continue;
             }
-            let mut copied = archive.by_name(original.name()).unwrap();
+            let mut copied = archive.by_name(&original_name).unwrap();
             assert_eq!(copied.is_dir(), original.is_dir());
             assert_eq!(copied.compression(), original.compression());
             assert_eq!(copied.crc32(), original.crc32());
