@@ -30,7 +30,6 @@ gates come first:
 - Peak RSS is the child process's `ru_maxrss`, measured one invocation at a
   time.
 - **Host:** Linux arm64, 16 vCPUs, idle.
-- **Commit:** `e1f1e13b`.
 
 Rust/Go ratios (below 1.0 means d2-rs is faster or smaller):
 
@@ -71,7 +70,6 @@ uv run python scripts/perf-bench.py --rust target/release/d2-rs \
   in a fresh process.
 - It uses the same 12 cases × 3 engines, and reports the median of 3 runs
   after one warm-up.
-- **Commit:** `508ce533`.
 
 | Engine | median wall | total wall | median peak RSS |
 |---|---:|---:|---:|
@@ -81,7 +79,7 @@ uv run python scripts/perf-bench.py --rust target/release/d2-rs \
 
 | | Go `d2js` | d2-rs |
 |---|---:|---:|
-| Module size, raw / gzip -9 (at `3a9e691d`) | 60.0 / 15.3 MB | 31.3 / 10.1 MB |
+| Module size, raw / gzip -9 | 60.0 / 15.3 MB | 31.3 / 10.1 MB |
 | Startup (instantiate + init) | ~405 ms | ~43 ms |
 | TALA `tpmjs_architecture` | 58.6 s | 15.3 s |
 | TALA `arrowhead_scaling` | 29.6 s | 8.2 s |
@@ -101,7 +99,7 @@ Remote-icon cases are skipped, as in perf-bench. Both CLIs write the same
 output file name, and PNG, PPTX and GIF bytes equal Go's on every case
 where Go writes output (PDF embeds Go's wall-clock date).
 
-Rust/Go ratios at commit `163ed688`, Linux arm64 (AWS Graviton4, quiet
+Rust/Go ratios on Linux arm64 (AWS Graviton4, quiet
 host; every row over Go re-timed with 5 interleaved runs):
 
 | Output | median wall | median peak RSS | rows slower or larger than Go |
@@ -116,7 +114,7 @@ host; every row over Go re-timed with 5 interleaved runs):
 
 No corpus row is over Go. One PNG board (`real_world/leios_simulator`)
 sits at about 1.01x Go's peak RSS in some runs and under it in others. The
-x86-64 corpus sweep was last run at `b9e93d1b`; every change since was gated
+x86-64 corpus sweep was last run on an earlier build; every change since was gated
 on x86-64 for output identity and both test tiers, not re-timed there.
 
 Reproduce (Go oracle and e2e case dump as for perf-bench; about 15 minutes):
@@ -161,7 +159,7 @@ Raster stress families are opt-in: `markdown`, `emoji`, `opacity`, `gradient`,
 `--families markdown,emoji,opacity,gradient --sizes 10,40,160,480 --engines dagre --formats png`.
 Here size counts list items, code lines, painted nodes or labeled edges.
 
-### Results at `163ed688`
+### Results
 
 Ratios are wall / CPU / peak RSS against Go, quiet arm64. Every Dagre and
 ELK family is under Go at every size where Go produces output: the worst are
@@ -196,8 +194,6 @@ hotspot, checked against the Go source and the scoreboards. The main sources:
     every seed still runs, and the winner is still chosen by score and then
     index.
   - On Linux the CLI turns off transparent huge pages for its own process.
-
-Per-commit before → after history is retained in d2-rs-history.
 
 ## Caveats
 

@@ -17,15 +17,26 @@
   },
   "bugs": "https://github.com/nelsonjchen/d2-rs/issues",
   "type": "module",
+  "types": "./src/index.d.ts",
   "exports": {
     ".": {
+      "node": {
+        "types": "./src/node.d.cts",
+        "default": "./src/node.cjs"
+      },
+      "browser": {
+        "types": "./src/index.d.ts",
+        "default": "./src/index.js"
+      },
       "types": "./src/index.d.ts",
-      "node": "./src/node.cjs",
-      "browser": "./src/index.js",
       "import": "./src/index.js"
     },
     "./raw": {
-      "node": "./pkg/node/d2_rs_wasm.cjs",
+      "node": {
+        "types": "./pkg/node/d2_rs_wasm.d.ts",
+        "default": "./pkg/node/d2_rs_wasm.cjs"
+      },
+      "types": "./pkg/web/d2_rs_wasm.d.ts",
       "default": "./pkg/web/d2_rs_wasm.js"
     }
   },

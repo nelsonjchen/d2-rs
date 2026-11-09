@@ -43,8 +43,9 @@ jobs:
       # (docs/FIXTURES.md). Clippy still compiles it here.
       - run: cargo test --workspace --locked
         if: runner.os != 'Windows'
-      # Windows builds, but its paths and output are not qualified against Go
-      # yet (docs/STATUS.md), so its tests only compile.
+      # Windows passes the default tier and matches Go on every e2e board
+      # natively (MSVC) and under Wine, but those runs happen outside CI; here
+      # its tests only compile.
       - run: cargo test --workspace --locked --no-run
         if: runner.os == 'Windows'
       - run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings

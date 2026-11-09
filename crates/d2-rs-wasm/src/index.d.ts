@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: MPL-2.0
 
+// Types for the browser and bundler entry point, src/index.js: an ES module
+// with named exports and no default export. Node resolves the package to the
+// CommonJS src/node.cjs instead, typed by src/node.d.cts.
+
 export type InitInput = RequestInfo | URL | Response | WebAssembly.Module | BufferSource;
 
 export interface Runtime {

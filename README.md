@@ -2,11 +2,12 @@
 
 A Rust port of the [D2](https://github.com/d2lang/d2) toolchain: the
 compiler, the Dagre, ELK and TALA layout engines, the renderers and exporters,
-and the `d2` command line, for the D2 diagram scripting language. Everything
-runs in process, and it builds as a native CLI and as a WebAssembly package.
+and the command line, for the D2 diagram scripting language. The command is
+installed as `d2-rs` and takes the same flags as Go's `d2`. Everything runs
+in process, and it builds as a native CLI and as a WebAssembly package.
 
 d2-rs targets byte-identical output with upstream Go D2 `master` at the commit
-pinned in [`reference-manifest.json`](reference-manifest.json) (6a7b48378,
+pinned in [`reference-manifest.json`](https://github.com/nelsonjchen/d2-rs/blob/main/reference-manifest.json) (6a7b48378,
 2026-10-11). Upstream's own test suites are the oracle.
 
 Announced in D2's
@@ -29,13 +30,15 @@ Rust/Go ratios on Linux arm64, lower is better:
 | SVG, Dagre / ELK | 0.21× / 0.21× | 0.60× / 0.60× | 0 of ~295 each |
 | SVG, TALA | 0.47× | 0.68× | 0 of 296 |
 | PNG / PDF / PPTX / GIF | 0.46× / 0.45× / 0.44× / 0.15× | 0.55–0.82× | 0 per format |
-| WebAssembly vs `d2js` (total, 36 rows) | 0.27–0.33× | 0.32–0.61× | 0 of 36 |
+| WebAssembly vs `d2js`, per engine (36 rows) | 0.29–0.40× | 0.32–0.61× | 0 of 36 |
 
-The WebAssembly module is about half the size of `d2js` (31.3 MB against
+The WebAssembly row gives the range of the three engines' median ratios for
+compile and render in Node; over all 36 rows, total wall time is 0.27–0.33×
+Go's. The WebAssembly module is about half the size of `d2js` (31.3 MB against
 60.0 MB uncompressed, 10.1 against 15.3 MB gzipped) and starts in about a
 tenth of the time. The native CLI is the other way round: stripped on Linux
 arm64, it is 48.9 MB against Go's 40.8 MB (1.20×). See
-[benchmarks](docs/BENCHMARKS.md) for x86-64, the generated scale sweep, the
+[benchmarks](https://github.com/nelsonjchen/d2-rs/blob/main/docs/BENCHMARKS.md) for x86-64, the generated scale sweep, the
 method and caveats.
 
 **CLI:** all 67 applicable assertions in upstream's `e2etests-cli` suite
@@ -45,7 +48,7 @@ pass, and every retained golden that the pinned Go still reproduces (51 of
 **Platforms:** parity is qualified on arm64 (Apple Silicon, Linux arm64) and
 x86-64 (Linux), each against Go built for that architecture, since Go's float
 output differs slightly between them
-([details](docs/FIXTURES.md#host-architecture)). Benchmarks were measured on
+([details](https://github.com/nelsonjchen/d2-rs/blob/main/docs/FIXTURES.md#host-architecture)). Benchmarks were measured on
 arm64 and in Node. Windows passes the default test tier and all 944 e2e
 boards natively (MSVC) and under Wine; CI builds Windows but does not run its
 tests.
@@ -59,22 +62,21 @@ itself, where d2-rs reports an error instead.
 code languages, so generated sweeps go beyond them: very large graphs,
 extreme sizes and scales, every shape, flag and Chroma lexer, and random
 mutations. They found and fixed many gaps; these are still open
-([details](docs/STATUS.md#beyond-the-upstream-corpus)):
+([issues](https://github.com/nelsonjchen/d2-rs/issues)):
 
 - **TALA memory:** with every seed routing at once, as in Go, a 200-node
   fan-out peaks at about Go's memory (1.005×, down from 1.05×); per-seed
   routing state is still larger than Go's ([#4](https://github.com/nelsonjchen/d2-rs/issues/4)).
 - **TALA error path:** a 400-node fan-out fails exactly as Go does, but takes
   about 1.07× Go's wall time to reach the error, down from 1.55× ([#5](https://github.com/nelsonjchen/d2-rs/issues/5)).
-- **Long labels in TALA:** a 100-node chain with long labels now runs at
-  Go's wall time (1.00×, down from 1.24×) ([#6](https://github.com/nelsonjchen/d2-rs/issues/6)).
 - **Very large inputs:** an 80,000-edge board reaches TALA's edge-limit error
   in 0.7× Go's time but peaks at about 1.33× Go's memory, down from 1.48× ([#7](https://github.com/nelsonjchen/d2-rs/issues/7)).
 - **Binary size:** the native CLI is about 1.2× the size of Go's ([#8](https://github.com/nelsonjchen/d2-rs/issues/8)).
 
 ## Install
 
-The command line, from [crates.io](https://crates.io/crates/d2-rs):
+The command line, from [crates.io](https://crates.io/crates/d2-rs). It needs
+Rust 1.98.1 or newer:
 
 ```sh
 cargo install d2-rs
@@ -82,22 +84,40 @@ d2-rs input.d2 output.svg
 d2-rs --layout=tala input.d2 output.png
 ```
 
-The CLI follows D2's command line:
+The installed command is `d2-rs`, and it takes the same subcommands and flags
+as Go's `d2`:
 - `fmt`, `validate`, `--theme`, `--sketch`, `--pad` and `--scale`;
 - multiboard output;
 - PNG, PDF, PPTX, GIF and ASCII export.
 
 The WebAssembly package, from [npm](https://www.npmjs.com/package/@d2-rs/wasm),
 for Node and browsers. Its `D2` class has the same `compile` / `render` shape
-as D2.js ([usage](crates/d2-rs-wasm/README.md)):
+as D2.js ([usage](https://github.com/nelsonjchen/d2-rs/blob/main/crates/d2-rs-wasm/README.md)):
 
 ```sh
 npm install @d2-rs/wasm
 ```
 
-As a Rust library, depend on [`d2-rs-lib`](https://crates.io/crates/d2-rs-lib)
-and the crates in the [repository map](#repository-map). Releases are listed
-in the [changelog](CHANGELOG.md).
+As a Rust library, there is no single high-level crate yet: each stage of the
+pipeline is its own crate, mirroring D2's Go packages, and the crates keep
+Go-shaped APIs that may change before 1.0. Depend on the stages you need:
+- [`d2-rs-language`](https://crates.io/crates/d2-rs-language) to parse,
+  compile and format D2 source;
+- [`d2-rs-layout`](https://crates.io/crates/d2-rs-layout) to lay out a
+  compiled graph with Dagre, ELK or TALA, including grids, sequence diagrams
+  and `near` placement;
+- [`d2-rs-render`](https://crates.io/crates/d2-rs-render) for SVG and sketch
+  rendering;
+- [`d2-rs-export`](https://crates.io/crates/d2-rs-export) for PNG, PDF, PPTX,
+  GIF and ASCII export.
+
+[`d2-rs-lib`](https://crates.io/crates/d2-rs-lib) is only the serialized graph
+JSON boundary between the compiler and the layout engines (D2's `d2graph`
+serialization), not a general entry point. The `d2-rs` command line's source
+shows how the stages fit together, and the
+[repository map](https://github.com/nelsonjchen/d2-rs#repository-map) lists
+every crate. Releases are listed in the
+[changelog](https://github.com/nelsonjchen/d2-rs/blob/main/CHANGELOG.md).
 
 ### From source
 
@@ -124,7 +144,7 @@ Most of the code was written by AI coding agents, in two stages:
   started the port and worked on it alone.
 - **From 2026-10-22:** Anthropic's Claude Opus 5.5 took the lead on the same
   codebase. It chose the work by scoreboard
-  ([docs/SCOREBOARD-WORKFLOW.md](docs/SCOREBOARD-WORKFLOW.md)), wrote code
+  ([docs/SCOREBOARD-WORKFLOW.md](https://github.com/nelsonjchen/d2-rs/blob/main/docs/SCOREBOARD-WORKFLOW.md)), wrote code
   itself, and supervised parallel Codex lanes running GPT-6.1 Sol, GPT-6.1
   Terra and GPT-6 Astra, reviewing and verifying their patches before each
   commit.
@@ -153,7 +173,7 @@ code that D2's output depends on, matching each to its pinned Go source:
   rounding step, so d2-rs does too there, and plain arithmetic on x86-64.
 
 Each port keeps its upstream license notice in
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+[THIRD_PARTY_NOTICES.md](https://github.com/nelsonjchen/d2-rs/blob/main/THIRD_PARTY_NOTICES.md).
 
 These ports are useful beyond D2: any Go-to-Rust port that has to reproduce
 Go's output exactly needs the same pieces. `crates/d2-rs-goflate` (Go's
@@ -167,7 +187,7 @@ others are still modules inside the crates that needed them, for example
 ## Repository map
 
 The workspace mirrors upstream D2's package layout. Each crate ports the Go
-packages named beside it; [docs/PORT-MAP.md](docs/PORT-MAP.md) maps every
+packages named beside it; [docs/PORT-MAP.md](https://github.com/nelsonjchen/d2-rs/blob/main/docs/PORT-MAP.md) maps every
 upstream Go package to its Rust location.
 
 **Language**
@@ -222,11 +242,11 @@ upstream Go package to its Rust location.
 
 | Path | What |
 |---|---|
-| `vendor/` | `rustybuzz-go-text`: Rustybuzz 0.20.1 modified so text shaping matches Go's `go-text/typesetting` (GPOS pair adjustment, coverage digests, Unicode 17 property tables); see its [SOURCE.md](vendor/rustybuzz-go-text/SOURCE.md) |
+| `vendor/` | `rustybuzz-go-text`: Rustybuzz 0.20.1 modified so text shaping matches Go's `go-text/typesetting` (GPOS pair adjustment, coverage digests, Unicode 17 property tables); see its [SOURCE.md](https://github.com/nelsonjchen/d2-rs/blob/main/vendor/rustybuzz-go-text/SOURCE.md) |
 | `scripts/` | scoreboards, differential harnesses, benchmarks, fixture runner |
 | `tools/` | fixture recipes and hooks, upstream patches, oracle programs |
 | `tests/` | hand-written D2 inputs |
-| `docs/` | [status](docs/STATUS.md), [fixtures](docs/FIXTURES.md), [benchmarks](docs/BENCHMARKS.md), [references](docs/REFERENCES.md), [provenance](docs/PROVENANCE.md) |
+| `docs/` | [status](https://github.com/nelsonjchen/d2-rs/blob/main/docs/STATUS.md), [fixtures](https://github.com/nelsonjchen/d2-rs/blob/main/docs/FIXTURES.md), [benchmarks](https://github.com/nelsonjchen/d2-rs/blob/main/docs/BENCHMARKS.md), [references](https://github.com/nelsonjchen/d2-rs/blob/main/docs/REFERENCES.md), [provenance](https://github.com/nelsonjchen/d2-rs/blob/main/docs/PROVENANCE.md) |
 
 ## Testing
 
@@ -251,6 +271,6 @@ Normal builds compile diagnostic tracing out. It is enabled with
 
 MPL-2.0, the same license as D2. This is a derivative work of D2, Copyright
 2022 Terrastruct Inc. Third-party material keeps its notices: see
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Cargo dependency notices
+[THIRD_PARTY_NOTICES.md](https://github.com/nelsonjchen/d2-rs/blob/main/THIRD_PARTY_NOTICES.md). Cargo dependency notices
 for distributions are generated with `node scripts/sync-licenses.mjs`; see
-[SOURCE.md](SOURCE.md).
+[SOURCE.md](https://github.com/nelsonjchen/d2-rs/blob/main/SOURCE.md).

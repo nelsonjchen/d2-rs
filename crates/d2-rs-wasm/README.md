@@ -1,6 +1,6 @@
 # @d2-rs/wasm
 
-WebAssembly build of [d2-rs](../../README.md), a Rust port of the
+WebAssembly build of [d2-rs](https://github.com/nelsonjchen/d2-rs/blob/main/README.md), a Rust port of the
 [D2](https://d2lang.com) diagram toolchain whose output is byte-identical to
 upstream Go D2. This package runs the whole pipeline (parse, compile, layout
 with dagre, ELK or TALA, and SVG rendering) in the browser or in Node, with no
@@ -12,7 +12,12 @@ SVGs.
 npm install @d2-rs/wasm
 ```
 
-## Build from source
+## Build from the repository
+
+The npm package ships the built `pkg/` files, so installing it needs no
+build. These steps are for building it from a checkout of the
+[d2-rs repository](https://github.com/nelsonjchen/d2-rs); the build and test
+scripts they run are in the repository, not in the npm package.
 
 You need:
 
@@ -23,7 +28,7 @@ You need:
   `cargo install wasm-bindgen-cli --version 0.2.128 --locked`;
 - Node 18 or newer, and pnpm.
 
-Then, in this directory:
+Then, in `crates/d2-rs-wasm` of the checkout:
 
 ```sh
 pnpm build
@@ -49,7 +54,9 @@ that diagram into an SVG string. Each `D2` instance runs its work in a worker
 
 ### Node
 
-The Node entry point is CommonJS, so take `D2` from the default import:
+The Node entry point is CommonJS, so from an ES module take `D2` from the
+default import. A named import (`import { D2 } from "@d2-rs/wasm"`) fails in
+Node:
 
 ```js
 import d2rs from "@d2-rs/wasm";
@@ -60,9 +67,14 @@ const svg = await d2.render(result.diagram, result.renderOptions);
 await d2.dispose();
 ```
 
-`const { D2 } = require("@d2-rs/wasm")` works too.
+From CommonJS, use `const { D2 } = require("@d2-rs/wasm")`. TypeScript picks
+up the matching types for each entry point (`src/node.d.cts` in Node,
+`src/index.d.ts` elsewhere).
 
 ### Browser
+
+The browser entry point is an ES module with named exports and no default
+export:
 
 ```js
 import { D2 } from "@d2-rs/wasm";
@@ -112,8 +124,9 @@ The `D2` class (see `src/index.d.ts` for the full types):
 
 - `layout`: `"dagre"`, `"elk"` or `"tala"`;
 - `fontRegular`, `fontItalic`, `fontBold`, `fontSemibold`: custom font bytes,
-  as base64 strings or number arrays (as in Go's JSON `[]byte`), used to
-  measure text.
+  as base64 strings, number arrays (as in Go's JSON `[]byte`) or
+  `Uint8Array`s, used to measure text. Go's `d2js` does not accept
+  `Uint8Array`.
 
 `RenderOptions` (all optional):
 
@@ -169,22 +182,24 @@ no recovery wrapper.
   `version`, `jsVersion`.
 - **Output:** on 12 upstream e2e cases with all 3 layout engines, all 36 SVGs
   are byte-identical to `d2js`'s.
-- **Speed:** Rust/Go median wall-time ratio for compile and render is 0.30x
-  with dagre, 0.29x with ELK and 0.40x with TALA. Median peak memory is
+- **Speed:** the per-case median Rust/Go wall-time ratio for compile and
+  render is 0.30x with dagre, 0.29x with ELK and 0.40x with TALA; total wall
+  time over all 12 cases is 0.31x, 0.33x and 0.27x. Median peak memory is
   0.33x, 0.32x and 0.61x.
 
 | | Go `d2js` | `@d2-rs/wasm` |
 |---|---:|---:|
-| Module size, raw / gzip -9 (at `3a9e691d`) | 60.0 / 15.3 MB | 31.3 / 10.1 MB |
+| Module size, raw / gzip -9 | 60.0 / 15.3 MB | 31.3 / 10.1 MB |
 | Startup (instantiate + init) | ~405 ms | ~43 ms |
 
 These numbers were measured in Node 22 only, not in browsers, with both
 packages run in-process without workers. See
-[BENCHMARKS.md](../../docs/BENCHMARKS.md) for the method and caveats.
+[BENCHMARKS.md](https://github.com/nelsonjchen/d2-rs/blob/main/docs/BENCHMARKS.md) for the method and caveats.
 
 ## License
 
 MPL-2.0. Any distribution of this package must include `LICENSE`,
 `THIRD_PARTY_NOTICES.md`, `SOURCE.md` and `DEPENDENCY_NOTICES.md`. Run
-`node scripts/sync-licenses.mjs` at the repository root to generate them into
-this directory.
+`node scripts/sync-licenses.mjs` at the root of a repository checkout to
+generate them into `crates/d2-rs-wasm`; the published package already
+includes them.
