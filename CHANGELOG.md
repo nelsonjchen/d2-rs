@@ -10,6 +10,19 @@ Each release names the upstream Go D2 commit it matches, from
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-11-09
+
+Matches Go D2 `master` at 6a7b48378, as 0.1.0 does. Crates only; the npm
+package stays at 0.1.3, which is unaffected.
+
+### Security
+
+- `zip` is now only a test dependency of `d2-rs-export`, so published
+  crates no longer depend on it (0.1.3 required `zip` 6.0.0, which has
+  published security advisories, though d2-rs never called it at runtime: PPTX output
+  uses the Go-ported writer).
+- `rustls` 0.23.46 for remote icon fetching.
+
 ## [0.1.3] - 2026-11-09
 
 Matches Go D2 `master` at 6a7b48378, as 0.1.0 does.
@@ -146,6 +159,7 @@ Matches Go D2 `master` at 6a7b48378, as 0.1.0 does.
   path separators in diagnostics and one TALA layout differ in tests.
 
 [Unreleased]: https://github.com/nelsonjchen/d2-rs/commits/main
+[0.1.4]: https://crates.io/crates/d2-rs/0.1.4
 [0.1.3]: https://crates.io/crates/d2-rs/0.1.3
 [0.1.2]: https://www.npmjs.com/package/@d2-rs/wasm/v/0.1.2
 [0.1.1]: https://crates.io/crates/d2-rs/0.1.1
