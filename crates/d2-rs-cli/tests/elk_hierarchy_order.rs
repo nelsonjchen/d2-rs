@@ -636,3 +636,256 @@ fn elk_ancestor_routes_keep_fractional_source_frame_arithmetic() {
         ],
     );
 }
+
+#[test]
+fn elk_root_loop_slots_and_labels_keep_node_local_arithmetic() {
+    // Pinned elk-go orthogonal_router.go computeRoutingSlotPositions and
+    // routes bends before selfloop_postprocessor.go adds node.Position.
+    // Complete SVGs from pinned D2 6a7b48378, --layout=elk --omit-version.
+    assert_elk_svg(
+        "n0: {n1}\nn2: {n3}\nn4\nn0 -> n2.n3: e0\nn2 -> n2: e1\nn4 -> n2.n3: e2\nn2 -> n2: e3\n",
+        &[
+            (
+                "down",
+                "d834d8051aa6bb717b79423f2f9a1afdefbb16a963d2aa44f468000b06242d01",
+            ),
+            (
+                "up",
+                "388d511eabb98d2650f99d8b85b1112cfedf558ce6ec7be8e10658461566dab3",
+            ),
+            (
+                "right",
+                "b31a06f6d603289139615549f0fc1839742bd58f5813516e750ddd999116553d",
+            ),
+            (
+                "left",
+                "be422ea06de2ef7c7438cce4fd5281746c37a867f20f360ef3384b0ea5d01999",
+            ),
+        ],
+    );
+    assert_elk_svg(
+        "n0: {n1}\nn2: {n3}\nn4\nn0 -> n2.n3: request\nn2 -> n2: retry\nn4 -> n2.n3: response\nn2 -> n2: recover\n",
+        &[
+            (
+                "down",
+                "0410443514505a126376869f0cc789bd7d5547a9e628560b79bdb85ee69d8b4b",
+            ),
+            (
+                "up",
+                "f3df9ad094d5e1bd8d4224d1db80a16ecfa81b009615b78b1a0ec73bf4a2ace4",
+            ),
+            (
+                "right",
+                "0f7e1ae65dc916b01daee24c4e17770bf2f3d0974cd1c9297a11181992367d5f",
+            ),
+            (
+                "left",
+                "3db14c5bc98ab02d726a660e60fc2688e6c405d7a11d30ec72c183497e609e69",
+            ),
+        ],
+    );
+    assert_elk_svg(
+        "outer: {\n  n0: {n1}\n  n2: {n3}\n  n4\n  n0 -> n2.n3: e0\n  n2 -> n2: e1\n  n4 -> n2.n3: e2\n  n2 -> n2: e3\n}\n",
+        &[
+            (
+                "down",
+                "05b2b42a069665a27986f31eabd273bb19ecef8ce3ba27c3071efc601ff7820e",
+            ),
+            (
+                "up",
+                "bfe5454f422b9459fdf2e95bed0183a8092edc0c0e0c631eb24d43082726d572",
+            ),
+            (
+                "right",
+                "8026b131ff121aa94a6b3f1d7e4a50e13e50b16d0924f578b8b88e847e239347",
+            ),
+            (
+                "left",
+                "3a6b18f120926f60c1d04d19bca01716e3cdd279d23f9005a4295d1d96dde6f9",
+            ),
+        ],
+    );
+}
+
+#[test]
+fn elk_hierarchy_routing_continues_the_ordering_random_stream() {
+    // Complete SVGs from pristine pinned D2 6a7b48378, elk-go v0.2.0.
+    // p3order GraphInfoHolder retains the graph Random property; the P5
+    // orthogonal generator continues it when splitting critical cycles.
+    assert_elk_svg(
+        "n0: {n4}\nn1\nn2\nn3\nn1 -> n2\nn1 -> n3\nn0.n4 -> n2\nn0.n4 -> n3\n",
+        &[
+            (
+                "down",
+                "2f7b0ab8d636593465f43f39c20b89767064ca33db109fffd383251772d16043",
+            ),
+            (
+                "up",
+                "d21fc152a19be91bd57dedec3f357d87bd6c0a37b0ef825234abf58ca2f41192",
+            ),
+            (
+                "right",
+                "ed83cccf8ae4c50faea058cbaa44b787f9e3d460edef737a43723f2967cd4c76",
+            ),
+            (
+                "left",
+                "7a9738737d1a45fa5ae5154c4d997345fc5460a78a1cd642d746d2978ae34038",
+            ),
+        ],
+    );
+    assert_elk_svg(
+        "n0: {n4}\nn1\nn2\nn3\nn1 -> n2\nn1 -> n0.n4\nn3 -> n2\nn3 -> n0.n4\n",
+        &[
+            (
+                "down",
+                "a0e64a6a18ac589ceef6d4c5e531ad897bfe7cecaf38a4b46a4d1e2eac95e6f9",
+            ),
+            (
+                "up",
+                "5b2916c1aad1785fa043b1d9af4623235ea695fef3efec93ae52c15868d74446",
+            ),
+            (
+                "right",
+                "e8e5ad05d821fca26c618d286679787070e3b39ed16e4fd4c4a2da83695705f2",
+            ),
+            (
+                "left",
+                "372e4b8688b56b8ec34eb136c75434ad3f750aacb8e9ad13d1621fdf16719ba8",
+            ),
+        ],
+    );
+    assert_elk_svg(
+        "outer: {\nn0: {n4}\nn1\nn2\nn3\nn1 -> n2\nn1 -> n3\nn0.n4 -> n2\nn0.n4 -> n3\n}\n",
+        &[
+            (
+                "down",
+                "e59515fea3a9c22fda70a99dfcd8c09504b633427374d6181c5ea0c9627044cc",
+            ),
+            (
+                "up",
+                "cdea8a35f7c8743827b5a5a60321674218c55b65b14c88403d88ad9d1a4330c5",
+            ),
+            (
+                "right",
+                "9c0fe9af46d389b832b1fdcfff73e1504aabb299276e1c6230be84982ccf242b",
+            ),
+            (
+                "left",
+                "45c456ea964691038dd400d8682d55f65128df723228427b9bb70f2ecf2808b7",
+            ),
+        ],
+    );
+    assert_elk_svg(
+        "n0: {n4: worker with a longer label}\nn1\nn2\nn3\nn1 -> n2\nn1 -> n3\nn0.n4 -> n2\nn0.n4 -> n3\n",
+        &[
+            (
+                "down",
+                "f47efc0469862eeb8dbed8b6cd0f5a2144ae196e9f1cc6acab1049c2d0f0f74e",
+            ),
+            (
+                "up",
+                "aaec5c6dbf507e8ecb2d176fdaf90c9f5f3d29a8bf0dc52ad66eb0e74c43bc96",
+            ),
+            (
+                "right",
+                "e14f6b155f4727094214dac64df86a4b5bfd3f0891f8d6795e8fa761fea23dd4",
+            ),
+            (
+                "left",
+                "2d3905466f0d3b50e142f4b60a800749a7eb6cd6b388f220e2c365466e2aa3c5",
+            ),
+        ],
+    );
+}
+
+#[test]
+fn elk_compound_content_bounds_preserve_negative_coordinate_extents() {
+    // Pinned elk-go v0.2.0 components/components_compactor.go starts the hull's
+    // bottomRight at negative infinity. P4 stores normalization in Graph.Offset;
+    // zero is not an extra hull point when all routed geometry is negative.
+    // Complete SVGs from pristine D2 6a7b48378, --layout=elk --omit-version.
+    assert_elk_svg(
+        "n0: {n1: {n2}; n3; n4}\nn0.n1 -> n0.n3\nn0.n1.n2 -> n0.n3\nn0.n1.n2 -> n0.n4\nn0.n3 -> n0.n1\n",
+        &[
+            (
+                "down",
+                "b31b3431ebf12a17b84660f69fdea5ac11503d902fabd0a49ef1c98cb2c99c69",
+            ),
+            (
+                "up",
+                "d6514676949068f413043536c34529188cfcc7e6c4c34e2302566de5bdd3bb93",
+            ),
+            (
+                "right",
+                "abd6e517e22e8495c7e993d3b1d1d142acfb8a872fc598fd78806e329e0730df",
+            ),
+            (
+                "left",
+                "aff74de036208818a0cbf1ddefceb974f59562fc48080609435b3cd35d6de0ac",
+            ),
+        ],
+    );
+    assert_elk_svg(
+        "n0: {n1: {n2}; n3; n4}\nn0.n1 -> n0.n3\nn0.n1.n2 -> n0.n3\nn0.n1.n2 -> n0.n4\nn0.n3 -> n0.n1.n2\n",
+        &[
+            (
+                "down",
+                "6cd141e360f903e252e8163e44b9c65928b61103d4e8fec774fb48e7867fb0cd",
+            ),
+            (
+                "up",
+                "9879d6d9b59d36d9992d53fab4e55425c07a5c88ac40ac994df2ca21caa259ce",
+            ),
+            (
+                "right",
+                "7b2b222387c2623d7107ed2610206e34ed8c4b85435a9cc432ab5aa229ae517e",
+            ),
+            (
+                "left",
+                "1e456c27f2b294d64d72879ee422d3f0dcf3e839fe9806a4cf548b7439833538",
+            ),
+        ],
+    );
+    assert_elk_svg(
+        "outer: {\nn0: {n1: {n2}; n3; n4}\nn0.n1 -> n0.n3\nn0.n1.n2 -> n0.n3\nn0.n1.n2 -> n0.n4\nn0.n3 -> n0.n1\n}\n",
+        &[
+            (
+                "down",
+                "c9c0f3dec6e13715ce1caa75271ab7ef9282735cdf2a101fc9aad34e3ee0aff6",
+            ),
+            (
+                "up",
+                "39cdb0b63903ea961c804e964eacae04cd8953286e80d30f2115623fbce211fe",
+            ),
+            (
+                "right",
+                "7c44d90d2bc42d75a870a5211cb550cc94de7ca508f04507fbc1d375f73a0fe8",
+            ),
+            (
+                "left",
+                "b7c90f93b831de68cc0acd3d1a1a3f30b459b93f6b501a866adf5e56714cf557",
+            ),
+        ],
+    );
+    assert_elk_svg(
+        "n0: {n1: {n2: a longer label}; n3; n4}\nn0.n1 -> n0.n3\nn0.n1.n2 -> n0.n3\nn0.n1.n2 -> n0.n4\nn0.n3 -> n0.n1\n",
+        &[
+            (
+                "down",
+                "8f759b8ef313d173d6399603879d136a752b3a5f17bba65269797e319ef27ca6",
+            ),
+            (
+                "up",
+                "0ea1af90d05f74b4ff840289bbc6c2dfd5bb2b005edef61a9f93afc6382dcea2",
+            ),
+            (
+                "right",
+                "a5cf6f252c6b825c92d7dedb01b4b2717852367a0b120bf9b6ac7453a21ed964",
+            ),
+            (
+                "left",
+                "9350726923b4c663706b3352627448594b0b0399fee0196f7b80b73aa22ec76d",
+            ),
+        ],
+    );
+}

@@ -2763,7 +2763,8 @@ impl ArenaGraph {
                         moved,
                         projection.arrangement,
                         projection.desired_arrangement,
-                    );
+                        Some(session),
+                    )?;
                     // optimizeCluster updates DesiredArrangement even when
                     // both geometry transactions reject the requested flip.
                     session.set_transpose_cluster_desired(moved, desired)?;

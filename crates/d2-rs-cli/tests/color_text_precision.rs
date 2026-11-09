@@ -84,13 +84,12 @@ fn default_ignorable_space_glyph_keeps_zero_advance() {
 
 #[cfg(target_os = "linux")]
 #[test]
-#[ignore = "the PPTX cases still depend on fonts installed on the host (they fail on \
-            GitHub's Ubuntu runners even with D2RS_SYSTEM_FONT_DIR); run with --ignored \
-            on the qualification VM until PPTX rasterization is pinned to tests/fonts too."]
 fn paged_default_ignorable_uses_system_fallback_after_bundled_fonts() {
     // Pinned d2cli.newFontFallbackOptions chains d2fonts' bundled resolver to
     // SystemFallbackResolver for PDF/PPTX as well as GIF. ZWJ keeps no ink or
     // advance, while Arabic alef must come from the pinned DejaVu Sans face.
+    // PPTX also embeds user.Current().Username (d2cli/main.go:655–667).
+    // Pin the account used for the original Go captures as well as the fonts.
     let fonts = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fonts");
     for (source, format, expected) in [
         (
@@ -123,6 +122,7 @@ fn paged_default_ignorable_uses_system_fallback_after_bundled_fonts() {
             ])
             .env("SOURCE_DATE_EPOCH", "946782245")
             .env("D2RS_SYSTEM_FONT_DIR", &fonts)
+            .env("D2RS_TEST_PPTX_CREATOR", "nelson")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())

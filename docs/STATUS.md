@@ -74,10 +74,34 @@ but a handful of jobs. Open clusters, with witnesses in
   and the wrapped 12416 up/left route shifts; the labeled extension now
   matches 23,999 / 24,000 cases with no lost match. All 32 wrapper, direction
   and reversed-edge variants match, up from 26. Two CLI contracts cover
-  24 complete SVGs. Case 21573 retains one-ULP root-loop bends/labels before
-  adapter rounding; compare node-local routing with PostprocessSelfLoops.
-  Exhaustive five-node cases with three/four edges remain. Inputs, outcomes
-  and traces are under `oracle-cache/reports/e13/` through `e18/`.
+  24 complete SVGs. Case 21573's root-loop bends and labels now retain
+  OrthogonalSelfLoopRouter's node-local slot arithmetic before adding the
+  node position in PostprocessSelfLoops. The labeled extension matches all
+  24,000 cases with no lost match or Go failure; all 179,926 earlier outputs
+  remain unchanged. A CLI contract covers the original, longer-label and
+  enclosed boards in all four directions.
+  The five-node extension matches all 423,200 three-edge cases and the first
+  44,896 four-edge cases in down/right flow, compared in 64-board batches
+  with complete SVG inventories and manifests. Another 47,500 standalone
+  four-edge probes remain unchanged, with no lost match or Go failure.
+  Four crossing-detour differences
+  are fixed: hierarchy ordering and P5 routing now share GraphInfoHolder's
+  retained Random property even when cycle breaking consumed no random draws.
+  Both reduced graphs, an enclosing container and a longer label match in all
+  four directions (16 complete SVGs). A further 404,744 distinct four-edge
+  cases expose two container-size differences: compound content hulls now
+  initialize their maximum at negative infinity, as ComponentsCompactor does,
+  instead of including zero when all P4 coordinates are negative. Both boards,
+  an enclosing container and a longer label match in all four directions
+  (16 complete SVGs). All 1,124,266 retained inputs replay with only these
+  two fixes and no lost match; all 719,522 earlier outputs remain unchanged.
+  The five-node enumeration is now complete: all 2,750,800 canonical
+  three/four-edge cases match. E112 checks the remaining 1,830,460 cases
+  without a difference, Go failure or incomplete output inventory. A fresh
+  seed (2026110917) also matches all 64,000 labeled/parallel-edge cases,
+  including longer labels. No further ELK finding remains in this lane.
+  Exact coverage, inputs, outcomes and traces are under
+  `oracle-cache/reports/e13/` through `e19/`, `e110/`, `e111/` and `e112/`.
 - **TALA placement (resolved):** native arm64 and freshly rebuilt WASM now
   match pinned Go on the retained `stable:25`/`stable:27`, transpose and
   seed 20261310 row 1193 witnesses, including `w50-tala-grid-reduced.d2`.
@@ -155,6 +179,16 @@ but a handful of jobs. Open clusters, with witnesses in
   scores. Both inputs have CLI contracts; 108 original, direction, reversal
   and wrapper replays improve from 45 to 108 matches without losing a match
   (`oracle-cache/reports/T42/replay.json`).
+- **TALA dense-network performance (resolved on amd64):** the retained
+  dense-network fixture and identical `c06_net80.d2`, seed 3, improve from
+  18.87 to 8.99 seconds wall time (Go 11.97), with byte-identical SVGs.
+  Shared node-identity indexes let projection reconciliation update the
+  affected obstruction entries instead of scanning every retained snapshot.
+  Sampled reconciliation CPU falls from 10.51 to 0.57 seconds. Peak RSS
+  rises from 49.09 to 55.30 MiB (Go 55.03); speed takes priority.
+  Nine rotating `c08_cont40.d2` repeats retain identical SVGs and remain
+  below Go wall time. Arm64 confirmation remains; measurements and profiles
+  are under `oracle-cache/reports/T410/`.
 - **TALA small-graph enumeration:** all 7,328 cases match (two or
   three leaves, up to two disjoint containers and four directed edges,
   down/right).
@@ -200,18 +234,23 @@ but a handful of jobs. Open clusters, with witnesses in
   `fresh/summary.json`). Fresh seed 2026110947 also matches all 1,022
   four/five-leaf cases, with no findings or lost match
   (`T47/new-sample/summary.json`).
-  Seed 2026110948 now matches 4,087 of 4,088 cases, up from 4,080 with
+  Seed 2026110948 now matches all 4,088 cases, up from 4,080 with
   no lost match. Compound proxies enter hierarchy placement without
   Rust's eager tree-routing state, as Go's fresh `NewGraph` does. This keeps
   the incoming-edge traversal and placement shuffle in Go's order; a CLI
   contract covers every rectangle and route. Nested opposing routes now
   retain the OVG search's selected ports, as Go's `generateRoutes` does;
   removing Rust's extra direct-tunnel search fixes the exchanged source ports.
-  A CLI contract covers the complete canvas, rectangles and routes, and the
-  sample replay loses no match. `witness-T4-container-fanin-placement.d2`
-  remains: it first differs in NodePlacement and changes the canvas height,
-  with identical content inventories. Sources and stage comparisons are under
-  `oracle-cache/reports/T48/` and `T49/`.
+  A CLI contract covers the complete canvas, rectangles and routes. The final
+  container fan-in finding now matches too: cluster flips read the retained
+  child endpoints and their actual graph ownership, as Go's
+  `clusterExternalConnectedNodes` and `SetGraphReference` do. Initialization
+  and all 126 annealing iterations already agreed; the first difference was
+  the following cluster flip. A CLI contract covers the complete 852 x 862
+  canvas, every rectangle and route. The sample replay loses no match.
+  Sources and comparisons are under `oracle-cache/reports/T48/`, `T49/`
+  and `T410/`. Fresh seed 20261109410 also matches all 2,048 four/five-leaf
+  cases, with no findings or lost match (`T410/final/fresh/summary.json`).
 - **TALA NaN-height error:** D43's complex nested board reports a NaN
   object height in Go and a route-search work-limit error in Rust (the
   guard error previously became an empty-route invariant). A 77-byte nested

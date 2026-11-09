@@ -5715,6 +5715,7 @@ impl Pipeline {
                         node_replacement: Some(first_endpoint),
                         adjacent_replacement: Some(second_endpoint),
                         sets,
+                        projection_index: Default::default(),
                     },
                 )
             };
@@ -10699,11 +10700,15 @@ impl Pipeline {
                     continue;
                 };
                 let projected_node = NodeId(new_index as u32);
-                let desired = sub_scope.graph.projected_cluster_desired_arrangement(
-                    projected_node,
-                    projection.arrangement,
-                    projection.desired_arrangement,
-                );
+                let desired = sub_scope
+                    .graph
+                    .projected_cluster_desired_arrangement(
+                        projected_node,
+                        projection.arrangement,
+                        projection.desired_arrangement,
+                        owner_session.as_deref(),
+                    )
+                    .map_err(|error| crate::LayoutError::PlacementTransaction(error.to_string()))?;
                 cluster_desired_arrangements.insert(projection.cluster_index, desired);
                 let optimized = sub_scope
                     .graph

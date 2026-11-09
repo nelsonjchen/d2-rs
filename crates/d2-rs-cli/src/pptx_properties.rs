@@ -32,7 +32,9 @@ pub(super) fn pptx_document_properties(
     d2_rs_export::PptxDocumentProperties {
         subject: title.clone(),
         title,
-        creator: current_username(),
+        // Test hook for complete-package contracts captured under a fixed
+        // account. Ordinary CLI metadata still follows Go's user.Current.
+        creator: std::env::var("D2RS_TEST_PPTX_CREATOR").unwrap_or_else(|_| current_username()),
         ..Default::default()
     }
 }

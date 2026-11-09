@@ -2439,9 +2439,15 @@ impl ArenaGraph {
         node: NodeId,
         current: ClusterArrangement,
         requested: ClusterArrangement,
-    ) -> ClusterArrangement {
+        owner_session: Option<&OwnerScoreSession<'_>>,
+    ) -> Result<ClusterArrangement, OwnerScoreSessionError> {
+        if let Some(session) = owner_session
+            && let Some(desired) = session.cluster_desired_arrangement(node)?
+        {
+            return Ok(desired);
+        }
         let Some(position) = self.position(node) else {
-            return current;
+            return Ok(current);
         };
         let vessel = Rect {
             origin: position,
@@ -2654,7 +2660,7 @@ impl ArenaGraph {
                     .collect::<Vec<_>>()
             );
         }
-        if vertical_count > horizontal_count {
+        Ok(if vertical_count > horizontal_count {
             ClusterArrangement::Row
         } else if vertical_count < horizontal_count {
             ClusterArrangement::Column
@@ -2664,7 +2670,7 @@ impl ArenaGraph {
             // temporary vessel whose shared endpoint inventory has no
             // positioned external nodes yet.
             requested
-        }
+        })
     }
 
     pub(super) fn apply_projected_cluster_layout(
@@ -2833,7 +2839,8 @@ impl ArenaGraph {
             node,
             projection.arrangement,
             projection.desired_arrangement,
-        );
+            owner_session.as_deref(),
+        )?;
         if crate::internal::trace_env_enabled("TALA_TRACE_CLUSTER_FLIP")
             && crate::internal::trace_env_value("TALA_TRACE_CLUSTER_FLIP").as_deref() == Some("all")
         {
@@ -4728,11 +4735,14 @@ mod tests {
             .push(external_container);
 
         assert_eq!(
-            graph.projected_cluster_desired_arrangement(
-                vessel,
-                ClusterArrangement::Row,
-                ClusterArrangement::Row,
-            ),
+            graph
+                .projected_cluster_desired_arrangement(
+                    vessel,
+                    ClusterArrangement::Row,
+                    ClusterArrangement::Row,
+                    None,
+                )
+                .unwrap(),
             ClusterArrangement::Column
         );
         assert!(graph.transaction_external_containers_are_valid());

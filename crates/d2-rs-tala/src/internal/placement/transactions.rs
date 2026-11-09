@@ -830,18 +830,30 @@ impl ArenaGraph {
             for projected in &mut abduction.obstructions_to_from {
                 reconcile(projected);
             }
-            abduction
-                .obstruction_sets_from_to
-                .update_projections(reconcile);
-            abduction
-                .obstruction_sets_to_from
-                .update_projections(reconcile);
+            for inventory in [
+                &mut abduction.obstruction_sets_from_to,
+                &mut abduction.obstruction_sets_to_from,
+            ] {
+                if trace_reconcile {
+                    inventory.update_projections(reconcile);
+                } else {
+                    inventory.update_projections_for_positions(positions, reconcile);
+                }
+            }
         }
         for projections in self.sized_projected_obstructions.values_mut() {
-            projections.update_projections(reconcile);
+            if trace_reconcile {
+                projections.update_projections(reconcile);
+            } else {
+                projections.update_projections_for_positions(positions, reconcile);
+            }
         }
         for inventory in self.sized_projected_obstruction_sets.values_mut() {
-            inventory.update_projections(reconcile);
+            if trace_reconcile {
+                inventory.update_projections(reconcile);
+            } else {
+                inventory.update_projections_for_positions(positions, reconcile);
+            }
         }
         for projected in self
             .sized_collapsed_symmetry_neighbors

@@ -11473,6 +11473,7 @@ mod ordered_obstruction_contract_tests {
                     items: Some(vec![item]),
                 }]
                 .into(),
+                projection_index: Default::default(),
             },
         );
         let (mut component, _) = owner.induced_placement_subgraph(&[a, b]);

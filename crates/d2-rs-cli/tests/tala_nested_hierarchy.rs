@@ -30,6 +30,58 @@ fn render_tala_seed(source: &str, seed: &str) -> String {
 }
 
 #[test]
+fn cluster_flips_use_retained_descendant_endpoints() {
+    // Pinned placement/cluster_connections.go reads the cluster abductions'
+    // CurrentTo pointer, and layoutgraph/node.go:271-277 includes container
+    // descendants in SetGraphReference. Complete pinned Go geometry, seed 1.
+    let svg = render_tala_seed(
+        "direction: right\nc1: {n3;n1}\nc0 -> c1.n1\nc0.n0 -> c0.n4\nn2 -> c1.n1\n",
+        "1",
+    );
+    let document = roxmltree::Document::parse(&svg).unwrap();
+    assert_eq!(
+        document.root_element().attribute("viewBox"),
+        Some("0 0 852 862")
+    );
+    let rectangles = document
+        .descendants()
+        .filter(|node| node.attribute("class") == Some("shape"))
+        .flat_map(|node| node.children().filter(|child| child.has_tag_name("rect")))
+        .map(|node| ["x", "y", "width", "height"].map(|key| node.attribute(key).unwrap()))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        rectangles,
+        [
+            ["386", "237", "264", "186"],
+            ["0", "0", "316", "320"],
+            ["0", "340", "316", "320"],
+            ["528", "297", "62", "66"],
+            ["446", "297", "62", "66"],
+            ["61", "60", "62", "66"],
+            ["60", "194", "63", "66"],
+        ]
+    );
+    let routes = document
+        .descendants()
+        .filter(|node| {
+            node.has_tag_name("path")
+                && node
+                    .attribute("class")
+                    .is_some_and(|class| class.starts_with("connection"))
+        })
+        .map(|node| node.attribute("d").unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        routes,
+        [
+            "M 318 278 L 341 278 S 351 278 351 288 L 351 320 S 351 330 361 330 L 442 330",
+            "M 92 128 L 92 190",
+            "M 318 381 L 341 381 S 351 381 351 371 L 351 340 S 351 330 361 330 L 442 330",
+        ]
+    );
+}
+
+#[test]
 fn opposing_nested_edges_keep_the_ovg_search_port_selection() {
     // Pinned routing/ovg_edge_router.go:387-415 publishes the one OVG
     // search result. It does not re-search direct tunnels with a coordinate

@@ -1085,6 +1085,97 @@ impl<'a> OwnerScoreSession<'a> {
         Ok(())
     }
 
+    /// placement/cluster_connections.go retains the external CurrentFrom/To
+    /// pointers from cluster abduction. SetGraphReference includes descendants
+    /// outside Graph.Nodes, so a container proxy is not their replacement here.
+    pub(super) fn cluster_desired_arrangement(
+        &self,
+        local: NodeId,
+    ) -> Result<Option<ClusterArrangement>, OwnerScoreSessionError> {
+        let canonical = self.canonical_node(local)?;
+        let Some(group) = self
+            .owner
+            .owner_graph_group_entry(self.current_view, OwnerGroupKind::Cluster, Some(canonical))?
+            .flatten()
+        else {
+            return Ok(None);
+        };
+        let fields = self.owner.read_owner_group_fields(group)?;
+        let first = fields
+            .nodes
+            .get(0)
+            .flatten()
+            .ok_or(OwnerScoreError::InvalidAbductionSlice)?;
+        let current_graph = self.owner.topology_node_owner(first);
+        let policy = self.owner.read_owner_cluster_policy(group)?;
+        let position = self.owner.position(canonical);
+        let size = self.owner.nodes[canonical.0 as usize].rect.size;
+        let position = position.ok_or(OwnerScoreSessionError::UnpositionedNode(canonical))?;
+        let vessel = Rect {
+            origin: position,
+            size,
+        };
+        let mut seen = BTreeSet::new();
+        let mut horizontal_count = 0;
+        let mut vertical_count = 0;
+        if let Some(header) = policy.edge_abductions.as_ref() {
+            self.owner.validate_owner_abduction_header(header)?;
+            for slot in header.borrowed_slots() {
+                let handle = slot.ok_or(OwnerScoreError::InvalidAbductionSlice)?;
+                let record = self
+                    .owner
+                    .owner_edge_abduction(handle)
+                    .ok_or(OwnerTopologyError::UnknownRecord(handle))?;
+                let external = match (record.originally_from, record.originally_to) {
+                    (None, Some(_)) => record.current_from,
+                    (Some(_), None) => record.current_to,
+                    _ => continue,
+                }
+                .ok_or(OwnerScoreError::InvalidAbductionSlice)?;
+                let position = self.owner.position(external);
+                let size = self.owner.nodes[external.0 as usize].rect.size;
+                let Some(position) = position else { continue };
+                if self.owner.topology_node_owner(external) != current_graph
+                    || !seen.insert(external)
+                {
+                    continue;
+                }
+                let adjacent = Rect {
+                    origin: position,
+                    size,
+                };
+                let horizontal =
+                    adjacent.right() < vessel.origin.x || vessel.right() < adjacent.origin.x;
+                let vertical =
+                    adjacent.bottom() < vessel.origin.y || vessel.bottom() < adjacent.origin.y;
+                if horizontal && vertical {
+                    let dx = (adjacent.center().x - vessel.center().x).abs();
+                    let dy = (adjacent.center().y - vessel.center().y).abs();
+                    if dx > dy {
+                        horizontal_count += 1;
+                    } else if dy > dx {
+                        vertical_count += 1;
+                    }
+                } else if horizontal {
+                    horizontal_count += 1;
+                } else if vertical {
+                    vertical_count += 1;
+                }
+            }
+        }
+        Ok(Some(if vertical_count > horizontal_count {
+            ClusterArrangement::Row
+        } else if horizontal_count > vertical_count {
+            ClusterArrangement::Column
+        } else {
+            match policy.desired_arrangement.as_str() {
+                "Row" => ClusterArrangement::Row,
+                "Column" => ClusterArrangement::Column,
+                _ => return Err(OwnerScoreSessionError::UnsupportedNestedVessel(canonical)),
+            }
+        }))
+    }
+
     /// Read live member boxes after the moved vessel has been published.
     /// grouping.PaddingBetween(true), Cluster.Resize and ArrangeClusterNodes
     /// supply the two layouts; the normal projected transaction validates them.

@@ -2048,6 +2048,7 @@ impl ArenaGraph {
             if !needs_remap {
                 return inventory;
             }
+            inventory.projection_index = Default::default();
             for set in std::sync::Arc::make_mut(&mut inventory.sets) {
                 for obstruction in set.items.iter_mut().flatten() {
                     if let AbductionNodeLocation::Local(owner) = obstruction.location {

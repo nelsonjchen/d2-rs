@@ -1301,15 +1301,17 @@ fn publish_self_loop_labels(
             continue;
         }
         let node = &arena.nodes[edge.source as usize];
-        let packed = arena.component_transfers.contains_key(&edge.source);
-        let node_x = if packed { 0.0 } else { node.position_x };
-        let node_y = if packed { 0.0 } else { node.position_y };
+        // Root loops, like packed components, keep the router and label
+        // placement in node-local coordinates until PostprocessSelfLoops.
+        let node_local = node.graph == root || arena.component_transfers.contains_key(&edge.source);
+        let node_x = if node_local { 0.0 } else { node.position_x };
+        let node_y = if node_local { 0.0 } else { node.position_y };
         let axis_min = 0.0;
         let axis_max = arena.component_transfers.get(&edge.source).map_or_else(
             || publication_axis_width(arena, node.graph),
             |component| component.axis_width,
         );
-        let points = if packed {
+        let points = if node_local {
             layered::self_loop_node_local_points(arena, edge_index as LEdgeId)?
         } else {
             edge_route_points(arena, edge_index as LEdgeId)?
@@ -1377,7 +1379,7 @@ fn publish_self_loop_labels(
                             PortSide::West => aggregate_x + aggregate_width - label_width,
                             _ => aggregate_x + (aggregate_width - label_width) / 2.0,
                         };
-                        let mut point = if packed {
+                        let mut point = if node_local {
                             let (px, py, _, _) = transform_node_geometry(
                                 x + node.position_x,
                                 (aggregate_y + stack_offset) + node.position_y,
@@ -1436,7 +1438,7 @@ fn publish_self_loop_labels(
             let side = edge.source_port.map(|port| arena.ports[port as usize].side);
             let mut y = if side == Some(PortSide::South) {
                 loop_y + label_spacing
-            } else if packed {
+            } else if node_local {
                 (loop_y - label_spacing) - height
             } else {
                 loop_y - height - label_spacing
@@ -1467,7 +1469,7 @@ fn publish_self_loop_labels(
                         y = if horizontal_side == Some(PortSide::South) {
                             outer.y + label_spacing
                         } else {
-                            if packed {
+                            if node_local {
                                 (outer.y - label_spacing) - height
                             } else {
                                 outer.y - height - label_spacing
@@ -1492,19 +1494,19 @@ fn publish_self_loop_labels(
                 .map(|(side, _, _)| side)
                 .or(side);
             if matches!(direction, "DOWN" | "UP") {
-                if packed {
+                if node_local {
                     x = running_x.unwrap_or(x);
                 } else {
                     x += stack_offset;
                 }
                 if label_side == Some(PortSide::North) {
-                    if packed {
+                    if node_local {
                         y = (y + height) - label.width;
                     } else {
                         y += height - label.width;
                     }
                 }
-                if packed {
+                if node_local {
                     running_x = Some(x + (label.height + label_label_spacing));
                 }
             } else {
@@ -1517,7 +1519,7 @@ fn publish_self_loop_labels(
                 } else if !align_left {
                     x += (width - label.width) / 2.0;
                 }
-                if packed {
+                if node_local {
                     y = running_y.unwrap_or(y);
                     running_y = Some(y + (label.height + label_label_spacing));
                 } else {
@@ -1525,7 +1527,7 @@ fn publish_self_loop_labels(
                 }
             }
             stack_offset += label.height + label_label_spacing;
-            let mut point = if packed {
+            let mut point = if node_local {
                 let (lw, lh) = if matches!(direction, "DOWN" | "UP") {
                     (label.height, label.width)
                 } else {
@@ -2371,6 +2373,9 @@ fn pad_nested_graph(arena: &mut LayeredArena, graph_id: LGraphId) {
     // P4 records the normalization in Graph.Offset rather than moving nodes.
     // Compute the hull in that frame; publication applies the offset once.
     let shift_y = padding.top - (minimum_y + arena.graphs[graph_id as usize].offset_y);
+    // ComponentsCompactor starts the bottom-right hull at negative infinity.
+    // P4 can leave every node and routed bend below zero, with normalization
+    // retained in Graph.Offset. Zero is not an extra point in that hull.
     let node_width = node_ids
         .iter()
         .map(|node_id| {
@@ -2402,7 +2407,7 @@ fn pad_nested_graph(arena: &mut LayeredArena, graph_id: LGraphId) {
             };
             origin_x + width
         })
-        .fold(0.0, f64::max);
+        .fold(f64::NEG_INFINITY, f64::max);
     let edge_width = arena
         .edges
         .iter()
@@ -2414,7 +2419,7 @@ fn pad_nested_graph(arena: &mut LayeredArena, graph_id: LGraphId) {
         })
         .flat_map(|edge| edge.bend_points.iter().chain(edge.junction_points.iter()))
         .map(|point| point.x)
-        .fold(0.0, f64::max);
+        .fold(f64::NEG_INFINITY, f64::max);
     let port_width = node_ids
         .iter()
         .flat_map(|node_id| arena.nodes[*node_id as usize].ports.iter().copied())
@@ -2428,7 +2433,7 @@ fn pad_nested_graph(arena: &mut LayeredArena, graph_id: LGraphId) {
                 _ => node.position_x + port.x + port.width,
             })
         })
-        .fold(0.0, f64::max);
+        .fold(f64::NEG_INFINITY, f64::max);
     // ComponentsCompactor measures the content hull before graph padding is
     // applied. HierarchicalNodeResizer then uses GraphActualSize, adding each
     // inset to that extent. Measuring translated nodes changes the rounding.
@@ -2461,7 +2466,7 @@ fn pad_nested_graph(arena: &mut LayeredArena, graph_id: LGraphId) {
             };
             origin_y + height + loop_bottom_margin
         })
-        .fold(0.0, f64::max);
+        .fold(f64::NEG_INFINITY, f64::max);
     let edge_height = arena
         .edges
         .iter()
@@ -2473,7 +2478,7 @@ fn pad_nested_graph(arena: &mut LayeredArena, graph_id: LGraphId) {
         })
         .flat_map(|edge| edge.bend_points.iter().chain(edge.junction_points.iter()))
         .map(|point| point.y)
-        .fold(0.0, f64::max);
+        .fold(f64::NEG_INFINITY, f64::max);
     let port_height = node_ids
         .iter()
         .flat_map(|node_id| arena.nodes[*node_id as usize].ports.iter().copied())
@@ -2487,7 +2492,7 @@ fn pad_nested_graph(arena: &mut LayeredArena, graph_id: LGraphId) {
                 _ => node.position_y + port.y + port.height,
             })
         })
-        .fold(0.0, f64::max);
+        .fold(f64::NEG_INFINITY, f64::max);
     let mut height =
         node_height.max(port_height).max(edge_height) - minimum_y + padding.top + padding.bottom;
     // HierarchicalNodeResizer uses GraphActualSize from P4/P5, even after

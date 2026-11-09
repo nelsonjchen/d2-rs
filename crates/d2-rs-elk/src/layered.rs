@@ -8442,7 +8442,7 @@ fn edge_route_points_in_frame(
         let publication_y = (!node_local && source_publication)
             .then(|| arena.nested_transfer_y.get(&edge.source).copied())
             .flatten();
-        let mut node_x = if node_local { 0.0 } else { node.position_x };
+        let node_x = if node_local { 0.0 } else { node.position_x };
         let node_y = if node_local || publication_y.is_some() {
             0.0
         } else {
@@ -8471,7 +8471,6 @@ fn edge_route_points_in_frame(
         if !node_local && let Some(&(internal, offset)) = arena.nested_transfer_x.get(&edge.source)
         {
             let offset = if apply_transfer { offset } else { 0.0 };
-            node_x = internal + offset;
             if let Some(port) = edge.source_port {
                 source.x = (internal + arena.ports[port as usize].x) + offset;
             }
@@ -8513,7 +8512,17 @@ fn edge_route_points_in_frame(
         let loop_spacing = arena.graphs[node.graph as usize].self_loop_spacing;
         let edge_spacing = arena.graphs[node.graph as usize].edge_edge_spacing;
         let compacted = self_loop_compacted_slots(arena, edge.source);
-        let clearance = |side: PortSide| {
+        let margins = arena
+            .original_loop_margins
+            .get(&edge.source)
+            .copied()
+            .unwrap_or([
+                node.margin_top,
+                node.margin_right,
+                node.margin_bottom,
+                node.margin_left,
+            ]);
+        let slot_position = |side: PortSide| {
             let slot = compacted
                 .as_ref()
                 .and_then(|slots| slots.get(&edge_id))
@@ -8523,7 +8532,19 @@ fn edge_route_points_in_frame(
                 arena.graphs[0].direction,
                 LayerDirection::Down | LayerDirection::Up
             );
-            let mut distance = loop_spacing;
+            // OrthogonalSelfLoopRouter computes slot positions around the
+            // node's origin, before PostprocessSelfLoops adds its position.
+            let mut position = match side {
+                PortSide::South => node.height + margins[2] + loop_spacing,
+                PortSide::East => node.width + margins[1] + loop_spacing,
+                PortSide::West => -margins[3] - loop_spacing,
+                _ => -margins[0] - loop_spacing,
+            };
+            let factor = if matches!(side, PortSide::North | PortSide::West) {
+                -1.0
+            } else {
+                1.0
+            };
             for previous_slot in 0..slot {
                 let extent = if let Some(slots) = &compacted {
                     slots
@@ -8556,45 +8577,47 @@ fn edge_route_points_in_frame(
                 } else {
                     0.0
                 };
-                distance += label_gap + edge_spacing;
+                position += factor * (label_gap + edge_spacing);
             }
-            distance
+            position
         };
         // OrthogonalSelfLoopRouter's baselinePosition and outerBendPoint:
         // retain the anchor along the side and displace its normal axis.
         let target_side = edge
             .target_port
             .map_or(side, |port| arena.ports[port as usize].side);
-        let margins = arena
-            .original_loop_margins
-            .get(&edge.source)
-            .copied()
-            .unwrap_or([
-                node.margin_top,
-                node.margin_right,
-                node.margin_bottom,
-                node.margin_left,
-            ]);
         let outer = |anchor: Point, side: PortSide| match side {
             PortSide::South => Point {
                 x: anchor.x,
-                y: node_y + node.height + margins[2] + clearance(side),
+                y: slot_position(side),
             },
             PortSide::East => Point {
-                x: node_x + node.width + margins[1] + clearance(side),
+                x: slot_position(side),
                 y: anchor.y,
             },
             PortSide::West => Point {
-                x: node_x - margins[3] - clearance(side),
+                x: slot_position(side),
                 y: anchor.y,
             },
             _ => Point {
                 x: anchor.x,
-                y: node_y - margins[0] - clearance(side),
+                y: slot_position(side),
             },
         };
-        let source_outer = outer(source, side);
-        let target_outer = outer(target, target_side);
+        let local_anchor = |port: Option<LPortId>, source: bool| {
+            port.map_or(
+                Point {
+                    x: if source { node.width } else { 0.0 },
+                    y: node.height / 2.0,
+                },
+                |port| Point {
+                    x: arena.ports[port as usize].x,
+                    y: arena.ports[port as usize].y,
+                },
+            )
+        };
+        let source_outer = outer(local_anchor(edge.source_port, true), side);
+        let target_outer = outer(local_anchor(edge.target_port, false), target_side);
         let clockwise = self_loop_routing_clockwise(arena, edge_id, side, target_side);
         let label_side = self_loop_inline_label_side(arena, edge_id, side, target_side, clockwise);
         let loop_label_size = arena
@@ -8657,6 +8680,17 @@ fn edge_route_points_in_frame(
             return Err(LayeringError::PortWithUndefinedSide);
         }
         route.extend([target_outer, target]);
+        let last = route.len() - 1;
+        for point in &mut route[1..last] {
+            point.x = if !node_local
+                && let Some(&(internal, offset)) = arena.nested_transfer_x.get(&edge.source)
+            {
+                (point.x + internal) + if apply_transfer { offset } else { 0.0 }
+            } else {
+                point.x + node_x
+            };
+            point.y += node_y;
+        }
         if let Some((internal, transfer)) = publication_y {
             // PostprocessSelfLoops offsets node-local bends by the unpadded
             // node position, then Transferrer adds Graph.Offset+Padding.
@@ -12091,15 +12125,14 @@ fn order_hierarchical_layers_by_barycenter(
     for (graph_id, random) in context.randoms {
         if let Some(random) = random {
             arena.restore_graph_random(graph_id, random);
-            if arena.graphs[graph_id as usize].cycle_random_consumed {
-                arena.shared_graph_randoms.insert(graph_id);
-            }
+            arena.shared_graph_randoms.insert(graph_id);
         }
     }
     arena.restore_graph_random(root, root_random);
-    if arena.graphs[root as usize].cycle_random_consumed {
-        arena.shared_graph_randoms.insert(root);
-    }
+    // GraphInfoHolder and OrthogonalRoutingGenerator share the graph's Random
+    // property even when cycle breaking did not draw from it. P5 must continue
+    // the hierarchy sweep stream when choosing a critical segment to split.
+    arena.shared_graph_randoms.insert(root);
     #[cfg(feature = "diagnostic-traces")]
     {
         for graph_id in plan.breadth_first_graphs.iter().copied() {

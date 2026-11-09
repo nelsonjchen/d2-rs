@@ -11,6 +11,9 @@ DejaVuSans-Bold.ttf
 These source fonts pin Arabic fallback in color_text_precision.rs. They are not
 Go oracle artifacts. D2RS_SYSTEM_FONT_DIR restricts both typed scene fallback
 and the native raster font database to this directory in that subprocess.
+The test also pins D2RS_TEST_PPTX_CREATOR to the original Go capture's account
+name: PPTX core properties contain the current user's name independently of
+font discovery. Without this test hook the CLI uses Go's user.Current behavior.
 
 Copyright: Copyright (c) 2003 by Bitstream, Inc. All Rights Reserved.
 Bitstream Vera is a trademark of Bitstream, Inc.

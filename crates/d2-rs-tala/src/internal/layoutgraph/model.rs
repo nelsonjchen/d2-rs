@@ -1373,35 +1373,79 @@ impl AbductionCurrentNodeRef {
     }
 }
 
+/// Immutable projection locations, shared independently of geometry snapshots.
+type ProjectionIndex<T> = Arc<std::sync::OnceLock<IdHashMap<i64, Vec<T>>>>;
+
 /// Numerical views of Go's shared obstruction pointers. A rollback snapshot
 /// retains the same values until a candidate actually changes a projection.
 #[derive(Clone, Debug, Default)]
-pub(super) struct SharedProjections(Arc<Vec<ProjectedAdjacent>>);
+pub(super) struct SharedProjections(Arc<Vec<ProjectedAdjacent>>, ProjectionIndex<usize>);
 
 impl SharedProjections {
     pub(super) fn update_projections(&mut self, mut update: impl FnMut(&mut ProjectedAdjacent)) {
+        let mut identity_changed = false;
         if let Some(values) = Arc::get_mut(&mut self.0) {
             for projection in values {
+                let identity = projection.tala_id;
                 update(projection);
+                identity_changed |= identity != projection.tala_id;
             }
-            return;
+        } else {
+            // Evaluate each update once, including diagnostic observations.
+            for index in 0..self.len() {
+                let original = self[index];
+                let mut projection = original;
+                update(&mut projection);
+                identity_changed |= original.tala_id != projection.tala_id;
+                if !projection.same_bits(original) {
+                    Arc::make_mut(&mut self.0)[index] = projection;
+                }
+            }
         }
-        // Evaluate each update once, including diagnostic observations. A
-        // no-op reconciliation must keep the shared allocation intact.
-        for index in 0..self.len() {
-            let original = self[index];
-            let mut projection = original;
-            update(&mut projection);
-            if !projection.same_bits(original) {
-                Arc::make_mut(&mut self.0)[index] = projection;
+        if identity_changed {
+            self.1 = Default::default();
+        }
+    }
+
+    /// Go updates retained Node pointers directly. Reconcile only projections
+    /// of the supplied nodes; the immutable identity index survives geometry
+    /// changes and is shared with rollback snapshots.
+    pub(super) fn update_projections_for_positions(
+        &mut self,
+        positions: &IdHashMap<i64, Option<Point>>,
+        mut update: impl FnMut(&mut ProjectedAdjacent),
+    ) {
+        let index = self.1.get_or_init(|| {
+            let mut index = IdHashMap::<i64, Vec<usize>>::default();
+            for (slot, projection) in self.0.iter().enumerate() {
+                index.entry(projection.tala_id).or_default().push(slot);
             }
+            index
+        });
+        let mut identity_changed = false;
+        for tala_id in positions.keys() {
+            let Some(slots) = index.get(tala_id) else {
+                continue;
+            };
+            for &slot in slots {
+                let original = self.0[slot];
+                let mut projection = original;
+                update(&mut projection);
+                identity_changed |= original.tala_id != projection.tala_id;
+                if !projection.same_bits(original) {
+                    Arc::make_mut(&mut self.0)[slot] = projection;
+                }
+            }
+        }
+        if identity_changed {
+            self.1 = Default::default();
         }
     }
 }
 
 impl From<Vec<ProjectedAdjacent>> for SharedProjections {
     fn from(values: Vec<ProjectedAdjacent>) -> Self {
-        Self(Arc::new(values))
+        Self(Arc::new(values), Default::default())
     }
 }
 
@@ -1420,6 +1464,7 @@ impl std::ops::Deref for SharedProjections {
 
 impl std::ops::DerefMut for SharedProjections {
     fn deref_mut(&mut self) -> &mut Self::Target {
+        self.1 = Default::default();
         Arc::make_mut(&mut self.0)
     }
 }
@@ -1526,6 +1571,8 @@ pub(super) struct OrderedObstructionInventory {
     // and SplitSubgraphs. Share this value snapshot until its projections
     // actually change; rollback clones need only another slice handle.
     pub(super) sets: Arc<[ProjectedObstructionSet]>,
+    // Remapping the inventory clears this index; geometry-only updates retain it.
+    pub(super) projection_index: ProjectionIndex<(usize, usize)>,
 }
 
 // The inventory is a value snapshot. Mutable projection updates detach it.
@@ -1537,6 +1584,7 @@ impl Clone for OrderedObstructionInventory {
             node_replacement: self.node_replacement,
             adjacent_replacement: self.adjacent_replacement,
             sets: self.sets.clone(),
+            projection_index: self.projection_index.clone(),
         }
     }
 
@@ -1546,11 +1594,13 @@ impl Clone for OrderedObstructionInventory {
         self.node_replacement = source.node_replacement;
         self.adjacent_replacement = source.adjacent_replacement;
         self.sets.clone_from(&source.sets);
+        self.projection_index.clone_from(&source.projection_index);
     }
 }
 
 impl OrderedObstructionInventory {
     pub(super) fn update_projections(&mut self, mut update: impl FnMut(&mut ProjectedAdjacent)) {
+        let mut identity_changed = false;
         if let Some(sets) = Arc::get_mut(&mut self.sets) {
             for projection in sets
                 .iter_mut()
@@ -1558,31 +1608,82 @@ impl OrderedObstructionInventory {
                 .flatten()
                 .filter_map(|item| item.projection.as_mut())
             {
+                let identity = projection.tala_id;
                 update(projection);
+                identity_changed |= identity != projection.tala_id;
             }
-            return;
+        } else {
+            // Reconciliation often writes the same bits. Detach only on change.
+            for set_index in 0..self.sets.len() {
+                let len = self.sets[set_index].items.as_ref().map_or(0, Vec::len);
+                for item_index in 0..len {
+                    let Some(original) =
+                        self.sets[set_index].items.as_ref().unwrap()[item_index].projection
+                    else {
+                        continue;
+                    };
+                    let mut projection = original;
+                    update(&mut projection);
+                    identity_changed |= original.tala_id != projection.tala_id;
+                    if !projection.same_bits(original) {
+                        Arc::make_mut(&mut self.sets)[set_index]
+                            .items
+                            .as_mut()
+                            .unwrap()[item_index]
+                            .projection = Some(projection);
+                    }
+                }
+            }
         }
-        // Reconciliation often writes the same bits. Evaluate each update
-        // once in the original order, including its diagnostic observations,
-        // and copy the inventory only if it changes a projection.
-        for set_index in 0..self.sets.len() {
-            let len = self.sets[set_index].items.as_ref().map_or(0, Vec::len);
-            for item_index in 0..len {
+        if identity_changed {
+            self.projection_index = Default::default();
+        }
+    }
+
+    pub(super) fn update_projections_for_positions(
+        &mut self,
+        positions: &IdHashMap<i64, Option<Point>>,
+        mut update: impl FnMut(&mut ProjectedAdjacent),
+    ) {
+        let index = self.projection_index.get_or_init(|| {
+            let mut index = IdHashMap::<i64, Vec<(usize, usize)>>::default();
+            for (set_slot, set) in self.sets.iter().enumerate() {
+                for (item_slot, item) in set.items.iter().flatten().enumerate() {
+                    if let Some(projection) = item.projection {
+                        index
+                            .entry(projection.tala_id)
+                            .or_default()
+                            .push((set_slot, item_slot));
+                    }
+                }
+            }
+            index
+        });
+        let mut identity_changed = false;
+        for tala_id in positions.keys() {
+            let Some(slots) = index.get(tala_id) else {
+                continue;
+            };
+            for &(set_slot, item_slot) in slots {
                 let Some(original) =
-                    self.sets[set_index].items.as_ref().unwrap()[item_index].projection
+                    self.sets[set_slot].items.as_ref().unwrap()[item_slot].projection
                 else {
                     continue;
                 };
                 let mut projection = original;
                 update(&mut projection);
+                identity_changed |= original.tala_id != projection.tala_id;
                 if !projection.same_bits(original) {
-                    Arc::make_mut(&mut self.sets)[set_index]
+                    Arc::make_mut(&mut self.sets)[set_slot]
                         .items
                         .as_mut()
-                        .unwrap()[item_index]
+                        .unwrap()[item_slot]
                         .projection = Some(projection);
                 }
             }
+        }
+        if identity_changed {
+            self.projection_index = Default::default();
         }
     }
 }
