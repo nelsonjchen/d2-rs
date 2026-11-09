@@ -4268,7 +4268,11 @@ impl ArenaGraph {
     }
 
     fn symmetry_segment_intersects_node(&self, start: Point, end: Point, node: NodeId) -> bool {
-        let position = self.position(node).unwrap();
+        // Active cluster/sequence members stand in for Go's temporary vessel
+        // pointer during symmetry scoring. Use the vessel position together
+        // with the vessel size; combining the retained member position with
+        // the vessel size creates an obstruction box Go never sees.
+        let position = self.active_node_position(node).unwrap();
         let size = self.active_node_size(node);
         Self::segment_intersects_box(start, end, position, size)
     }
@@ -9569,7 +9573,10 @@ impl ArenaGraph {
                 {
                     continue;
                 }
-                if bounds.excludes(self.position(sibling), self.active_node_size(sibling)) {
+                if bounds.excludes(
+                    self.active_node_position(sibling),
+                    self.active_node_size(sibling),
+                ) {
                     continue;
                 }
                 if endpoint_chains
@@ -10052,20 +10059,50 @@ impl ArenaGraph {
                         .then_some(container_tala_id)
                 })
         };
-        let vessel_tala_id = if self.node_order_membership_valid {
-            self.active_aggregate_vessels_by_member
-                .get(&identity)
-                .copied()
-        } else {
-            self.transaction_external_aggregate_children
+        if let Some(cluster_index) = self.active_cluster_index(fallback_owner) {
+            let cluster = &self.clusters[cluster_index];
+            if cluster
+                .members
                 .iter()
-                .find_map(|(&vessel_tala_id, members)| {
-                    members
-                        .iter()
-                        .any(|member| member.tala_id == identity)
-                        .then_some(vessel_tala_id)
-                })
-        }?;
+                .any(|member| self.nodes[member.0 as usize].tala_id == identity)
+            {
+                let vessel_owner = *cluster.members.first()?;
+                return Some(SymmetryNeighbor {
+                    identity: cluster.vessel_tala_id,
+                    owner: vessel_owner,
+                    projected: true,
+                    container_tala_id: snapshot_container(cluster.vessel_tala_id).or_else(|| {
+                        self.nodes[vessel_owner.0 as usize]
+                            .container
+                            .map(|container| self.nodes[container.0 as usize].tala_id)
+                            .or(self.nodes[vessel_owner.0 as usize].scoring_container_parent)
+                    }),
+                    position: self.active_node_position(vessel_owner),
+                    size: self.cluster_vessel_size(cluster_index),
+                });
+            }
+        }
+        // Cluster/sequence activation owns this identity mapping for the
+        // whole temporary-graph lifetime. A transaction can invalidate the
+        // node-order membership cache without deactivating the vessel; Go's
+        // member.Cluster/Sequence pointer still resolves to that vessel in
+        // this phase (placementcost/symmetry.go, nodeSymmetry). Consult the
+        // stable mapping first, then use the captured external inventory for
+        // scopes whose aggregate lives outside this arena.
+        let vessel_tala_id = self
+            .active_aggregate_vessels_by_member
+            .get(&identity)
+            .copied()
+            .or_else(|| {
+                self.transaction_external_aggregate_children
+                    .iter()
+                    .find_map(|(&vessel_tala_id, members)| {
+                        members
+                            .iter()
+                            .any(|member| member.tala_id == identity)
+                            .then_some(vessel_tala_id)
+                    })
+            })?;
         let local_vessel = if self.node_order_membership_valid {
             self.active_aggregate_vessel_nodes
                 .get(&vessel_tala_id)
@@ -10100,8 +10137,7 @@ impl ArenaGraph {
                         .map(|container| self.nodes[container.0 as usize].tala_id)
                         .or_else(|| snapshot_container(vessel_tala_id)),
                 )
-            } else {
-                let vessel = external_vessel()?;
+            } else if let Some(vessel) = external_vessel() {
                 (
                     fallback_owner,
                     vessel.position.unwrap(),
@@ -10113,6 +10149,24 @@ impl ArenaGraph {
                                 .map(|container| container.tala_id)
                         })
                     }),
+                )
+            } else {
+                // During AlignAxes' pre-trial baseline the temporary cluster
+                // vessel can be represented only by its stable member
+                // backlink: it is no longer in Graph.Nodes, and no external
+                // snapshot has been installed yet. Go still follows the
+                // member's live Cluster.Vessel pointer here.
+                let cluster_index = self.active_cluster_index(fallback_owner)?;
+                let cluster = &self.clusters[cluster_index];
+                if cluster.vessel_tala_id != vessel_tala_id {
+                    return None;
+                }
+                let vessel_owner = *cluster.members.first()?;
+                (
+                    vessel_owner,
+                    self.active_node_position(vessel_owner)?,
+                    self.cluster_vessel_size(cluster_index),
+                    snapshot_container(vessel_tala_id),
                 )
             };
         Some(SymmetryNeighbor {

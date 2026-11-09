@@ -75,17 +75,10 @@ impl Resources {
 }
 
 fn new_font_resolver() -> Result<Arc<scene::BundledFallbackResolver>, ExportError> {
-    Ok(Arc::new(
-        scene::BundledFallbackResolver::new(
-            None,
-            scene::BundledFallbackLimits {
-                max_requested_runes: 100_000,
-                max_bundled_bytes: 8 << 20,
-                max_resolved_bytes: 136 << 20,
-            },
-        )
-        .map_err(ExportError::Render)?,
-    ))
+    // d2cli.newFontFallbackOptions chains bundled fallbacks to the host
+    // resolver for every raster session, including paged PDF/PPTX exports.
+    // Keep this identical to the already-qualified GIF scene path.
+    Ok(GifFontResources::new()?.fonts)
 }
 
 fn frame_options(scale: u32, budget: &PagedFrameBudget) -> FrameOptions {
@@ -140,6 +133,46 @@ pub(super) fn preflight(
     )?;
     d2_rs_raster::preflight(&document, &frame)
         .map_err(|error| ExportError::Render(error.to_string()))
+}
+
+/// Render a paged frame from the typed scene, as d2cli/paged.go does.
+///
+/// The legacy SVG bridge cannot retain Go's mixed-script shaping around
+/// default-ignorable controls at every paged scale. Callers use this path for
+/// those labels while the rest of the paged scene port remains incremental.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn render_frame(
+    graph: &Graph,
+    result: &LayoutResult,
+    labels: &BTreeMap<NodeId, String>,
+    styles: &BTreeMap<NodeId, SourceNodeStyle>,
+    options: &RenderOptions,
+    sketch: bool,
+    scale: u32,
+    budget: &mut PagedFrameBudget,
+) -> Result<(u32, u32, Vec<u8>), ExportError> {
+    let frame = frame_options(scale, budget);
+    let count = i64::try_from(budget.total_boards).unwrap_or(i64::MAX);
+    if budget.resources.is_none() {
+        budget.resources = Some(Resources::new()?);
+    }
+    let resources = budget
+        .resources
+        .as_ref()
+        .expect("initialized paged resources");
+    let document = build_document(
+        graph, result, labels, styles, options, sketch, count, &frame, resources, true,
+    )?;
+    let image = d2_rs_raster::render(&document, &frame)
+        .map_err(|error| ExportError::Render(error.to_string()))?;
+    let width = image.width();
+    let height = image.height();
+    let mut rgba = Vec::with_capacity(width * height * 4);
+    for row in 0..height {
+        let start = row * image.stride;
+        rgba.extend_from_slice(&image.pix[start..start + width * 4]);
+    }
+    Ok((width as u32, height as u32, rgba))
 }
 
 /// d2cli/raster_png_output.go pngFrameOptions: rasterFrameOptions(2, 0)

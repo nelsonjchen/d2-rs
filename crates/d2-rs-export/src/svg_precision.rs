@@ -560,6 +560,9 @@ impl SvgImagePathSources {
     pub(crate) fn is_native_legend_shadow(&self, id: &str) -> bool {
         self.native_legend_shadows.contains(id) || self.native_legend_shape_shadows.contains(id)
     }
+    pub(crate) fn has_native_legend_panel(&self) -> bool {
+        !self.native_legend_shadows.is_empty()
+    }
     pub(crate) fn native_legend_shadow(&self, id: &str) -> Option<NativeDropShadow> {
         if self.native_legend_shadows.contains(id) {
             Some(NativeDropShadow {

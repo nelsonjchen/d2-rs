@@ -17,6 +17,9 @@ input files under --out with a JSONL index:
   output-diff    both succeeded, complete SVG/board inventories differ
   error-diff     both failed with different first error lines (paths masked)
   go/rust-invalid-output  exit 0 without complete, valid SVG output
+
+Inputs where pinned Go panics or dies on a signal have no oracle result. They
+are retained in skips.jsonl with Rust's outcome, but do not count as findings.
 """
 import argparse, json, os, random, re, subprocess, tempfile
 from pathlib import Path
@@ -30,6 +33,31 @@ TOKENS = ["{", "}", "->", "<-", "<->", "--", ":", ".", "*", "**", "|", "||", "`"
           "null", "_", "#", "\\", "\n", "  ", "é", "漢", "😀", "‍", "‮", "1e309", "-1", "0"]
 SCRIPT = re.compile(r"\bscript\s*:\s*`([^`]*)`", re.S)
 FORMATS = ("svg", "png", "pdf", "pptx", "gif", "txt")
+MUTATION_FAMILIES = ("structural", "text")
+TEXT_BLOCKS = (
+    '"__fuzz_text_md": |md\n# Heading *emphasis*\n\n- first item\n- second **bold** item\n\n> quoted `code`\n|',
+    '"__fuzz_text_code": |rust\nfn main() { println!("héllo 😀"); }\n|',
+    '"__fuzz_text_latex": |latex\n\\\\frac{x_1 + y^2}{z} = \\\\sqrt{n}\n|',
+    '"__fuzz_text_unicode": "ગુજરાતી é 👩‍💻 مرحبا"',
+    '"__fuzz_text_link": {\n  label: "linked tooltip"\n  link: https://example.com/docs?q=d2\n  tooltip: "line one\\nline two 漢"\n}',
+)
+GO_PANIC = re.compile(r"(?:^|\n)panic:")
+
+
+def go_crashed(exit_code, stderr):
+    return (isinstance(exit_code, int) and exit_code < 0) or bool(GO_PANIC.search(stderr))
+
+
+def rust_outcome(exit_code, stderr):
+    if exit_code == 101 or "panicked" in stderr:
+        return "rust-panic"
+    if isinstance(exit_code, int) and exit_code < 0:
+        return "rust-signal"
+    if exit_code == "timeout":
+        return "rust-hang"
+    if exit_code == "invalid-output":
+        return "rust-invalid-output"
+    return f"rust-exit-{exit_code}"
 
 def mutate(text, rng):
     lines = text.split("\n")
@@ -56,6 +84,13 @@ def mutate(text, rng):
             lines.insert(i, rng.choice(["a -> b", "x: {", "}", "a.style.fill: red", "...@missing", "a: |md\n# h\n|", "*.shape: circle"]))
     return "\n".join(lines)
 
+
+def mutate_text(text, rng):
+    """Add realistic text constructs without perturbing structural queues."""
+    additions = rng.sample(TEXT_BLOCKS, rng.randint(1, min(3, len(TEXT_BLOCKS))))
+    separator = "" if not text or text.endswith("\n") else "\n"
+    return text + separator + "\n".join(additions) + "\n"
+
 def parse_args(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("rust")
@@ -69,6 +104,7 @@ def parse_args(argv=None):
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--layout", choices=("dagre", "elk", "tala"), default="dagre")
     parser.add_argument("--format", choices=FORMATS, default="svg")
+    parser.add_argument("--mutation-family", choices=MUTATION_FAMILIES, default="structural")
     parser.add_argument(
         "--render-flag",
         action="append",
@@ -112,30 +148,51 @@ def main(argv=None):
     scripts = load_scripts(o.cases, o.upstream)
     if not scripts:
         raise SystemExit("no fuzz corpus inputs found")
-    counts, outcomes, index = {}, {}, open(os.path.join(o.out, "findings.jsonl"), "a")
+    counts, outcomes = {}, {}
+    go_crash_rust_outcomes = {}
+    index = open(os.path.join(o.out, "findings.jsonl"), "a")
+    skips = open(os.path.join(o.out, "skips.jsonl"), "a")
     for job in range(o.jobs):
-        case, src = rng.choice(scripts); text = mutate(src, rng)
+        case, src = rng.choice(scripts)
+        text = mutate_text(src, rng) if o.mutation_family == "text" else mutate(src, rng)
         d = tempfile.mkdtemp(prefix="fz-"); open(os.path.join(d, "input.d2"), "w").write(text)
         rg, eg, hg = run(o.go, d, o.layout, "go", o.format, o.render_flag)
         rr, er, hr = run(o.rust, d, o.layout, "rust", o.format, o.render_flag)
         kind = None
-        if rr == 101 or "panicked" in er: kind = "rust-panic"
-        elif isinstance(rr, int) and rr < 0: kind = "rust-signal"
-        elif rr == "timeout" and rg != "timeout": kind = "rust-hang"
-        elif rg == "timeout" or rr == "timeout": kind = None
-        elif rg == "invalid-output": kind = "go-invalid-output"
-        elif rr == "invalid-output": kind = "rust-invalid-output"
-        elif (rg == 0) != (rr == 0): kind = "exit-diff"
-        elif rg == 0 and hg != hr: kind = "output-diff"
-        elif rg != 0 and first_error(eg, d) != first_error(er, d): kind = "error-diff"
-        outcome = kind or ("go-timeout" if rg == "timeout" else
-                           "empty-output-match" if hg == hr == EMPTY_INVENTORY else "match")
+        go_crash = go_crashed(rg, eg)
+        if go_crash:
+            outcome = "go-crash"
+            rust_status = rust_outcome(rr, er)
+            go_crash_rust_outcomes[rust_status] = go_crash_rust_outcomes.get(rust_status, 0) + 1
+        else:
+            if rr == 101 or "panicked" in er: kind = "rust-panic"
+            elif isinstance(rr, int) and rr < 0: kind = "rust-signal"
+            elif rr == "timeout" and rg != "timeout": kind = "rust-hang"
+            elif rg == "timeout" or rr == "timeout": kind = None
+            elif rg == "invalid-output": kind = "go-invalid-output"
+            elif rr == "invalid-output": kind = "rust-invalid-output"
+            elif (rg == 0) != (rr == 0): kind = "exit-diff"
+            elif rg == 0 and hg != hr: kind = "output-diff"
+            elif rg != 0 and first_error(eg, d) != first_error(er, d): kind = "error-diff"
+            outcome = kind or ("go-timeout" if rg == "timeout" else
+                               "empty-output-match" if hg == hr == EMPTY_INVENTORY else "match")
         outcomes[outcome] = outcomes.get(outcome, 0) + 1
-        if kind:
+        if go_crash:
+            safe_case = re.sub(r"[^A-Za-z0-9_.-]+", "_", case)
+            name = f"go-crash-{job}-{safe_case}.d2"; open(os.path.join(o.out, name), "w").write(text)
+            skips.write(json.dumps({"job": job, "outcome": outcome, "rust_outcome": rust_status,
+                                    "case": case, "file": name, "go_exit": rg, "rust_exit": rr,
+                                    "mutation_family": o.mutation_family,
+                                    "format": o.format, "render_flags": o.render_flag,
+                                    "go_err": first_error(eg, d)[:300],
+                                    "rust_err": first_error(er, d)[:300] or er[-300:]}) + "\n")
+            skips.flush()
+        elif kind:
             counts[kind] = counts.get(kind, 0) + 1
             safe_case = re.sub(r"[^A-Za-z0-9_.-]+", "_", case)
             name = f"{kind}-{job}-{safe_case}.d2"; open(os.path.join(o.out, name), "w").write(text)
             index.write(json.dumps({"job": job, "kind": kind, "case": case, "file": name, "go_exit": rg, "rust_exit": rr,
+                                    "mutation_family": o.mutation_family,
                                     "format": o.format, "render_flags": o.render_flag,
                                     "go_err": first_error(eg, d)[:300], "rust_err": first_error(er, d)[:300] or er[-300:]}) + "\n"); index.flush()
         subprocess.run(["rm", "-rf", d])
@@ -143,8 +200,10 @@ def main(argv=None):
             print(f"{job + 1}/{o.jobs} findings {counts}", flush=True)
     with open(os.path.join(o.out, "summary.json"), "w") as summary:
         json.dump({"seed": o.seed, "layout": o.layout, "format": o.format,
+                   "mutation_family": o.mutation_family,
                    "render_flags": o.render_flag, "corpus_inputs": len(scripts), "jobs": o.jobs,
-                   "findings": counts, "outcomes": outcomes}, summary, indent=2)
+                   "findings": counts, "outcomes": outcomes,
+                   "go_crash_rust_outcomes": go_crash_rust_outcomes}, summary, indent=2)
     print("DONE", counts, "outcomes", outcomes, flush=True)
 
 if __name__ == "__main__":

@@ -81,3 +81,66 @@ fn default_ignorable_space_glyph_keeps_zero_advance() {
     let offset = (403 * frame.width as usize + 321) * 3;
     assert_eq!(&pixels[offset..offset + 3], &[211, 214, 228]);
 }
+
+#[cfg(target_os = "linux")]
+#[test]
+fn paged_default_ignorable_uses_system_fallback_after_bundled_fonts() {
+    // Pinned d2cli.newFontFallbackOptions chains d2fonts' bundled resolver to
+    // SystemFallbackResolver for PDF/PPTX as well as GIF. ZWJ keeps no ink or
+    // advance, while Arabic alef must come from the same host fallback face.
+    for (source, format, expected) in [
+        (
+            "e\u{200d}ا\n",
+            "pdf",
+            "62447ca5afdb810e58ca2e693790f4a312c927d47ead9ebd783fc294f7ff7db0",
+        ),
+        (
+            "e\u{200d}ا\n",
+            "pptx",
+            "96b13dcfb430877df67ea00494948cd99a061bc34bf2a728f93322c49d418fd5",
+        ),
+        (
+            "a -> b: e\u{200d}ا\n",
+            "pdf",
+            "7a8a7b7b9714c6dfa7639c7fb0b8a6e024c714bf0a846891f25299a3fbecd87e",
+        ),
+        (
+            "a -> b: e\u{200d}ا\n",
+            "pptx",
+            "1ea4a46434c8c6b59d3e0e7d727f0a45d47b2c5f6912ebd408f60ff0893bec24",
+        ),
+    ] {
+        let mut child = Command::new(env!("CARGO_BIN_EXE_d2-rs"))
+            .args([
+                "--layout=elk",
+                &format!("--stdout-format={format}"),
+                "-",
+                "-",
+            ])
+            .env("SOURCE_DATE_EPOCH", "946782245")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(source.as_bytes())
+            .unwrap();
+        let output = child.wait_with_output().unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let digest = ring::digest::digest(&ring::digest::SHA256, &output.stdout);
+        let actual = digest
+            .as_ref()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        assert_eq!(actual, expected, "{format}");
+    }
+}

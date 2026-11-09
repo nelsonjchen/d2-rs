@@ -964,7 +964,11 @@ impl ArenaGraph {
             return false;
         };
         let horizontal = self.begin_hierarchy_direction(&roots);
-        let points = placement.place_ranked_nodes(self);
+        let points = if horizontal {
+            placement.place_ranked_nodes_horizontal(self)
+        } else {
+            placement.place_ranked_nodes(self)
+        };
         for (node, point) in points {
             self.set_position(node, point);
         }
@@ -982,7 +986,7 @@ impl ArenaGraph {
         let (roots, mut placement) = self.build_hierarchy_placement(hierarchy_id, rng)?;
         let rng_draws_after_build = rng.draw_count();
         let horizontal = self.begin_hierarchy_direction(&roots);
-        let (points, orders, alignments) = placement.place_ranked_nodes_traced(self);
+        let (points, orders, alignments) = placement.place_ranked_nodes_traced(self, horizontal);
         for (node, point) in points {
             self.set_position(node, point);
         }

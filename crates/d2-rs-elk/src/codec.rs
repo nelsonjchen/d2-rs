@@ -889,11 +889,18 @@ fn source_shape_inner_insets(shape: ShapeKind, width: f64, height: f64) -> Inset
             } else {
                 (0.167, 0.335, 0.663, 0.663)
             };
+            // shapeCloud.GetInnerBox first calls GetInsidePlacement, which
+            // ceils the inner top-left, and only then applies the fractional
+            // inner size. adjustPadding derives the trailing bands from that
+            // mixed geometry; multiplying (1-x-w) directly is one pixel too
+            // large for fixed-width clouds such as the F14 structure witness.
+            let left = (x * width).ceil();
+            let top = (y * height).ceil();
             Insets {
-                top: y * height,
-                right: (1.0 - x - w) * width,
-                bottom: (1.0 - y - h) * height,
-                left: x * width,
+                top,
+                right: width - (left + w * width),
+                bottom: height - (top + h * height),
+                left,
             }
         }
         ShapeKind::Circle => {
@@ -1187,6 +1194,17 @@ mod tests {
                 }
             );
         }
+    }
+
+    #[test]
+    fn cloud_inner_box_ceils_leading_placement_before_trailing_insets() {
+        // Pinned D2 shapeCloud.GetInnerBoxForContent uses a ceiled
+        // GetInsidePlacement point and an unrounded fractional size.
+        let insets = super::source_shape_inner_insets(ShapeKind::Cloud, 565.0, 171.0);
+        assert_eq!(insets.left, 49.0);
+        assert_eq!(insets.top, 70.0);
+        assert_eq!(insets.right.ceil(), 54.0);
+        assert_eq!(insets.bottom.ceil(), 8.0);
     }
 
     #[test]

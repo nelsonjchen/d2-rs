@@ -3597,7 +3597,6 @@ fn layout_with_wire_pipeline(
             LayoutError::BadRouteState(error.to_string())
         }
     })?;
-
     // Keep the shared report/label contract while replacing its geometry with
     // the source-shaped ELK result. This base contains no solver geometry;
     // `apply_elk_graph_result` overwrites every node box and route below.

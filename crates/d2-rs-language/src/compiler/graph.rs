@@ -485,26 +485,52 @@ fn go_graph_ida(compiler: &Compiler, document_root: IrNodeId, board: IrNodeId) -
     ida
 }
 
-/// Return the display text D2 v0.9.0 derives for an internal board link.
-/// External links keep their source URL as the target's PrettyLink fallback;
-/// internal links instead display board labels (or board names), omitting the
-/// wrappers such as `layers` and `scenarios`.
+/// Return the display text pinned D2 derives for a link.
+///
+/// d2exporter.toPrettyLink tries ParseKey after net/url rejects a value. A
+/// single parseable key is handled as the root board itself: the key text is
+/// not used as a label, and an unlabeled root therefore produces an explicit
+/// empty PrettyLink. Longer non-root keys fall back to their source text when
+/// they do not resolve as board paths. Internal links display board labels (or
+/// board names), omitting wrappers such as `layers` and `scenarios`.
 fn node_pretty_link_after_board_validation(
     compiler: &Compiler,
     root: IrNodeId,
     field: IrNodeId,
 ) -> Option<ast::ByteString> {
     let link = node_link_after_board_validation(compiler, root, field)?;
-    if super::import_urls::is_remote(link.as_bytes()) {
-        return super::import_urls::shortened_url_label(link.as_bytes()).map(ast::ByteString::from);
+    // d2exporter.toPrettyLink passes the authored value directly to
+    // net/url.ParseRequestURI. Do not reuse extendLinks' remote predicate:
+    // that predicate HTML-unescapes first and can turn an entity-bearing D2
+    // key into an apparent opaque URL.
+    if super::import_urls::parse(link.as_bytes(), true).is_ok() {
+        return Some(ast::ByteString::from(
+            super::import_urls::shortened_url_label(link.as_bytes())
+                .unwrap_or_else(|| link.as_bytes().to_vec()),
+        ));
     }
     let Ok(key) = crate::parse_key(link.as_bytes()) else {
         return None;
     };
-    let Some(parts) = key.string_ida() else {
+    let single_component = key.path.as_ref().is_some_and(|path| path.len() == 1);
+    let parts = key.string_ida();
+    if parts.is_none() && !single_component {
         return None;
-    };
+    }
+    let parts = parts.unwrap_or_default();
     if parts.first().map(String::as_str) != Some("root") {
+        if parts.len() == 1 || single_component {
+            let mut document_root = root;
+            while !compiler.arena.root(document_root) {
+                let Some(parent) = compiler.arena.parent_map(document_root) else {
+                    break;
+                };
+                document_root = parent;
+            }
+            return Some(ast::ByteString::from(
+                board_label(compiler, document_root).unwrap_or_default(),
+            ));
+        }
         return None;
     }
 
@@ -1423,6 +1449,32 @@ mod inherited_link_tooltip_tests {
             .find(|(_, node)| node.external_id == "same")
             .expect("self-linked layer object is lowered");
         assert_eq!(layer_styles[&same_id].link, None);
+    }
+
+    #[test]
+    fn parseable_single_key_link_has_the_root_boards_empty_pretty_label() {
+        // Pinned d2exporter.toPrettyLink calls d2parser.ParseKey after
+        // net/url.ParseRequestURI rejects this entity-bearing value. For a
+        // one-component key it appends only the unlabeled root graph's name,
+        // producing an explicit empty PrettyLink. Raster export must not
+        // invent the source link as a numbered appendix row.
+        let source = br#"x.link: "j&#x61;va73cript:alert(1)""#;
+        let parsed = parse("single-key-link.d2", source, None);
+        assert!(parsed.error.is_none(), "{:?}", parsed.error);
+        let (compiler, root) = compile_ir(Shared::new(parsed.map)).unwrap();
+        assert!(compiler.errors.is_empty(), "{:?}", compiler.errors);
+        let (graph, _, styles) =
+            lower_graph_with_measurer_and_labels_theme(&compiler, root, &fixed_measurement, false)
+                .unwrap();
+        let (node_id, _) = graph
+            .nodes()
+            .find(|(_, node)| node.external_id == "x")
+            .expect("linked object is lowered");
+        assert_eq!(
+            styles[&node_id].link.as_deref(),
+            Some("j&#x61;va73cript:alert(1)")
+        );
+        assert_eq!(styles[&node_id].pretty_link.as_deref(), Some(""));
     }
 
     #[test]

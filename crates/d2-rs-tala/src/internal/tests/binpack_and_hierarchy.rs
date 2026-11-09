@@ -221,6 +221,93 @@ fn assigned_near_pair_matches_recovered_two_node_placement() {
 }
 
 #[test]
+fn horizontal_hierarchy_level_spacing_uses_edge_label_width() {
+    // Pinned hierarchy/placement.go passes isHorizontal to
+    // minimumDistanceToNextLevel. The D2 label is 10 x 21, so using its
+    // height after transposing the nodes adds 11 pixels to every rank.
+    let mut input = Graph::default();
+    let mut parent_node = node("N", 59.0, 81.0);
+    parent_node.direction = Some(Direction::Right);
+    let parent = input.add_node(parent_node);
+    let mut child = |name: &str, width: f64| {
+        let mut value = node(name, width, 66.0);
+        value.parent = Some(parent);
+        input.add_node(value)
+    };
+    let backtick = child("N.`", 50.0);
+    let choice = child("N.choice", 91.0);
+    let t = child("N.t", 51.0);
+    let enter = child("N.Enter PIN", 111.0);
+    let d = child("N.d", 54.0);
+    drop(child);
+
+    let first = input.add_edge(Edge {
+        source: t,
+        target: enter,
+    });
+    let labelled = input.add_edge(Edge {
+        source: backtick,
+        target: choice,
+    });
+    input.set_edge_label(
+        labelled,
+        Some(EdgeLabel {
+            text: "N".to_owned(),
+            size: Size {
+                width: 10.0,
+                height: 21.0,
+            },
+            position: LabelPosition::Unset,
+            percentage: 0.0,
+        }),
+    );
+    let third = input.add_edge(Edge {
+        source: choice,
+        target: enter,
+    });
+    let fourth = input.add_edge(Edge {
+        source: choice,
+        target: d,
+    });
+    for edge in [first, labelled, third, fourth] {
+        input.set_edge_arrows(
+            edge,
+            EdgeArrows {
+                source: false,
+                target: true,
+            },
+        );
+    }
+
+    let mut arena = ArenaGraph::from_input(&input);
+    let roots = [backtick, t, choice, enter, d];
+    let rank = hierarchy_network_simplex::HierarchyRank {
+        level: [(backtick, 0), (t, 1), (choice, 1), (enter, 2), (d, 2)]
+            .into_iter()
+            .collect(),
+        level_count: 3,
+    };
+    let mut placement = hierarchy_placement::HierarchyPlacement::build(
+        &arena,
+        &roots,
+        &rank,
+        &mut go_rng::GoRng::new(1),
+    );
+    for member in roots {
+        let size = &mut arena.nodes[member.0 as usize].rect.size;
+        std::mem::swap(&mut size.width, &mut size.height);
+    }
+    let mut points = placement.place_ranked_nodes_horizontal(&mut arena);
+    for point in points.values_mut() {
+        std::mem::swap(&mut point.x, &mut point.y);
+    }
+    assert_eq!(points[&choice].x - points[&backtick].x, 151.0);
+    assert_eq!(points[&t].x - points[&backtick].x, 171.0);
+    assert_eq!(points[&enter].x - points[&backtick].x, 342.0);
+    assert_eq!(points[&d].x - points[&backtick].x, 370.0);
+}
+
+#[test]
 fn fixed_split_subgraphs_preserve_edge_discovery_before_later_fixed_roots() {
     let mut input = Graph::default();
     let mut source_node = node("source", 92.0, 66.0);

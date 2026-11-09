@@ -1862,10 +1862,20 @@ pub(crate) fn draw_sql_table_shape_with_sketch(
     } else {
         style.table_rows.clone()
     };
-    let member_font_size = style
-        .font_size
-        .unwrap_or_else(|| font_size.saturating_sub(4))
-        .max(1);
+    // Native raster follows d2exporter's structured target value. It can
+    // differ from the source style after grid/container font selection.
+    let member_font_size = if native_geometry_id.is_some() {
+        style.target_font_size.unwrap_or_else(|| {
+            style
+                .font_size
+                .unwrap_or_else(|| font_size.saturating_sub(4))
+        })
+    } else {
+        style
+            .font_size
+            .unwrap_or_else(|| font_size.saturating_sub(4))
+    }
+    .max(1);
     let header_font_size = member_font_size.saturating_add(4);
     // Scene font resolution retains the parent's family but clears bold/italic.
     let font_family = if mono_text && style.font.as_deref() == Some("mono") {
@@ -2644,10 +2654,20 @@ pub(crate) fn draw_class_shape_with_sketch(
     // With no explicit style the layout graph stores the header-adjusted
     // default (24px); an explicit style stores its base value (for example
     // 30px). Keep both cases aligned with d2target's export subtraction.
-    let member_font_size = style
-        .font_size
-        .unwrap_or_else(|| font_size.saturating_sub(4))
-        .max(1);
+    // Native raster follows d2exporter's structured target value. It can
+    // differ from the source style after grid/container font selection.
+    let member_font_size = if native_geometry_id.is_some() {
+        style.target_font_size.unwrap_or_else(|| {
+            style
+                .font_size
+                .unwrap_or_else(|| font_size.saturating_sub(4))
+        })
+    } else {
+        style
+            .font_size
+            .unwrap_or_else(|| font_size.saturating_sub(4))
+    }
+    .max(1);
     let header_font_size = member_font_size.saturating_add(4);
     let row_count = 2 + style.class_fields.len() + style.class_methods.len();
     let row_height = if row_count == 0 {
@@ -3557,6 +3577,48 @@ mod original_class_text_contract {
 mod multiline_class_header_source_contract {
     use super::*;
     use std::collections::{BTreeMap, BTreeSet};
+
+    #[test]
+    fn private_class_header_uses_exported_grid_font_after_prescale() {
+        // Pinned d2exporter.toShape reads Object.Text after TALA layout and
+        // subtracts HeaderFontAdd. The authored 20 px base must not replace
+        // the exported 28 px base when constructing the native raster target.
+        let style = SourceNodeStyle {
+            font_size: Some(20),
+            target_font_size: Some(28),
+            ..Default::default()
+        };
+        let overrides = BTreeMap::new();
+        let palette = PaletteView::new(d2_rs_core::theme::palette(0).unwrap(), &overrides);
+        let mut svg = String::from("<svg>");
+        draw_class_shape(
+            &mut svg,
+            Rect {
+                origin: Point::default(),
+                size: Size {
+                    width: 120.0,
+                    height: 114.0,
+                },
+            },
+            &style,
+            "2",
+            32,
+            Size {
+                width: 15.0,
+                height: 41.0,
+            },
+            palette,
+            Some("class"),
+        );
+        svg.push_str("</svg>");
+        let document = roxmltree::Document::parse(&svg).unwrap();
+        let header = document
+            .descendants()
+            .find(|node| node.has_tag_name("text") && node.text() == Some("2"))
+            .unwrap();
+        assert_eq!(header.attribute("font-size"), Some("32"));
+        assert_eq!(header.attribute("y"), Some("64.5"));
+    }
 
     #[test]
     fn private_structured_text_preserves_leading_space_for_native_shaping() {

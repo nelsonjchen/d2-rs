@@ -3862,6 +3862,57 @@ fn rank_nodes_with_model(
             }
         }
     }
+    // Dagro removes self-edges before coordinate-system adjustment and adds
+    // them back afterward. For LR/RL this means `translateGraph` sees the
+    // authored label height as the edge's final flow-axis width. A tall
+    // multiline label can therefore extend before the first node and
+    // translate every raw coordinate by a fractional amount before D2 rounds
+    // object origins (dagro layout.go:225-271). Preserve that exact frame.
+    let mut self_edge_flow_translation = None;
+    let mut flow_min = boxes
+        .values()
+        .map(|rect| {
+            if horizontal {
+                rect.origin.x
+            } else {
+                rect.origin.y
+            }
+        })
+        .fold(f64::INFINITY, f64::min);
+    for (edge_id, _) in graph.edges() {
+        let (owner, target) = resolve_edge_endpoints(graph, edge_id);
+        if owner != target {
+            continue;
+        }
+        let Some(label) = label_sizes[edge_id.0 as usize] else {
+            continue;
+        };
+        let Some(owner_box) = boxes.get(&owner) else {
+            continue;
+        };
+        let center = if horizontal {
+            owner_box.center().x
+        } else {
+            owner_box.center().y
+        };
+        flow_min = flow_min.min(center - label.height / 2.0);
+        self_edge_flow_translation = Some(0.0);
+    }
+    if let Some(translation) = self_edge_flow_translation.as_mut() {
+        *translation = -flow_min;
+        if translation.abs() > f64::EPSILON {
+            for rect in boxes.values_mut() {
+                if horizontal {
+                    rect.origin.x += *translation;
+                } else {
+                    rect.origin.y += *translation;
+                }
+            }
+        }
+    }
+    if let Some(layout) = bk_layout.as_mut() {
+        layout.self_edge_flow_translation = self_edge_flow_translation;
+    }
     for (id, node) in graph.nodes() {
         if is_sequence_descendant(graph, id) {
             continue;
@@ -4671,6 +4722,7 @@ struct BkLayout {
     model: BkModel,
     coordinates: BTreeMap<NodeId, f64>,
     horizontal: bool,
+    self_edge_flow_translation: Option<f64>,
 }
 
 /// Apply Dagro's `parentDummyChains` ownership walk to normalized edge
@@ -5423,6 +5475,7 @@ impl BkLayout {
             model,
             coordinates,
             horizontal,
+            self_edge_flow_translation: None,
         }
     }
 }
@@ -10486,7 +10539,17 @@ fn build_dagre_route_model(
         // rounds to the published origin, keep it; re-anchoring to the box's
         // geometric center would inject a false half-pixel translation.
         let model_origin = (current - dagre_span / 2.0).round();
-        let delta = if source_compound {
+        let delta = if let Some(translation) = layout.self_edge_flow_translation {
+            // BT reflects flow coordinates before translateGraph. The
+            // positive model center already represents the reflected route
+            // in its translated frame; only the published boxes need the
+            // retained translation above.
+            if graph.direction == Direction::Up {
+                0.0
+            } else {
+                translation
+            }
+        } else if source_compound {
             // Dagro mirrors rank coordinates, then translateGraph subtracts
             // the minimum extent over every node (dagro layout.go:225-271)
             // before D2 rounds each box origin (d2dagrelayout/layout.go:217).
@@ -17782,6 +17845,54 @@ mod tests {
             second_route.iter().map(|point| point.x).collect::<Vec<_>>(),
             [684.0, 1105.5, 1005.5, 905.5, 1005.5, 684.0]
         );
+    }
+
+    #[test]
+    fn multiline_self_loop_label_retains_dagro_translation_frame() {
+        // Pinned dagro layout.go removes self-edges before LR coordinate
+        // adjustment and restores them afterward. translateGraph therefore
+        // includes the 85px label-height box on the flow axis: its -3.5px
+        // extent translates raw routes by 3.5px, while d2dagrelayout rounds
+        // the published node origin to 4px.
+        for (direction, expected_flow_origin) in [
+            (Direction::Right, 4.0),
+            (Direction::Left, 4.0),
+            (Direction::Down, 10.0),
+            (Direction::Up, 10.0),
+        ] {
+            let mut graph = Graph::with_direction(direction);
+            let node = graph.add_node(Node::new(
+                "User",
+                Size {
+                    width: 78.0,
+                    height: 66.0,
+                },
+            ));
+            let edge = graph.add_edge(Edge {
+                source: node,
+                target: node,
+            });
+            graph.set_edge_label(
+                edge,
+                Some(d2_rs_core::EdgeLabel {
+                    text: "n\n\n\n\n\"".into(),
+                    size: Size {
+                        width: 8.0,
+                        height: 85.0,
+                    },
+                    position: LabelPosition::Unset,
+                    percentage: 0.0,
+                }),
+            );
+
+            let result = layout(&graph, &LayoutOptions::default()).unwrap();
+            let flow_origin = if matches!(direction, Direction::Right | Direction::Left) {
+                result.boxes[&node].origin.x
+            } else {
+                result.boxes[&node].origin.y
+            };
+            assert_eq!(flow_origin, expected_flow_origin, "{direction:?}");
+        }
     }
 
     #[test]

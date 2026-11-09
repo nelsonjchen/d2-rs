@@ -244,9 +244,58 @@ but a handful of jobs. Open clusters, with witnesses in
   pinned Go first. The visible ELK nested-sequence difference is fixed (F14):
   sequence roots use the final synthetic lifeline endpoint for height, as
   `d2sequence.getHeight` does, instead of extending to nested group bounds.
-  Nine TALA placement rows and low-severity Dagre and ELK half-pixel route/frame
-  differences remain. Inputs and exact outcomes are under
-  `oracle-cache/reports/f11/` through `f15/`.
+  F17 fixes all three F16 route-only rows: ordinary TALA
+  endpoints now pass their actual port inventories to `centerSymmetricalPorts`,
+  matching pinned Go instead of treating the inventories as empty whenever no
+  cluster ports were saved. Retained TALA seed 2026110881 improves from 991
+  rendered matches, six empty-output matches and three differences to 994/6/0;
+  fresh seed 2026110893 improves from 987/12/1 to 988/12/0. Fresh Dagre/ELK
+  seeds 2026110889/91 add no parity differences in another 2,000 jobs (one ELK
+  malformed input produces the same invalid output on both sides). F19 fixes the
+  last retained TALA row, F11 job 508. Symmetry replacement and obstruction now
+  use the active cluster vessel's position and size together, matching pinned Go
+  `placementcost.nodeSymmetry`; seed three and the default result now match. The
+  complete historical seed `2026110875` now has 993 rendered matches, seven
+  empty-output matches and zero diffs, so all retained TALA structure-fuzz rows
+  are resolved. F110's Dagre PNG seed 2026110895 found two severity-3 rows in
+  1,000 jobs. Entity-bearing single-key links now keep Go's empty PrettyLink
+  and no longer invent a numbered raster appendix. F111 fixes the remaining
+  row: bounded PNG legend scenes are completed before their pixels are streamed
+  to the encoder, so the panel no longer loses its title and every entry. The
+  seed now has 990 matches, ten empty-output matches and zero differences. The
+  F112 ELK PNG seed 2026110897 found one severity-2 compound self-loop route.
+  Opposing loop ports now follow a nested graph's transferred fixed boundary
+  port at ELK's 10 px port spacing, matching PortRestorer and
+  LabelAndNodeSizeProcessor; the seed improves from 991 rendered matches,
+  eight empty-output matches and one difference to 992/8/0. F113 expands the
+  format sweep: Dagre/ELK PPTX seeds 2026110901/03 match all 2,000 jobs. TALA
+  PPTX seed 2026110905 initially had three differences; its visible class/grid
+  row is fixed by using the exported structured target font in the private
+  raster shape, matching `d2exporter.toShape`, and the seed improves from
+  997/3 to 998/2. The two residual PPTX rows are severity-4 single-pixel
+  gradient and emoji/Markdown differences. TALA PNG seed 2026110899 has one
+  Unicode text-raster difference handed to D4; its minimized witness is
+  `.reference/codex-runs/witness-D4-F113-tala-png-rtl-japanese.d2`. The
+  F114 PDF sweep fixes TALA's severity-2 empty nested-grid row: childless grids
+  retain their D2 label metrics but enter the core TALA graph as ordinary
+  leaves, matching `LayoutNested` and `d2talalayout.translateGraph`. F115 fixes
+  the remaining glob/flow row: horizontal hierarchy rank spacing uses an edge
+  label's width, as pinned TALA's
+  `minimumDistanceToNextLevel(..., isHorizontal)` does, instead of its height.
+  Seed 2026110923 now matches all 1,000 jobs. ELK's only PDF finding is
+  a malformed input that panics in pinned Go, and Dagre's structural PDF row
+  is the already-recorded subpixel route difference. The 18 eligible GIF and
+  18 eligible TXT smoke rows match across all engines. F116 fixes the retained
+  Dagre coordinate-frame row: Dagro's graph translation
+  includes restored self-edge label boxes (and their parallel-edge gap) before
+  D2 rounds object origins, while routes keep the exact fractional translation.
+  Seed 2026110871 now has 987 rendered matches, 13 empty-output matches and no
+  differences. F117 fixes the final ELK half-pixel route row: cloud inner-box
+  padding now ceils the leading placement before deriving trailing insets, as
+  pinned D2's `shapeCloud.GetInnerBoxForContent` does. Seed 2026110885 now has
+  985 rendered matches, 14 empty-output matches and only the shared malformed
+  input panic. Inputs, traces and exact outcomes are under
+  `oracle-cache/reports/f11/` through `f117/` and the lane reports.
 
 ## Beyond the upstream corpus
 
@@ -315,6 +364,119 @@ d2-rs and the pinned Go CLI on generated inputs (outputs and witnesses go to
   and border-label image differences are structural/rendering witnesses for
   the structure lane. The summaries and reductions are under
   `oracle-cache/reports/d435/`.
+  A fresh 1,000-job Dagre TXT run (seed 20261108271) has 992 rendered and
+  eight empty-output matches with no functional findings. Two apparent
+  error-text differences were identical missing-child-output diagnostics
+  containing independently generated `.d2-board-output-<nonce>` paths; the
+  fuzzer now masks that ephemeral nonce. Initial and exact-replay summaries
+  are under `oracle-cache/reports/d436/`.
+  A fresh 1,000-job ELK GIF run (seed 20261108273, sketch, themes, padding,
+  scale and centering) has 999 matches and one structure finding: duplicate
+  wildcard width assignments leave Go's node at its 100 px default while
+  Rust applies width zero. A matching ELK PNG run (seed 20261108275) has 984
+  rendered matches, 14 empty-output matches and two instances of the existing
+  legend structure cluster. All three reductions are retained under
+  `oracle-cache/reports/d437/`; the wildcard witness is also handed to the
+  structure lane as `witness-F1-D437-duplicate-glob-width.d2`.
+  Fresh ELK PDF and PPTX runs (seeds 20261108277/279, 1,000 jobs each, the
+  same flags) have 995 and 997 matches. Their eight differences contain no
+  missing or changed text: direct SVG/PNG output is exact, while the paged
+  raster differs only in structured SQL/sequence, gradient and animated-grid
+  paint. The reduced long-label sequence differs in four PPTX image pixels at
+  a connection stroke. Results and reductions are under
+  `oracle-cache/reports/d438/`; the SQL-opacity and gradient reductions are
+  retained as `witness-F1-D438-{sql-opacity-pdf,gradient-pptx}.d2`.
+  Fresh TALA PDF and TXT runs (seeds 20261108281/283, 1,000 jobs each) have
+  998 and 999 complete-output matches respectively, plus seven matching empty
+  TXT outputs. Neither found a text-content difference. One PDF row repeats
+  the known paged sequence-paint cluster with byte-identical direct SVG/PNG;
+  the other differs already in TALA layout. The TXT row reduces to three
+  adjacency lines and differs at one connector cell, with different TALA SVG
+  geometry too. Results are under `oracle-cache/reports/d439/`; the new
+  structural reductions are retained as
+  `witness-F1-D439-tala-{pdf-layout,txt-edge}.d2`.
+  A fresh TALA GIF run (seed 20261108285, 1,000 jobs with sketch, themes,
+  padding, fractional scale, centering and animation) matches completely.
+  A matching PNG run (seed 20261108287) has 981 rendered matches, 16 matching
+  empty outputs and three output differences. One is the existing legend
+  raster-paint family (SVG exact; 405 pixels differ); two already differ in
+  TALA SVG geometry, including one canvas-size change. No text or content is
+  missing. Minimized reductions and summaries are under
+  `oracle-cache/reports/d440/`; structure-lane witnesses are retained as
+  `witness-F1-D440-tala-{legend-png,nested-edges,sql-edges}.d2`.
+  A fresh TALA PPTX run (seed 20261108289) has 995 matches and five
+  structure/paint differences with identical text inventories: two repeat the
+  gradient-stroke cluster, one repeats paged sequence paint, and two reduce to
+  TALA route and malformed SQL-table layout. The new structure witnesses are
+  `witness-F1-D441-{tala-route,sql}-pptx.d2`. ELK TXT seed 20261108291 has
+  990 rendered matches, nine matching empty outputs and one input where both
+  implementations panic while compiling malformed theme overrides. The fuzzer
+  now records such inputs in `skips.jsonl` with Rust's outcome instead of
+  reporting a Rust-only finding; its exact replay has zero findings. Reports
+  and reductions are under `oracle-cache/reports/d441/`.
+  A fresh Dagre GIF run (seed 20261108293, 1,000 jobs with sketch, themes,
+  padding, fractional scale, centering and animation) matches completely.
+  TALA SVG seed 20261108295 has 990 rendered matches, six matching empty
+  outputs and four structure-only differences. All four reductions retain
+  identical text inventories and differ first in TALA paths; their minimized
+  child/parent, descendant-label and adjacency witnesses are
+  `witness-F1-D442-tala-{child-parent,descendant-label,adjacency-a,adjacency-b}.d2`.
+  Summaries and reductions are under `oracle-cache/reports/d442/`.
+  A fresh Dagre PNG run (seed 20261108297, 1,000 jobs with sketch, themes,
+  padding, fractional scale and centering) has 987 rendered matches, 11
+  matching empty outputs and two PNG-only paint differences. The paper-pattern
+  and legend rows have byte-identical public SVGs, including text and geometry,
+  and repeat the existing structure/rendering families rather than exposing a
+  text-content regression. Results and reductions are under
+  `oracle-cache/reports/d443/`.
+  A fresh ELK SVG run (seed 20261108299, 1,000 jobs with sketch, themes,
+  padding, fractional scale and centering) has 991 rendered matches and nine
+  matching empty-output inventories. It found no output, text, error, panic,
+  signal or hang difference. Results are under `oracle-cache/reports/d444/`.
+  A fresh Dagre PPTX run (seed 20261108301, 1,000 jobs with sketch, themes,
+  padding, fractional scale and centering) has 994 matches and six output-only
+  differences. All six have byte-identical public SVGs and identical text
+  inventories. Five also have byte-identical direct PNGs and repeat the paper,
+  sequence, nested-3D and border-label paged-paint families. The sixth differs
+  only on rasterized grid-cell borders; its minimized structure witness is
+  `witness-F1-D445-grid-lines-pptx.d2`. Results and reductions are under
+  `oracle-cache/reports/d445/`.
+  A fresh ELK PDF run (seed 20261108303, 1,000 jobs with sketch, themes,
+  padding, fractional scale, centering and omitted version metadata) matches
+  completely. It found no output, text, error, panic, signal or hang
+  difference. Results are under `oracle-cache/reports/d446/`.
+  A fresh Dagre SVG run (seed 20261108305, 1,000 jobs with the same broad
+  visual flags) has 989 rendered and 11 empty-output matches with no finding.
+  ELK PNG seed 20261108307 has 989 rendered matches, six empty-output matches
+  and five output-only differences. All five minimized reductions retain
+  identical text inventories. Four have byte-identical public SVGs and reduce
+  to C4-person, legend and gradient painting; the sequence reduction differs
+  in canvas height and frame geometry while retaining all six text nodes.
+  Structure-lane witnesses are `witness-F1-D447-{c4-person,legend,sequence,
+  gradient-fill,gradient-stroke}-png.d2`; results are under
+  `oracle-cache/reports/d447/`.
+  A separate deterministic text-mutation family now appends Markdown, code,
+  LaTeX, mixed Unicode, link and tooltip labels without changing the existing
+  structural seed stream. Dagre PPTX seed 20261108309 and ELK PDF seed
+  20261108311 (1,000 jobs each with broad visual flags) initially had 12 and
+  eight output differences. Seven rows reduced to `e` + ZWJ + Arabic alef:
+  public SVG and direct PNG were exact, but paged output used the wrong font
+  because its bundled resolver did not continue to the host fallback. Paged
+  default-ignorable labels now use the typed scene shaper and the same bundled
+  then system fallback chain as pinned `d2cli.newFontFallbackOptions`. Exact
+  replay improves to 992/1,000 PPTX and 995/1,000 PDF matches with no lost
+  match; all 13 remaining differences have exact text inventories and repeat
+  known structure/paint families. The minimized text witness is
+  `witness-D4-D448-pdf-zwj-arabic.d2`; reports are under
+  `oracle-cache/reports/d448/`.
+  Fresh text-family Dagre PDF and ELK PPTX runs (seeds 20261108313/315,
+  1,000 jobs each with the same broad visual flags) have 993 and 989 exact
+  matches. The seven PDF differences have byte-identical public SVGs and
+  identical extracted PDF text. All 11 PPTX differences have byte-identical
+  public SVG text and geometry; ten reproduce as direct-PNG paint differences
+  and one is paged-only. No text, label, heading, code line, tooltip, link or
+  board content is missing or changed. Results and cross-format probes are
+  under `oracle-cache/reports/d449/`.
 
 Fixed through these sweeps: code blocks in every Chroma language (only nine
 were translated), ELK network-simplex order and subtree pruning on large

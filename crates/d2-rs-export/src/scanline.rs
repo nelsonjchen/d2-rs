@@ -13916,8 +13916,17 @@ fn render_simple_with_band_height(
     // shadow would be blurred again for every band; otherwise one whole-frame
     // pass is cheaper and is returned to the caller as is.
     let png_bands = GO_PNG_BANDS.with(std::cell::Cell::get);
-    let stream = png_bands
-        || (raster_sources.native_shadow_transforms.is_empty()
+    // A legend is one prepared scene subtree in d2raster. Replaying the
+    // serialized subtree across Rust's output-stream chunks can reuse
+    // reference state from a preceding chunk and suppress its later children.
+    // Render bounded legend frames once, then stream the completed frame to
+    // the encoder; large frames retain the bounded band path.
+    let whole_legend = png_bands
+        && frame_bytes <= MAX_EFFECT_FRAME_BYTES
+        && svg_image_paths.has_native_legend_panel();
+    let stream = (png_bands && !whole_legend)
+        || (!png_bands
+            && raster_sources.native_shadow_transforms.is_empty()
             && frame_bytes.saturating_mul(effect_layer_units(tree.root(), true))
                 >= PAGED_STREAM_LAYER_BYTES);
     TEXT_MEMO.with(|memo| {
@@ -14077,6 +14086,48 @@ mod tests {
             streamed == whole,
             "streamed bands differ from the whole frame (Go bands: {go_bands}, sharp shadow: {sharp_shadow})"
         );
+    }
+
+    #[test]
+    fn png_legend_scene_is_completed_before_streaming() {
+        let svg = r##"<svg xmlns="http://www.w3.org/2000/svg" width="667" height="818" viewBox="0 0 667 818" preserveAspectRatio="xMinYMin meet">
+          <defs><filter id="ls" x="-100%" y="-100%" width="300%" height="300%" color-interpolation-filters="sRGB"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000000" flood-opacity="0.10196078431372549"/></filter></defs>
+          <svg id="d2-rs-native-canvas-viewport-control" class="d2-svg" data-d2-rs-canvas-reference="ordinary" width="667" height="818" viewBox="-101 -101 667 818">
+            <rect x="-101" y="-101" width="667" height="818" fill="white"/>
+            <g id="d2-rs-native-legend-shadow-card" data-d2-rs-legend-shadow="scene" filter="url(#ls)"><rect id="d2-rs-native-legend-shadow-rect" x="326" y="350" width="190" height="267" rx="4" fill="#F7F7FA" stroke="#DEE1EB" stroke-width="1"/></g>
+            <g><rect id="d2-rs-native-legend-panel" x="326" y="350" width="190" height="267" rx="4" fill="#ffffff" stroke="#DEE1EB" stroke-width="1"/><text id="d2-rs-native-legend-title" x="346" y="384" font-family="Source Sans Pro" font-size="16" font-weight="bold">Legend</text><rect x="346" y="404" width="24" height="24" fill="#F7F8FE" stroke="#0D32B2"/><text x="390" y="421" font-family="Source Sans Pro" font-size="14">Microservice</text></g>
+          </svg>
+        </svg>"##;
+        let (svg, sources) = crate::svg_precision::tag_embedded_svg_images(svg);
+        assert!(sources.has_native_legend_panel());
+        let mut options = usvg::Options::default();
+        super::super::load_bundled_fonts(&mut options);
+        let tree = usvg::Tree::from_str(&svg, &options).unwrap();
+        let render = |sink: Option<super::BandSink<'_>>| {
+            super::render_simple_with_band_height(
+                &tree,
+                2,
+                &[],
+                &sources,
+                [255; 4],
+                &std::collections::BTreeMap::new(),
+                None,
+                sink,
+            )
+            .unwrap()
+        };
+        let (_, _, whole) = render(None);
+        let _bands = super::GoPngBandsScope::new();
+        let mut streamed = Vec::new();
+        let mut calls = 0;
+        let mut sink = |_: usize, _: usize, band: &mut [u8]| {
+            calls += 1;
+            streamed.extend_from_slice(band);
+        };
+        let (_, _, empty) = render(Some(&mut sink));
+        assert!(empty.is_empty());
+        assert_eq!(calls, 1, "bounded legend scene is completed in one pass");
+        assert_eq!(streamed, whole);
     }
 
     #[cfg(feature = "oracle-fixtures")]

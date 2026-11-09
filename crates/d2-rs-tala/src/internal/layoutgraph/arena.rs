@@ -34,6 +34,8 @@ impl ArenaGraph {
         let mut nodes: Vec<_> = input
             .nodes()
             .map(|(id, node)| {
+                let childless_grid = (node.grid_rows.is_some() || node.grid_columns.is_some())
+                    && !input.nodes().any(|(_, child)| child.parent == Some(id));
                 // translateGraph keeps authored integer constraints separate
                 // from the measured Box. Public engine validation has already
                 // checked these raw scalar strings before arena construction.
@@ -95,11 +97,27 @@ impl ArenaGraph {
                             .get(&id)
                             .map_or(!node.external_id.is_empty(), |text| !text.is_empty())
                     });
+                let authored_label_position = node
+                    .d2_authored_geometry
+                    .as_ref()
+                    .and_then(|geometry| geometry.attributes.as_deref())
+                    .is_some_and(|attributes| attributes.label_position.is_some());
                 let label_position_fixed = label_text_present
                     && node.label_position != LabelPosition::Unset
+                    && (node.d2_authored_geometry.is_none() || authored_label_position)
                     && !node.external_label.is_some_and(|label| label.automatic);
                 let mut node_padding = Insets::uniform(0.0);
                 let mut layout_margins = node.layout_margins;
+                if childless_grid
+                    && let Some(label) = node.external_label.filter(|label| label.automatic)
+                {
+                    match label.side {
+                        ExternalSide::Top => layout_margins.top = 0.0,
+                        ExternalSide::Right => layout_margins.right = 0.0,
+                        ExternalSide::Bottom => layout_margins.bottom = 0.0,
+                        ExternalSide::Left => layout_margins.left = 0.0,
+                    }
+                }
                 if label_position_fixed && let Some(label) = node.label_size {
                     let width = label.width + 10.0;
                     let height = label.height + 10.0;
@@ -259,14 +277,21 @@ impl ArenaGraph {
                     transaction_validation_only: false,
                     content_insets: node.content_insets,
                     node_padding,
-                    grid_rows: node.grid_rows,
-                    grid_columns: node.grid_columns,
+                    // LayoutNested leaves an empty grid in its ordinary parent
+                    // graph, and translateGraph does not copy GridRows or
+                    // GridColumns into the internal TALA node. Keep the D2
+                    // object's container label metrics above, but do not let
+                    // recovered nonempty-grid packing reinterpret this leaf.
+                    grid_rows: (!childless_grid).then_some(node.grid_rows).flatten(),
+                    grid_columns: (!childless_grid).then_some(node.grid_columns).flatten(),
                     canvas_position: node.canvas_position,
                     label_aware_grid: node.label_aware_grid,
                     packed_grid: node.packed_grid,
                     is_3d: node.is_3d,
                     is_multiple: node.is_multiple,
-                    external_label: node.external_label,
+                    external_label: node
+                        .external_label
+                        .filter(|label| !(childless_grid && label.automatic)),
                     icon_position: node.icon_position,
                     icon_position_fixed,
                     has_icon: node.has_icon,
@@ -2868,6 +2893,75 @@ impl ArenaGraph {
 #[cfg(test)]
 mod identity_tests {
     use super::*;
+
+    #[test]
+    fn childless_grid_keeps_label_metrics_without_internal_grid_metadata() {
+        let mut input = Graph::default();
+        let outer = input.add_node(crate::Node::new("outer", Size::default()));
+        let mut empty = crate::Node::new("outer.empty", Size::default());
+        empty.parent = Some(outer);
+        empty.grid_rows = Some(1);
+        empty.layout_margins.top = 41.0;
+        empty.external_label = Some(crate::ExternalLabel {
+            size: Size {
+                width: 8.0,
+                height: 31.0,
+            },
+            side: crate::ExternalSide::Top,
+            alignment: crate::ExternalAlignment::Center,
+            automatic: true,
+            reserve_space: true,
+        });
+        let empty = input.add_node(empty);
+        input.node_font_size_declarations.insert(empty, None);
+        input.node_label_levels.insert(empty, 2);
+
+        let arena = ArenaGraph::from_input(&input);
+        assert_eq!(arena.nodes[empty.0 as usize].font_size, Some(24));
+        assert_eq!(arena.nodes[empty.0 as usize].grid_rows, None);
+        assert_eq!(arena.nodes[empty.0 as usize].layout_margins.top, 0.0);
+        assert_eq!(arena.nodes[empty.0 as usize].external_label, None);
+
+        let child = input.add_node(crate::Node {
+            parent: Some(empty),
+            ..crate::Node::new("outer.empty.child", Size::default())
+        });
+        let arena = ArenaGraph::from_input(&input);
+        assert_eq!(arena.nodes[empty.0 as usize].grid_rows, Some(1));
+        assert_eq!(arena.nodes[child.0 as usize].container, Some(empty));
+    }
+
+    #[test]
+    fn computed_d2_label_position_is_not_an_authored_tala_constraint() {
+        let mut input = Graph::default();
+        let mut node = crate::Node::new("container", Size::default());
+        node.label_size = Some(Size {
+            width: 80.0,
+            height: 31.0,
+        });
+        node.label_position = LabelPosition::InsideTopCenter;
+        node.d2_authored_geometry = Some(Box::new(crate::D2AuthoredGeometry {
+            attributes: Some(Box::new(crate::D2ObjectValidation::default())),
+            ..crate::D2AuthoredGeometry::default()
+        }));
+        let id = input.add_node(node);
+
+        let arena = ArenaGraph::from_input(&input);
+        assert_eq!(arena.nodes[id.0 as usize].node_padding.top, 0.0);
+
+        input
+            .node_mut(id)
+            .unwrap()
+            .d2_authored_geometry
+            .as_mut()
+            .unwrap()
+            .attributes
+            .as_mut()
+            .unwrap()
+            .label_position = Some(b"INSIDE_TOP_CENTER".to_vec());
+        let arena = ArenaGraph::from_input(&input);
+        assert_eq!(arena.nodes[id.0 as usize].node_padding.top, 41.0);
+    }
 
     #[test]
     fn induced_node_and_edge_lineage_survives_noncompact_ids_and_repeated_tala_metadata() {

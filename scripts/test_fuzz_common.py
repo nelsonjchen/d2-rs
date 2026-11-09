@@ -6,10 +6,16 @@ import sys
 import tempfile
 import unittest
 
-from fuzz_common import EMPTY_INVENTORY, run
+from fuzz_common import EMPTY_INVENTORY, first_error, run
 
 
 class FuzzCaptureTests(unittest.TestCase):
+    def test_error_comparison_masks_random_board_output_nonce(self):
+        directory = Path("/tmp/fuzz-case")
+        go = "err: open /tmp/fuzz-case/.d2-board-output-651375696/layers/x.txt: no such file"
+        rust = "err: open /tmp/fuzz-case/.d2-board-output-34282235957100/layers/x.txt: no such file"
+        self.assertEqual(first_error(go, directory), first_error(rust, directory))
+
     def capture(self, directory, name, files):
         binary = directory / f"{name}.py"
         binary.write_text(

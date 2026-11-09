@@ -1423,7 +1423,7 @@ impl HierarchyPlacement {
 
     /// Recovered `placeNodesByLevel` mutation order. Containers must be fitted
     /// by `placeDescendants` before level height and center are measured.
-    fn place_nodes_by_level(&mut self, graph: &mut ArenaGraph) {
+    fn place_nodes_by_level(&mut self, graph: &mut ArenaGraph, is_horizontal: bool) {
         let mut y_offset = 0.0;
         for (&level, nodes) in &self.by_level {
             let mut level_height: f64 = 0.0;
@@ -1505,7 +1505,16 @@ impl HierarchyPlacement {
                         continue;
                     }
                     if let Some(label) = &edge.label {
-                        max_label_height = max_label_height.max(label.size.height);
+                        // Pinned TALA's minimumDistanceToNextLevel receives
+                        // the hierarchy's pre-transpose orientation. For a
+                        // horizontal hierarchy it reserves the label width;
+                        // the label dimensions themselves are not transposed.
+                        let label_size = if is_horizontal {
+                            label.size.width
+                        } else {
+                            label.size.height
+                        };
+                        max_label_height = max_label_height.max(label_size);
                     }
                 }
             }
@@ -1546,12 +1555,20 @@ impl HierarchyPlacement {
     /// outer `PlaceHierarchies` transaction; this method intentionally owns
     /// only the ranked placement-node stages in their source order.
     pub(super) fn place_ranked_nodes(&mut self, graph: &mut ArenaGraph) -> BTreeMap<NodeId, Point> {
-        self.place_ranked_nodes_internal(graph, None, None)
+        self.place_ranked_nodes_internal(graph, false, None, None)
+    }
+
+    pub(super) fn place_ranked_nodes_horizontal(
+        &mut self,
+        graph: &mut ArenaGraph,
+    ) -> BTreeMap<NodeId, Point> {
+        self.place_ranked_nodes_internal(graph, true, None, None)
     }
 
     pub(super) fn place_ranked_nodes_traced(
         &mut self,
         graph: &mut ArenaGraph,
+        is_horizontal: bool,
     ) -> (
         BTreeMap<NodeId, Point>,
         Vec<HierarchyOrderState>,
@@ -1559,14 +1576,19 @@ impl HierarchyPlacement {
     ) {
         let mut orders = Vec::new();
         let mut alignments = Vec::new();
-        let points =
-            self.place_ranked_nodes_internal(graph, Some(&mut orders), Some(&mut alignments));
+        let points = self.place_ranked_nodes_internal(
+            graph,
+            is_horizontal,
+            Some(&mut orders),
+            Some(&mut alignments),
+        );
         (points, orders, alignments)
     }
 
     fn place_ranked_nodes_internal(
         &mut self,
         graph: &mut ArenaGraph,
+        is_horizontal: bool,
         mut orders: Option<&mut Vec<HierarchyOrderState>>,
         alignments: Option<&mut Vec<HierarchyAlignmentState>>,
     ) -> BTreeMap<NodeId, Point> {
@@ -1593,7 +1615,7 @@ impl HierarchyPlacement {
         if let Some(orders) = orders {
             orders.push(self.order_state(HierarchyOrderStage::AfterGlobalSifting));
         }
-        self.place_nodes_by_level(graph);
+        self.place_nodes_by_level(graph, is_horizontal);
         if crate::internal::trace_env_enabled("TALA_TRACE_HIER_DETAIL") {
             eprint!("HIER_DETAIL_RUST after-level");
             for node in &self.nodes {

@@ -2330,6 +2330,98 @@ pub fn refresh_implicit_port_positions(arena: &mut LayeredArena, node_ids: &[LNo
     }
 }
 
+/// Places restored self-loop ports beside hierarchy ports whose final
+/// positions have just been transferred from a nested graph.
+///
+/// elk-go's bottom-up hierarchy scheduler transfers the external port before
+/// the owning scope runs `LabelAndNodeSizeProcessor`. `PortRestorer` has
+/// already put the loop ports before or after that external port, so the
+/// processor preserves the transferred coordinate and advances restored loop
+/// ports by the default port spacing. Rust finishes the child scope before
+/// resuming the owner too, but its earlier provisional loop position can
+/// otherwise survive the owner's new `FixedPosition` constraint.
+pub(crate) fn position_restored_loop_ports_after_hierarchy_transfer(
+    arena: &mut LayeredArena,
+    node_ids: &[LNodeId],
+) {
+    for &node_id in node_ids {
+        let loops = arena
+            .edges
+            .iter()
+            .filter(|edge| edge.active && edge.source == node_id && edge.target == node_id)
+            .filter_map(|edge| Some((edge.source_port?, edge.target_port?)))
+            .collect::<Vec<_>>();
+        for (source, target) in loops {
+            let source_side = arena.ports[source as usize].side;
+            let target_side = arena.ports[target as usize].side;
+            if loop_side_right(loop_side_right(source_side)) != target_side {
+                continue;
+            }
+            let first_side = if (source_side == PortSide::North && target_side == PortSide::West)
+                || (target_side == PortSide::North && source_side == PortSide::West)
+            {
+                PortSide::West
+            } else {
+                source_side.min(target_side)
+            };
+            for port in [source, target] {
+                let side = arena.ports[port as usize].side;
+                let transferred = arena
+                    .reused_parent_ports
+                    .iter()
+                    .copied()
+                    .filter(|candidate| {
+                        arena.ports[*candidate as usize].node == node_id
+                            && arena.ports[*candidate as usize].side == side
+                    })
+                    .collect::<Vec<_>>();
+                if transferred.is_empty() {
+                    continue;
+                }
+                // Opposing loops are restored into areaEnd on the first
+                // sorted side and areaStart on the second. South and West
+                // have reversed physical order in LabelAndNodeSizeProcessor.
+                let area_end = side == first_side;
+                let after = area_end == matches!(side, PortSide::North | PortSide::East);
+                let horizontal = matches!(side, PortSide::North | PortSide::South);
+                let coordinate = |candidate: LPortId| {
+                    if horizontal {
+                        arena.ports[candidate as usize].x
+                    } else {
+                        arena.ports[candidate as usize].y
+                    }
+                };
+                let extent = |candidate: LPortId| {
+                    if horizontal {
+                        arena.ports[candidate as usize].width
+                    } else {
+                        arena.ports[candidate as usize].height
+                    }
+                };
+                let value = if after {
+                    transferred
+                        .iter()
+                        .map(|candidate| coordinate(*candidate) + extent(*candidate))
+                        .fold(f64::NEG_INFINITY, f64::max)
+                        + 10.0
+                } else {
+                    transferred
+                        .iter()
+                        .map(|candidate| coordinate(*candidate))
+                        .fold(f64::INFINITY, f64::min)
+                        - extent(port)
+                        - 10.0
+                };
+                if horizontal {
+                    arena.ports[port as usize].x = value;
+                } else {
+                    arena.ports[port as usize].y = value;
+                }
+            }
+        }
+    }
+}
+
 // PortRestorer's start/middle/end areas for nodes containing only implicit
 // self-loop ports. Merging restored ports with ordinary edges remains a
 // separate processor boundary.
@@ -6411,6 +6503,7 @@ pub(crate) fn redistribute_ordered_implicit_ports(arena: &mut LayeredArena, grap
                 .then_some(node_id as LNodeId)
         })
         .collect::<Vec<_>>();
+    position_restored_loop_ports_after_hierarchy_transfer(arena, &node_ids);
     for node_id in node_ids {
         let node = &arena.nodes[node_id as usize];
         if matches!(

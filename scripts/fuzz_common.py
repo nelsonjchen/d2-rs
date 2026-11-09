@@ -18,7 +18,12 @@ EMPTY_INVENTORY = hashlib.sha256(b"{}").hexdigest()
 def first_error(stderr, directory):
     for line in stderr.splitlines():
         if "err:" in line or "error" in line.lower():
-            return re.sub(r"\s+", " ", line.replace(str(directory), "<dir>")).strip()
+            line = line.replace(str(directory), "<dir>")
+            # Multi-board rendering stages output in a random temporary
+            # directory. The nonce differs between otherwise identical Go
+            # and Rust diagnostics and is not part of the public error.
+            line = re.sub(r"\.d2-board-output-\d+", ".d2-board-output-<nonce>", line)
+            return re.sub(r"\s+", " ", line).strip()
     return ""
 
 

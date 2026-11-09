@@ -606,6 +606,24 @@ fn render_paged_frame(
     if pixel_scale == 0 {
         return Err(ExportError::Png("pixel scale must be positive".into()));
     }
+    // Go renders every paged board from its typed scene. The incremental Rust
+    // port still uses the SVG bridge for ordinary boards, but labels with
+    // default-ignorable controls require the scene shaper: XML/usvg can
+    // otherwise republish a different mixed-script run at the 1x paged scale.
+    if paged_scene_shaping_required(graph, labels) {
+        let (width, height, rgba) = paged_admission::render_frame(
+            graph,
+            result,
+            labels,
+            styles,
+            &options,
+            sketch,
+            pixel_scale,
+            budget,
+        )?;
+        budget.remaining_pixels -= u64::from(width) * u64::from(height);
+        return Ok((width, height, rgba));
+    }
     paged_admission::preflight(
         graph,
         result,
@@ -636,6 +654,39 @@ fn render_paged_frame(
     }
     budget.remaining_pixels -= u64::from(width) * u64::from(height);
     Ok((width, height, rgba))
+}
+
+fn paged_scene_shaping_required(graph: &Graph, labels: &BTreeMap<NodeId, String>) -> bool {
+    let needs_scene = |text: &str| text.chars().any(font_shaping::ignorable);
+    labels.values().any(|text| needs_scene(text))
+        || graph
+            .edge_labels
+            .iter()
+            .flatten()
+            .any(|label| needs_scene(&label.text))
+        || graph.edge_arrowhead_labels.iter().any(|labels| {
+            labels
+                .source
+                .as_ref()
+                .is_some_and(|label| needs_scene(&label.text))
+                || labels
+                    .target
+                    .as_ref()
+                    .is_some_and(|label| needs_scene(&label.text))
+        })
+        || graph.legend.as_ref().is_some_and(|legend| {
+            needs_scene(&legend.label)
+                || legend.shapes.iter().any(|shape| needs_scene(&shape.label))
+                || legend.connections.iter().any(|connection| {
+                    needs_scene(&connection.label)
+                        || needs_scene(&connection.source_label)
+                        || needs_scene(&connection.target_label)
+                })
+                || legend.source_graph.as_ref().is_some_and(|source| {
+                    needs_scene(&source.label)
+                        || source.labels.values().any(|text| needs_scene(text))
+                })
+        })
 }
 
 fn unpremultiply_rgba(rgba: &mut [u8]) {

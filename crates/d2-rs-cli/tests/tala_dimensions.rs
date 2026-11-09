@@ -698,3 +698,99 @@ fn hierarchy_components_keep_direct_container_edges_before_descendant_edges() {
         assert_eq!(routes, expected_routes, "seed {seed}");
     }
 }
+
+#[test]
+fn ordinary_parallel_edges_use_mirrored_center_ports() {
+    // F16 job 919. Pinned Go's
+    // d2layouts/d2talalayout/internal/routing/ovg_edge_router.go:centerSymmetricalPorts
+    // uses the ordinary nodes' complete port inventories when marking mirrored
+    // center ports, not only the saved inventories used for cluster routing.
+    let source = "a.b-> c\na.h-> g\ne-> c\n*.shape: circle\nf-> d\na-> e\ng-> f\na.h-> g\nd-> c";
+    let mut process = Command::new(env!("CARGO_BIN_EXE_d2-rs"))
+        .args(["--layout=tala", "--tala-seeds=1", "-", "-"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    process
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(source.as_bytes())
+        .unwrap();
+    let output = process.wait_with_output().unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let svg = std::str::from_utf8(&output.stdout).unwrap();
+    let document = roxmltree::Document::parse(svg).unwrap();
+    let routes = document
+        .descendants()
+        .filter(|node| {
+            node.has_tag_name("path")
+                && node
+                    .attribute("class")
+                    .is_some_and(|class| class.starts_with("connection"))
+        })
+        .map(|node| node.attribute("d").unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        routes,
+        [
+            "M 228 393 L 228 611 S 228 621 238 621 L 344 621",
+            "M 148 233 L 148 118",
+            "M 196 646 L 344 646",
+            "M 384 100 L 384 305",
+            "M 157 473 L 157 592",
+            "M 236 59 L 342 59",
+            "M 88 233 L 88 70 S 88 60 98 60 L 110 60",
+            "M 384 388 L 384 592",
+        ]
+    );
+}
+
+#[test]
+fn alignment_symmetry_uses_active_cluster_vessel_geometry() {
+    // F11 job 508. Pinned Go's placementcost/symmetry.go replaces an
+    // adjacent cluster member with Cluster.Vessel, and obstruction checks
+    // use that vessel's TopLeft and size together. Seed 3 exposes the case:
+    // combining the retained member position with the vessel size rejects a
+    // mirrored pair and changes the later routes.
+    let source = "a: |md\n# h\n|\n\na-> b\nc -> b\nd-> e\nf-> e\nb-> f\nb-> g\ng-> f\nb-> h\nb-> i\nb-> d\nj-> c\nj-> a\nb-> j\ni-> k\nd-> l\nl-> e\nm-> l\nm-> n\nn-> i\nd-> n\nf-> n\nb-> o\np-> l\ne-> q";
+    let mut process = Command::new(env!("CARGO_BIN_EXE_d2-rs"))
+        .args(["--layout=tala", "--tala-seeds=3", "-", "-"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    process
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(source.as_bytes())
+        .unwrap();
+    let output = process.wait_with_output().unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let svg = std::str::from_utf8(&output.stdout).unwrap();
+    let document = roxmltree::Document::parse(svg).unwrap();
+    let routes = document
+        .descendants()
+        .filter(|node| {
+            node.has_tag_name("path")
+                && node
+                    .attribute("class")
+                    .is_some_and(|class| class.starts_with("connection"))
+        })
+        .map(|node| node.attribute("d").unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(routes[5], "M 232 356 L 247 356 S 257 356 257 366 L 257 509");
+    assert_eq!(routes[21], "M 176 439 L 176 509");
+}

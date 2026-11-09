@@ -3628,19 +3628,25 @@ fn generate_route_flavor(
                 edge.tala_id, used_source_ports, used_target_ports, source_marked, target_marked,
             );
         }
+        let source_raw_ports = node_ports.get(&edge.from).map(Vec::as_slice).unwrap_or(&[]);
+        let target_raw_ports = node_ports.get(&edge.to).map(Vec::as_slice).unwrap_or(&[]);
         let symmetry_endpoints = [
             SymmetryEndpoint {
                 node: edge.from,
                 shape: graph.nodes[edge.from.0 as usize].shape,
-                raw_ports: node_ports.get(&edge.from).map(Vec::as_slice).unwrap_or(&[]),
-                shape_ports: saved_cluster_source_ports.as_deref().unwrap_or(&[]),
+                raw_ports: source_raw_ports,
+                shape_ports: saved_cluster_source_ports
+                    .as_deref()
+                    .unwrap_or(source_raw_ports),
                 used: &used_source_ports,
             },
             SymmetryEndpoint {
                 node: edge.to,
                 shape: graph.nodes[edge.to.0 as usize].shape,
-                raw_ports: node_ports.get(&edge.to).map(Vec::as_slice).unwrap_or(&[]),
-                shape_ports: saved_cluster_target_ports.as_deref().unwrap_or(&[]),
+                raw_ports: target_raw_ports,
+                shape_ports: saved_cluster_target_ports
+                    .as_deref()
+                    .unwrap_or(target_raw_ports),
                 used: &used_target_ports,
             },
         ];
