@@ -1162,10 +1162,10 @@ impl ArrowheadValidation<'_> {
     }
 
     fn object_shape(&mut self, map: NodeId) {
-        for field in self.fields(map) {
-            if self.unquoted_name(field).as_deref() != Some("shape") {
-                continue;
-            }
+        // compileMap looks up the first unquoted shape with GetField's
+        // EqualFold comparison. Its later field loop skips only literal
+        // "shape", so capitalized spellings can produce a second diagnostic.
+        if let Some(field) = self.compiler.graph_field(map, &["shape"]) {
             if let Node::Field(holder) = self.compiler.arena.node(field)
                 && holder.composite.is_some()
             {

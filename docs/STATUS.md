@@ -24,6 +24,22 @@ fixed every cluster below except the open ones. Each seed's sweep matches all
 but a handful of jobs. Open clusters, with witnesses in
 `oracle-cache/reports/differential/` and `wasm-differential/`:
 
+- **ELK hunt (resolved):** nested-container crossings and parallel labeled
+  edges beside a container self-loop now match pinned Go's complete SVGs in
+  all four directions. Model-order sorting honors saved long-edge target
+  ports; detached loops no longer affect hierarchy influence or boundary
+  layer constraints. Flow-axis publication retains unpadded points and Go's
+  coordinate-conversion and mirroring order. Three CLI contracts cover 12
+  complete SVGs; the default/oracle tiers and all 944 applicable e2e boards pass.
+- **ELK small-graph enumeration:** 3,136 canonical two/three-node cases and
+  1,024 seeded four/five-node cases (down/right, up to four edges) improve
+  from 3,895 matches / 265 differences to 3,919 / 241, with no lost baseline
+  or initial-candidate match. Remaining findings retain every text, shape
+  and connection inventory; four have different canvases. The smallest
+  retained family is `n0: {n1}; n0 -> n0; n0.n1 -> n0`: the loop takes the
+  opposite side and shifts its container by 50 px. Compare RoutingDirector
+  and loop margins around hierarchy-port restoration next. Inputs and full
+  outcomes are under `oracle-cache/reports/e11/enumeration-final/`.
 - **TALA placement (resolved):** native arm64 and freshly rebuilt WASM now
   match pinned Go on the retained `stable:25`/`stable:27`, transpose and
   seed 20261310 row 1193 witnesses, including `w50-tala-grid-reduced.d2`.
@@ -81,6 +97,23 @@ but a handful of jobs. Open clusters, with witnesses in
   to 60/60 matches; both witnesses have CLI regression contracts for all three
   seeds (`oracle-cache/reports/T327/{variants,contract-686-comparison}.json`).
   D413 job 615, D414 job 465 and the D419 expanded witness already match.
+- **TALA hunt container hierarchy (resolved):** `c08_cont40.d2` now
+  matches with default seeds and seeds one through three. Hierarchy discovery
+  ignores child incidences already reconnected to ancestors by the enclosing
+  scope. A six-edge CLI contract and 96 direction, reversal and wrapper
+  variants cover the fix (`oracle-cache/reports/T41/variants.json`).
+- **TALA hunt cluster symmetry (resolved):** `m_mocha_soc_add.d2` now
+  matches with default seeds and seeds one through three. Symmetry obstruction
+  checks exclude the active cluster vessel's sibling slot by its vessel
+  identity, preserving the symmetry credit used by Equidistance. The reduced
+  Mocha input has a CLI geometry contract.
+- **TALA hunt flat-cluster transpose:** `c06_net80.d2` still differs with
+  seed three. Its ten-edge reduction agrees through sizeless placement and
+  sized iteration 153. In iteration 154, Go flips the cluster moved by
+  `transpose(n60)` to a row; Rust's induced graph retains a plain vessel and
+  its local cluster lookup cannot run `onlyFlip`. The next change needs
+  owner-backed cluster flips, with policy and member geometry restored between
+  speculative rotations (`oracle-cache/reports/T41/c06_net80-reduced.d2`).
 - **TALA NaN-height error:** D43's complex nested board reports a NaN
   object height in Go and a route-search work-limit error in Rust (the
   guard error previously became an empty-route invariant). A 77-byte nested
@@ -227,6 +260,21 @@ but a handful of jobs. Open clusters, with witnesses in
   The exact D418 Dagre and ELK seeds and fresh D419 seeds 2026110863/65/67
   now match all 5,000 jobs. Reductions are under
   `oracle-cache/reports/d418/witnesses/`.
+- **Dagre container ingress and reversed self-loops (resolved):** separate
+  external sources no longer collapse sibling children into one lane. The
+  obsolete flat-port box and route corrections are removed. Compound graphs
+  also retain their border-based translation when self-loops are restored,
+  preserving routes and container padding under up/left flow. Nested feedback
+  edges also keep Dagro's cross coordinates without an added quarter pixel.
+  Both hunt repros, connected-child and outgoing variants match in all four
+  directions; 136 nested feedback variants match too
+  (`oracle-cache/reports/B11/{final,quarter-variants}.json`).
+- **Dagre small-graph routes:** enumeration matches all 8,860 two/three-node
+  jobs through four edges. Four/five-node jobs through two edges improve
+  from 94 to 60 route differences in 51,750 jobs. All remaining outputs are
+  unchanged from the original binary, with matching canvas sizes. Endpoint
+  clipping is a lead; repros and full outcomes are under
+  `oracle-cache/reports/B11/enumeration-4-5/`.
 - **Fresh structure fuzz findings (F11–F14):** Dagre/ELK/TALA seeds
   2026110871/73/75 produced six output differences in 3,000 SVG jobs, plus
   one malformed input that panics in both CLIs. The ELK SQL-table self-loop

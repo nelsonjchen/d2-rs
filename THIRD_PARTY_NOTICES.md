@@ -284,6 +284,13 @@ route result builder in `layoutgraph/route_points.rs` additionally translates
 `growsliceBuf` and `moveSlice` from `src/runtime/slice.go`, as selected by
 `src/cmd/compile/internal/slice/slice.go` in the pinned compiler.
 
+## Mocha regression input
+
+`crates/d2-rs-cli/tests/fixtures/tala_cluster_obstruction.d2` is reduced from
+[lowRISC Mocha](https://github.com/lowRISC/mocha/blob/b5973217f704923917e7761f73df7dfcb8d0c345/doc/img/mocha.d2).
+SPDX-FileCopyrightText: lowRISC Contributors (COSMIC project).
+It is licensed under Apache-2.0, whose terms are reproduced below.
+
 ## Apache License 2.0 (Fibonacci heap)
 
 

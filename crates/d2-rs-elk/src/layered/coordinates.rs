@@ -5,11 +5,188 @@
 // https://www.eclipse.org/legal/epl-2.0.
 // SPDX-License-Identifier: EPL-2.0
 
-//! Cross-axis evaluation order of compound.go and the layout transferrer.
+//! Coordinate evaluation order of compound.go and the layout transferrer.
 use super::{
     LEdge, LEdgeId, LGraphId, LNodeId, LayeredArena, LayeringError, lowest_common_graph,
     node_is_ancestor,
 };
+
+/// Flow-axis coordinates after GraphTransformer, before the transferrer
+/// adds padding. CompoundGraphPostprocessor changes coordinate systems in
+/// this frame, including the round trip through the source graph.
+pub(crate) struct SourceFlow<'a> {
+    arena: &'a LayeredArena,
+    mirrored: bool,
+}
+
+impl<'a> SourceFlow<'a> {
+    pub(crate) fn new(arena: &'a LayeredArena, mirrored: bool) -> Self {
+        Self { arena, mirrored }
+    }
+
+    fn padding(&self, graph: LGraphId) -> f64 {
+        self.arena.graphs[graph as usize]
+            .padding
+            .map_or(12.0, |p| if self.mirrored { p.right } else { p.left })
+    }
+
+    fn graph_offset(&self, graph: LGraphId) -> f64 {
+        let scope = &self.arena.graphs[graph as usize];
+        if scope.parent_node.is_none() {
+            return 0.0;
+        }
+        scope
+            .layers
+            .iter()
+            .flat_map(|id| &self.arena.layers[*id as usize].nodes)
+            .find_map(|id| self.arena.nested_transfer_x.get(id))
+            .map_or(0.0, |entry| {
+                entry.1 - scope.padding.map_or(12.0, |p| p.left)
+            })
+    }
+
+    fn extent(&self, graph: LGraphId) -> f64 {
+        let scope = &self.arena.graphs[graph as usize];
+        let size = scope.parent_node.map_or(scope.width, |parent| {
+            let left = scope.padding.map_or(12.0, |p| p.left);
+            let right = scope.padding.map_or(12.0, |p| p.right);
+            self.arena.nodes[parent as usize].width - left - right
+        });
+        let offset = self.graph_offset(graph);
+        (size - offset) - offset
+    }
+
+    fn node(&self, node: LNodeId) -> f64 {
+        let value = &self.arena.nodes[node as usize];
+        let x = self
+            .arena
+            .nested_transfer_x
+            .get(&node)
+            .map_or(value.position_x, |entry| entry.0);
+        if self.mirrored {
+            (self.extent(value.graph) - value.width) - x
+        } else {
+            x
+        }
+    }
+
+    pub(crate) fn published_node(&self, node: LNodeId) -> f64 {
+        let graph = self.arena.nodes[node as usize].graph;
+        self.node(node) + (self.graph_offset(graph) + self.padding(graph))
+    }
+
+    pub(crate) fn local_anchor(&self, edge: &LEdge, source: bool) -> f64 {
+        let node = if source { edge.source } else { edge.target };
+        let port = if source {
+            edge.source_port
+        } else {
+            edge.target_port
+        };
+        let port = port.map_or(self.arena.nodes[node as usize].width / 2.0, |id| {
+            let p = &self.arena.ports[id as usize];
+            if self.mirrored {
+                (self.arena.nodes[node as usize].width - p.width) - p.x
+            } else {
+                p.x
+            }
+        });
+        (self.node(node) + port) + 0.0
+    }
+
+    pub(crate) fn change(&self, mut value: f64, from: LGraphId, to: LGraphId) -> f64 {
+        if from == to {
+            return value;
+        }
+        let mut current = from;
+        loop {
+            let graph = &self.arena.graphs[current as usize];
+            value += self.graph_offset(current);
+            let Some(parent) = graph.parent_node else {
+                break;
+            };
+            value += self.padding(current);
+            value += self.node(parent);
+            current = self.arena.nodes[parent as usize].graph;
+        }
+        current = to;
+        loop {
+            let graph = &self.arena.graphs[current as usize];
+            value -= self.graph_offset(current);
+            let Some(parent) = graph.parent_node else {
+                break;
+            };
+            value -= self.padding(current);
+            value -= self.node(parent);
+            current = self.arena.nodes[parent as usize].graph;
+        }
+        value
+    }
+
+    pub(crate) fn offset(&self, edge: &LEdge) -> f64 {
+        let reference = hierarchy_reference_graph(self.arena, edge);
+        let origin = lowest_common_graph(
+            self.arena,
+            self.arena.nodes[edge.source as usize].graph,
+            self.arena.nodes[edge.target as usize].graph,
+            0,
+        );
+        let base = self.graph_offset(reference) + self.padding(reference);
+        let mut hierarchy = 0.0;
+        let mut current = self.arena.nodes[edge.source as usize].graph;
+        while current != origin {
+            let Some(parent) = self.arena.graphs[current as usize].parent_node else {
+                break;
+            };
+            hierarchy += self.node(parent);
+            current = self.arena.nodes[parent as usize].graph;
+            hierarchy += self.graph_offset(current);
+            hierarchy += self.padding(current);
+        }
+        base + hierarchy
+    }
+
+    pub(crate) fn label(&self, value: f64, graph: LGraphId, edge: &LEdge) -> f64 {
+        let local = value - (self.graph_offset(graph) + self.padding(graph));
+        self.change(local, graph, hierarchy_reference_graph(self.arena, edge)) + self.offset(edge)
+    }
+
+    pub(crate) fn segment(&self, id: LEdgeId) -> Vec<f64> {
+        let edge = &self.arena.edges[id as usize];
+        let graph = self.arena.nodes[edge.source as usize].graph;
+        let mut points = Vec::with_capacity(edge.bend_points.len() + 2);
+        points.push(self.local_anchor(edge, true));
+        let bends = self
+            .arena
+            .nested_edge_transfer
+            .get(&id)
+            .map_or(edge.bend_points.as_slice(), |entry| entry.0.as_slice());
+        points.extend(bends.iter().map(|p| {
+            let x = p.x;
+            if self.mirrored {
+                self.extent(graph) - x
+            } else {
+                x
+            }
+        }));
+        points.push(self.local_anchor(edge, false));
+        points
+    }
+
+    pub(crate) fn junction(&self, id: LEdgeId, index: usize) -> f64 {
+        let edge = &self.arena.edges[id as usize];
+        let graph = self.arena.nodes[edge.source as usize].graph;
+        let x = self
+            .arena
+            .nested_junction_transfer
+            .get(&id)
+            .map_or(edge.junction_points[index].x, |entry| entry.0[index].x);
+        if self.mirrored {
+            self.extent(graph) - x
+        } else {
+            x
+        }
+    }
+}
 
 pub(crate) fn source_node_y(arena: &LayeredArena, node: LNodeId) -> f64 {
     arena
@@ -180,13 +357,13 @@ pub(super) fn segment_y(arena: &LayeredArena, id: LEdgeId) -> Result<Vec<f64>, L
     let edge = &arena.edges[id as usize];
     let mut ys = Vec::with_capacity(edge.bend_points.len() + 2);
     ys.push(local_anchor_y(arena, edge, true));
-    if let Some((local, _)) = arena.nested_edge_transfer_y.get(&id) {
+    if let Some((local, _)) = arena.nested_edge_transfer.get(&id) {
         if local.len() != edge.bend_points.len() {
             return Err(LayeringError::Import(
                 "layered: incomplete source segment bend inventory".into(),
             ));
         }
-        ys.extend(local);
+        ys.extend(local.iter().map(|point| point.y));
     } else {
         ys.extend(edge.bend_points.iter().map(|p| p.y));
     }

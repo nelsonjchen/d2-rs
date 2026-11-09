@@ -1,0 +1,52 @@
+# Source: https://github.com/lowRISC/mocha/blob/b5973217f704923917e7761f73df7dfcb8d0c345/doc/img/mocha.d2
+# License: Apache-2.0; see REAL_WORLD.md.
+# SPDX-FileCopyrightText: lowRISC Contributors (COSMIC project).
+# Reduced to exercise cluster-vessel symmetry obstruction.
+vars: {
+  d2-config: {
+  }
+}
+dram: |md
+    1 GiB of DDR3
+|
+dram.shape: rectangle
+Mocha: {
+    CVA6-CHERI {
+    }
+    axi: |md
+        #### AXI crossbar
+    |
+    tlul: |md
+        32-bit width
+    |
+    axi <-> Tag control
+    axi <-> Debug
+    axi <-> SRAM
+    Peripherals {
+        rom: |md
+            #### ROM
+        |
+        entropy: |md
+            Source
+        |
+        kmac: |md
+            SHA3
+        |
+        managers: |md
+            - Power
+        |
+    }
+}
+chip: |md
+    #### Rest of chip
+    64-bit bus
+|
+Mocha.Tag control <-> dram
+Mocha.axi <-> chip
+Mocha.Mailbox <-> chip
+Legend {
+}
+Legend <-> Mocha.CVA6-CHERI {
+    style: {
+    }
+}

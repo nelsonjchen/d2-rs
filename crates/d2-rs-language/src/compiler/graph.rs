@@ -3843,21 +3843,34 @@ fn apply_node_properties(
         node.font_size = Some(font_size);
     }
     if let Some(width) = property_number_inherited(compiler, field, &["width"]) {
-        node.size.width =
-            if matches!(node.shape, ShapeKind::SqlTable | ShapeKind::Class) || has_language {
-                node.size.width.max(width.max(0.0))
+        // d2graph.SetDimensions gives images a five-pixel minimum and uses
+        // their default dimension for zero. Other shapes retain signed sizes
+        // through SizeToContent; render-target validation rejects them later.
+        node.size.width = if node.shape == ShapeKind::Image {
+            if width == 0.0 {
+                node.size.width
             } else {
-                width.max(0.0)
-            };
+                width.max(5.0)
+            }
+        } else if matches!(node.shape, ShapeKind::SqlTable | ShapeKind::Class) || has_language {
+            node.size.width.max(width)
+        } else {
+            width
+        };
         node.fixed_width = true;
     }
     if let Some(height) = property_number_inherited(compiler, field, &["height"]) {
-        node.size.height =
-            if matches!(node.shape, ShapeKind::SqlTable | ShapeKind::Class) || has_language {
-                node.size.height.max(height.max(0.0))
+        node.size.height = if node.shape == ShapeKind::Image {
+            if height == 0.0 {
+                node.size.height
             } else {
-                height.max(0.0)
-            };
+                height.max(5.0)
+            }
+        } else if matches!(node.shape, ShapeKind::SqlTable | ShapeKind::Class) || has_language {
+            node.size.height.max(height)
+        } else {
+            height
+        };
         node.fixed_height = true;
     }
     // Object.SizeToContent applies aspect constraints after authored dimensions.

@@ -9808,9 +9808,13 @@ impl ArenaGraph {
                         Some(center.owner),
                         sibling_index
                     )?;
-                    if self.nodes[sibling.0 as usize].tala_id == center.identity
-                        || self.nodes[sibling.0 as usize].tala_id == a.identity
-                        || self.nodes[sibling.0 as usize].tala_id == b.identity
+                    // symmetry.obstructed excludes the participant pointers.
+                    // This live sibling slot can represent a cluster/sequence
+                    // vessel, whose identity differs from its retained member.
+                    let sibling_identity = self.active_node_tala_id(sibling);
+                    if sibling_identity == center.identity
+                        || sibling_identity == a.identity
+                        || sibling_identity == b.identity
                     {
                         continue;
                     }

@@ -118,7 +118,7 @@ mod coffman_graham;
 mod coordinates;
 mod forster;
 pub(crate) use coordinates::{
-    change_graph_y, hierarchy_edge_offset_y, hierarchy_reference_graph, source_node_y,
+    SourceFlow, change_graph_y, hierarchy_edge_offset_y, hierarchy_reference_graph, source_node_y,
 };
 mod greedy_port_distributor;
 pub(crate) mod gwt_priority_queue;
@@ -652,11 +652,11 @@ pub struct LayeredArena {
     pub nested_transfer_x: BTreeMap<LNodeId, (f64, f64)>,
     /// Internal vertical position and deferred compound transfer offset.
     pub nested_transfer_y: BTreeMap<LNodeId, (f64, f64)>,
-    /// Unpadded bend ordinates and padding shift retained for source-ordered
+    /// Unpadded bend points and cross-axis padding shift retained for source-ordered
     /// final edge transfer: local point + (Graph.Offset + Padding).
-    pub nested_edge_transfer_y: BTreeMap<LEdgeId, (Vec<f64>, f64)>,
-    /// Unpadded junction ordinates and graph-padding shift for exact transfer.
-    pub(crate) nested_junction_transfer_y: BTreeMap<LEdgeId, (Vec<f64>, f64)>,
+    pub nested_edge_transfer: BTreeMap<LEdgeId, (Vec<Point>, f64)>,
+    /// Unpadded junction points and cross-axis padding shift for exact transfer.
+    pub(crate) nested_junction_transfer: BTreeMap<LEdgeId, (Vec<Point>, f64)>,
     /// Allocated layers.
     pub layers: Vec<Layer>,
     /// Original parent ports represented by synthesized external dummies.
@@ -815,7 +815,11 @@ pub(crate) fn p3_sweep_decision(arena: &LayeredArena, graph_id: LGraphId) -> P3S
                 paths_to_random += node_info[*node_id as usize].connected_edges;
             }
 
-            for (_, edge) in arena.outgoing_edges(*node_id) {
+            // NodeOutgoingEdges walks the currently attached ports. Hidden
+            // self-loop edges retain their arena endpoints through P3 but
+            // must not contribute influence to the hierarchy decision.
+            for edge_id in arena.node_outgoing_edges(*node_id) {
+                let edge = &arena.edges[edge_id as usize];
                 let source_info = node_info[*node_id as usize];
                 paths_to_random += source_info.random_influence;
                 paths_to_hierarchical += source_info.hierarchical_influence;
@@ -844,7 +848,8 @@ pub(crate) fn p3_sweep_decision(arena: &LayeredArena, graph_id: LGraphId) -> P3S
         // ELK defers north/south port-dummy propagation until after the
         // ordinary nodes of this layer, preserving its initializer order.
         for node_id in north_south_dummies {
-            for (_, edge) in arena.outgoing_edges(node_id) {
+            for edge_id in arena.node_outgoing_edges(node_id) {
+                let edge = &arena.edges[edge_id as usize];
                 let source_info = node_info[node_id as usize];
                 paths_to_random += source_info.random_influence;
                 paths_to_hierarchical += source_info.hierarchical_influence;
@@ -5530,7 +5535,13 @@ fn hidden_node_layer_constraints(
     let separate = separate_ports.iter().copied().collect::<BTreeMap<_, _>>();
     // (connects to FIRST_SEPARATE, connects to LAST_SEPARATE, keeps an edge)
     let mut connections = BTreeMap::<LNodeId, (bool, bool, bool)>::new();
-    for edge in arena.edges.iter().filter(|edge| edge.active) {
+    // SelfLoopPreprocessor has detached these edges from their ports before
+    // LayerConstraintPreprocessor tests whether a node is now isolated.
+    for (_, edge) in
+        arena.edges.iter().enumerate().filter(|(id, edge)| {
+            edge.active && !arena.hidden_loop_edges.contains(&(*id as LEdgeId))
+        })
+    {
         for (node, opposite) in [(edge.source, edge.target), (edge.target, edge.source)] {
             if separate.contains_key(&node) || arena.nodes[node as usize].graph != graph_id {
                 continue;
@@ -8323,7 +8334,7 @@ pub(crate) fn edge_route_points_transfer(
     edge_id: LEdgeId,
     apply_transfer: bool,
 ) -> Result<Vec<Point>, LayeringError> {
-    edge_route_points_in_frame(arena, edge_id, apply_transfer, false, false)
+    edge_route_points_in_frame(arena, edge_id, apply_transfer, false, false, None)
 }
 
 /// Junctions in the same frame used by edge route publication. Source
@@ -8331,13 +8342,15 @@ pub(crate) fn edge_route_points_transfer(
 pub(crate) fn edge_junction_points_for_publication(
     arena: &LayeredArena,
     edge_id: LEdgeId,
+    mirror_flow: Option<bool>,
 ) -> Result<Vec<Point>, LayeringError> {
-    edge_junction_points_in_frame(arena, edge_id, true)
+    edge_junction_points_in_frame(arena, edge_id, true, mirror_flow)
 }
 fn edge_junction_points_in_frame(
     arena: &LayeredArena,
     edge_id: LEdgeId,
     source_publication: bool,
+    mirror_flow: Option<bool>,
 ) -> Result<Vec<Point>, LayeringError> {
     let edge = arena
         .edges
@@ -8352,6 +8365,7 @@ fn edge_junction_points_in_frame(
         .position(|g| g.parent_node.is_none())
         .unwrap_or(0) as LGraphId;
     let mut points = Vec::new();
+    let flow = mirror_flow.map(|mirrored| coordinates::SourceFlow::new(arena, mirrored));
     for segment_id in &edge.hierarchy_segments {
         let segment = arena
             .edges
@@ -8382,7 +8396,7 @@ fn edge_junction_points_in_frame(
             arena.nodes[segment.source as usize].graph,
             reference,
         );
-        let local = arena.nested_junction_transfer_y.get(segment_id);
+        let local = arena.nested_junction_transfer.get(segment_id);
         if let Some((ys, _)) = local {
             assert_eq!(
                 ys.len(),
@@ -8396,9 +8410,17 @@ fn edge_junction_points_in_frame(
                 .iter()
                 .enumerate()
                 .map(|(index, p)| Point {
-                    x: p.x + offset.x,
+                    x: flow.as_ref().map_or(p.x + offset.x, |flow| {
+                        (flow.junction(*segment_id, index)
+                            + flow.change(
+                                0.0,
+                                arena.nodes[segment.source as usize].graph,
+                                reference,
+                            ))
+                            + flow.offset(edge)
+                    }),
                     y: if source_publication {
-                        (local.map_or(p.y, |entry| entry.0[index]) + source_offset) + transfer
+                        (local.map_or(p.y, |entry| entry.0[index].y) + source_offset) + transfer
                     } else {
                         p.y + offset.y
                     },
@@ -8435,17 +8457,18 @@ pub(crate) fn self_loop_node_local_points(
     arena: &LayeredArena,
     edge_id: LEdgeId,
 ) -> Result<Vec<Point>, LayeringError> {
-    edge_route_points_in_frame(arena, edge_id, false, true, false)
+    edge_route_points_in_frame(arena, edge_id, false, true, false, None)
 }
 
-/// Hierarchy cross-axis ordinates include source edgeLayoutOffsets; the flow
-/// axis stays in the existing arena frame for direction mirroring. The codec
-/// adds only its flow-axis publication offset for these retired source edges.
+/// Hierarchy cross-axis ordinates include source edgeLayoutOffsets. When
+/// mirror_flow is supplied, the flow axis includes GraphTransformer and the
+/// transferrer's offsets too; otherwise it retains the arena frame.
 pub(crate) fn edge_route_points_for_publication(
     arena: &LayeredArena,
     edge_id: LEdgeId,
+    mirror_flow: Option<bool>,
 ) -> Result<Vec<Point>, LayeringError> {
-    edge_route_points_in_frame(arena, edge_id, true, false, true)
+    edge_route_points_in_frame(arena, edge_id, true, false, true, mirror_flow)
 }
 
 fn edge_route_points_in_frame(
@@ -8454,6 +8477,7 @@ fn edge_route_points_in_frame(
     apply_transfer: bool,
     node_local: bool,
     source_publication: bool,
+    mirror_flow: Option<bool>,
 ) -> Result<Vec<Point>, LayeringError> {
     let edge = arena
         .edges
@@ -8717,9 +8741,15 @@ fn edge_route_points_in_frame(
                 target_anchor.y -= origin.y;
             }
             let reference = coordinates::hierarchy_reference_graph(arena, edge);
+            let flow = mirror_flow.map(|mirrored| coordinates::SourceFlow::new(arena, mirrored));
             if source_publication {
                 source_anchor.y = coordinates::hierarchy_endpoint_y(arena, edge, true);
                 target_anchor.y = coordinates::hierarchy_endpoint_y(arena, edge, false);
+            }
+            if let Some(flow) = &flow {
+                source_anchor.x = flow.local_anchor(edge, true);
+                target_anchor.x = flow.local_anchor(edge, false)
+                    + flow.change(0.0, arena.nodes[edge.target as usize].graph, reference);
             }
             joined.push(source_anchor);
             let mut last_point: Option<Point> = None;
@@ -8752,6 +8782,10 @@ fn edge_route_points_in_frame(
                 } else {
                     0.0
                 };
+                let source_xs = flow.as_ref().map(|flow| flow.segment(*segment_id));
+                let flow_offset = flow.as_ref().map_or(0.0, |flow| {
+                    flow.change(0.0, arena.nodes[segment.source as usize].graph, reference)
+                });
                 for (index, point) in points.into_iter().enumerate() {
                     let mut translated = if arena.nodes[segment.source as usize].graph == root {
                         point
@@ -8760,6 +8794,9 @@ fn edge_route_points_in_frame(
                     };
                     if let Some(ys) = &source_ys {
                         translated.y = ys[index] + cross_offset;
+                    }
+                    if let Some(xs) = &source_xs {
+                        translated.x = xs[index] + flow_offset;
                     }
                     translated_points.push(translated);
                 }
@@ -8824,7 +8861,10 @@ fn edge_route_points_in_frame(
             remove_collinear_route_points(&mut joined, &edge.junction_points);
             if source_publication {
                 let offset = coordinates::hierarchy_edge_offset_y(arena, edge);
-                let offset_x = coordinates::hierarchy_edge_offset_x(arena, edge);
+                let offset_x = flow.as_ref().map_or_else(
+                    || coordinates::hierarchy_edge_offset_x(arena, edge),
+                    |flow| flow.offset(edge),
+                );
                 for point in &mut joined {
                     point.x += offset_x;
                     point.y += offset;
@@ -9360,7 +9400,11 @@ fn translate_point_to_graph(
     point
 }
 
-fn node_is_ancestor(arena: &LayeredArena, ancestor: LNodeId, descendant: LNodeId) -> bool {
+pub(crate) fn node_is_ancestor(
+    arena: &LayeredArena,
+    ancestor: LNodeId,
+    descendant: LNodeId,
+) -> bool {
     let mut graph = arena.nodes[descendant as usize].graph;
     while let Some(parent_node) = arena.graphs[graph as usize].parent_node {
         if parent_node == ancestor {
@@ -10419,6 +10463,17 @@ fn long_edge_target_node(arena: &LayeredArena, first_edge: LEdgeId) -> Option<LN
     loop {
         if !visited.insert(node_id) {
             return None;
+        }
+        // SortByInputModel.LongEdgeTargetNode honors the splitter's saved
+        // target before following the live chain. Inverted-port helpers can
+        // point at a label dummy rather than the eventual ordinary node.
+        let target_port = arena
+            .long_edge_merge_ends
+            .get(&node_id)
+            .map(|ends| ends.1)
+            .unwrap_or_else(|| arena.long_edge_endpoints.get(&node_id).map(|ends| ends.1));
+        if let Some(target_port) = target_port {
+            return Some(arena.ports[target_port as usize].node);
         }
         if arena.nodes[node_id as usize].node_type == LayeredNodeType::Normal {
             return Some(node_id);

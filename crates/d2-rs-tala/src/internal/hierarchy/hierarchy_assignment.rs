@@ -286,27 +286,10 @@ impl ArenaGraph {
         component: &[NodeId],
         edges: &[(NodeId, NodeId, bool)],
     ) -> bool {
-        // isSource/isSink inspect the node's full structural edge slice.
-        // Abducted edges crossing this scope still disqualify a source/sink,
-        // even though they cannot be included in the induced ranking DAG.
-        let scope = component
-            .first()
-            .and_then(|node| self.nodes[node.0 as usize].container);
-        let boundary = self
-            .member_edges()
-            .filter_map(|edge| {
-                if edge.from == edge.to {
-                    return None;
-                }
-                let from = self.direct_child_in_hierarchy_scope(edge.from, scope);
-                let to = self.direct_child_in_hierarchy_scope(edge.to, scope);
-                match (from, to) {
-                    (Some(node), None) => Some((node, edge.source_arrow, edge.target_arrow)),
-                    (None, Some(node)) => Some((node, edge.target_arrow, edge.source_arrow)),
-                    _ => None,
-                }
-            })
-            .collect::<Vec<_>>();
+        // hierarchy.assign abducts edges before descending into a child
+        // scope (layoutgraph/layout.go). Cross-scope incidences have already
+        // been reconnected to ancestors, so isSource/isSink see only this
+        // scope's structural edges, not the arena's retained endpoints.
         let mut has_source = false;
         let mut has_sink = false;
         for &node in component {
@@ -315,16 +298,8 @@ impl ArenaGraph {
                     .iter()
                     .filter(|(from, to, _)| *from == node || *to == node)
             };
-            let is_source = incident().all(|(from, _, directed)| *directed && *from == node)
-                && boundary
-                    .iter()
-                    .filter(|(owner, _, _)| *owner == node)
-                    .all(|(_, incoming, outgoing)| !incoming && *outgoing);
-            let is_sink = incident().all(|(_, to, directed)| *directed && *to == node)
-                && boundary
-                    .iter()
-                    .filter(|(owner, _, _)| *owner == node)
-                    .all(|(_, incoming, outgoing)| *incoming && !outgoing);
+            let is_source = incident().all(|(from, _, directed)| *directed && *from == node);
+            let is_sink = incident().all(|(_, to, directed)| *directed && *to == node);
             if is_source {
                 has_source = true;
             } else if is_sink {

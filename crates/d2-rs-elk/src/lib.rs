@@ -560,6 +560,19 @@ fn layout_elk_graph_with_edge_bindings(
                 x += scope_offset.x;
                 y += scope_offset.y;
             }
+            if arena.nested_transfer_x.contains_key(&(node_id as LNodeId))
+                && matches!(direction.as_str(), "UP" | "LEFT")
+            {
+                // GraphTransformer mirrors the unpadded node first; the
+                // transferrer adds Offset+Padding afterwards.
+                let flow =
+                    layered::SourceFlow::new(&arena, true).published_node(node_id as LNodeId);
+                if direction == "UP" {
+                    y = flow;
+                } else {
+                    x = flow;
+                }
+            }
             (node.source_id.clone(), (x, y, width, height))
         })
         .collect::<BTreeMap<_, _>>();
@@ -707,8 +720,18 @@ fn layout_elk_graph_with_edge_bindings(
         let vertical = matches!(direction.as_str(), "DOWN" | "UP");
         let reference = layered::hierarchy_reference_graph(&arena, original);
         let offset = layered::hierarchy_edge_offset_y(&arena, original);
+        let flow = (!layered::node_is_ancestor(&arena, original.source, original.target)
+            && !layered::node_is_ancestor(&arena, original.target, original.source))
+        .then(|| layered::SourceFlow::new(&arena, matches!(direction.as_str(), "UP" | "LEFT")));
         for index in &dummy.label_indices {
             let label = &mut edge.labels[*index];
+            if let Some(flow) = &flow {
+                if vertical {
+                    label.y = flow.label(label.y, node.graph, original);
+                } else {
+                    label.x = flow.label(label.x, node.graph, original);
+                }
+            }
             let mut ordinate = if vertical {
                 if dummy.inline {
                     y + (space_y - label.width) / 2.0
@@ -819,6 +842,9 @@ fn layout_elk_graph_with_edge_bindings(
             .is_some_and(|container| container == &graph.id);
         let routed = &arena.edges[index];
         let source_cross_axis = !routed.active && !routed.hierarchy_segments.is_empty();
+        let source_flow_axis = source_cross_axis
+            && !layered::node_is_ancestor(&arena, routed.source, routed.target)
+            && !layered::node_is_ancestor(&arena, routed.target, routed.source);
         let component = arena.component_transfers.get(&routed.source);
         let route_axis_max = if let Some(component) = component {
             component.axis_width
@@ -831,10 +857,26 @@ fn layout_elk_graph_with_edge_bindings(
         } else {
             axis_max
         };
-        let mut junctions = layered::edge_junction_points_for_publication(&arena, edge_id)?
-            .into_iter()
-            .map(|point| transform_route_point(point, &direction, axis_min, route_axis_max))
-            .collect::<Vec<_>>();
+        let publish_point = |point: Point| {
+            if source_flow_axis {
+                if matches!(direction.as_str(), "DOWN" | "UP") {
+                    Point {
+                        x: point.y,
+                        y: point.x,
+                    }
+                } else {
+                    point
+                }
+            } else {
+                transform_route_point(point, &direction, axis_min, route_axis_max)
+            }
+        };
+        let mirror_flow = source_flow_axis.then_some(matches!(direction.as_str(), "UP" | "LEFT"));
+        let mut junctions =
+            layered::edge_junction_points_for_publication(&arena, edge_id, mirror_flow)?
+                .into_iter()
+                .map(publish_point)
+                .collect::<Vec<_>>();
         if routed.active
             && arena.nodes[routed.source as usize].graph
                 == arena.nodes[routed.target as usize].graph
@@ -850,7 +892,7 @@ fn layout_elk_graph_with_edge_bindings(
                     point.y += offset.y;
                 }
             }
-            if let Some((local, shift)) = arena.nested_junction_transfer_y.get(&edge_id) {
+            if let Some((local, shift)) = arena.nested_junction_transfer.get(&edge_id) {
                 assert_eq!(
                     junctions.len(),
                     local.len(),
@@ -858,7 +900,7 @@ fn layout_elk_graph_with_edge_bindings(
                 );
                 let offset = arena.graphs[scope as usize].offset_y;
                 for (point, ordinate) in junctions.iter_mut().zip(local) {
-                    let value = *ordinate + (*shift + offset);
+                    let value = ordinate.y + (*shift + offset);
                     if matches!(direction.as_str(), "DOWN" | "UP") {
                         point.x = value;
                     } else {
@@ -876,10 +918,14 @@ fn layout_elk_graph_with_edge_bindings(
         if is_root_edge {
             let offset = publication_offset(&arena, root, root, &direction, root_padding);
             for point in &mut junctions {
-                if !source_cross_axis || !matches!(direction.as_str(), "DOWN" | "UP") {
+                if !source_cross_axis
+                    || (!source_flow_axis && !matches!(direction.as_str(), "DOWN" | "UP"))
+                {
                     point.x += offset.x;
                 }
-                if !source_cross_axis || matches!(direction.as_str(), "DOWN" | "UP") {
+                if !source_cross_axis
+                    || (!source_flow_axis && matches!(direction.as_str(), "DOWN" | "UP"))
+                {
                     point.y += offset.y;
                 }
             }
@@ -891,9 +937,9 @@ fn layout_elk_graph_with_edge_bindings(
                 y: point.y,
             })
             .collect();
-        let mut points = layered::edge_route_points_for_publication(&arena, edge_id)?
+        let mut points = layered::edge_route_points_for_publication(&arena, edge_id, mirror_flow)?
             .into_iter()
-            .map(|point| transform_route_point(point, &direction, axis_min, route_axis_max))
+            .map(publish_point)
             .collect::<Vec<_>>();
         if points.len() < 2 {
             edge.sections.clear();
@@ -999,7 +1045,7 @@ fn layout_elk_graph_with_edge_bindings(
         // point first changes f64 bits for fractional nested port coordinates.
         if routed.active
             && routed.source != routed.target
-            && let Some((local_bends, shift)) = arena.nested_edge_transfer_y.get(&edge_id)
+            && let Some((local_bends, shift)) = arena.nested_edge_transfer.get(&edge_id)
         {
             assert_eq!(
                 points.len(),
@@ -1030,7 +1076,7 @@ fn layout_elk_graph_with_edge_bindings(
                 );
             }
             for (point, local) in points[1..last].iter_mut().zip(local_bends) {
-                normal_axis(point, *local + (*shift + offset));
+                normal_axis(point, local.y + (*shift + offset));
             }
         }
         if let Some(component) = component {
@@ -1080,10 +1126,14 @@ fn layout_elk_graph_with_edge_bindings(
         if is_root_edge {
             let offset = publication_offset(&arena, root, root, &direction, root_padding);
             for point in &mut points {
-                if !source_cross_axis || !matches!(direction.as_str(), "DOWN" | "UP") {
+                if !source_cross_axis
+                    || (!source_flow_axis && !matches!(direction.as_str(), "DOWN" | "UP"))
+                {
                     point.x += offset.x;
                 }
-                if !source_cross_axis || matches!(direction.as_str(), "DOWN" | "UP") {
+                if !source_cross_axis
+                    || (!source_flow_axis && matches!(direction.as_str(), "DOWN" | "UP"))
+                {
                     point.y += offset.y;
                 }
             }
@@ -2344,20 +2394,12 @@ fn pad_nested_graph(arena: &mut LayeredArena, graph_id: LGraphId) {
             && arena.nodes[edge.target as usize].graph == graph_id
         {
             if edge.source != edge.target {
-                arena.nested_edge_transfer_y.insert(
-                    edge_id as LEdgeId,
-                    (
-                        edge.bend_points.iter().map(|point| point.y).collect(),
-                        shift_y,
-                    ),
-                );
-                arena.nested_junction_transfer_y.insert(
-                    edge_id as LEdgeId,
-                    (
-                        edge.junction_points.iter().map(|point| point.y).collect(),
-                        shift_y,
-                    ),
-                );
+                arena
+                    .nested_edge_transfer
+                    .insert(edge_id as LEdgeId, (edge.bend_points.clone(), shift_y));
+                arena
+                    .nested_junction_transfer
+                    .insert(edge_id as LEdgeId, (edge.junction_points.clone(), shift_y));
             }
             for point in edge
                 .bend_points
@@ -2530,7 +2572,7 @@ fn pad_nested_graph(arena: &mut LayeredArena, graph_id: LGraphId) {
                     && arena.nodes[edge.target as usize].graph == graph_id
                 {
                     if let Some((_, shift)) =
-                        arena.nested_edge_transfer_y.get_mut(&(edge_id as LEdgeId))
+                        arena.nested_edge_transfer.get_mut(&(edge_id as LEdgeId))
                     {
                         *shift += envelope_shift_y;
                     }
@@ -2725,20 +2767,12 @@ fn pad_nested_graph_with_external_ports(
             // summing node and port positions; summing padded nodes first
             // changes the final bits of fractional anchors and bends.
             if edge.source != edge.target {
-                arena.nested_edge_transfer_y.insert(
-                    edge_id as LEdgeId,
-                    (
-                        edge.bend_points.iter().map(|point| point.y).collect(),
-                        shift_y,
-                    ),
-                );
-                arena.nested_junction_transfer_y.insert(
-                    edge_id as LEdgeId,
-                    (
-                        edge.junction_points.iter().map(|point| point.y).collect(),
-                        shift_y,
-                    ),
-                );
+                arena
+                    .nested_edge_transfer
+                    .insert(edge_id as LEdgeId, (edge.bend_points.clone(), shift_y));
+                arena
+                    .nested_junction_transfer
+                    .insert(edge_id as LEdgeId, (edge.junction_points.clone(), shift_y));
             }
             for point in edge
                 .bend_points

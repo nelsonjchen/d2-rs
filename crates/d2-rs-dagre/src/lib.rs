@@ -602,8 +602,6 @@ pub fn layout_with_options_and_rank_trace_with_cancellation(
             adjust_long_compound_external_lanes(graph, &mut boxes);
             debug_boxes("after_long_compound_external_lanes", graph, &boxes);
         }
-        adjust_flat_port_cross_lanes(graph, &mut boxes);
-        debug_boxes("after_flat_port_cross_lanes", graph, &boxes);
         debug_boxes("compound_rank", graph, &boxes);
         source_route_frame_matches = source_route_frame_boxes
             .as_ref()
@@ -719,12 +717,6 @@ pub fn layout_with_options_and_rank_trace_with_cancellation(
             #[cfg(feature = "diagnostic-traces")]
             debug_route_stage("vertical_wide_external", graph, &routes);
         }
-        adjust_opposing_nested_route_bias(graph, &mut routes);
-        #[cfg(feature = "diagnostic-traces")]
-        debug_route_stage("opposing_nested_bias", graph, &routes);
-        adjust_flat_port_routes(graph, &boxes, &mut routes);
-        #[cfg(feature = "diagnostic-traces")]
-        debug_route_stage("flat_port", graph, &routes);
     }
     #[cfg(feature = "diagnostic-traces")]
     if trace_enabled() {
@@ -1016,10 +1008,10 @@ fn validate(graph: &Graph) -> Result<(), LayoutError> {
     for (id, node) in graph.nodes() {
         if !node.size.width.is_finite()
             || !node.size.height.is_finite()
-            || node.size.width < 0.0
-            || node.size.height < 0.0
+            // D2's Dagre adapter passes signed authored dimensions through
+            // to layout; d2target.ValidateRenderTarget checks the result.
             || (node.d2_authored_geometry.is_none()
-                && (node.size.width == 0.0 || node.size.height == 0.0))
+                && (node.size.width <= 0.0 || node.size.height <= 0.0))
         {
             return Err(LayoutError::InvalidSize {
                 node: id,
@@ -3869,43 +3861,49 @@ fn rank_nodes_with_model(
     // translate every raw coordinate by a fractional amount before D2 rounds
     // object origins (dagro layout.go:225-271). Preserve that exact frame.
     let mut self_edge_flow_translation = None;
-    let mut flow_min = boxes
-        .values()
-        .map(|rect| {
-            if horizontal {
-                rect.origin.x
-            } else {
-                rect.origin.y
-            }
-        })
-        .fold(f64::INFINITY, f64::min);
-    for (edge_id, _) in graph.edges() {
-        let (owner, target) = resolve_edge_endpoints(graph, edge_id);
-        if owner != target {
-            continue;
-        }
-        let Some(label) = label_sizes[edge_id.0 as usize] else {
-            continue;
-        };
-        let Some(owner_box) = boxes.get(&owner) else {
-            continue;
-        };
-        let center = if horizontal {
-            owner_box.center().x
-        } else {
-            owner_box.center().y
-        };
-        flow_min = flow_min.min(center - label.height / 2.0);
-        self_edge_flow_translation = Some(0.0);
-    }
-    if let Some(translation) = self_edge_flow_translation.as_mut() {
-        *translation = -flow_min;
-        if translation.abs() > f64::EPSILON {
-            for rect in boxes.values_mut() {
+    // Compound ranks already retain the border extent used by Dagro's
+    // translateGraph. Re-normalizing their leaf boxes drops that boundary
+    // rank, and the flat self-edge translation bypasses compound route
+    // normalization after reflection.
+    if compound_bounds.is_empty() {
+        let mut flow_min = boxes
+            .values()
+            .map(|rect| {
                 if horizontal {
-                    rect.origin.x += *translation;
+                    rect.origin.x
                 } else {
-                    rect.origin.y += *translation;
+                    rect.origin.y
+                }
+            })
+            .fold(f64::INFINITY, f64::min);
+        for (edge_id, _) in graph.edges() {
+            let (owner, target) = resolve_edge_endpoints(graph, edge_id);
+            if owner != target {
+                continue;
+            }
+            let Some(label) = label_sizes[edge_id.0 as usize] else {
+                continue;
+            };
+            let Some(owner_box) = boxes.get(&owner) else {
+                continue;
+            };
+            let center = if horizontal {
+                owner_box.center().x
+            } else {
+                owner_box.center().y
+            };
+            flow_min = flow_min.min(center - label.height / 2.0);
+            self_edge_flow_translation = Some(0.0);
+        }
+        if let Some(translation) = self_edge_flow_translation.as_mut() {
+            *translation = -flow_min;
+            if translation.abs() > f64::EPSILON {
+                for rect in boxes.values_mut() {
+                    if horizontal {
+                        rect.origin.x += *translation;
+                    } else {
+                        rect.origin.y += *translation;
+                    }
                 }
             }
         }
@@ -4481,121 +4479,6 @@ fn has_descendant_external_edges_without_direct_container_edge(graph: &Graph) ->
             || (edge.target == root && !is_descendant(graph, edge.source, root))
     });
     descendant_crossing && !direct_crossing
-}
-
-fn adjust_flat_port_cross_lanes(graph: &Graph, boxes: &mut BTreeMap<NodeId, Rect>) {
-    // This correction reconstructs Dagro's two incoming port lanes. Outgoing
-    // child-to-external edges already have distinct BK coordinates; folding
-    // them onto the ingress lane overlaps siblings and disagrees with Dagro.
-    let Some(root) = flat_port_root(graph) else {
-        return;
-    };
-    let leaves = graph
-        .nodes()
-        .filter_map(|(id, node)| {
-            (node.parent == Some(root) && !has_rankable_children(graph, id)).then_some(id)
-        })
-        .collect::<Vec<_>>();
-    if leaves.len() != 2 {
-        return;
-    }
-    let Some(root_rect) = boxes.get(&root).copied() else {
-        return;
-    };
-    for leaf in leaves {
-        if let Some(rect) = boxes.get_mut(&leaf) {
-            rect.origin.x = root_rect.origin.x + DEFAULT_CONTAINER_PADDING + 10.0;
-        }
-    }
-    if let Some(rect) = boxes.get_mut(&root) {
-        rect.size.width = (rect.size.width - 20.0).max(0.0);
-    }
-}
-
-fn adjust_flat_port_routes(
-    graph: &Graph,
-    boxes: &BTreeMap<NodeId, Rect>,
-    routes: &mut BTreeMap<EdgeId, Vec<Point>>,
-) {
-    let Some(root) = flat_port_root(graph) else {
-        return;
-    };
-    for (edge_id, edge) in graph.edges() {
-        let Some(target_node) = graph.node(edge.target) else {
-            continue;
-        };
-        if target_node.parent != Some(root) || has_rankable_children(graph, edge.target) {
-            continue;
-        }
-        let Some(source_node) = graph.node(edge.source) else {
-            continue;
-        };
-        if source_node.parent.is_some() || has_rankable_children(graph, edge.source) {
-            continue;
-        }
-        let (Some(source), Some(target)) = (boxes.get(&edge.source), boxes.get(&edge.target))
-        else {
-            continue;
-        };
-        let middle = Point {
-            x: target.center().x - 23.25,
-            y: target.origin.y - 50.0,
-        };
-        let start = go_box_intersections(*source, source.center(), middle)
-            .first()
-            .copied()
-            .unwrap_or_else(|| boundary_intersection(*source, middle));
-        let end = go_box_intersections(*target, middle, target.center())
-            .first()
-            .copied()
-            .unwrap_or_else(|| boundary_intersection(*target, middle));
-        let raw = vec![
-            Point {
-                x: start.x + 0.25,
-                y: start.y,
-            },
-            middle,
-            Point { x: end.x, y: end.y },
-        ];
-        routes.insert(edge_id, compact_cubic_route(raw));
-    }
-}
-
-fn flat_port_root(graph: &Graph) -> Option<NodeId> {
-    if !has_descendant_external_edges_without_direct_container_edge(graph)
-        || !has_single_source_compound(graph)
-    {
-        return None;
-    }
-    let root = graph.nodes().find_map(|(id, node)| {
-        (node.parent.is_none() && has_rankable_children(graph, id)).then_some(id)
-    })?;
-    if graph
-        .nodes()
-        .any(|(id, node)| id != root && node.parent.is_some() && has_rankable_children(graph, id))
-    {
-        return None;
-    }
-    let leaves = graph
-        .nodes()
-        .filter_map(|(id, node)| {
-            (node.parent == Some(root) && !has_rankable_children(graph, id)).then_some(id)
-        })
-        .collect::<Vec<_>>();
-    if leaves.len() != 2 {
-        return None;
-    }
-    leaves
-        .iter()
-        .all(|leaf| {
-            graph.edges().any(|(_, edge)| {
-                edge.target == *leaf
-                    && graph.node(edge.source).is_some_and(|node| {
-                        node.parent.is_none() && !has_rankable_children(graph, edge.source)
-                    })
-            })
-        })
-        .then_some(root)
 }
 
 /// Recover the temporary Dagro vessel rectangles from the border records
@@ -10240,37 +10123,6 @@ fn has_opposing_nested_external_pair(graph: &Graph) -> bool {
                         .any(|(_, edge)| edge.source == external && edge.target == container)
             })
     })
-}
-
-fn adjust_opposing_nested_route_bias(graph: &Graph, routes: &mut BTreeMap<EdgeId, Vec<Point>>) {
-    if !has_opposing_nested_external_pair(graph)
-        || !matches!(graph.direction, Direction::Down | Direction::Up)
-    {
-        return;
-    }
-    let Some(root) = graph.nodes().find_map(|(id, node)| {
-        (node.parent.is_none() && has_direct_container_child(graph, id)).then_some(id)
-    }) else {
-        return;
-    };
-    for (edge_id, edge) in graph.edges() {
-        let root_crossing = edge.source == root || edge.target == root;
-        let root_direct_edge = graph.node(edge.source).and_then(|node| node.parent) == Some(root)
-            && graph.node(edge.target).and_then(|node| node.parent) == Some(root);
-        let root_external_edge = graph.node(edge.source).is_some_and(|node| {
-            node.parent.is_none() && !has_rankable_children(graph, edge.source)
-        }) && graph.node(edge.target).is_some_and(|node| {
-            node.parent.is_none() && !has_rankable_children(graph, edge.target)
-        });
-        if !(root_crossing || root_direct_edge || root_external_edge) {
-            continue;
-        }
-        if let Some(points) = routes.get_mut(&edge_id) {
-            for point in points {
-                point.x += 0.25;
-            }
-        }
-    }
 }
 
 fn compound_has_multiple_external_lane(graph: &Graph, container: NodeId) -> bool {
