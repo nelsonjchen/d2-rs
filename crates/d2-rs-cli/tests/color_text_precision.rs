@@ -84,6 +84,9 @@ fn default_ignorable_space_glyph_keeps_zero_advance() {
 
 #[cfg(target_os = "linux")]
 #[test]
+#[ignore = "expected hashes depend on the host's fallback fonts under /usr/share/fonts; \
+            GitHub's Ubuntu runners ship different faces. Run with --ignored on the \
+            qualification VM until the test pins its own font directory."]
 fn paged_default_ignorable_uses_system_fallback_after_bundled_fonts() {
     // Pinned d2cli.newFontFallbackOptions chains d2fonts' bundled resolver to
     // SystemFallbackResolver for PDF/PPTX as well as GIF. ZWJ keeps no ink or
