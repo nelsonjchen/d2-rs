@@ -95,9 +95,10 @@ ctrlc = "3.5.2"
 
 [profile.release]
 # Fat LTO shrinks the stripped Linux arm64 CLI from 49.2 MB to 43.7 MB (Go's
-# d2 is 40.8 MB). panic = "abort" would reach 40.3 MB, but panics keep
-# unwinding so a crash still runs cleanup and --watch survives a failed
-# connection.
+# d2 is 40.8 MB). Never set panic = "abort" (40.3 MB): about 110
+# catch_unwind sites in TALA, ELK, the compiler and the CLI mirror Go's
+# recover() blocks, which turn internal panics into Go's errors or
+# fallbacks; --watch also relies on unwinding to survive a failed connection.
 lto = "fat"
 codegen-units = 1
 strip = "symbols"
