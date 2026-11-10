@@ -9,6 +9,7 @@
 
 use super::*;
 use crate::RaceScoreComponents;
+use d2_rs_core::stable_sort::StableSort;
 use std::borrow::Cow;
 use std::cmp::Ordering as CandidateOrdering;
 #[cfg(not(target_arch = "wasm32"))]
@@ -1689,7 +1690,7 @@ fn race_seed_layouts(
         report.seed = winner.seed;
         report
     }));
-    candidates.sort_by_key(|(index, _)| *index);
+    candidates.stable_sort_by_key(|(index, _)| *index);
     let candidates = candidates
         .into_iter()
         .map(|(_, report)| report)

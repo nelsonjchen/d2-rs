@@ -2,6 +2,7 @@
 // Port of D2 v0.9.0 d2renderers/d2svg/appendix/appendix.go (Append for SVG
 // exports with --force-appendix).
 
+use d2_rs_core::stable_sort::StableSort;
 use std::sync::OnceLock;
 
 use regex::Regex;
@@ -191,7 +192,7 @@ pub(crate) fn append(
             i += 1;
         }
     }
-    order.sort_by(|a, b| {
+    order.stable_sort_by(|a, b| {
         a.2.z_index
             .cmp(&b.2.z_index)
             .then(a.2.level.cmp(&b.2.level))

@@ -8,6 +8,7 @@
 //! recursive transaction; nonmatching graphs fall through to general layout.
 
 use super::*;
+use d2_rs_core::stable_sort::StableSort;
 
 impl ArenaGraph {
     /// Expands a deep single-child hierarchy used as the middle root of a
@@ -208,7 +209,7 @@ impl ArenaGraph {
                     .copied()
                     .filter(|child| *child != large)
                     .collect();
-                small.sort_by(|left, right| {
+                small.stable_sort_by(|left, right| {
                     self.nodes[right.0 as usize]
                         .rect
                         .size
@@ -347,7 +348,7 @@ impl ArenaGraph {
         {
             return false;
         }
-        targets.sort_by_key(|target| (!crosses_bottom(self, *target), target.0));
+        targets.stable_sort_by_key(|target| (!crosses_bottom(self, *target), target.0));
         let (left, right) = (targets[0], targets[1]);
 
         let single_child_containers: Vec<_> = self

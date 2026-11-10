@@ -39,6 +39,7 @@ pub mod layout_guard;
 pub mod route_label;
 pub mod shape_geometry;
 mod source_style;
+pub mod stable_sort;
 pub mod theme;
 pub use source_style::{SourceNodeStyle, SourceSqlColumn, SourceSqlText, SourceTargetAccents};
 

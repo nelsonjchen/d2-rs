@@ -8,6 +8,7 @@ use super::ovg_intersections::{AxisMap, Budget, check, descendant, rect, step};
 use super::ovg_ports::PortBuild;
 use super::{ArenaGraph, NodeId, Point};
 use crate::internal::owner_groups::OwnerGroupKind::Sequence;
+use d2_rs_core::stable_sort::StableSort;
 use std::collections::BTreeSet;
 
 fn sort_work(budget: Budget<'_, '_>, n: usize) -> Result<(), ()> {
@@ -46,7 +47,7 @@ fn sorted_keys(lines: &AxisMap<Vec<usize>>, budget: Budget<'_, '_>) -> Result<Ve
         keys.push(*key);
     }
     sort_work(budget, keys.len())?;
-    keys.sort_by(|a, b| {
+    keys.stable_sort_by(|a, b| {
         if a.is_nan() {
             if b.is_nan() {
                 std::cmp::Ordering::Equal

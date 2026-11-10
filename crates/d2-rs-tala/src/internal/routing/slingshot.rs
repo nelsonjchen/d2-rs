@@ -11,6 +11,7 @@ use super::{
     ArenaGraph, NodeId, Orientation, Point, Port, PortSide, Rect,
     interactions::edges_can_overlap_all, visibility::VisibilityGraph,
 };
+use d2_rs_core::stable_sort::StableSort;
 
 use super::route_search_guard::LocalRouteSearchWork;
 
@@ -625,7 +626,7 @@ impl RoutedEdgeSet {
             let axis_key = super::go_float_map_key(axis);
             if !self.vertical_edges.contains_key(&axis_key) {
                 self.verticals.push(axis);
-                self.verticals.sort_by(f64::total_cmp);
+                self.verticals.stable_sort_by(f64::total_cmp);
             }
             let edges = self.vertical_edges.entry(axis_key).or_default();
             let min = segment.from.y.min(segment.to.y);
@@ -636,7 +637,7 @@ impl RoutedEdgeSet {
             let axis_key = super::go_float_map_key(axis);
             if !self.horizontal_edges.contains_key(&axis_key) {
                 self.horizontals.push(axis);
-                self.horizontals.sort_by(f64::total_cmp);
+                self.horizontals.stable_sort_by(f64::total_cmp);
             }
             let edges = self.horizontal_edges.entry(axis_key).or_default();
             let min = segment.from.x.min(segment.to.x);
@@ -1484,7 +1485,7 @@ pub(super) fn s_route(
         if !charge_sort(budget, source_anchor_order.len()) {
             return None;
         }
-        source_anchor_order.sort_by(|left, right| {
+        source_anchor_order.stable_sort_by(|left, right| {
             let left = visibility.point(*left);
             let right = visibility.point(*right);
             let axis = if vertical {

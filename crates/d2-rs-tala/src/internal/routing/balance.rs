@@ -11,6 +11,7 @@ use super::super::ClusterArrangement;
 use super::*;
 use crate::LabelPosition;
 use crate::internal::quality;
+use d2_rs_core::stable_sort::StableSort;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct BalanceSegment {
@@ -1022,7 +1023,7 @@ pub(in crate::internal) fn balance_regular_edges(
                         batch.push(other_index);
                     }
                 }
-                batch.sort_by(|first, second| {
+                batch.stable_sort_by(|first, second| {
                     let first_geometry = canonical_segment(graph, segments[*first], vertical);
                     let second_geometry = canonical_segment(graph, segments[*second], vertical);
                     let primary = if vertical {

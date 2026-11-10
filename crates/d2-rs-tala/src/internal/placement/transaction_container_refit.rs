@@ -2,6 +2,7 @@
 //! transaction.go repositionContainers and Commit's immediately following validation.
 use super::shared_topology::OwnerGraphId;
 use super::*;
+use d2_rs_core::stable_sort::StableSort;
 
 impl ArenaGraph {
     fn transaction_wrap_container(&mut self, container: NodeId) {
@@ -139,7 +140,7 @@ impl ArenaGraph {
                 }
             }
         }
-        containers.sort_by(|&a, &b| {
+        containers.stable_sort_by(|&a, &b| {
             let a_node = &self.nodes[a.0 as usize];
             let b_node = &self.nodes[b.0 as usize];
             let a_area = a_node.rect.size.width * a_node.rect.size.height;

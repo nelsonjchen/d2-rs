@@ -8,6 +8,7 @@
 
 //! Two-sided GreedyPortDistributor and its adjacent-port crossing decisions.
 use super::*;
+use d2_rs_core::stable_sort::StableSort;
 
 pub(super) struct GreedyPortDistributor {
     counter: P3CrossingsCounter,
@@ -148,7 +149,7 @@ impl GreedyPortDistributor {
         self.counter
             .port_positions
             .swap(upper as usize, lower as usize);
-        ports.sort_by_key(|p| self.counter.port_positions[*p as usize]);
+        ports.stable_sort_by_key(|p| self.counter.port_positions[*p as usize]);
         let after = p3_count_crossings_on_ports(
             arena,
             &self.counter.port_positions,

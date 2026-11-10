@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: EPL-2.0
 // Pinned internal/spore/{triangulation,scanline}.go: ordered identity sets.
 use super::*;
+use d2_rs_core::stable_sort::StableSort;
 #[derive(Clone)]
 struct Triangle {
     v: [usize; 3],
@@ -109,7 +110,7 @@ pub(super) fn scanline(nodes: &[Node]) -> Vec<Edge> {
     for n in 0..nodes.len() {
         events.extend([(n, true), (n, false)])
     }
-    events.sort_by(|&(a, low_a), &(b, low_b)| {
+    events.stable_sort_by(|&(a, low_a), &(b, low_b)| {
         let y_a = if low_a {
             nodes[a].rect.p.y
         } else {
@@ -160,7 +161,7 @@ pub(super) fn tree(
     cost: impl Fn(Edge) -> f64,
 ) -> Tree {
     let mut weights = edges.iter().map(|&e| (e, cost(e))).collect::<Vec<_>>();
-    weights.sort_by(|a, b| java_cmp(a.1, b.1));
+    weights.stable_sort_by(|a, b| java_cmp(a.1, b.1));
     let mut parents = vec![None; nodes.len()];
     let mut children = vec![vec![]; nodes.len()];
     parents[root] = Some(root);

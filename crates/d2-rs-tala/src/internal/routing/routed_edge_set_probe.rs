@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 //! Raw diagnostic observer; no production argument construction.
 use super::*;
+use d2_rs_core::stable_sort::StableSort;
 use serde_json::{Value, json};
 use std::cell::{Cell, RefCell};
 fn integer(v: &Value, key: &str, default: usize) -> usize {
@@ -91,7 +92,7 @@ fn state(set: &EdgeSet, nodes: &[NodeRef]) -> Value {
             .values()
             .map(|(axis, edges)| json!({"axis":bits(*axis),"edges":header(edges,edges.capacity())}))
             .collect::<Vec<_>>();
-        rows.sort_by_key(|v| v["axis"].as_str().unwrap().to_owned());
+        rows.stable_sort_by_key(|v| v["axis"].as_str().unwrap().to_owned());
         rows
     };
     let mut keys = set
@@ -100,7 +101,7 @@ fn state(set: &EdgeSet, nodes: &[NodeRef]) -> Value {
         .chain(set.nan_edges.iter())
         .map(wire)
         .collect::<Vec<_>>();
-    keys.sort_by_key(Value::to_string);
+    keys.stable_sort_by_key(Value::to_string);
     json!({"len":set.len(),"keys":keys,"h":axis_header(&set.horizontal_axes),"v":axis_header(&set.vertical_axes),"horizontal":buckets(&set.horizontal),"vertical":buckets(&set.vertical),"nodes":nodes.iter().map(|node|{let p=node.point();json!([bits(p.x),bits(p.y)])}).collect::<Vec<_>>(),"point_aliases":nodes.iter().map(|n|nodes.iter().position(|other|n.shared.as_ref().unwrap().same_allocation(other.shared.as_ref().unwrap())).unwrap()).collect::<Vec<_>>()})
 }
 pub(in crate::internal) fn run(value: Value) -> Value {

@@ -5,6 +5,7 @@ use super::{
     pdf_font::{allocate_pdf_font_objects, build_pdf_font_data, write_pdf_font},
     pdf_text_width, push_pdf_object_at, validate_pdf_raster,
 };
+use d2_rs_core::stable_sort::StableSort;
 
 /// FPDF putinfo uses local wall time and omits the zone suffix.
 pub(super) fn timestamp() -> Result<String, ExportError> {
@@ -308,7 +309,7 @@ pub(super) fn encode(
     // Go's unsorted maps permit multiple byte orders. Use the stable catalog
     // order supported by FPDF; never randomize output or normalize the oracle.
     let mut order = (0..images.len()).collect::<Vec<_>>();
-    order.sort_by_key(|&i| images[i].width);
+    order.stable_sort_by_key(|&i| images[i].width);
     let mut unique = std::collections::BTreeMap::new();
     for &i in &order {
         let im = &mut images[i];
@@ -459,7 +460,7 @@ pub(super) fn encode(
         regular_objects.type0, bold_objects.type0
     );
     let mut resources = images.iter().collect::<Vec<_>>();
-    resources.sort_by_key(|im| &im.id);
+    resources.stable_sort_by_key(|im| &im.id);
     // Registered image keys may share a content ID. FPDF still emits one entry
     // per registration; its PDF dictionary resolves the duplicate to one image.
     for im in resources {

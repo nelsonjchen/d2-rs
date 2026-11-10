@@ -4,6 +4,7 @@
 
 //! Position-aware source edits.
 
+use d2_rs_core::stable_sort::StableSort;
 use serde::{Deserialize, Serialize};
 use std::cmp::{Ordering, Reverse};
 use thiserror::Error;
@@ -145,7 +146,7 @@ pub fn apply_edits(
         .iter()
         .map(|edit| byte_range(source, edit, encoding).map(|range| (range, edit)))
         .collect::<Result<Vec<_>, _>>()?;
-    ranges.sort_by_key(|(range, _)| Reverse(*range));
+    ranges.stable_sort_by_key(|(range, _)| Reverse(*range));
     for pair in ranges.windows(2) {
         if pair[0].0.0 < pair[1].0.1 {
             return Err(EditError::OverlappingEdits);

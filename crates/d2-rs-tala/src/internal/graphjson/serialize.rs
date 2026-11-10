@@ -9,6 +9,7 @@ use crate::internal::owner_groups::{OwnerGroupId, OwnerGroupKind};
 use crate::internal::owner_tree_map::OwnerTreeId;
 use crate::internal::shared_topology::{OwnerAbductionHeader, OwnerGraphId};
 use crate::internal::{ArenaGraph, EdgeId, NodeId, Point};
+use d2_rs_core::stable_sort::StableSort;
 use std::collections::{BTreeMap, BTreeSet};
 
 type Error = Box<dyn std::error::Error>;
@@ -92,7 +93,7 @@ impl Encoder<'_> {
             .into_iter()
             .map(|id| self.node_id(id))
             .collect::<Result<Vec<_>, _>>()?;
-        nears.sort();
+        nears.stable_sort();
         Ok(SerializedNode {
             id: n.tala_id,
             d2_id: metadata.and_then(|m| m.d2_id.clone()),
@@ -186,7 +187,7 @@ impl Encoder<'_> {
     fn groups(&self, kind: OwnerGroupKind) -> Result<Vec<(NodeId, OwnerGroupId)>, Error> {
         let map = self.arena.owner_graph_group_map(OwnerGraphId(0), kind)?;
         let mut keys = self.arena.owner_group_map_keys(&map)?;
-        keys.sort_by_key(|n| self.node_id(*n).unwrap_or(0));
+        keys.stable_sort_by_key(|n| self.node_id(*n).unwrap_or(0));
         keys.into_iter()
             .map(|key| {
                 Ok((
@@ -388,7 +389,7 @@ pub(super) fn graph(
     // records retain their actual child headers, edges and orientation fields.
     let roots_map = arena.owner_graph_tree_roots_map(OwnerGraphId(0))?;
     let mut sentinels = roots_map.live_keys().collect::<Vec<_>>();
-    sentinels.sort_by_key(|n| n.map_or(0, |n| arena.nodes[n.0 as usize].tala_id));
+    sentinels.stable_sort_by_key(|n| n.map_or(0, |n| arena.nodes[n.0 as usize].tala_id));
     for sentinel in sentinels {
         let header = arena
             .owner_tree_roots_map_entry(&roots_map, sentinel)?

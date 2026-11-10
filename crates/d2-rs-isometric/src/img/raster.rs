@@ -6,6 +6,7 @@ use super::{
     mesh::*,
     svg::{raster_ground_triangles, raster_shadow_ground},
 };
+use d2_rs_core::stable_sort::StableSort;
 use d2_rs_render::go_float::{go_fmadd, go_fmsub, go_fnmsub};
 use d2_rs_scene::{Nrgba, go_max, go_min};
 #[cfg(not(target_arch = "wasm32"))]
@@ -895,7 +896,7 @@ impl Raster<'_> {
         }
         if !ts.iter().any(|t| t.opacity_group.is_some()) {
             plan.order = (0..ts.len()).collect();
-            plan.order.sort_by(|&a, &b| {
+            plan.order.stable_sort_by(|&a, &b| {
                 let (ta, tb) = (&ts[a], &ts[b]);
                 if ta.no_depth_write != tb.no_depth_write {
                     return ta.no_depth_write.cmp(&tb.no_depth_write);
@@ -969,7 +970,7 @@ impl Raster<'_> {
             g.depth /= triangles.len() as f64;
             *g.plan = self.prepare_triangles(Cow::Owned(triangles));
         }
-        plan.order.sort_by(|&a, &b| {
+        plan.order.stable_sort_by(|&a, &b| {
             let trans = |i| {
                 plan.groups.get(&i).map_or_else(
                     || transparent(&ts[i], &plan.paints[&material_key(&ts[i])]),

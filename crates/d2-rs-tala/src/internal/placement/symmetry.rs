@@ -8,6 +8,7 @@
 //! aggregate positions and fixed geometry retain their ownership rules.
 
 use super::*;
+use d2_rs_core::stable_sort::StableSort;
 
 impl ArenaGraph {
     fn equidistance_position(&self, node: NodeId) -> Point {
@@ -844,7 +845,7 @@ impl ArenaGraph {
             .enumerate()
             .map(|(index, node)| (NodeId(index as u32), node.position.unwrap(), node.rect.size))
             .collect::<Vec<_>>();
-        ordered.sort_by(|left, right| {
+        ordered.stable_sort_by(|left, right| {
             left.1
                 .x
                 .total_cmp(&right.1.x)

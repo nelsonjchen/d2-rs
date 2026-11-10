@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: EPL-2.0
 // Original mrtree/provider.go: importGraph through computeNeighbors.
 use super::*;
+use d2_rs_core::stable_sort::StableSort;
 impl Arena {
     pub(super) fn import(w: &ElkGraph, cfg: Config) -> (Self, Graph) {
         let mut a = Self {
@@ -205,7 +206,7 @@ impl Arena {
         integer(&self.nodes[n].props, "mrtree.positionConstraint").unwrap_or(-1)
     }
     fn reorder(&mut self, n: usize, mut children: Vec<usize>, descending: bool) {
-        children.sort_by(|&a, &b| {
+        children.stable_sort_by(|&a, &b| {
             if descending {
                 self.nodes[b]
                     .position_index
@@ -248,7 +249,7 @@ impl Arena {
                 a.nodes[n].fan
             }
         };
-        current.sort_by_key(|&n| weight(self, n));
+        current.stable_sort_by_key(|&n| weight(self, n));
         let mut first_leaf = current.len();
         while first_leaf > 0 && weight(self, current[first_leaf - 1]) == 0 {
             first_leaf -= 1
@@ -329,7 +330,7 @@ impl Arena {
                 d += 1;
             }
         }
-        outside.sort_by_key(|&n| std::cmp::Reverse(self.constraint(n)));
+        outside.stable_sort_by_key(|&n| std::cmp::Reverse(self.constraint(n)));
         let mut outside = outside.into_iter();
         for slot in sorted.iter_mut().rev() {
             if slot.is_none() {

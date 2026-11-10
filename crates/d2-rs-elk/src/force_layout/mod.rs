@@ -1,6 +1,8 @@
 // Copyright (c) 2008, 2020; 2011, 2015; 2011, 2020; 2015, 2020 Kiel University and others.
 // SPDX-License-Identifier: EPL-2.0
 // elk-go v0.2.0/internal/force/{graph,importer,components,provider}.go.
+use d2_rs_core::stable_sort::StableSort;
+
 mod logarithm;
 mod model;
 mod stress;
@@ -402,7 +404,7 @@ impl Arena {
                 (c, min, max.sub(min), priority)
             })
             .collect();
-        infos.sort_by(|a, b| {
+        infos.stable_sort_by(|a, b| {
             b.3.cmp(&a.3).then_with(|| {
                 (a.2.x * a.2.y)
                     .partial_cmp(&(b.2.x * b.2.y))

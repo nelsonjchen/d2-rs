@@ -1,6 +1,7 @@
 //! Float64 path data for the simple embedded SVG images D2 rasterizes through
 //! its native scene pipeline.
 
+use d2_rs_core::stable_sort::StableSort;
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 
@@ -161,7 +162,7 @@ fn tag_intrinsic_viewports(source: &str) -> String {
         }
     }
     let mut tagged = source.to_owned();
-    insertions.sort_by(|a, b| b.0.cmp(&a.0));
+    insertions.stable_sort_by(|a, b| b.0.cmp(&a.0));
     for (position, insertion) in insertions {
         tagged.insert_str(position, &insertion);
     }
@@ -2222,7 +2223,7 @@ fn tag_imported_group_opacities(source: &str) -> (String, HashMap<String, f64>) 
         values.insert(id, value);
     }
     let mut tagged = source.to_owned();
-    insertions.sort_by(|a, b| b.0.cmp(&a.0));
+    insertions.stable_sort_by(|a, b| b.0.cmp(&a.0));
     for (position, insertion) in insertions {
         tagged.insert_str(position, &insertion);
     }
@@ -2280,7 +2281,7 @@ pub(crate) fn separate_embedded_svg_attributes(svg: &str) -> Cow<'_, str> {
         return Cow::Borrowed(svg);
     }
     let mut rendered = svg.to_owned();
-    replacements.sort_by(|a, b| b.0.start.cmp(&a.0.start));
+    replacements.stable_sort_by(|a, b| b.0.start.cmp(&a.0.start));
     for (range, value) in replacements {
         rendered.replace_range(range, &value);
     }
@@ -3575,7 +3576,7 @@ pub(crate) fn tag_embedded_svg_images_with_assets(
             .into_iter()
             .map(|(position, insertion)| (position..position, insertion)),
     );
-    replacements.sort_by(|left, right| right.0.start.cmp(&left.0.start));
+    replacements.stable_sort_by(|left, right| right.0.start.cmp(&left.0.start));
     // Paper textures have thousands of paths. Splicing an ID into each one
     // repeatedly shifts the remaining document; copy each source span once.
     // Reverse the original edit order, including ties, so insertions at the

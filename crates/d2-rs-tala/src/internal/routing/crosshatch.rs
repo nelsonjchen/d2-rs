@@ -8,6 +8,7 @@ use super::route_stage_guard::{self, RouteAtomicGuard, RouteStageError, RuntimeR
 use crate::internal::owner_groups::OwnerGroupKind;
 use crate::internal::{ArenaGraph, OwnerGraphId, RoutePoints, limits};
 use crate::{EdgeId, NodeId, Point, Rect};
+use d2_rs_core::stable_sort::StableSort;
 type Result<T> = std::result::Result<T, RouteStageError>;
 
 fn rectangular_ray_border(rect: Rect, center: Point, toward: Point) -> Point {
@@ -127,7 +128,7 @@ fn run(g: &mut ArenaGraph, guard: &RouteAtomicGuard<'_>) -> Result<()> {
         guard.step()?;
         vessels.push(vessel);
     }
-    vessels.sort_by_key(|v| v.map_or(0, |n| g.nodes[n.0 as usize].tala_id));
+    vessels.stable_sort_by_key(|v| v.map_or(0, |n| g.nodes[n.0 as usize].tala_id));
     for vessel in vessels {
         guard.step()?;
         let cluster = g
@@ -183,7 +184,7 @@ fn run(g: &mut ArenaGraph, guard: &RouteAtomicGuard<'_>) -> Result<()> {
         for _ in &ports {
             guard.step()?;
         }
-        ports.sort_by(|(a, _), (b, _)| {
+        ports.stable_sort_by(|(a, _), (b, _)| {
             if a.x != b.x {
                 a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal)
             } else {

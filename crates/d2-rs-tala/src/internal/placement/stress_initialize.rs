@@ -4,6 +4,7 @@
 
 //! D2 v0.9.0's bounded graph-distance starting arrangement for even seeds.
 use super::{ArenaGraph, Point};
+use d2_rs_core::stable_sort::StableSort;
 use std::collections::{BTreeMap, BTreeSet};
 
 impl ArenaGraph {
@@ -76,7 +77,9 @@ impl ArenaGraph {
             }
         }
         let mut order = (0..n).collect::<Vec<_>>();
-        order.sort_by_key(|&i| std::cmp::Reverse(self.nodes[nodes[i].0 as usize].edges.len()));
+        order.stable_sort_by_key(|&i| {
+            std::cmp::Reverse(self.nodes[nodes[i].0 as usize].edges.len())
+        });
         let mut occupied = BTreeSet::new();
         let mut points = vec![Point::default(); n];
         for i in order {

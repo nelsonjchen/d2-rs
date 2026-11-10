@@ -38,6 +38,7 @@
 
 use super::NodeId;
 use crate::internal::go_cell::GoCell;
+use d2_rs_core::stable_sort::StableSort;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
@@ -1006,7 +1007,7 @@ impl ContainerMap {
             return;
         };
         let mut nodes: Vec<_> = header.require_nodes().collect();
-        nodes.sort_by_key(|node| sort_key(node));
+        nodes.stable_sort_by_key(|node| sort_key(node));
         for (index, node) in nodes.into_iter().enumerate() {
             header
                 .write_capacity_slot(index, Some(node))

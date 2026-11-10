@@ -22,6 +22,7 @@
 //! or NaN) is not reproducible; this port falls back to the crate's fixed
 //! stream instead of Go's `math/rand`.
 
+use d2_rs_core::stable_sort::StableSort;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -2089,7 +2090,7 @@ fn straight_hachure_lines_modern(
             islope: (p2[0] - p1[0]) / (p2[1] - p1[1]),
         });
     }
-    edges.sort_by(ordering_from_less(hachure_less));
+    edges.stable_sort_by(ordering_from_less(hachure_less));
     if edges.is_empty() {
         return lines;
     }
@@ -2107,7 +2108,7 @@ fn straight_hachure_lines_modern(
         }
         active.extend(edges.drain(..take));
         active.retain(|edge| edge.ymax > y);
-        active.sort_by(ordering_from_less(|a: &HachureEdge, b: &HachureEdge| {
+        active.stable_sort_by(ordering_from_less(|a: &HachureEdge, b: &HachureEdge| {
             a.x < b.x
         }));
         if step_offset != 1.0 || iteration % gap == 0.0 {

@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: EPL-2.0
 // Translation of elk-go v0.2.0/internal/box/provider.go.
 
+use d2_rs_core::stable_sort::StableSort;
+
 #[path = "box_grouping.rs"]
 mod grouping;
 
@@ -141,7 +143,7 @@ pub(crate) fn layout_prepared(graph: &mut ElkGraph) -> Result<(), LayeringError>
     let interactive =
         option(&graph.layout_options, "interactive").is_some_and(|v| v == true || v == "true");
     let mut order: Vec<usize> = (0..graph.children.len()).collect();
-    order.sort_by(|&a, &b| {
+    order.stable_sort_by(|&a, &b| {
         let first = &graph.children[a];
         let second = &graph.children[b];
         let priority = |n: &ElkNode| {

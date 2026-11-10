@@ -4,6 +4,7 @@
 //! Node.Edges owns a nullable shared slice header. Numerical readers take
 //! temporary value images; no stored dense copy can hide raw slot mutations.
 use super::{EdgeId, graph_edges::GraphEdges, owner_pointer_slices::SharedEdgeSlice};
+use d2_rs_core::stable_sort::StableSort;
 
 #[derive(Debug)]
 pub(super) struct IncidentEdges(GraphEdges);
@@ -94,7 +95,7 @@ impl IncidentEdges {
     pub(super) fn sort_by_key<K: Ord>(&mut self, mut key: impl FnMut(&EdgeId) -> K) {
         let header = self.header();
         let mut values = header.read_values();
-        values.sort_by_key(|edge| key(edge));
+        values.stable_sort_by_key(|edge| key(edge));
         for (index, edge) in values.into_iter().enumerate() {
             header
                 .write_capacity_slot(index, Some(edge))

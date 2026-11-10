@@ -16,6 +16,7 @@
 use super::BkNeighbors;
 #[cfg(feature = "diagnostic-traces")]
 use super::diagnostics;
+use d2_rs_core::stable_sort::StableSort;
 use d2_rs_core::{Graph, NodeId};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::num::NonZeroUsize;
@@ -287,7 +288,7 @@ pub(super) fn order_compounds(
             add_subgraph_constraints(layer, &mut constraints, &sorted.nodes);
         }
         for layer in layers.iter_mut() {
-            layer.sort_by_key(|id| positions.get(id).copied().unwrap_or(0));
+            layer.stable_sort_by_key(|id| positions.get(id).copied().unwrap_or(0));
         }
         let crossings = cross_count(layers, &successors);
         #[cfg(feature = "diagnostic-traces")]
@@ -547,8 +548,8 @@ fn sort_entries(entries: Vec<Entry>, pairs: Vec<(NodeId, Entry)>, bias_right: bo
     let (mut sortable, mut unsortable): (Vec<_>, Vec<_>) = entries
         .into_iter()
         .partition(|entry| entry.barycenter.is_some());
-    unsortable.sort_by_key(|entry| std::cmp::Reverse(entry.index));
-    sortable.sort_by(|left, right| {
+    unsortable.stable_sort_by_key(|entry| std::cmp::Reverse(entry.index));
+    sortable.stable_sort_by(|left, right| {
         let left_bary = left.barycenter.unwrap_or(0.0);
         let right_bary = right.barycenter.unwrap_or(0.0);
         if left_bary < right_bary {

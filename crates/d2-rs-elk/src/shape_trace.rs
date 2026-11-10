@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 //! d2graph.Edge.TraceToShape and the ELK adapter's temporary modifier boxes.
 use d2_rs_core::shape_geometry::{box_intersections, trace_shape_border};
+use d2_rs_core::stable_sort::StableSort;
 use d2_rs_core::{Graph, LabelPosition, LayoutResult, NodeId, Point, Rect, ShapeKind, Size};
 
 #[derive(Clone, Copy)]
@@ -142,7 +143,7 @@ fn length(a: Point, b: Point) -> f64 {
 fn outer(position: LabelPosition, b: Rect, a: Point, z: Point) -> Option<Point> {
     use LabelPosition::*;
     let mut points = box_intersections(b, a, z);
-    points.sort_by(|a, b| {
+    points.stable_sort_by(|a, b| {
         let (a, b) = match position {
             OutsideTopLeft | OutsideTopCenter | OutsideTopRight => (a.y, b.y),
             OutsideBottomLeft | OutsideBottomCenter | OutsideBottomRight => (b.y, a.y),

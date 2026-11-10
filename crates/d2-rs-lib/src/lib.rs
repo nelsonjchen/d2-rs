@@ -17,6 +17,8 @@
 
 // Oracle tier: the *_tests modules gated on `oracle-fixtures` read regenerated
 // public TALA API captures (docs/FIXTURES.md).
+use d2_rs_core::stable_sort::StableSort;
+
 #[cfg(all(test, feature = "oracle-fixtures"))]
 mod graph_identity_tests;
 mod identity;
@@ -729,7 +731,7 @@ fn canonicalize_tala_value(value: &mut Value, top_level: bool) {
             // SerializedObject, SerializedEdge, and every nested metadata
             // object are Go maps. encoding/json sorts their string keys.
             let mut keys = object.keys().cloned().collect::<Vec<_>>();
-            keys.sort();
+            keys.stable_sort();
             for key in keys {
                 if let Some(value) = object.remove(&key) {
                     ordered.insert(key, value);

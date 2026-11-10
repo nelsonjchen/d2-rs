@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // Source: original D2 v0.9.0 d2renderers/d2svgimport/mathjax_text.go.
 // This is the generated-math scene boundary, not a general SVG importer.
+use d2_rs_core::stable_sort::StableSort;
 use roxmltree::Node;
 
 // Original independently authored scene geometry, not a platform font glyph.
@@ -355,7 +356,7 @@ pub fn import_scene_svg(source: &str) -> Result<String, String> {
             replacements.push((line.range(), String::new()));
         }
     }
-    replacements.sort_by_key(|(range, _)| range.start);
+    replacements.stable_sort_by_key(|(range, _)| range.start);
     let mut result = source.to_owned();
     for (range, value) in replacements.into_iter().rev() {
         result.replace_range(range, &value);

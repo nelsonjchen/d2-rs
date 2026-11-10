@@ -4,6 +4,8 @@
 
 // Included in shared_topology: the decoder publishes actual trusted headers,
 // not numerical copies reconstructed later from carrier/member equality.
+use d2_rs_core::stable_sort::StableSort;
+
 impl ArenaGraph {
     pub(super) fn publish_decoded_owner_records(&mut self, input: &Graph) {
         let nodes = self
@@ -242,7 +244,7 @@ impl ArenaGraph {
             .unwrap()
             .sequences
             .entries();
-        groups.sort_by_key(|(node, _)| node.map_or(0, |node| self.nodes[node.0 as usize].tala_id));
+        groups.stable_sort_by_key(|(node, _)| node.map_or(0, |node| self.nodes[node.0 as usize].tala_id));
         let active = self
             .owner_graph_member_header(OwnerGraphId(0))
             .unwrap()

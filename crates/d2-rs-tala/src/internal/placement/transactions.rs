@@ -11,6 +11,7 @@
 use super::model::{ProjectedTransactionEdge, ProjectedTransactionNode, ProjectedTransactionState};
 use super::scoring_context::{ScoreContext, score_interval, score_poll};
 use super::*;
+use d2_rs_core::stable_sort::StableSort;
 
 use crate::internal::{IdHashMap, IdHashSet};
 use std::borrow::Cow;
@@ -4191,7 +4192,7 @@ impl ArenaGraph {
             ActiveEdgeIds::Borrowed(edges) => edges.to_vec(),
             ActiveEdgeIds::Owned(edges) => edges,
         };
-        edges.sort_by_key(rank);
+        edges.stable_sort_by_key(rank);
         ActiveEdgeIds::Owned(edges)
     }
 
@@ -5646,7 +5647,7 @@ impl ArenaGraph {
         if !padding.is_finite() {
             return fallback();
         }
-        placed.sort_by(|left, right| {
+        placed.stable_sort_by(|left, right| {
             left.2
                 .x
                 .partial_cmp(&right.2.x)
@@ -5775,7 +5776,7 @@ impl ArenaGraph {
             });
             placed.push((index, id, position, size, !unchanged));
         }
-        placed.sort_by(|left, right| {
+        placed.stable_sort_by(|left, right| {
             left.2
                 .x
                 .partial_cmp(&right.2.x)
@@ -6693,7 +6694,7 @@ impl ArenaGraph {
             .filter(|node| node.is_container && node.position.is_some())
             .map(|node| node.input_id)
             .collect::<Vec<_>>();
-        containers.sort_by(|left, right| {
+        containers.stable_sort_by(|left, right| {
             let left_node = &self.nodes[left.0 as usize];
             let right_node = &self.nodes[right.0 as usize];
             let left_area = left_node.rect.size.width * left_node.rect.size.height;
@@ -7329,7 +7330,7 @@ impl ArenaGraph {
         }
 
         let mut order = (0..self.transaction_external_containers.len()).collect::<Vec<_>>();
-        order.sort_by(|&left, &right| {
+        order.stable_sort_by(|&left, &right| {
             let left = &self.transaction_external_containers[left];
             let right = &self.transaction_external_containers[right];
             (left.rect.size.width * left.rect.size.height)

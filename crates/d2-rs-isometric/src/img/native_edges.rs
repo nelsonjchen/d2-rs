@@ -3,6 +3,7 @@
 //! ink traced from a component's physical mesh. Go rounds every product here
 //! explicitly (float64(...)), so there are no contraction sites.
 
+use d2_rs_core::stable_sort::StableSort;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::rc::Rc;
 
@@ -290,7 +291,7 @@ pub fn classic_ink_segments_with_context(
         }
     }
     let mut keys: std::vec::Vec<ClassicInkPair> = edges.keys().copied().collect();
-    keys.sort();
+    keys.stable_sort();
     let full_rim = native_classic_rim(n);
     let radius = if ink_radius > 0.0 && caption_finite(&[ink_radius]) {
         ink_radius
@@ -476,7 +477,7 @@ pub fn classic_ink_paths(
         adjacent.entry(classic_ink_key_of(s.c)).or_default().push(i);
     }
     let mut vertices: std::vec::Vec<ClassicInkKey> = adjacent.keys().copied().collect();
-    vertices.sort();
+    vertices.stable_sort();
     let mut used = vec![false; segments.len()];
     let mut paths = vec![];
     let mut walk = |start: ClassicInkKey, first: usize, used: &mut std::vec::Vec<bool>| {

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 //! Board inheritance and glob-frame scoping from pinned d2ir/compile.go.
 use super::Compiler;
+use d2_rs_core::stable_sort::StableSort;
 use d2_rs_core::{ast, ir::*};
 use std::collections::HashSet;
 
@@ -156,7 +157,7 @@ fn collect_board_targets(
         // Original Graph/Diagram stores these as separate slices. Both public
         // preorder traversal and CLI postorder visit layers, scenarios, steps,
         // independently of the wrappers' textual declaration order.
-        fields.sort_by_key(|id| match compiler.arena.node(*id) {
+        fields.stable_sort_by_key(|id| match compiler.arena.node(*id) {
             Node::Field(field) => match field.name.scalar_string().as_str() {
                 "layers" => 0,
                 "scenarios" => 1,

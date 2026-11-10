@@ -13,6 +13,7 @@ use super::occupied::OccupiedPointMap;
 use super::owner_near_eligibility::{OwnerNearEligibilityError, can_optimize_owner_node_guarded};
 use super::owner_score_session::OwnerOptimizerMutationSnapshot;
 use super::{ArenaGraph, NodeId, OwnerGraphId, OwnerMemberHeader, OwnerTopologyError};
+use d2_rs_core::stable_sort::StableSort;
 use std::cell::RefCell;
 use std::fmt;
 use std::rc::Rc;
@@ -253,7 +254,7 @@ impl OwnerSizelessOptimizer {
                         .into_iter()
                         .map(name)
                         .collect::<Vec<_>>();
-                    nears.sort();
+                    nears.stable_sort();
                     let edges = owner.owner_node_incident_header(node)?.iter_slots().map(|edge| {
                         let edge = edge.expect("actual member edge");
                         let from = owner.owner_edge_endpoint(edge, false).expect("actual endpoint");

@@ -4,6 +4,7 @@
 //! build; products by 0.5 are
 //! exact and written plainly.
 
+use d2_rs_core::stable_sort::StableSort;
 use std::collections::{BTreeMap, HashMap};
 
 use d2_rs_render::go_float::{go_fmadd, go_fmsub, gomath};
@@ -391,7 +392,7 @@ pub fn build_scene(diagram: &Diagram, opts: Option<&RenderOpts>) -> Result<Scene
 
 /// sourceOrder: stable sort by source position, then ID.
 pub fn source_order(nodes: &[Node], ids: &mut [usize]) {
-    ids.sort_by(|&i, &j| {
+    ids.stable_sort_by(|&i, &j| {
         let (a, b) = (&nodes[i].metadata.original, &nodes[j].metadata.original);
         a.pos
             .y

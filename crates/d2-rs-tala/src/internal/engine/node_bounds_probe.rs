@@ -4,6 +4,7 @@
 //! Prepared graph bounds observed through the production geometry helpers.
 #![cfg(feature = "diagnostic-traces")]
 use super::*;
+use d2_rs_core::stable_sort::StableSort;
 use serde_json::{Value, json};
 
 #[derive(Deserialize)]
@@ -417,7 +418,7 @@ fn run(request: Request) -> Result<Value, Box<dyn std::error::Error>> {
             .iter()
             .map(|n| n.map(|n| arena.nodes[n.0 as usize].tala_id))
             .collect::<Vec<_>>();
-        keys.sort();
+        keys.stable_sort();
         return Ok(
             json!({"name":request.name,"state":observe(&arena),"selection":{"groups":groups,"graph_order":order,"edges":edges,"next_rng":[rng.int63(),rng.int63(),rng.int63()]},
             "lifecycle_witness":{"members":{"nil":header.is_nil(),"len":header.len(),"cap":header.capacity(),"slots":(0..header.capacity()).map(|i|header.read_capacity_slot(i).unwrap().map(|n|arena.nodes[n.0 as usize].tala_id)).collect::<Vec<_>>()},"sequence_keys":keys}}),
@@ -722,7 +723,7 @@ fn run(request: Request) -> Result<Value, Box<dyn std::error::Error>> {
                                         if a < b { [a, b] } else { [b, a] }
                                     })
                                     .collect::<Vec<_>>();
-                                rows.sort();
+                                rows.stable_sort();
                                 rows
                             };
                             overlap_pairs =

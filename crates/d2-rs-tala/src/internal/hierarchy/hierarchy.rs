@@ -8,6 +8,7 @@
 //! into their owning graph while retaining stable node and edge identities.
 
 use super::*;
+use d2_rs_core::stable_sort::StableSort;
 
 impl Pipeline {
     #[cfg(feature = "diagnostic-traces")]
@@ -20,7 +21,7 @@ impl Pipeline {
         }
         let mut nodes = self.graph.active_descendants(container);
         nodes.push(container);
-        nodes.sort_by_key(|node| self.graph.nodes[node.0 as usize].tala_id);
+        nodes.stable_sort_by_key(|node| self.graph.nodes[node.0 as usize].tala_id);
         let state = nodes
             .into_iter()
             .map(|node| {
@@ -616,8 +617,9 @@ impl Pipeline {
                 }
                 depth
             };
-            ordered_offsets
-                .sort_by_key(|(container_tala_id, _, _)| container_depth(*container_tala_id));
+            ordered_offsets.stable_sort_by_key(|(container_tala_id, _, _)| {
+                container_depth(*container_tala_id)
+            });
         }
         for &(container_tala_id, child_tala_id, offset) in &ordered_offsets {
             let Some(container_position) = self

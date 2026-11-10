@@ -3,6 +3,7 @@
 // drawShape, drawConnection, arrowhead markers, path data, label masks and
 // text.
 
+use d2_rs_core::stable_sort::StableSort;
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
 
@@ -155,7 +156,7 @@ enum Object<'a> {
 
 /// d2svg.sortObjects (sort.SliceStable).
 fn sort_objects(objects: &mut [Object<'_>]) {
-    objects.sort_by(|a, b| {
+    objects.stable_sort_by(|a, b| {
         let z = |o: &Object<'_>| match o {
             Object::Shape(s) => s.z_index,
             Object::Connection(c) => c.z_index,

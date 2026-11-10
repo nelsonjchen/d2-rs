@@ -8,6 +8,7 @@
 //! sentinels preserve constrained or cyclic attachment points.
 
 use super::*;
+use d2_rs_core::stable_sort::StableSort;
 
 #[derive(Clone, Debug)]
 struct PlacementTree {
@@ -144,7 +145,7 @@ impl ArenaGraph {
             .iter()
             .filter_map(|(&node, state)| (state.parent == parent).then_some(node))
             .collect::<Vec<_>>();
-        children.sort_by_key(|node| {
+        children.stable_sort_by_key(|node| {
             self.tree_routing_nodes
                 .get(node)
                 .map_or(usize::MAX, |state| state.extraction_order)
@@ -156,7 +157,7 @@ impl ArenaGraph {
     /// graph-wide scans which append them after active ordinary nodes.
     pub(super) fn tree_nodes_in_extraction_order(&self) -> Vec<NodeId> {
         let mut nodes = self.tree_routing_nodes.keys().copied().collect::<Vec<_>>();
-        nodes.sort_by_key(|node| {
+        nodes.stable_sort_by_key(|node| {
             self.tree_routing_nodes
                 .get(node)
                 .map_or(usize::MAX, |state| state.extraction_order)
@@ -192,7 +193,7 @@ impl ArenaGraph {
             .iter()
             .filter_map(|(&candidate, tree)| (tree.parent == root).then_some(candidate))
             .collect::<Vec<_>>();
-        children.sort_by_key(|child| ranks.get(child).copied().unwrap_or(usize::MAX));
+        children.stable_sort_by_key(|child| ranks.get(child).copied().unwrap_or(usize::MAX));
         children
             .into_iter()
             .map(|child| self.dominant_extracted_tree_direction(child, extracted, ranks))
@@ -208,7 +209,8 @@ impl ArenaGraph {
         ranks: &BTreeMap<NodeId, usize>,
     ) -> TreeEdgeDirection {
         let mut ordered_children = children.get(&root).cloned().unwrap_or_default();
-        ordered_children.sort_by_key(|child| ranks.get(child).copied().unwrap_or(usize::MAX));
+        ordered_children
+            .stable_sort_by_key(|child| ranks.get(child).copied().unwrap_or(usize::MAX));
         ordered_children
             .into_iter()
             .map(|child| self.dominant_extracted_tree_direction(child, extracted, ranks))
@@ -233,7 +235,7 @@ impl ArenaGraph {
             .iter()
             .filter_map(|(&candidate, tree)| (tree.parent == root).then_some(candidate))
             .collect::<Vec<_>>();
-        children.sort_by_key(|child| ranks.get(child).copied().unwrap_or(usize::MAX));
+        children.stable_sort_by_key(|child| ranks.get(child).copied().unwrap_or(usize::MAX));
         for child in children {
             let direction =
                 self.extracted_tree_edge_direction(child, extracted[&child].sentinel_edge);
@@ -657,7 +659,9 @@ impl ArenaGraph {
                 }
             }
             for nodes in children.values_mut() {
-                nodes.sort_by_key(|node| extraction_ranks.get(node).copied().unwrap_or(usize::MAX));
+                nodes.stable_sort_by_key(|node| {
+                    extraction_ranks.get(node).copied().unwrap_or(usize::MAX)
+                });
             }
             children
         };
@@ -668,7 +672,9 @@ impl ArenaGraph {
             }
         }
         for roots in initial_roots.values_mut() {
-            roots.sort_by_key(|node| extraction_ranks.get(node).copied().unwrap_or(usize::MAX));
+            roots.stable_sort_by_key(|node| {
+                extraction_ranks.get(node).copied().unwrap_or(usize::MAX)
+            });
         }
         for (sentinel, roots) in initial_roots {
             // ExtractTrees preserves a sequence sentinel instead of passing
@@ -879,7 +885,7 @@ impl ArenaGraph {
             }
         }
         for nodes in children.values_mut() {
-            nodes.sort_by_key(|node| {
+            nodes.stable_sort_by_key(|node| {
                 extracted
                     .get(node)
                     .map_or(usize::MAX, |state| state.extraction_order)
@@ -965,7 +971,7 @@ impl ArenaGraph {
             }
             output.push(node);
             let mut descendants = children.get(&node).cloned().unwrap_or_default();
-            descendants.sort_by_key(|child| ranks.get(child).copied().unwrap_or(usize::MAX));
+            descendants.stable_sort_by_key(|child| ranks.get(child).copied().unwrap_or(usize::MAX));
             for child in descendants {
                 append_reconnected(child, children, retained, ranks, output);
             }
@@ -996,7 +1002,7 @@ impl ArenaGraph {
                     .iter()
                     .filter_map(|(&node, tree)| (tree.parent == sentinel).then_some(node))
                     .collect::<Vec<_>>();
-                roots.sort_by_key(|root| ranks.get(root).copied().unwrap_or(usize::MAX));
+                roots.stable_sort_by_key(|root| ranks.get(root).copied().unwrap_or(usize::MAX));
                 for root in roots {
                     append_reconnected(
                         root,
@@ -1322,14 +1328,14 @@ impl ArenaGraph {
             }
         }
         for nodes in children.values_mut() {
-            nodes.sort_by_key(|node| {
+            nodes.stable_sort_by_key(|node| {
                 self.tree_routing_nodes
                     .get(node)
                     .map_or(usize::MAX, |state| state.extraction_order)
             });
         }
         for nodes in roots.values_mut() {
-            nodes.sort_by_key(|node| {
+            nodes.stable_sort_by_key(|node| {
                 self.tree_routing_nodes
                     .get(node)
                     .map_or(usize::MAX, |state| state.extraction_order)
@@ -2269,7 +2275,7 @@ impl ArenaGraph {
     ) -> (Vec<NodeId>, Vec<EdgeId>) {
         let component_set = component.iter().copied().collect::<BTreeSet<_>>();
         let mut trees = self.placement_trees_for_component(&component_set);
-        trees.sort_by(|left, right| {
+        trees.stable_sort_by(|left, right| {
             right.size().cmp(&left.size()).then_with(|| {
                 self.nodes[left.children[0].node.0 as usize]
                     .tala_id
@@ -2308,7 +2314,7 @@ impl ArenaGraph {
             }
         }
         for nodes in children.values_mut().chain(roots.values_mut()) {
-            nodes.sort_by_key(|node| {
+            nodes.stable_sort_by_key(|node| {
                 self.tree_routing_nodes
                     .get(node)
                     .map_or(usize::MAX, |state| state.extraction_order)
@@ -2366,7 +2372,7 @@ impl ArenaGraph {
                 eprintln!();
             }
         }
-        trees.sort_by(|left, right| {
+        trees.stable_sort_by(|left, right| {
             right.size().cmp(&left.size()).then_with(|| {
                 // GraphJSON carries the same durable node ID used by the Go
                 // layoutgraph Node.ID comparator. It is preserved as tala_id

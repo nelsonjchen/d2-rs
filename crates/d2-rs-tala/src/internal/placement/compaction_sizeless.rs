@@ -8,6 +8,7 @@
 //! same open precision boundary as the recovered implementation.
 
 use super::*;
+use d2_rs_core::stable_sort::StableSort;
 #[path = "compaction_sizeless_geometry.rs"]
 mod geometry;
 #[path = "compaction_sizeless_scoring.rs"]
@@ -217,7 +218,7 @@ impl ArenaGraph {
                 .iter()
                 .any(|node| self.nodes[node.0 as usize].fixed_top_left.is_some())
         });
-        roots.sort_by(|a, b| {
+        roots.stable_sort_by(|a, b| {
             let a_position = self.position(*a).unwrap();
             let b_position = self.position(*b).unwrap();
             let a_axis = if horizontal {

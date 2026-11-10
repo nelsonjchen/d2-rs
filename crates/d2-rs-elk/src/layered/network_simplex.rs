@@ -13,6 +13,7 @@
 //! the layered arena's stable node and edge IDs at the boundary.
 
 use super::{LEdge, LEdgeId, LNodeId, LayeredArena};
+use d2_rs_core::stable_sort::StableSort;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 const FUZZY_SMALLER_THAN_ZERO: f64 = -1e-10;
@@ -643,6 +644,6 @@ pub(crate) fn connected_components(
         }
         components.push(component);
     }
-    components.sort_by_key(|left| std::cmp::Reverse(left.len()));
+    components.stable_sort_by_key(|left| std::cmp::Reverse(left.len()));
     components
 }

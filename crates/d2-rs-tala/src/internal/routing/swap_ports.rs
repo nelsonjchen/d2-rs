@@ -8,6 +8,7 @@
 //! corrected without rerunning complete path search.
 
 use super::*;
+use d2_rs_core::stable_sort::StableSort;
 
 #[cfg(feature = "diagnostic-traces")]
 macro_rules! trace_tunnel_scan {
@@ -1312,7 +1313,7 @@ fn swap_edge_ports_inner(
                     })
                 );
             }
-            edges.sort_by(|first, second| {
+            edges.stable_sort_by(|first, second| {
                 let (p1, _, p3) = endpoint_indices(graph, *first, node);
                 let (q1, _, q3) = endpoint_indices(graph, *second, node);
                 let first_points = &graph.edge_records[*first].route.read();

@@ -3,6 +3,7 @@
 // Copyright 2017 Alec Thomas. Rust translation Copyright 2026 Nelson Chen.
 // See assets/chroma/COPYING and the root THIRD_PARTY_NOTICES.md.
 use super::*;
+use d2_rs_core::stable_sort::StableSort;
 use std::{cell::RefCell, rc::Rc};
 
 #[derive(Clone)]
@@ -206,7 +207,8 @@ pub(super) fn run(
                 .zip(groups.iter().skip(1).cloned())
                 .collect();
             let mut go_names = names.clone();
-            go_names.sort_by_key(|name| name.parse::<usize>().ok().map_or((1, 0), |n| (0, n)));
+            go_names
+                .stable_sort_by_key(|name| name.parse::<usize>().ok().map_or((1, 0), |n| (0, n)));
             let numbered = names.iter().any(|n| n.parse::<usize>().is_ok());
             if numbered && names.iter().any(|n| n.parse::<usize>().is_err()) {
                 let mut reordered = vec![groups[0].clone()];

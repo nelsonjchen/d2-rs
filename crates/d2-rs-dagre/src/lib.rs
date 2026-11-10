@@ -12,6 +12,7 @@
 
 #![warn(missing_docs)]
 
+use d2_rs_core::stable_sort::StableSort;
 use d2_rs_core::{
     CandidateReport, Direction, Edge, EdgeId, EdgeLabel, Graph, Insets, LabelPosition, LayoutError,
     LayoutOptions, LayoutReport, LayoutResult, NodeId, NodeLabelState, Point, Rect, Score,
@@ -1830,7 +1831,7 @@ fn js_object_key_order(nodes: &mut Vec<NodeId>, graphlib_ids: &BTreeMap<NodeId, 
             other.push(id);
         }
     }
-    indexes.sort_by_key(|(index, _)| *index);
+    indexes.stable_sort_by_key(|(index, _)| *index);
     nodes.extend(indexes.into_iter().map(|(_, id)| id));
     nodes.extend(other);
 }
@@ -1858,7 +1859,7 @@ impl RankTreeAdjacency {
             .map(|id| graphlib_ids[id].as_str())
             .collect::<Vec<_>>();
         let mut sorted = (0..nodes.len()).collect::<Vec<_>>();
-        sorted.sort_by_key(|&i| keys[i]);
+        sorted.stable_sort_by_key(|&i| keys[i]);
         let mut lexical_order = vec![0; nodes.len()];
         for (position, &i) in sorted.iter().enumerate() {
             lexical_order[i] = if position > 0 && keys[sorted[position - 1]] == keys[i] {
@@ -1902,8 +1903,8 @@ impl RankTreeAdjacency {
             // Stable sorting leaves non-index keys in edge insertion order,
             // including leading-zero keys and the excluded u32::MAX key.
             let key = |&i: &usize| (array_indexes[i].is_none(), array_indexes[i].unwrap_or(0));
-            predecessors.sort_by_key(key);
-            successors.sort_by_key(key);
+            predecessors.stable_sort_by_key(key);
+            successors.stable_sort_by_key(key);
             let incoming_len = predecessors.len();
             for &neighbor in successors.iter() {
                 if !predecessors[..incoming_len].contains(&neighbor) {

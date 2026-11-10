@@ -4,6 +4,7 @@ use base64::{
     Engine as _,
     engine::general_purpose::{GeneralPurpose, GeneralPurposeConfig, STANDARD},
 };
+use d2_rs_core::stable_sort::StableSort;
 use serde::{
     Deserialize, Deserializer,
     de::{IgnoredAny, MapAccess, Visitor},
@@ -465,7 +466,7 @@ fn validate_font_woff(bytes: &[u8]) -> Result<(), String> {
         let length = read_u32(font_slice(entry, 12, entry.len())?)? as usize;
         entries.push((tag, checksum, offset, length));
     }
-    entries.sort_by_key(|entry| entry.0);
+    entries.stable_sort_by_key(|entry| entry.0);
     for &(tag, checksum, offset, length) in &entries {
         if tag != b"head" {
             let aligned = (length as u32).wrapping_add(3) & !3;

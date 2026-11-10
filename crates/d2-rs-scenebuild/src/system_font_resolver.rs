@@ -3,6 +3,7 @@
 use crate::system_font_discovery::{self as discovery, DiscoveryWork};
 use crate::system_font_priority::{FaceProfile, RequestProfile, select_collection_faces};
 use crate::{FallbackFont, FallbackRequest, FallbackResolver};
+use d2_rs_core::stable_sort::StableSort;
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -105,7 +106,7 @@ impl FallbackResolver for SystemFallbackResolver {
             work.paths = Some(paths);
         }
         let mut paths = work.paths.clone().unwrap_or_default();
-        paths.sort_by(|a, b| {
+        paths.stable_sort_by(|a, b| {
             profile
                 .path_priority(a)
                 .cmp(&profile.path_priority(b))

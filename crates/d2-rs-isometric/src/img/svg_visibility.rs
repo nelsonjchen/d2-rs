@@ -4,6 +4,7 @@
 //! product in the Go source is explicitly rounded (float64(...)), so no
 //! contraction applies.
 
+use d2_rs_core::stable_sort::StableSort;
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -530,7 +531,7 @@ fn new_tree(
             }
         };
         budget.spend((end - start) * bits_len(end - start))?;
-        tree.indices[start..end].sort_by(|&a, &b| {
+        tree.indices[start..end].stable_sort_by(|&a, &b| {
             let (ca, cb) = (center(a), center(b));
             if ca == cb {
                 a.cmp(&b)
@@ -883,7 +884,7 @@ pub fn svg_visible_faces_with_context(
         }
         budget.candidates = candidates.len();
         budget.spend(candidates.len() * bits_len(candidates.len()))?;
-        candidates.sort_by(|&i, &j| {
+        candidates.stable_sort_by(|&i, &j| {
             if polygons[i].area != polygons[j].area {
                 return polygons[j]
                     .area

@@ -4,6 +4,7 @@
 
 //! Measured-graph grid layout corresponding to D2's `d2grid` package.
 
+use d2_rs_core::stable_sort::StableSort;
 use d2_rs_core::{
     CandidateReport, Graph, Insets, LabelPosition, LayoutError, LayoutOptions, LayoutReport,
     LayoutResult, NodeId, NodeLabelState, Point, Rect, Score, Size,
@@ -97,7 +98,7 @@ pub fn apply_scopes(
                 .filter(|_| !belongs_to_sequence_diagram(graph, id))
         })
         .collect::<Vec<_>>();
-    scopes.sort_by_key(|id| std::cmp::Reverse(depth(graph, *id)));
+    scopes.stable_sort_by_key(|id| std::cmp::Reverse(depth(graph, *id)));
     // Sequence cells have already supplied their fitted geometry, but Source
     // leaves their root attributes detached until after the parent's grid
     // pass. Preserve that pending state for InjectNested instead of exposing
@@ -287,7 +288,7 @@ pub(crate) fn trace_grid_snapshot(
             })
         })
         .collect::<Vec<_>>();
-    nodes.sort_by(|left, right| left.0.cmp(&right.0));
+    nodes.stable_sort_by(|left, right| left.0.cmp(&right.0));
     for (id, x, y, width, height) in nodes {
         eprintln!(
             "GRID_STATE stage={stage} scope={scope_hex} node={} rect={x:016x},{y:016x},{width:016x},{height:016x}",
@@ -311,7 +312,7 @@ pub(crate) fn trace_grid_snapshot(
                 })
         })
         .collect::<Vec<_>>();
-    labels.sort_by(|left, right| left.0.cmp(&right.0));
+    labels.stable_sort_by(|left, right| left.0.cmp(&right.0));
     for (id, position) in labels {
         eprintln!(
             "GRID_LABEL stage={stage} scope={scope_hex} node={} position={}",
@@ -374,7 +375,7 @@ pub(crate) fn trace_grid_snapshot(
             .join(";");
         routes.push((source, line.target_id.clone(), 0, points));
     }
-    routes.sort();
+    routes.stable_sort();
     for (source, target, ordinal, points) in routes {
         eprintln!(
             "GRID_ROUTE stage={stage} scope={scope_hex} edge={}>{}#{ordinal} points={points}",
@@ -472,7 +473,7 @@ pub(crate) fn trace_external_routes(
         records.push((scope, source_id, target_id, *ordinal, points));
         *ordinal += 1;
     }
-    records.sort();
+    records.stable_sort();
     for (scope, source, target, ordinal, points) in records {
         eprintln!(
             "GRID_ROUTE stage=external-route scope={} edge={}>{}#{ordinal} points={points}",

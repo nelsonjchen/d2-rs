@@ -5,6 +5,7 @@
 //! (imgbundler.BundleWithResolver) and native raster scenes; acquisition
 //! errors retain their availability kind until the caller's boundary.
 use super::*;
+use d2_rs_core::stable_sort::StableSort;
 
 enum Acquired {
     Data(AssetData),
@@ -390,7 +391,7 @@ pub(super) fn load_into_options(
     let base = resolver_base(source_args);
     let base = base.as_path();
     let mut nodes = graph.nodes().collect::<Vec<_>>();
-    nodes.sort_by_key(|(_, node)| {
+    nodes.stable_sort_by_key(|(_, node)| {
         let mut parent = node.parent;
         let mut depth = 0;
         while let Some(id) = parent {

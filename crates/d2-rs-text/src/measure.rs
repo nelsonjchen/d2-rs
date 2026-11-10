@@ -9,6 +9,7 @@
 //! exposes `loca`/`glyf`; shaping and fallback still require GPOS/GSUB and
 //! additional font faces.
 
+use d2_rs_core::stable_sort::StableSort;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, OnceLock};
 use unicode_segmentation::UnicodeSegmentation;
@@ -89,7 +90,7 @@ impl Cmap {
     fn from_table_order(mut pairs: Vec<(u32, u16)>) -> Self {
         // The stable sort keeps equal codepoints in table order; the dedup
         // then keeps the last value of each run in its first slot.
-        pairs.sort_by_key(|&(codepoint, _)| codepoint);
+        pairs.stable_sort_by_key(|&(codepoint, _)| codepoint);
         pairs.dedup_by(|later, kept| {
             let same = later.0 == kept.0;
             if same {

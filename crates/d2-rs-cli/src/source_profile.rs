@@ -1,4 +1,5 @@
 use super::*;
+use d2_rs_core::stable_sort::StableSort;
 
 #[test]
 fn requested_target_trace_survives_unused_leaf_hashes() {
@@ -127,7 +128,7 @@ fn profile_svg_source_stages() {
     let medians: BTreeMap<_, _> = samples
         .iter_mut()
         .map(|(name, times)| {
-            times.sort_by(f64::total_cmp);
+            times.stable_sort_by(f64::total_cmp);
             (*name, (times[9] + times[10]) / 2.0)
         })
         .collect();

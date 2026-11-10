@@ -4,6 +4,7 @@
 
 use super::*;
 use crate::internal::owner_tree_map::{OwnerTreeFields, OwnerTreeSlice};
+use d2_rs_core::stable_sort::StableSort;
 
 impl ArenaGraph {
     /// Publish the numerical placement view's field assignment on the actual
@@ -29,7 +30,7 @@ impl ArenaGraph {
     /// rather than falling back to the numerical routing projection.
     pub(super) fn publish_preprocessed_owner_trees(&mut self) {
         let mut nodes = self.tree_routing_nodes.keys().copied().collect::<Vec<_>>();
-        nodes.sort_by_key(|node| self.tree_routing_nodes[node].extraction_order);
+        nodes.stable_sort_by_key(|node| self.tree_routing_nodes[node].extraction_order);
         let trees = nodes
             .iter()
             .map(|&node| {

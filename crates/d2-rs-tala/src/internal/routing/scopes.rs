@@ -8,6 +8,7 @@
 //! determine each scope while nearby external geometry remains an obstacle.
 
 use super::*;
+use d2_rs_core::stable_sort::StableSort;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(in crate::internal) struct ProjectedScopeEdge {
@@ -48,13 +49,13 @@ fn reachable_routing_nodes(graph: &ArenaGraph, start: NodeId) -> Vec<NodeId> {
         // ID. A cluster vessel appends each member's independently sorted set;
         // it does not globally sort or deduplicate the combined slice.
         let mut nears = graph.nodes[current.0 as usize].nears.keys();
-        nears.sort_by_key(|near| graph.nodes[near.0 as usize].tala_id);
+        nears.stable_sort_by_key(|near| graph.nodes[near.0 as usize].tala_id);
         if let Some(cluster) = graph.clusters.iter().find(|cluster| {
             graph.cluster_is_active(cluster) && cluster.members.first() == Some(&current)
         }) {
             for member in cluster.members.iter().copied() {
                 let mut member_nears = graph.nodes[member.0 as usize].nears.keys();
-                member_nears.sort_by_key(|near| graph.nodes[near.0 as usize].tala_id);
+                member_nears.stable_sort_by_key(|near| graph.nodes[near.0 as usize].tala_id);
                 nears.extend(member_nears);
             }
         }

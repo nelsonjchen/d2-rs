@@ -4,6 +4,7 @@
 //! (mutually overlapping) units in their stable native order. No contraction
 //! sites (products are explicitly rounded in Go).
 
+use d2_rs_core::stable_sort::StableSort;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
@@ -74,7 +75,7 @@ fn new_order_tree(polygons: Vec<OrderPolygon>, budget: &mut Budget) -> Result<Or
         budget.spend((end - start) * bits_len(end - start))?;
         let x = b.max_x - b.min_x >= b.max_y - b.min_y;
         let polygons = &tree.polygons;
-        tree.indices[start..end].sort_by(|&ai, &bi| {
+        tree.indices[start..end].stable_sort_by(|&ai, &bi| {
             let (a, b) = (polygons[ai].bbox, polygons[bi].bbox);
             let (av, bv) = if x {
                 (a.min_x + a.max_x, b.min_x + b.max_x)
@@ -428,7 +429,7 @@ pub fn order_paint_units_with_context(
         if component.len() > 1 {
             stats.cyclic_groups += 1;
         }
-        component.sort_by(|&a, &b| order_cmp(units, a, b));
+        component.stable_sort_by(|&a, &b| order_cmp(units, a, b));
     }
     let mut successors = vec![Vec::new(); components.len()];
     let mut indegree = vec![0usize; components.len()];

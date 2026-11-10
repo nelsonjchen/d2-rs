@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: EPL-2.0
 // Original mrtree/provider.go: routeEdges through lastRoutePoint and toNodeBorder.
 use super::*;
+use d2_rs_core::stable_sort::StableSort;
 #[derive(Default)]
 struct Gap {
     one: Option<usize>,
@@ -89,7 +90,7 @@ impl Arena {
                     e.source == n && self.nodes[e.source].level != self.nodes[e.target].level
                 })
                 .collect::<Vec<_>>();
-            outgoing.sort_by(|&a, &b| {
+            outgoing.stable_sort_by(|&a, &b| {
                 let (a, b) = (self.first_point(a), self.first_point(b));
                 let (a, b) = if g.cfg.horizontal() {
                     (a.y, b.y)
@@ -171,7 +172,7 @@ impl Arena {
                     e.target == n && self.nodes[e.source].level != self.nodes[e.target].level
                 })
                 .collect::<Vec<_>>();
-            incoming.sort_by(|&a, &b| {
+            incoming.stable_sort_by(|&a, &b| {
                 let (a, b) = (self.last_point(a), self.last_point(b));
                 let (a, b) = if g.cfg.horizontal() {
                     (a.y, b.y)
@@ -358,7 +359,7 @@ impl Arena {
                         .copied()
                         .filter(|&n| self.nodes[n].level == level)
                         .collect::<Vec<_>>();
-                    nodes.sort_by(|&a, &b| {
+                    nodes.stable_sort_by(|&a, &b| {
                         let a = self.nodes[a].pos;
                         let b = self.nodes[b].pos;
                         let (a, b) = if horizontal { (a.y, b.y) } else { (a.x, b.x) };
@@ -393,7 +394,7 @@ impl Arena {
                         ..Gap::default()
                     });
                     gap.entries.push((e, first));
-                    gap.entries.sort_by(|&(a, _), &(b, _)| {
+                    gap.entries.stable_sort_by(|&(a, _), &(b, _)| {
                         let a = self.nodes[self.edges[a].target].pos;
                         let b = self.nodes[self.edges[b].target].pos;
                         let (a, b) = if horizontal { (a.y, b.y) } else { (a.x, b.x) };

@@ -9,6 +9,7 @@
 //! production sequence.
 
 use super::*;
+use d2_rs_core::stable_sort::StableSort;
 
 struct SizelessLayoutContext;
 impl limits::Context for SizelessLayoutContext {
@@ -840,7 +841,7 @@ fn trace_snapshot_child_ids(
 // AddCluster appends its vessel before removing absorbed members from
 // Containers. Reconstruct that mutation when walking retained source aliases.
 fn trace_append_cluster_vessels(graph: &ArenaGraph, children: &mut [i64]) {
-    children.sort_by_key(|child| {
+    children.stable_sort_by_key(|child| {
         projected_vessel_trace_id(graph, *child).is_some()
             || graph
                 .transaction_external_cluster_layouts
@@ -2470,7 +2471,7 @@ fn trace_placement_state_inner(
                 (!external_id.contains('.')).then_some((external_id.to_owned(), rank))
             })
             .collect::<BTreeMap<_, _>>();
-        trace_nodes.sort_by_key(|node_id| {
+        trace_nodes.stable_sort_by_key(|node_id| {
             let external_id = graph.nodes[node_id.0 as usize].external_id.as_str();
             let owner = external_id.split('.').next().unwrap_or(external_id);
             prefix_ranks.get(owner).copied().unwrap_or(usize::MAX)
@@ -4210,7 +4211,7 @@ fn trace_placement_state_inner(
             // carrier in the source position, so defer active cluster and
             // sequence carriers in the diagnostic traversal while retaining
             // declaration order for all ordinary children.
-            ordered_children.sort_by_key(|child| {
+            ordered_children.stable_sort_by_key(|child| {
                 let aggregate_carrier = graph.clusters.iter().any(|cluster| {
                     graph.cluster_is_active(cluster) && cluster.members.first() == Some(child)
                 }) || graph.sequences.iter().any(|sequence| {
@@ -5523,7 +5524,7 @@ fn trace_placement_state_inner(
             // The stable arena retains the original root-container order,
             // so use node_order for this diagnostic traversal as well. This
             // preserves the position at which Go appends grouping vessels.
-            root_trace_nodes.sort_by_key(|node_id| {
+            root_trace_nodes.stable_sort_by_key(|node_id| {
                 trace_nodes
                     .iter()
                     .position(|candidate| candidate == node_id)
@@ -7771,7 +7772,7 @@ fn trace_placement_state_inner(
                     .enumerate()
                     .map(|(rank, tala_id)| (tala_id, rank))
                     .collect::<BTreeMap<_, _>>();
-                child_records.sort_by_key(|child_record_id| {
+                child_records.stable_sort_by_key(|child_record_id| {
                     tala_by_record
                         .get(child_record_id)
                         .and_then(|tala_id| child_ranks.get(tala_id))
@@ -7897,7 +7898,7 @@ fn trace_placement_state_inner(
             #[cfg(feature = "diagnostic-traces")]
             trace_placement_order_records(phase, root, "owner-walk", &nodes);
         } else if !root_uses_live_owner_walk {
-            nodes.sort_by_key(|node| ranks.get(&node.id).copied().unwrap_or(usize::MAX));
+            nodes.stable_sort_by_key(|node| ranks.get(&node.id).copied().unwrap_or(usize::MAX));
         }
     }
     #[cfg(feature = "diagnostic-traces")]
@@ -8497,7 +8498,7 @@ impl Pipeline {
         let records = (|| {
             let map = graph.owner_graph_group_map(OwnerGraphId(0), OwnerGroupKind::Cluster)?;
             let mut keys = graph.owner_group_map_keys(&map)?;
-            keys.sort_by_key(|id| id.map(|n| graph.nodes[n.0 as usize].tala_id));
+            keys.stable_sort_by_key(|id| id.map(|n| graph.nodes[n.0 as usize].tala_id));
             let mut records = Vec::new();
             for key in keys {
                 let Some(group) = graph.owner_group_map_entry(&map, key)?.flatten() else {

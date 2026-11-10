@@ -8,6 +8,7 @@
 //! without losing their connectivity constraints.
 
 use super::*;
+use d2_rs_core::stable_sort::StableSort;
 
 impl ArenaGraph {
     pub(super) fn distanced_clusters_in_scope(
@@ -89,7 +90,7 @@ impl ArenaGraph {
         }
         let mut clusters: Vec<_> = by_id.into_values().collect();
         for cluster in &mut clusters {
-            cluster.sort_by_key(|node| self.nodes[node.0 as usize].tala_id);
+            cluster.stable_sort_by_key(|node| self.nodes[node.0 as usize].tala_id);
         }
         Some(clusters)
     }
@@ -141,7 +142,7 @@ impl ArenaGraph {
 
     pub(super) fn point_median(mut points: Vec<Point>) -> Point {
         fn axis_median(values: &mut [f64]) -> f64 {
-            values.sort_by(f64::total_cmp);
+            values.stable_sort_by(f64::total_cmp);
             let middle = values.len() / 2;
             if values.len().is_multiple_of(2) {
                 (values[middle - 1] + values[middle]) * 0.5

@@ -8,6 +8,7 @@
 //! instead infer containment from positioned, shape-eligible boxes.
 
 use super::*;
+use d2_rs_core::stable_sort::StableSort;
 
 impl ArenaGraph {
     /// Recovered prearranged branch of `Graph.AddContainers`.
@@ -43,7 +44,7 @@ impl ArenaGraph {
                 )
             })
             .collect::<Vec<_>>();
-        nodes_by_area.sort_by(|left, right| {
+        nodes_by_area.stable_sort_by(|left, right| {
             let area_order = if (left.1 - right.1).abs() < 0.0001 {
                 std::cmp::Ordering::Equal
             } else {
@@ -417,7 +418,7 @@ impl ArenaGraph {
 
         let row_count = (roots.len() as f64).sqrt().ceil() as usize;
         let mut ordered = roots;
-        ordered.sort_by(|left, right| {
+        ordered.stable_sort_by(|left, right| {
             let area = |node: NodeId| {
                 let size = self.nodes[node.0 as usize].rect.size;
                 size.width * size.height
@@ -447,7 +448,7 @@ impl ArenaGraph {
 
         let mut y = 0.0;
         for (mut row, height) in rows.into_iter().zip(heights) {
-            row.sort();
+            row.stable_sort();
             let mut x = 0.0;
             for root in row {
                 let width = self.nodes[root.0 as usize].rect.size.width;

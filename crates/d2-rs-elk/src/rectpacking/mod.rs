@@ -3,6 +3,8 @@
 // Copyright (c) 2026 The elk-go Authors.
 // SPDX-License-Identifier: EPL-2.0
 // Native translation of the D2-reachable default Rectpacking processor chain.
+use d2_rs_core::stable_sort::StableSort;
+
 mod approximate;
 mod compact;
 pub(crate) mod micro;
@@ -57,7 +59,7 @@ pub(crate) fn layout(graph: &mut ElkGraph, options: ElkOptions) -> Result<(), La
             }
         }
         if flag(&graph.layout_options, "rectpacking.orderBySize", false) {
-            graph.children.sort_by(|a, b| {
+            graph.children.stable_sort_by(|a, b| {
                 b.height
                     .partial_cmp(&a.height)
                     .unwrap_or(std::cmp::Ordering::Equal)
@@ -92,7 +94,7 @@ pub(crate) fn layout(graph: &mut ElkGraph, options: ElkOptions) -> Result<(), La
             }
             // The source's equality comparator reverses the fixed insertion order.
             fixed.reverse();
-            fixed.sort_by_key(|x| x.0);
+            fixed.stable_sort_by_key(|x| x.0);
             for (position, n) in fixed {
                 if position < 0 {
                     return Err(LayeringError::Import(format!(
@@ -180,7 +182,7 @@ pub(crate) fn layout(graph: &mut ElkGraph, options: ElkOptions) -> Result<(), La
     })();
     // The source codec exports the original wire inventory, independently of
     // the provider's internal child EList ordering.
-    graph.children.sort_by_key(|n| original_order[&n.id]);
+    graph.children.stable_sort_by_key(|n| original_order[&n.id]);
     result
 }
 

@@ -7,6 +7,7 @@ use super::{java_compare, maximum, number};
 use crate::layered::gwt_priority_queue as queue;
 use crate::utility::{flag, minimum, option, padding, point};
 use crate::{ElkEdge, ElkGraph, ElkNode, LayeringError};
+use d2_rs_core::stable_sort::StableSort;
 use serde_json::Value;
 
 #[derive(Default)]
@@ -182,7 +183,7 @@ impl Groups<'_> {
     ) -> Vec<usize> {
         let mut placed = Vec::new();
         if mode == "GROUP_INC" {
-            groups.sort_by(|&a, &b| java_compare(self.area(a), self.area(b)));
+            groups.stable_sort_by(|&a, &b| java_compare(self.area(a), self.area(b)));
             let mut common = 0.0;
             for value in groups {
                 if !placed.is_empty() && self.area(value) > common * 2.0 {
@@ -198,7 +199,7 @@ impl Groups<'_> {
                 }
             }
         } else if mode == "GROUP_DEC" {
-            groups.sort_by(|&a, &b| java_compare(self.area(b), self.area(a)));
+            groups.stable_sort_by(|&a, &b| java_compare(self.area(b), self.area(a)));
             let count = groups.len();
             let mut maybe = Vec::new();
             let mut beat = None;

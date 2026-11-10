@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 use super::*;
+use d2_rs_core::stable_sort::StableSort;
 use serde_json::{Value, json};
 
 impl ArenaGraph {
@@ -34,7 +35,7 @@ impl ArenaGraph {
             (OwnerGroupKind::Sequence, &view.sequences),
         ] {
             let mut entries = map.entries();
-            entries.sort_by_key(|(node, _)| node_id(*node).unwrap_or(0));
+            entries.stable_sort_by_key(|(node, _)| node_id(*node).unwrap_or(0));
             for (key, group) in entries {
                 let group = group.unwrap();
                 let fields = self.owner_group_fields(group).unwrap();
@@ -79,7 +80,7 @@ impl ArenaGraph {
             }
         }
         let mut root_entries = view.tree_roots.entries();
-        root_entries.sort_by_key(|(node, _)| node_id(*node).unwrap_or(0));
+        root_entries.stable_sort_by_key(|(node, _)| node_id(*node).unwrap_or(0));
         for (key, roots) in &root_entries {
             for i in 0..roots.len() {
                 register(
@@ -109,7 +110,7 @@ impl ArenaGraph {
                 Ok(())
             })
             .unwrap();
-        node_tree_entries.sort_by_key(|(node, _)| node_id(*node).unwrap_or(0));
+        node_tree_entries.stable_sort_by_key(|(node, _)| node_id(*node).unwrap_or(0));
         let node_to_tree = node_tree_entries
             .into_iter()
             .map(|(node, tree)| json!({"node":node_id(node),"tree":tree_name(tree)}))
@@ -122,13 +123,13 @@ impl ArenaGraph {
             .iter()
             .map(|node| node.input_id)
             .collect::<Vec<_>>();
-        node_order.sort_by_key(|node| node_id(Some(*node)));
+        node_order.stable_sort_by_key(|node| node_id(Some(*node)));
         for node in node_order {
             let hierarchy=self.owner_node_hierarchy(node).unwrap().map(|h|{
                 let next=hierarchy_names.len();let index=*hierarchy_names.entry(h.allocation_key()).or_insert(next);
                 if index==next {let fields=self.owner_hierarchy_fields(&h).unwrap();let mut levels=fields.levels.values.as_ref()
                     .map(|values|values.read().unwrap().iter().map(|(&node,&level)|(node_id(node),level)).collect::<Vec<_>>()).unwrap_or_default();
-                    levels.sort_by_key(|(node,_)|node.unwrap_or(0));
+                    levels.stable_sort_by_key(|(node,_)|node.unwrap_or(0));
                     hierarchies.push(json!({"index":index,"level_count":fields.level_count,"levels":levels,"levels_nil":fields.levels.is_nil()}));}
                 index
             });

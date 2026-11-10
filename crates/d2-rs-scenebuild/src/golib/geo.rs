@@ -18,6 +18,7 @@
 
 #![allow(dead_code)]
 
+use d2_rs_core::stable_sort::StableSort;
 use std::fmt::Write as _;
 
 pub use d2_rs_render::go_float::gomath;
@@ -433,8 +434,8 @@ pub fn points_get_median(ps: &[Point]) -> Point {
             std::cmp::Ordering::Equal
         }
     };
-    xs.sort_by(go_less);
-    ys.sort_by(go_less);
+    xs.stable_sort_by(go_less);
+    ys.stable_sort_by(go_less);
     let middle_index = xs.len() / 2;
     let mut median_x = xs[middle_index];
     let mut median_y = ys[middle_index];

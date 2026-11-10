@@ -6,6 +6,7 @@
 //! slice header. Retained slice aliases never follow field replacement.
 use super::{EdgeId, owner_pointer_slices::SharedEdgeSlice};
 use crate::internal::go_cell::GoCell;
+use d2_rs_core::stable_sort::StableSort;
 use std::sync::Arc;
 
 #[derive(Debug)]
@@ -274,7 +275,7 @@ impl super::ArenaGraph {
                 }
             }
             let mut records=g.edge_records.iter().map(|e|json!({"id":e.tala_id,"from":g.nodes[e.from.0 as usize].tala_id,"to":g.nodes[e.to.0 as usize].tala_id,"points_nil":e.route.header().is_nil()})).collect::<Vec<_>>();
-            records.sort_by_key(|e| e["id"].as_i64().unwrap());
+            records.stable_sort_by_key(|e| e["id"].as_i64().unwrap());
             json!({"headers":values,"aliases":aliases,"records":records})
         }
         let mut retained = BTreeMap::new();

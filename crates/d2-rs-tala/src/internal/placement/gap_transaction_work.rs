@@ -15,6 +15,7 @@
 
 use super::optimizer_spatial_index::owner_spacing_delta;
 use super::*;
+use d2_rs_core::stable_sort::StableSort;
 
 const MAX_TRANSACTION_NODES: usize = 10_000;
 const MAX_TRANSACTION_EDGES: usize = 50_000;
@@ -454,7 +455,7 @@ impl ArenaGraph {
         guard.step()?;
         // Collection retains pointers, not boxes. The pre-sort Step can mutate
         // positions after their finite-box check, including introducing NaN.
-        placed.sort_by(|(left_index, left), (right_index, right)| {
+        placed.stable_sort_by(|(left_index, left), (right_index, right)| {
             let left = self.transaction_live_box(*left);
             let right = self.transaction_live_box(*right);
             let left_x = left
@@ -703,7 +704,7 @@ impl GeometrySeenSet {
 }
 
 fn gap_sort_sweep_boxes(boxes: &mut [(usize, GapTransactionBox)]) {
-    boxes.sort_by(|(left_index, left), (right_index, right)| {
+    boxes.stable_sort_by(|(left_index, left), (right_index, right)| {
         let left_x = left.position.expect("finite transaction box").x;
         let right_x = right.position.expect("finite transaction box").x;
         if left_x < right_x {

@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 //! D2 v0.9.0 adapter.go identity allocation. Cancellation integration is pending.
+use crate::stable_sort::StableSort;
 use std::collections::{BTreeMap, BTreeSet};
 
 pub fn allocate(identities: &[&[u8]]) -> Result<Vec<i64>, usize> {
@@ -27,7 +28,7 @@ pub fn allocate(identities: &[&[u8]]) -> Result<Vec<i64>, usize> {
             ambiguous.push((hash, identities[i], i));
         }
     }
-    ambiguous.sort_by(|a, b| (a.0, a.1).cmp(&(b.0, b.1)));
+    ambiguous.stable_sort_by(|a, b| (a.0, a.1).cmp(&(b.0, b.1)));
     for (offset, (_, _, index)) in ambiguous.into_iter().enumerate() {
         allocated[index] = (1i64 << 32) + offset as i64;
     }

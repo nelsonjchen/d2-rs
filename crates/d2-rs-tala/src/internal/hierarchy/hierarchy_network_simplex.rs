@@ -9,6 +9,7 @@
 //! the reference implementation; traversal and tie order remain observable.
 
 use super::*;
+use d2_rs_core::stable_sort::StableSort;
 
 #[derive(Clone, Copy, Debug)]
 pub(super) struct HierarchyDagEdge {
@@ -390,7 +391,7 @@ impl NetworkSimplex {
     fn assign_cut_values(&mut self, dag: &HierarchyDag) {
         self.cut_value.clear();
         let mut nodes = self.tree_nodes.iter().copied().collect::<Vec<_>>();
-        nodes.sort_by_key(|node| self.dfs_exit[node]);
+        nodes.stable_sort_by_key(|node| self.dfs_exit[node]);
         for child in nodes {
             let Some(&parent_edge) = self.edge_to_parent.get(&child) else {
                 continue;
@@ -455,7 +456,9 @@ impl NetworkSimplex {
         self.traverse_tree(dag);
         self.assign_cut_values(dag);
         let mut nodes = self.tree_nodes.iter().copied().collect::<Vec<_>>();
-        nodes.sort_by_key(|node| (self.dfs_entry[node], std::cmp::Reverse(self.dfs_exit[node])));
+        nodes.stable_sort_by_key(|node| {
+            (self.dfs_entry[node], std::cmp::Reverse(self.dfs_exit[node]))
+        });
         for node in nodes.into_iter().skip(1) {
             let edge = dag.edge(self.edge_to_parent[&node]);
             let parent = if edge.from == node {
@@ -503,7 +506,7 @@ struct ReferenceRankProblem {
 impl ReferenceRankProblem {
     fn new(dag: &HierarchyDag) -> Option<Self> {
         let mut nodes = dag.nodes.clone();
-        nodes.sort_by_key(|node| {
+        nodes.stable_sort_by_key(|node| {
             (
                 dag.tie_keys.get(node).copied().unwrap_or(node.0 as i64),
                 node.0,
@@ -528,7 +531,7 @@ impl ReferenceRankProblem {
                 id: edge.id,
             });
         }
-        edges.sort_by_key(|edge| (edge.from, edge.to, edge.id));
+        edges.stable_sort_by_key(|edge| (edge.from, edge.to, edge.id));
 
         let mut outgoing_start = vec![0usize; nodes.len() + 1];
         for edge in &edges {
@@ -538,7 +541,7 @@ impl ReferenceRankProblem {
             outgoing_start[node + 1] += outgoing_start[node];
         }
         let mut pivot_order = (0..edges.len()).collect::<Vec<_>>();
-        pivot_order.sort_by_key(|&edge| edges[edge].id);
+        pivot_order.stable_sort_by_key(|&edge| edges[edge].id);
 
         if crate::internal::trace_env_enabled("TALA_TRACE_RANK_DETAIL") {
             eprint!("RANK_PROBLEM_RUST nodes=");

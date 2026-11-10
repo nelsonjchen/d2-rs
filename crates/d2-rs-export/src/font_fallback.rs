@@ -5,6 +5,7 @@
 //! missing-rune buckets, bundled emoji precedence, bounded discovery and
 //! cumulative work/cancellation contracts still require their source APIs.
 
+use d2_rs_core::stable_sort::StableSort;
 use resvg::usvg::fontdb::{Database, FaceInfo, ID, Source, Style};
 use std::path::{Path, PathBuf};
 
@@ -424,7 +425,7 @@ fn select_fallback_uncached(value: char, excluded: &[ID], database: &Database) -
         .filter(|face| !excluded.contains(&face.id))
         .filter_map(|face| system_path(face).map(|path| (path, face)))
         .collect();
-    candidates.sort_by(|(a_path, a), (b_path, b)| {
+    candidates.stable_sort_by(|(a_path, a), (b_path, b)| {
         profile
             .path_priority(a_path)
             .cmp(&profile.path_priority(b_path))
@@ -479,7 +480,7 @@ pub(super) fn select_fallbacks(values: &[char], excluded: &[ID], database: &Data
             None => paths.push((path, vec![face])),
         }
     }
-    paths.sort_by(|(a, _), (b, _)| {
+    paths.stable_sort_by(|(a, _), (b, _)| {
         profile
             .path_priority(a)
             .cmp(&profile.path_priority(b))
@@ -493,7 +494,7 @@ pub(super) fn select_fallbacks(values: &[char], excluded: &[ID], database: &Data
     }
     let mut resolved = Vec::new();
     for (_, mut faces) in paths {
-        faces.sort_by_key(|face| face.index);
+        faces.stable_sort_by_key(|face| face.index);
         let mut selected = Vec::new();
         while !remaining.is_empty() {
             let mut best: Option<(ID, i32, Vec<char>)> = None;

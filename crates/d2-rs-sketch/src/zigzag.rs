@@ -2,6 +2,7 @@
 // Translated from rough-go v0.2.0 / Rough.js 4.6.6 and hachure-fill 0.5.2.
 // Copyright (c) 2019, 2023 Preet Shihn; 2026 rough-go contributors.
 use super::{Point, RandomState, SketchOptions, append_rough_line, rough_polygon_outline};
+use d2_rs_core::stable_sort::StableSort;
 
 /// The fill is stroked in the fill color, before the ordinary outline.
 #[derive(Clone, Debug, PartialEq)]
@@ -149,7 +150,7 @@ fn scan_lines(points: &[Point], gap: f64, step: f64) -> Result<Vec<(Point, Point
             slope: (b.x - a.x) / (b.y - a.y),
         });
     }
-    edges.sort_by(|a, b| {
+    edges.stable_sort_by(|a, b| {
         a.ymin
             .partial_cmp(&b.ymin)
             .unwrap()
@@ -170,7 +171,7 @@ fn scan_lines(points: &[Point], gap: f64, step: f64) -> Result<Vec<(Point, Point
             next_edge += 1;
         }
         active.retain(|edge| edge.ymax > y);
-        active.sort_by(|a, b| a.x.partial_cmp(&b.x).unwrap());
+        active.stable_sort_by(|a, b| a.x.partial_cmp(&b.x).unwrap());
         if step != 1.0 || iteration % gap == 0.0 {
             for pair in active.as_chunks::<2>().0 {
                 lines.push((

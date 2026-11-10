@@ -7,6 +7,7 @@ use super::ovg_intersections::{AxisMap, Budget, check, step};
 use super::ovg_ports::PortBuild;
 use super::{ArenaGraph, NodeId, Point, PortSide};
 use crate::internal::shared_topology::OwnerHierarchy;
+use d2_rs_core::stable_sort::StableSort;
 use std::collections::BTreeMap;
 
 pub(super) struct HierarchyOvg {
@@ -122,7 +123,7 @@ pub(super) fn build(
         nodes.push(key);
     }
     sort_work(budget, nodes.len())?;
-    nodes.sort_by_key(|key| graph.nodes[node(*key).0 as usize].tala_id);
+    nodes.stable_sort_by_key(|key| graph.nodes[node(*key).0 as usize].tala_id);
     check(budget)?;
     let nodes = nodes.into_iter().map(node).collect::<Vec<_>>();
     let mut ports = PortBuild::default();

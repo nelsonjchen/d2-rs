@@ -10,6 +10,7 @@
 use super::limits::OptimizationError;
 use super::owner_score_session::OwnerScoreSessionError;
 use super::*;
+use d2_rs_core::stable_sort::StableSort;
 
 #[derive(Clone)]
 struct SwapTrialSnapshot {
@@ -624,7 +625,7 @@ impl ArenaGraph {
             .copied()
             .map(layout_orientation)
             .unwrap_or(Orientation::None);
-        counts.sort_by(
+        counts.stable_sort_by(
             |(left_direction, left_count), (right_direction, right_count)| {
                 right_count.cmp(left_count).then_with(|| {
                     if *left_direction == requested {
@@ -2552,11 +2553,11 @@ impl ArenaGraph {
             {
                 for member in self.clusters[cluster_index].members.iter().copied() {
                     let mut member_nears = self.nodes[member.0 as usize].nears.keys();
-                    member_nears.sort_by_key(|near| self.nodes[near.0 as usize].tala_id);
+                    member_nears.stable_sort_by_key(|near| self.nodes[near.0 as usize].tala_id);
                     nears.extend(member_nears);
                 }
             } else {
-                nears.sort_by_key(|near| self.nodes[near.0 as usize].tala_id);
+                nears.stable_sort_by_key(|near| self.nodes[near.0 as usize].tala_id);
             }
             let start_container = self.active_node_container(start);
             for near in nears {

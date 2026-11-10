@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: EPL-2.0
 // Original mrtree/provider.go: compactGraph and scan-line dependency helpers.
 use super::*;
+use d2_rs_core::stable_sort::StableSort;
 fn projection(c: &Config, p: V) -> f64 {
     match c.direction.as_str() {
         "LEFT" => -p.x,
@@ -41,7 +42,7 @@ impl Arena {
                 points.push((n, p, start));
             }
         }
-        points.sort_by(|a, b| {
+        points.stable_sort_by(|a, b| {
             perpendicular(&g.cfg, a.1)
                 .partial_cmp(&perpendicular(&g.cfg, b.1))
                 .unwrap_or(std::cmp::Ordering::Equal)
@@ -140,7 +141,7 @@ impl Arena {
         }
         self.constraints(g);
         let mut nodes = g.nodes.clone();
-        nodes.sort_by(|&a, &b| {
+        nodes.stable_sort_by(|&a, &b| {
             projection(&g.cfg, self.nodes[a].pos)
                 .partial_cmp(&projection(&g.cfg, self.nodes[b].pos))
                 .unwrap_or(std::cmp::Ordering::Equal)

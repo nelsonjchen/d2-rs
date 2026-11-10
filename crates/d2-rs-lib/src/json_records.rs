@@ -6,6 +6,7 @@
 //! Field metadata is a translation of the pinned source, not fixture output.
 
 use super::{D2Error, Map, Value, decode_go_json_integer};
+use d2_rs_core::stable_sort::StableSort;
 use std::{collections::BTreeMap, sync::OnceLock};
 
 struct Type {
@@ -171,7 +172,7 @@ fn read(
                 return;
             };
             let mut keys: Vec<_> = values.keys().collect();
-            keys.sort();
+            keys.stable_sort();
             for key in keys {
                 let field = ty
                     .fields

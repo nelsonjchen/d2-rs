@@ -10,6 +10,7 @@
 //! encoder; [`sfnt2woff_with`] takes the table compressor as a parameter so
 //! the container layout can be verified independently of it.
 
+use d2_rs_core::stable_sort::StableSort;
 use std::fmt;
 
 // sfnt2Woff offset
@@ -189,7 +190,7 @@ pub fn sfnt2woff_with(
     }
     // Go uses the unstable sort.Slice; tags are unique in valid fonts, where
     // every sort yields the same order.
-    entries.sort_by_key(|a| a.tag);
+    entries.stable_sort_by_key(|a| a.tag);
 
     let mut sfnt_size =
         (SIZE_OF_SFNT_HEADER + num_tables as usize * SIZE_OF_SFNT_TABLE_ENTRY) as u32;

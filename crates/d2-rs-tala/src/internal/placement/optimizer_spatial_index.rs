@@ -9,6 +9,7 @@ use super::limits::{OptimizationError, OptimizationWorkGuard};
 use super::owner_points::SharedOwnerPoint;
 use super::shared_topology::{OwnerArenaId, OwnerGraphId};
 use super::{ArenaGraph, NodeId, Point};
+use d2_rs_core::stable_sort::StableSort;
 // Indexed APIs can read an externally shared proposal or a fresh local point.
 // isPointOccupied's newly-created proposal never escapes into graph state.
 pub(super) trait SpatialPoint {
@@ -221,7 +222,7 @@ impl OptimizerSpatialIndex {
             return finish(owner, guard);
         }
         sort_charge(owner, guard, self.entries.len())?;
-        self.entries.sort_by(|a, b| {
+        self.entries.stable_sort_by(|a, b| {
             a.left
                 .partial_cmp(&b.left)
                 .expect("finite indexed coordinate")
@@ -405,7 +406,7 @@ impl OptimizerSpatialIndex {
                 )
             })
             .collect::<Vec<_>>();
-        occupied.sort();
+        occupied.stable_sort();
         serde_json::json!({"graph_bound":self.graph.is_some(),"count":self.node_count,"occupancy":self.occupancy_usable,"spatial":self.spatial_usable,"generation":self.generation,"entries":entries,"tree":self.max_right[..self.max_right_len].iter().copied().map(bits).collect::<Vec<_>>(),"occupied":occupied,"candidates":self.candidates.values()})
     }
 }

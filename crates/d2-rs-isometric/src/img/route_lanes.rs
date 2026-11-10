@@ -9,6 +9,7 @@ use super::{
 };
 use crate::scene::{Board, Edge, Node};
 use d2_rs_core::go_sort;
+use d2_rs_core::stable_sort::StableSort;
 use d2_rs_render::go_float::go_fmadd;
 use d2_rs_scene::{go_max, go_min};
 use std::collections::{HashMap, HashSet};
@@ -347,7 +348,7 @@ pub fn native_resolve_lane_routes(
     }
     let obstacles = obstacles(nodes, boards)?;
     let mut keys: std::vec::Vec<_> = groups.keys().copied().collect();
-    keys.sort_by_key(|a| (a.i, a.k, a.y, a.normal));
+    keys.stable_sort_by_key(|a| (a.i, a.k, a.y, a.normal));
     let mut offsets = vec![0.0; segments.len()];
     let mut processed = vec![false; segments.len()];
     let mut resolved = vec![vec![]; segments.len()];

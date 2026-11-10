@@ -9,6 +9,7 @@
 
 use super::limits::OptimizationError;
 use super::*;
+use d2_rs_core::stable_sort::StableSort;
 
 // Dense placement workspaces also retain projected child carriers. Save only
 // the positions that movement can touch, without replacing node identities,
@@ -354,7 +355,7 @@ impl ArenaGraph {
             .filter(|other| other.input_id != node && other.position.is_some())
             .map(|other| other.input_id)
             .collect();
-        candidates.sort_by(|left, right| {
+        candidates.stable_sort_by(|left, right| {
             self.position(*left)
                 .unwrap()
                 .x
@@ -631,7 +632,7 @@ impl ArenaGraph {
                 .iter()
                 .any(|node| self.nodes[node.0 as usize].fixed_top_left.is_some())
         });
-        roots.sort_by(|a, b| {
+        roots.stable_sort_by(|a, b| {
             let a_position = self.position(*a).unwrap();
             let b_position = self.position(*b).unwrap();
             let a_axis = if horizontal {

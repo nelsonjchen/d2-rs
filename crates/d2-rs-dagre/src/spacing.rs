@@ -10,6 +10,7 @@
 //! so fitting sees the same moved endpoints and interior bends as upstream.
 
 use super::{has_rankable_children, is_descendant, is_sequence_descendant};
+use d2_rs_core::stable_sort::StableSort;
 use d2_rs_core::{EdgeId, Graph, Insets, LabelPosition, NodeId, Point, Rect, ShapeKind};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
@@ -301,7 +302,7 @@ fn get_ranks(
             (id, (start(rect, horizontal) + span / 2.0).ceil())
         })
         .collect::<Vec<_>>();
-    aligned.sort_by(|left, right| left.1.total_cmp(&right.1));
+    aligned.stable_sort_by(|left, right| left.1.total_cmp(&right.1));
     let mut ranks = Ranks {
         layers: Vec::new(),
         objects: BTreeMap::new(),
@@ -444,7 +445,7 @@ pub(super) fn adjust_rank_spacing(
             ending = ancestors;
         }
         let mut end_order = end_positions.into_iter().collect::<Vec<_>>();
-        end_order.sort_by(|left, right| right.1.total_cmp(&left.1));
+        end_order.stable_sort_by(|left, right| right.1.total_cmp(&left.1));
         for (ancestor, desired) in end_order {
             let position = end(boxes[&ancestor], horizontal);
             let delta = desired - position;
@@ -468,7 +469,7 @@ pub(super) fn adjust_rank_spacing(
             }
         }
         let mut start_order = start_positions.into_iter().collect::<Vec<_>>();
-        start_order.sort_by(|left, right| left.1.total_cmp(&right.1));
+        start_order.stable_sort_by(|left, right| left.1.total_cmp(&right.1));
         for (ancestor, desired) in start_order {
             let position = start(boxes[&ancestor], horizontal);
             let delta = position - desired;

@@ -3,6 +3,7 @@
 //! placement against projected obstacles. Contraction sites are marked
 //! `ARM64:`; products by 0.5 are exact.
 
+use d2_rs_core::stable_sort::StableSort;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
@@ -139,7 +140,7 @@ impl RouteCaptionPlacer {
                 l.length,
             )
         };
-        legs.sort_by(|a, b| {
+        legs.stable_sort_by(|a, b| {
             score(b)
                 .partial_cmp(&score(a))
                 .unwrap_or(std::cmp::Ordering::Equal)

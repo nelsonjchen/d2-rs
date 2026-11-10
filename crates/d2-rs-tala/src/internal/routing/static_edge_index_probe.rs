@@ -5,6 +5,7 @@
 use super::super::routed_edge_set::NodeIdentity;
 use super::*;
 use crate::internal::owner_points::SharedOwnerPoint;
+use d2_rs_core::stable_sort::StableSort;
 use serde_json::{Value, json};
 use std::cell::{Cell, RefCell};
 fn integer(v: &Value, key: &str, default: usize) -> usize {
@@ -87,7 +88,7 @@ fn state(index: &StaticEdgeIndex, nodes: &[NodeRef]) -> Value {
             .values()
             .map(|bucket| json!({"axis":bits(bucket.axis),"edges":pointers(&bucket.edges)}))
             .collect::<Vec<_>>();
-        rows.sort_by_key(|row| row["axis"].as_str().unwrap().to_owned());
+        rows.stable_sort_by_key(|row| row["axis"].as_str().unwrap().to_owned());
         rows
     };
     json!({"edges":header(index,index.edges.capacity()),"horizontal":axes(&index.horizontal),"vertical":axes(&index.vertical),"nearby":({let mut v=index.nearby.iter().collect::<Vec<_>>();v.sort_unstable();v}),"overlapping":({let mut v=index.overlapping.iter().collect::<Vec<_>>();v.sort_unstable_by_key(|(edge,_)|*edge);v.into_iter().map(|(edge,routes)|json!([edge,pointers(routes)])).collect::<Vec<_>>()}),"nodes":nodes.iter().map(|n|{let p=n.point();json!([bits(p.x),bits(p.y)])}).collect::<Vec<_>>(),"point_aliases":nodes.iter().map(|n|nodes.iter().position(|o|n.shared.as_ref().unwrap().same_allocation(o.shared.as_ref().unwrap())).unwrap()).collect::<Vec<_>>()})

@@ -11,6 +11,7 @@ use super::{
     LGraphId, LNodeId, Layer, LayerId, LayeredArena, LayeredNodeType, LayeringError,
     gwt_priority_queue as queue, source_layering_connected_components,
 };
+use d2_rs_core::stable_sort::StableSort;
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -41,7 +42,7 @@ pub(super) fn assign(arena: &mut LayeredArena, graph: LGraphId) -> Result<(), La
             .any(|n| arena.nodes[*n as usize].node_type == LayeredNodeType::ExternalPort);
     let groups = if split {
         let mut groups = source_layering_connected_components(arena, &ordered, &edge_ids);
-        groups.sort_by_key(|group| {
+        groups.stable_sort_by_key(|group| {
             group
                 .iter()
                 .filter_map(|n| ordered.iter().position(|p| p == n))

@@ -4,6 +4,7 @@
 //! the SVG writer for a native mesh scene. Contraction sites are marked
 //! `ARM64:`.
 
+use d2_rs_core::stable_sort::StableSort;
 use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
@@ -1084,7 +1085,7 @@ fn write_ground_shadow(w: &mut Writer, scene: &NativeScene) {
             let sum: f64 = faces[i].points.iter().map(|p| p.z).sum();
             sum / faces[i].points.len() as f64
         };
-        textures.sort_by(|&a, &b| {
+        textures.stable_sort_by(|&a, &b| {
             depth(a)
                 .partial_cmp(&depth(b))
                 .unwrap_or(std::cmp::Ordering::Equal)
@@ -1179,7 +1180,7 @@ fn write_links(w: &mut Writer, scene: &NativeScene) {
             (link, points, area)
         })
         .collect();
-    links.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal));
+    links.stable_sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal));
     for (link, points, _) in links {
         let mut destination = link.url.clone();
         if destination.is_empty() && !link.target.is_empty() {
@@ -1394,7 +1395,7 @@ pub fn native_scene_svg_with_context(
         unit.depth /= unit.count as f64;
         let decal = |b: &Batch| is_decal(&b.triangle, &b.material.borrow());
         let mut order = unit.batches.clone();
-        order.sort_by(|&a, &b| {
+        order.stable_sort_by(|&a, &b| {
             let (ba, bb) = (&batches[a], &batches[b]);
             let (pa, pb) = (decal(ba), decal(bb));
             if pa != pb {

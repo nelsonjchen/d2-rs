@@ -5,6 +5,7 @@
 //! the Go map allocation; views of the same graph share field replacement too.
 use super::{NodeId, SharedNodeSlice, SharedSliceMap};
 use crate::internal::go_cell::GoCell;
+use d2_rs_core::stable_sort::StableSort;
 use std::{collections::BTreeMap, sync::Arc};
 
 #[derive(Debug)]
@@ -170,7 +171,7 @@ impl super::ArenaGraph {
             let mut observed = serde_json::Map::new();
             for (name, map) in &maps {
                 let mut entries = map.entries();
-                entries.sort_by_key(|(key, _)| node_id(*key));
+                entries.stable_sort_by_key(|(key, _)| node_id(*key));
                 let entries = entries
                     .into_iter()
                     .map(|(key, h)| {

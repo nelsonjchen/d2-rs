@@ -8,6 +8,7 @@
 //! shape-specific padding determine cells before the container is fitted.
 
 use super::*;
+use d2_rs_core::stable_sort::StableSort;
 
 impl ArenaGraph {
     /// Materializes an explicitly column-constrained grid in declaration
@@ -185,7 +186,7 @@ impl ArenaGraph {
                 .map(|child| self.nodes[child.0 as usize].rect.size.width)
                 .fold(0.0, f64::max);
             let mut ordered = children.to_vec();
-            ordered.sort_by(|left, right| {
+            ordered.stable_sort_by(|left, right| {
                 area(self, *right)
                     .total_cmp(&area(self, *left))
                     .then_with(|| left.cmp(right))

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 // Source code token accounting follows d2scenebuild buildDocument object order.
 use super::*;
+use d2_rs_core::stable_sort::StableSort;
 use d2_rs_text::code::{self, CodeBudget, CodeWorkError};
 #[derive(Default)]
 pub(super) struct Streams {
@@ -37,7 +38,7 @@ pub(super) fn collect(
     for (id, edge) in graph.edges() {
         objects.push((sequence_connection_z_index(graph, edge), None, false, id.0));
     }
-    objects.sort_by(|a, b| {
+    objects.stable_sort_by(|a, b| {
         a.0.cmp(&b.0).then_with(|| match (a.1, b.1) {
             (Some(a), Some(b)) => a.cmp(&b),
             (Some(_), None) => std::cmp::Ordering::Less,

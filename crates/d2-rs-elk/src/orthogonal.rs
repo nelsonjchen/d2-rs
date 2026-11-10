@@ -6,6 +6,7 @@
 
 use crate::layered::{JavaRandom, LEdgeId, LGraphId, LNodeId, LPortId, LayeredArena, PortSide};
 use d2_rs_core::Point;
+use d2_rs_core::stable_sort::StableSort;
 use std::collections::{BTreeSet, HashMap, VecDeque};
 
 const TOLERANCE: f64 = 1e-3;
@@ -453,7 +454,7 @@ fn minimum_horizontal_segment_distance(segments: &[Segment]) -> f64 {
         if values.len() < 2 {
             return f64::MAX;
         }
-        values.sort_by(f64::total_cmp);
+        values.stable_sort_by(f64::total_cmp);
         let mut minimum = f64::MAX;
         let mut previous = values[0];
         for current in values.iter().copied().skip(1) {
@@ -957,7 +958,7 @@ fn split_critical_cycles(
         coordinates.extend_from_slice(&segment.incoming_coordinates);
         coordinates.extend_from_slice(&segment.outgoing_coordinates);
     }
-    coordinates.sort_by(f64::total_cmp);
+    coordinates.stable_sort_by(f64::total_cmp);
     let mut areas = Vec::<FreeArea>::new();
     for pair in coordinates.windows(2) {
         if pair[1] - pair[0] >= 2.0 * critical_threshold {
@@ -993,7 +994,7 @@ fn split_critical_cycles(
         seen.insert(segment);
         segments[segment].split_by = Some(cause);
     }
-    selected.sort_by(|left, right| {
+    selected.stable_sort_by(|left, right| {
         segments[*left]
             .length()
             .total_cmp(&segments[*right].length())

@@ -8,6 +8,7 @@
 //! insertion, removal, restoration, and endpoint-local ordering.
 
 use super::*;
+use d2_rs_core::stable_sort::StableSort;
 
 impl ArenaGraph {
     pub(super) fn invalidate_node_order_membership(&mut self) {
@@ -1058,7 +1059,7 @@ impl ArenaGraph {
                     near.expect("runtime error: invalid memory address or nil pointer dereference")
                 })
                 .collect::<Vec<_>>();
-            nears.sort_by_key(|near| self.nodes[near.0 as usize].tala_id);
+            nears.stable_sort_by_key(|near| self.nodes[near.0 as usize].tala_id);
             for near in nears {
                 self.nodes[near.0 as usize].nears.delete(Some(vessel));
                 for &member in members {
@@ -1094,7 +1095,7 @@ impl ArenaGraph {
         // half-pixel member centers (and avoids an extra child translation
         // that the temporary Go vessel never performs here).
         let mut clusters = (0..self.clusters.len()).collect::<Vec<_>>();
-        clusters.sort_by_key(|cluster| self.clusters[*cluster].vessel_tala_id);
+        clusters.stable_sort_by_key(|cluster| self.clusters[*cluster].vessel_tala_id);
         for cluster_index in clusters {
             let members = self.clusters[cluster_index].members.clone();
             let Some(&vessel) = members.first() else {
@@ -1187,7 +1188,7 @@ impl ArenaGraph {
         }
 
         let mut sequences = (0..self.sequences.len()).collect::<Vec<_>>();
-        sequences.sort_by_key(|sequence| self.sequences[*sequence].vessel_tala_id);
+        sequences.stable_sort_by_key(|sequence| self.sequences[*sequence].vessel_tala_id);
         for sequence_index in sequences {
             let members = self.sequences[sequence_index].members.clone();
             let Some(&vessel) = members.first() else {

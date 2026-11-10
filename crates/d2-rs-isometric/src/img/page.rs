@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 //! d2isometricimg page.go: bounded link and tooltip regions on the mesh.
 
+use d2_rs_core::stable_sort::StableSort;
 use d2_rs_render::go_float::{go_fmadd, go_fmsub, gomath};
 use d2_rs_scene::{Document, ViewportAlign, ViewportFit, go_max, go_min};
 
@@ -473,7 +474,7 @@ fn project_page_links(
         });
     }
     // Stable order gives small, specific annotations priority in document viewers.
-    links.sort_by(|a, b| {
+    links.stable_sort_by(|a, b| {
         (b.r#box.width * b.r#box.height).total_cmp(&(a.r#box.width * a.r#box.height))
     });
     Ok(links)

@@ -10,6 +10,8 @@
 
 #![cfg(feature = "diagnostic-traces")]
 
+use d2_rs_core::stable_sort::StableSort;
+
 #[path = "owner_pass_probe.rs"]
 mod owner_pass_probe;
 
@@ -160,7 +162,7 @@ fn raw_state(graph: &ArenaGraph, identity: &EntryIdentity) -> Value {
         .unwrap_or_default()
         .into_iter()
         .collect::<Vec<_>>();
-    cache.sort_by_key(|&(key, _)| key);
+    cache.stable_sort_by_key(|&(key, _)| key);
     let nodes = graph
         .graph_node_order()
         .into_iter()

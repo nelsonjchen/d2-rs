@@ -8,6 +8,7 @@
 //! while preparing nonuniform rectangles for the sized optimizer.
 
 use super::*;
+use d2_rs_core::stable_sort::StableSort;
 
 impl ArenaGraph {
     pub(super) fn ordered_along_axis(&self, horizontal: bool) -> Vec<NodeId> {
@@ -25,7 +26,7 @@ impl ArenaGraph {
         horizontal: bool,
     ) -> Vec<NodeId> {
         let mut nodes = nodes.to_vec();
-        nodes.sort_by(|a, b| {
+        nodes.stable_sort_by(|a, b| {
             let a_position = self.position(*a).unwrap();
             let b_position = self.position(*b).unwrap();
             let a_axis = if horizontal {

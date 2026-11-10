@@ -2,6 +2,7 @@
 // elk-go/internal/radial/provider.go: wedge allocation, ordering and transforms.
 use super::*;
 use crate::js_trig::{cos, product_sum, sin};
+use d2_rs_core::stable_sort::StableSort;
 impl Arena {
     fn leaf_count(&self, n: usize) -> usize {
         let children = self.successors(n);
@@ -90,7 +91,7 @@ impl Arena {
             self.set_polar_ids(&first, 0);
         }
         if strategy == "ID" || strategy == "POLAR_COORDINATE" {
-            nodes.sort_by_key(|&n| self.nodes[n].order)
+            nodes.stable_sort_by_key(|&n| self.nodes[n].order)
         }
     }
     fn set_polar_ids(&mut self, nodes: &[usize], offset: i32) -> i32 {
@@ -132,7 +133,7 @@ impl Arena {
             }
             a
         };
-        nodes.sort_by(|&a, &b| {
+        nodes.stable_sort_by(|&a, &b| {
             let (a, b) = (arc(a), arc(b));
             if (a - b).abs() <= 1e-10 {
                 std::cmp::Ordering::Equal

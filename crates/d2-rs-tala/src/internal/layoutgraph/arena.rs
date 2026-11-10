@@ -8,6 +8,7 @@
 //! metadata side tables, and the order-sensitive views used by later stages.
 
 use super::*;
+use d2_rs_core::stable_sort::StableSort;
 
 impl ArenaGraph {
     pub(super) fn from_input(input: &Graph) -> Self {
@@ -1433,7 +1434,7 @@ impl ArenaGraph {
                     .filter(|candidate| active.contains(candidate))
                     .collect::<Vec<_>>();
                 let mut nears = node_ref.nears.keys();
-                nears.sort_by_key(|near| self.nodes[near.0 as usize].tala_id);
+                nears.stable_sort_by_key(|near| self.nodes[near.0 as usize].tala_id);
                 adjacent.extend(
                     nears
                         .into_iter()
@@ -1570,7 +1571,7 @@ impl ArenaGraph {
                     .map(|edge| self.adjacent(current, edge))
                     .collect::<Vec<_>>();
                 let mut nears = node.nears.keys();
-                nears.sort_by_key(|near| self.nodes[near.0 as usize].tala_id);
+                nears.stable_sort_by_key(|near| self.nodes[near.0 as usize].tala_id);
                 adjacent.extend(nears);
                 for candidate in adjacent {
                     if live_nodes.contains(&candidate) && queued.insert(candidate) {
@@ -1753,7 +1754,7 @@ impl ArenaGraph {
             edge_indices.insert(edge, index);
         }
         let mut edges = edge_indices.into_iter().collect::<Vec<_>>();
-        edges.sort_by_key(|&(_, index)| index);
+        edges.stable_sort_by_key(|&(_, index)| index);
         (
             members.to_vec(),
             edges.into_iter().map(|(edge, _)| edge).collect(),
@@ -2741,7 +2742,7 @@ impl ArenaGraph {
             .iter()
             .map(|(&parent, &local)| (local, parent))
             .collect::<Vec<_>>();
-        parent_edges.sort_by_key(|&(local, _)| local);
+        parent_edges.stable_sort_by_key(|&(local, _)| local);
         // A materialized component must expose its Node.Graph and graph map
         // fields before InitializeNodes, including readonly median lookups.
         // A later mutable owner API must not be needed to create this view.
@@ -2882,7 +2883,7 @@ impl ArenaGraph {
                 "slots":(0..node.edges.capacity()).map(|i|node.edges.header().read_capacity_slot(i).unwrap()
                     .map(|edge|self.edge_records[edge.0 as usize].tala_id)).collect::<Vec<_>>()}
         })).collect::<Vec<_>>();
-        inventory.sort_by_key(|node| node["id"].as_i64().unwrap());
+        inventory.stable_sort_by_key(|node| node["id"].as_i64().unwrap());
         let mut containers = self.containers.keys().map(|key| {
             let h=self.containers.get_header(&key).unwrap();
             json!({"key":node_id(key),"nil":h.is_nil(),"len":h.len(),"cap":h.capacity(),

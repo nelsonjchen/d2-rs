@@ -15,6 +15,7 @@
 
 use crate::model::ElkGraph;
 use d2_rs_core::Point;
+use d2_rs_core::stable_sort::StableSort;
 use serde_json::Value;
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
@@ -1161,7 +1162,7 @@ impl LayeredArena {
                 (id as LEdgeId, graph)
             })
             .collect::<Vec<_>>();
-        ordered.sort_by_key(|(_, graph)| ranks.get(graph).copied().unwrap_or(usize::MAX));
+        ordered.stable_sort_by_key(|(_, graph)| ranks.get(graph).copied().unwrap_or(usize::MAX));
         let mut incoming = vec![0_usize; self.ports.len()];
         let mut outgoing = incoming.clone();
         for (model_order, (edge, graph)) in ordered.into_iter().enumerate() {
@@ -1188,8 +1189,8 @@ impl LayeredArena {
         }
         let order = &self.edge_model_order;
         for port in &mut self.ports {
-            port.incoming_edges.sort_by_key(|id| order[id]);
-            port.outgoing_edges.sort_by_key(|id| order[id]);
+            port.incoming_edges.stable_sort_by_key(|id| order[id]);
+            port.outgoing_edges.stable_sort_by_key(|id| order[id]);
         }
     }
 
@@ -1375,7 +1376,7 @@ impl LayeredArena {
             ));
         }
 
-        pending.sort_by_key(|entry| edge_visit_order[&entry.1]);
+        pending.stable_sort_by_key(|entry| edge_visit_order[&entry.1]);
         for (
             edge_id,
             layout_edge_id,
@@ -2306,7 +2307,7 @@ pub(crate) fn materialize_implicit_ports_in_import_order(
     // Source importEdges creates implicit ports and endpoint adjacency in
     // breadth-first containing-graph order, independently of wire edge IDs.
     let mut imported_edges = (0..arena.edges.len() as LEdgeId).collect::<Vec<_>>();
-    imported_edges.sort_by_key(|id| {
+    imported_edges.stable_sort_by_key(|id| {
         arena
             .edge_model_order
             .get(id)
@@ -2711,7 +2712,7 @@ pub fn self_loop_compacted_slots(
                     self_loop_occupied_sides(arena, *id).is_some_and(|sides| sides[side as usize])
                 })
                 .collect::<Vec<_>>();
-            passing.sort_by_key(|id| raw[id]);
+            passing.stable_sort_by_key(|id| raw[id]);
             for (slot, id) in passing.into_iter().enumerate() {
                 result.get_mut(&id)?[side as usize] = Some(slot);
             }
@@ -2722,7 +2723,7 @@ pub fn self_loop_compacted_slots(
             .copied()
             .filter(|id| indexes.iter().any(|i| activities[id][*i]))
             .collect::<Vec<_>>();
-        loops.sort_by_key(|id| raw[id]);
+        loops.stable_sort_by_key(|id| raw[id]);
         let mut label_slots = BTreeMap::new();
         for id in loops {
             let activity = &activities[&id];
@@ -3309,7 +3310,7 @@ pub fn split_deep_cross_hierarchy_edges(
     // The order is observable: the first boundary dummy fixes the compound's
     // port sides, so later reused endpoints keep their imported sides.
     let mut import_order = (0..original_edge_count as LEdgeId).collect::<Vec<_>>();
-    import_order.sort_by_key(|edge_id| {
+    import_order.stable_sort_by_key(|edge_id| {
         arena
             .edge_model_order
             .get(edge_id)
@@ -3614,7 +3615,7 @@ fn reorder_compound_port_dummies(arena: &mut LayeredArena, graph_id: LGraphId) {
         })
         .collect::<Vec<_>>()
         .join("|");
-    dummies.sort_by(|first, second| {
+    dummies.stable_sort_by(|first, second| {
         second
             .connected
             .cmp(&first.connected)
@@ -3996,7 +3997,7 @@ fn position_constrained_ports(arena: &mut LayeredArena) {
             if ports.is_empty() {
                 continue;
             }
-            ports.sort_by_key(|port_id| {
+            ports.stable_sort_by_key(|port_id| {
                 let port = &arena.ports[*port_id as usize];
                 (port.index.unwrap_or(i32::MAX), *port_id)
             });
@@ -4909,7 +4910,7 @@ pub(crate) fn break_cycles_for_layout(
         .enumerate()
         .map(|(i, node)| (*node, i))
         .collect::<BTreeMap<_, _>>();
-    components.sort_by_key(|component| component.iter().map(|node| positions[node]).min());
+    components.stable_sort_by_key(|component| component.iter().map(|node| positions[node]).min());
     let result = (|| {
         let mut reversed = Vec::new();
         for component in components {
@@ -6032,7 +6033,7 @@ pub fn sort_port_lists_for_layout(
             }
             arena.nodes[node_id as usize]
                 .ports
-                .sort_by(|first_id, second_id| {
+                .stable_sort_by(|first_id, second_id| {
                     let first = &arena.ports[*first_id as usize];
                     let second = &arena.ports[*second_id as usize];
                     port_side_order(first.side)
@@ -6052,7 +6053,8 @@ pub fn sort_port_lists_for_layout(
                 });
         } else if constraints == PortConstraints::FixedSide {
             let mut ports = arena.nodes[node_id as usize].ports.clone();
-            ports.sort_by_key(|port_id| port_side_order(arena.ports[*port_id as usize].side));
+            ports
+                .stable_sort_by_key(|port_id| port_side_order(arena.ports[*port_id as usize].side));
             reverse_port_side(arena, &mut ports, PortSide::South);
             reverse_port_side(arena, &mut ports, PortSide::West);
             if sort_by_degree {
@@ -6064,7 +6066,7 @@ pub fn sort_port_lists_for_layout(
                         end += 1;
                     }
                     if matches!(side, PortSide::East | PortSide::West) {
-                        ports[start..end].sort_by(|first_id, second_id| {
+                        ports[start..end].stable_sort_by(|first_id, second_id| {
                             let incoming = side == PortSide::West;
                             let first_degree = real_port_degree(arena, *first_id, incoming);
                             let second_degree = real_port_degree(arena, *second_id, incoming);
@@ -8032,7 +8034,7 @@ fn route_orthogonal_inter_layer_edges(
                     })
                 })
                 .collect::<Vec<_>>();
-            border_ports.sort();
+            border_ports.stable_sort();
             crate::trace::emit_value(
                 "routing",
                 "orthogonal_pair_lanes",
@@ -10807,7 +10809,7 @@ fn distribute_barycenter_ports(
     }
 
     let mut ports = arena.nodes[node_id as usize].ports.clone();
-    ports.sort_by(|first, second| {
+    ports.stable_sort_by(|first, second| {
         let first_port = &arena.ports[*first as usize];
         let second_port = &arena.ports[*second as usize];
         port_side_order(first_port.side)
@@ -11199,7 +11201,7 @@ fn restore_p3_order(arena: &mut LayeredArena, snapshot: &P3OrderSnapshot, freeze
     for node_id in update {
         let constraints = arena.nodes[node_id as usize].port_constraints;
         let mut ports = arena.nodes[node_id as usize].ports.clone();
-        ports.sort_by(|a, b| {
+        ports.stable_sort_by(|a, b| {
             let a = &arena.ports[*a as usize];
             let b = &arena.ports[*b as usize];
             port_side_order(a.side)
@@ -11644,7 +11646,7 @@ where
         .enumerate()
         .map(|(i, id)| (*id, i))
         .collect::<BTreeMap<_, _>>();
-    components.sort_by_key(|component| component.iter().map(|id| positions[id]).min());
+    components.stable_sort_by_key(|component| component.iter().map(|id| positions[id]).min());
     let mut combined_layers = Vec::new();
     for component in components {
         let scope = arena.graphs.len() as LGraphId;
@@ -11751,7 +11753,7 @@ where
     // ComponentsProcessor.Split discovers components from LayerlessNodes in
     // model order. P2's shared-root solver stores the same membership in
     // largest-first order, so restore the source split order here.
-    components.sort_by_key(|component| {
+    components.stable_sort_by_key(|component| {
         component
             .iter()
             .filter_map(|node_id| model_positions.get(node_id))
@@ -12588,7 +12590,7 @@ fn order_layers_by_barycenter_impl(
         for (position, (node_id, barycenter)) in keyed.iter().enumerate() {
             trace_candidate!(boundary as u32, *node_id, *barycenter, position, arena);
         }
-        keyed.sort_by(|left, right| left.1.total_cmp(&right.1));
+        keyed.stable_sort_by(|left, right| left.1.total_cmp(&right.1));
         let mut ordered = keyed.iter().map(|entry| entry.0).collect::<Vec<_>>();
         if let Some(constraints) = &constraints {
             let mut states = vec![SourceBarycenterState::default(); arena.nodes.len()];
@@ -12769,7 +12771,7 @@ fn order_layers_by_barycenter_impl(
                 arena,
             );
         }
-        keyed.sort_by(|first, second| {
+        keyed.stable_sort_by(|first, second| {
             first
                 .1
                 .unwrap_or_default()
@@ -13756,7 +13758,7 @@ fn p3_count_hyperedge_crossings(
     }
 
     let mut sorted = live.iter().map(|id| hyperedges[*id]).collect::<Vec<_>>();
-    sorted.sort_by_key(|edge| (edge.upper_left, edge.upper_right, edge.id));
+    sorted.stable_sort_by_key(|edge| (edge.upper_left, edge.upper_right, edge.id));
     let mut south_sequence = sorted
         .iter()
         .map(|edge| edge.upper_right)
@@ -14149,7 +14151,7 @@ fn pack_disconnected_components_impl(
     // SimpleRowGraphPlacer sorts by priority, then ascending area, then source
     // model order. Components without explicit priority therefore keep their
     // original order when equal-sized isolated nodes are packed.
-    boxes.sort_by(|left, right| {
+    boxes.stable_sort_by(|left, right| {
         left.area
             .total_cmp(&right.area)
             .then_with(|| left.model_order.cmp(&right.model_order))
@@ -15578,7 +15580,7 @@ pub fn choose_bk_layout(
                 .enumerate()
                 .map(|(index, candidate)| candidate.0[&node_id] + shifts[index])
                 .collect::<Vec<_>>();
-            values.sort_by(f64::total_cmp);
+            values.stable_sort_by(f64::total_cmp);
             result.insert(node_id, (values[1] + values[2]) / 2.0);
         }
         if candidate_order_is_valid(arena, graph_id, &result) {
@@ -15892,7 +15894,7 @@ fn bk_neighbors(
             neighbors.push((neighbor, edge_id, node_position[&neighbor]));
         }
     }
-    neighbors.sort_by_key(|neighbor| neighbor.2);
+    neighbors.stable_sort_by_key(|neighbor| neighbor.2);
     neighbors
 }
 

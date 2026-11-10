@@ -2,6 +2,7 @@
 // Source: pinned mathjax-go tex/ams_tags.go and ams_tags_environments.go;
 // svg/{mtable,mtr,typesetter,wrapper}.go.
 use super::*;
+use d2_rs_core::stable_sort::StableSort;
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 pub(super) type Shared = Rc<RefCell<State>>;
 #[derive(Clone, Debug)]
@@ -682,7 +683,7 @@ fn keyval_options(mut rest: &str) -> Result<Vec<(String, String)>, String> {
             .ok()
             .filter(|&n| n < u32::MAX && n.to_string() == key)
     };
-    settings.sort_by_key(|(key, _)| index(key).map_or((true, 0), |n| (false, n)));
+    settings.stable_sort_by_key(|(key, _)| index(key).map_or((true, 0), |n| (false, n)));
     Ok(settings)
 }
 

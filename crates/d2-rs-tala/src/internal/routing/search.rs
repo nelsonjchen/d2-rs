@@ -9,6 +9,7 @@
 //! stable order so parallel evaluation does not change tie-breaking.
 
 use super::*;
+use d2_rs_core::stable_sort::StableSort;
 
 fn same_base_port(first: Port, second: Port) -> bool {
     first.point == second.point
@@ -144,7 +145,7 @@ fn candidate_route(
                     }),
             );
         }
-        tracks.sort_by(|left, right| match source.side {
+        tracks.stable_sort_by(|left, right| match source.side {
             PortSide::Top | PortSide::Left => right.total_cmp(left),
             PortSide::Bottom | PortSide::Right => left.total_cmp(right),
         });
@@ -4125,7 +4126,7 @@ fn ovg_obstacle_node_order(
                         .is_some_and(|membership| membership.id == hierarchy.id)
             })
             .collect::<Vec<_>>();
-        members.sort_by_key(|member| graph.nodes[member.0 as usize].tala_id);
+        members.stable_sort_by_key(|member| graph.nodes[member.0 as usize].tala_id);
         order.extend(members);
     }
     Ok(order)
@@ -4265,11 +4266,11 @@ fn route_edge_subset(
             graph.sized_distance(edge.from, edge.to)
         };
         if flavor == "ShortestToLongest" {
-            order.sort_by(|a, b| distance(*a).total_cmp(&distance(*b)));
+            order.stable_sort_by(|a, b| distance(*a).total_cmp(&distance(*b)));
         } else if flavor == "LongestToShortest" {
-            order.sort_by(|a, b| distance(*b).total_cmp(&distance(*a)));
+            order.stable_sort_by(|a, b| distance(*b).total_cmp(&distance(*a)));
         }
-        order.sort_by_key(|index| {
+        order.stable_sort_by_key(|index| {
             let edge = &graph.edge_records[*index];
             !(cluster_nodes.contains(&edge.from) || cluster_nodes.contains(&edge.to))
         });
@@ -4453,7 +4454,7 @@ fn route_additional_edge_subset(
         });
     }
     let prioritize_cluster_edges = |edges: &mut Vec<usize>| {
-        edges.sort_by_key(|edge_index| {
+        edges.stable_sort_by_key(|edge_index| {
             let edge = &graph.edge_records[*edge_index];
             !(cluster_nodes.contains(&edge.from) || cluster_nodes.contains(&edge.to))
         });
@@ -4474,7 +4475,7 @@ fn route_additional_edge_subset(
             requested.to_vec()
         };
         if flavor == "ShortestToLongest" {
-            order.sort_by(|left, right| {
+            order.stable_sort_by(|left, right| {
                 graph
                     .sized_distance(graph.edge_records[*left].from, graph.edge_records[*left].to)
                     .total_cmp(&graph.sized_distance(
@@ -4483,7 +4484,7 @@ fn route_additional_edge_subset(
                     ))
             });
         } else if flavor == "LongestToShortest" {
-            order.sort_by(|left, right| {
+            order.stable_sort_by(|left, right| {
                 graph
                     .sized_distance(
                         graph.edge_records[*right].from,

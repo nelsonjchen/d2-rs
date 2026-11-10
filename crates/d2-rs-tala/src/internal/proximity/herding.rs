@@ -8,6 +8,7 @@
 //! propagate compatible directional assignments through each group.
 
 use crate::internal::*;
+use d2_rs_core::stable_sort::StableSort;
 
 impl Pipeline {
     /// Source GroupSheep consumes actual parent records, child-major. A used
@@ -151,7 +152,7 @@ impl Pipeline {
                 }
             }
         }
-        groups.sort_by_key(|(uncle, _)| self.graph.nodes[uncle.0 as usize].tala_id);
+        groups.stable_sort_by_key(|(uncle, _)| self.graph.nodes[uncle.0 as usize].tala_id);
 
         let herd_groups = groups
             .iter()

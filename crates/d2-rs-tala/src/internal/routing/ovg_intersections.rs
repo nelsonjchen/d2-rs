@@ -7,6 +7,7 @@ use super::ovg_ports::{PortBuild, PortList, SharedPortNode};
 use super::route_search_guard::OvgBuildBudget;
 use super::{ArenaGraph, NodeId, Point, Rect};
 use crate::internal::owner_groups::OwnerGroupKind::{Cluster, Sequence};
+use d2_rs_core::stable_sort::StableSort;
 use std::collections::{BTreeMap, BTreeSet};
 pub(super) type Budget<'a, 'b> = Option<&'a OvgBuildBudget<'b>>;
 pub(super) fn check(budget: Budget<'_, '_>) -> Result<(), ()> {
@@ -101,7 +102,7 @@ impl<T: Default> AxisMap<T> {
     }
 }
 fn sort(values: &mut [f64]) {
-    values.sort_by(|a, b| {
+    values.stable_sort_by(|a, b| {
         if a.is_nan() {
             if b.is_nan() {
                 std::cmp::Ordering::Equal

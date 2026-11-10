@@ -8,6 +8,7 @@
 
 use super::Compiler;
 use crate::{format, ir};
+use d2_rs_core::stable_sort::StableSort;
 use d2_rs_core::{ast, ir::EdgeReference, ir::FieldReference, ir::Node, ir::NodeId};
 use serde_json::{Value, json};
 
@@ -80,7 +81,7 @@ fn visit(compiler: &Compiler, node: NodeId, rows: &mut Vec<Value>) {
                         .flatten()
                         .map(|field| ast::ByteString::from(field.clone()).to_text().into_owned())
                         .collect::<Vec<_>>();
-                    fields.sort();
+                    fields.stable_sort();
                     let mut edges = glob
                         .applied_edges
                         .as_ref()
@@ -89,7 +90,7 @@ fn visit(compiler: &Compiler, node: NodeId, rows: &mut Vec<Value>) {
                         .flatten()
                         .map(|edge| ast::ByteString::from(edge).to_text().into_owned())
                         .collect::<Vec<_>>();
-                    edges.sort();
+                    edges.stable_sort();
                     json!({
                         "edges": edges,
                         "key": context.key.as_ref().map(|key| String::from_utf8_lossy(&crate::format::format(&ast::Child::Key(key.clone()))).into_owned()),

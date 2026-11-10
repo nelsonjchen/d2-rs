@@ -1,6 +1,8 @@
 // Copyright (c) 2013, 2015, 2017, 2020 Kiel University and others.
 // SPDX-License-Identifier: EPL-2.0
 // Pinned elk-go/internal/mrtree/{model,options,provider}.go.
+use d2_rs_core::stable_sort::StableSort;
+
 mod compaction;
 mod placement;
 mod routing;
@@ -214,7 +216,7 @@ impl Arena {
                 .sum()
         };
         let area = |g: &Graph| (g.max.x - g.min.x) * (g.max.y - g.min.y);
-        components.sort_by(|a, b| {
+        components.stable_sort_by(|a, b| {
             priority(b).cmp(&priority(a)).then_with(|| {
                 area(a)
                     .partial_cmp(&area(b))

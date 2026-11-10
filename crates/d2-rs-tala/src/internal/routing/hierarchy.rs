@@ -8,6 +8,7 @@
 //! hierarchy routes establish context first.
 
 use super::*;
+use d2_rs_core::stable_sort::StableSort;
 use std::cmp::Ordering;
 
 fn normalized_endpoints(graph: &ArenaGraph, edge_index: usize) -> (NodeId, NodeId) {
@@ -52,7 +53,7 @@ pub(in crate::internal) fn top_down_left_right_edge_order(
     edges: &[usize],
 ) -> Vec<usize> {
     let mut ordered = edges.to_vec();
-    ordered.sort_by(|first, second| {
+    ordered.stable_sort_by(|first, second| {
         if top_down_left_right_less(graph, *first, *second) {
             Ordering::Less
         } else if top_down_left_right_less(graph, *second, *first) {

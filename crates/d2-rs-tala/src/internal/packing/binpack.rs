@@ -5,6 +5,7 @@
 //! Packing of disconnected components and completed container scopes.
 
 use super::*;
+use d2_rs_core::stable_sort::StableSort;
 
 #[cfg(feature = "diagnostic-traces")]
 fn trace_binpack_event(
@@ -238,7 +239,7 @@ impl ArenaGraph {
                         .collect::<Vec<_>>(),
                     TraceNode::Member(node) => self.nodes[node.0 as usize].nears.keys(),
                 };
-                nears.sort_by_key(|node| self.nodes[node.0 as usize].tala_id);
+                nears.stable_sort_by_key(|node| self.nodes[node.0 as usize].tala_id);
                 nears.dedup();
                 let current_container = container_of(current);
                 for near in nears {
@@ -776,7 +777,7 @@ impl ArenaGraph {
                         nears.extend(self.nodes[member.0 as usize].nears.keys());
                     }
                 }
-                nears.sort_by_key(|node| self.nodes[node.0 as usize].tala_id);
+                nears.stable_sort_by_key(|node| self.nodes[node.0 as usize].tala_id);
                 nears.dedup();
                 let start_container = self.active_node_container(start);
                 for near in nears {
@@ -1904,7 +1905,7 @@ impl ArenaGraph {
         // remain one atomic packed obstacle and contribute candidates only
         // after every cross-container group.
         if !fixed_nodes_group.is_empty() {
-            fixed_nodes_group.sort();
+            fixed_nodes_group.stable_sort();
             fixed_nodes_group.dedup();
             packed.push(fixed_nodes_group);
         }

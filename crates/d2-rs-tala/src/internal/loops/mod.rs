@@ -10,6 +10,7 @@
 use super::*;
 use crate::internal::ArenaEdge;
 use crate::internal::routing::{Port, PortSide, ports_with_table_column_count};
+use d2_rs_core::stable_sort::StableSort;
 
 /// The four loop slots are deliberately ordered like TALA's `makeLoopPorts`:
 /// left/top, top/right, bottom/left, and right/bottom.  A slot is reused only
@@ -116,7 +117,7 @@ pub(crate) fn ordered_self_loop_edges(graph: &ArenaGraph, node: NodeId) -> Vec<u
             graph.edge_records[edge].from == node && graph.edge_records[edge].to == node
         })
         .collect::<Vec<_>>();
-    edges.sort_by(|left, right| {
+    edges.stable_sort_by(|left, right| {
         arrow_score(&graph.edge_records[*left])
             .cmp(&arrow_score(&graph.edge_records[*right]))
             .then_with(|| {

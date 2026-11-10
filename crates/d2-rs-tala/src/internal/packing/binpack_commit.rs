@@ -3,6 +3,7 @@
 //! Candidate lists are actual sweep results consumed by directional validation.
 use super::*;
 use crate::internal::owner_groups::OwnerGroupKind;
+use d2_rs_core::stable_sort::StableSort;
 const NIL: &str = "runtime error: invalid memory address or nil pointer dereference";
 type PairSet = BTreeSet<(NodeId, NodeId)>;
 #[derive(Clone)]
@@ -210,7 +211,7 @@ fn candidates(
             }
         }
     } else {
-        sweep.sort_by(|&i, &j| {
+        sweep.stable_sort_by(|&i, &j| {
             let x = geometry[i].0.expect(NIL).x;
             let y = geometry[j].0.expect(NIL).x;
             if x != y {

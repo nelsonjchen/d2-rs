@@ -2,6 +2,7 @@
 //! d2cli/board_output_publish.go: prepare all backups, apply, then roll back
 //! the applied journal in reverse on any failure. The manifest is installed last.
 use super::*;
+use d2_rs_core::stable_sort::StableSort;
 use root::Info;
 use root::Root;
 
@@ -309,7 +310,7 @@ impl<'a> Transaction<'a> {
                     .is_some_and(|new| self.equivalent(path, new))
             })
             .collect::<Vec<_>>();
-        stale.sort_by_key(|path| std::cmp::Reverse(path.matches('/').count()));
+        stale.stable_sort_by_key(|path| std::cmp::Reverse(path.matches('/').count()));
         for path in stale {
             let rel = Path::new(path);
             match self.root.kind(rel) {

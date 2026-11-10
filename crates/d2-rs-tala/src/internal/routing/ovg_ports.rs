@@ -6,6 +6,7 @@ use super::route_search_guard::OvgBuildBudget;
 use super::{ArenaGraph, NodeId, Point, Port, PortSide, Rect};
 use crate::internal::go_cell::{GoCell, GoCellMut, GoCellRef};
 use crate::internal::nodeshape::ports::snap_points_with_table_column_count;
+use d2_rs_core::stable_sort::StableSort;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
@@ -994,7 +995,7 @@ impl PortBuild {
             .collect::<BTreeSet<_>>()
             .into_iter()
             .collect::<Vec<_>>();
-        owners.sort_by_key(|owner| graph.nodes[owner.0 as usize].tala_id);
+        owners.stable_sort_by_key(|owner| graph.nodes[owner.0 as usize].tala_id);
         for owner in &owners {
             if let Some(&node) = self.centers.get(owner) {
                 add(&mut pool, &mut ids, node);
@@ -1011,7 +1012,7 @@ impl PortBuild {
             .copied()
             .chain(self.nan_occupied.iter().copied())
             .collect::<Vec<_>>();
-        occupied.sort_by_key(|(point, node)| {
+        occupied.stable_sort_by_key(|(point, node)| {
             (
                 point.x.to_bits(),
                 point.y.to_bits(),

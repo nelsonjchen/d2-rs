@@ -5,6 +5,8 @@
 /// The Go D2 version d2-rs matches. Output metadata carries it where Go writes
 /// its own version (SVG `data-d2-version`, PNG EXIF), so files stay
 /// byte-identical with Go's.
+use d2_rs_core::stable_sort::StableSort;
+
 pub const VERSION: &str = "v0.9.0\n";
 
 /// What `d2-rs --version`, `d2-rs version` and the help header report:
@@ -357,7 +359,7 @@ fn validate_font_data(bytes: &[u8]) -> Result<(), String> {
             u32_at(entry, 12)?,
         ));
     }
-    entries.sort_by_key(|entry| entry.0);
+    entries.stable_sort_by_key(|entry| entry.0);
     for &(tag, expected, offset, len) in &entries {
         if tag != b"head" {
             let aligned = len.wrapping_add(3) & !3;
@@ -672,7 +674,7 @@ pub fn version_boundary(args: &[String]) -> Result<Boundary, String> {
         "font-mono-bold",
         "font-mono-semibold",
     ];
-    fonts.sort_by_key(|(name, _)| {
+    fonts.stable_sort_by_key(|(name, _)| {
         FONT_LOAD_ORDER
             .iter()
             .position(|slot| slot == name)

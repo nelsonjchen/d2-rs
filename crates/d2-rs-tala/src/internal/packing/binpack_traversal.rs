@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 //! Checked packing reachability and component classification.
 use super::*;
+use d2_rs_core::stable_sort::StableSort;
 
 /// A retained member and its temporary vessel are different Go pointers even
 /// when the numerical placement arena uses the first member as a carrier.
@@ -335,7 +336,7 @@ impl ArenaGraph {
             return Vec::new();
         };
         let mut nears = self.nodes[node.0 as usize].nears.keys();
-        nears.sort_by_key(|n| self.nodes[n.0 as usize].tala_id);
+        nears.stable_sort_by_key(|n| self.nodes[n.0 as usize].tala_id);
         nears.into_iter().map(PackingNodeRef::Node).collect()
     }
 
@@ -697,7 +698,7 @@ impl ArenaGraph {
                     }
                     width = width.div_ceil(2);
                 }
-                nears.sort_by_key(|node| self.packing_ref_id(*node));
+                nears.stable_sort_by_key(|node| self.packing_ref_id(*node));
                 guard.finish()?;
                 for adjacent in nears {
                     if !self.packing_descendant_checked(

@@ -5,6 +5,7 @@
 //! Measured-graph sequence layout corresponding to D2's `d2sequence` package.
 
 use super::{EngineKind, LayoutDispatcher};
+use d2_rs_core::stable_sort::StableSort;
 use d2_rs_core::{
     CancellationToken, CandidateReport, Edge, EdgeId, Graph, LabelPosition, LayoutError,
     LayoutOptions, LayoutReport, LayoutResult, NodeId, NodeLabelState, Point, Rect, Score, Size,
@@ -623,7 +624,7 @@ fn layout_inner(
             groups.extend(super::ordered_descendants(graph, id));
         }
     }
-    groups.sort();
+    groups.stable_sort();
     groups.dedup();
     let mut actors = graph
         .nodes()
@@ -1054,7 +1055,7 @@ fn layout_inner(
                 && direct_actor(graph, *id, root_node).is_some()
         })
         .collect::<Vec<_>>();
-    spans.sort_by_key(|id| std::cmp::Reverse(depth(graph, *id)));
+    spans.stable_sort_by_key(|id| std::cmp::Reverse(depth(graph, *id)));
     for span in spans.iter().copied() {
         let Some(actor) = direct_actor(graph, span, root_node) else {
             continue;
@@ -1155,7 +1156,7 @@ fn layout_inner(
     // d2sequence.placeGroup bounds owned messages/non-glob notes and direct
     // child groups. Empty groups retain unbounded boxes until final validation.
     let mut groups_by_depth = groups.clone();
-    groups_by_depth.sort_by_key(|id| std::cmp::Reverse(depth(graph, *id)));
+    groups_by_depth.stable_sort_by_key(|id| std::cmp::Reverse(depth(graph, *id)));
     for group in groups_by_depth.iter().copied() {
         let mut min_x = f64::INFINITY;
         let mut min_y = f64::INFINITY;

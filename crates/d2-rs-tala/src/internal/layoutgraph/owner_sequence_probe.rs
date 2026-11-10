@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 // Diagnostic observation of actual retained records before/after AddSequences.
+
 #[cfg(feature = "diagnostic-traces")]
 impl ArenaGraph {
     pub(super) fn sequence_lifecycle_observer(&self) -> impl FnOnce(&Self) -> serde_json::Value + use<> {
@@ -38,7 +39,7 @@ impl ArenaGraph {
                     "cluster":gr(graph.owner_node_group_id(id,OwnerGroupKind::Cluster).unwrap()),
                     "edges":eh(graph.owner_node_incident_header(id).unwrap())})
             }).collect::<Vec<_>>();
-            nodes.sort_by(|a,b|a["ref"].as_str().cmp(&b["ref"].as_str()));
+            nodes.stable_sort_by(|a,b|a["ref"].as_str().cmp(&b["ref"].as_str()));
             let edges = graph.edge_records.iter().enumerate().map(|(index, edge)| {
                 let id = EdgeId(index as u32);
                 json!({"ref":er(Some(id)),"id":edge.tala_id,"from":nr(graph.owner_edge_endpoint(id,false).unwrap()),"to":nr(graph.owner_edge_endpoint(id,true).unwrap())})
@@ -56,7 +57,7 @@ impl ArenaGraph {
                 });
                 json!({"ref":gr(Some(*id)),"vessel":nr(fields.vessel),"owner":owner(fields.graph),"container":nr(fields.container),"nodes":nh(&fields.nodes.slice),"abductions":abductions})
             }).collect::<Vec<_>>();
-            sequences.sort_by(|a,b|a["ref"].as_str().cmp(&b["ref"].as_str()));
+            sequences.stable_sort_by(|a,b|a["ref"].as_str().cmp(&b["ref"].as_str()));
             let mut member_aliases = Vec::new();
             for (left, _) in graph.shared_topology.groups.iter().filter(|(id,_)|id.kind()==OwnerGroupKind::Sequence) {
                 for (right, _) in graph.shared_topology.groups.iter().filter(|(id,_)|id.kind()==OwnerGroupKind::Sequence) {
@@ -69,10 +70,10 @@ impl ArenaGraph {
                     }
                 }
             }
-            member_aliases.sort();
+            member_aliases.stable_sort();
             let children = |headers: Vec<(Option<NodeId>, SharedNodeSlice)>| {
                 let mut rows = headers.into_iter().map(|(key,header)|(nr(key),nh(&header))).collect::<Vec<_>>();
-                rows.sort_by(|a,b|a.0.cmp(&b.0));
+                rows.stable_sort_by(|a,b|a.0.cmp(&b.0));
                 rows.into_iter().map(|(key,nodes)|json!({"key":key,"nodes":nodes})).collect::<Vec<_>>()
             };
             json!({"nodes":nodes,"edges":edges,"sequences":sequences,"member_aliases":member_aliases,
