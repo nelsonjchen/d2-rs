@@ -2,7 +2,14 @@
 // D2 v0.9.0 d2cli/main.go, help.go and util-go/xmain/opts.go.
 // The ordered flag declarations and help template come from the pinned source.
 
+/// The Go D2 version d2-rs matches. Output metadata carries it where Go writes
+/// its own version (SVG `data-d2-version`, PNG EXIF), so files stay
+/// byte-identical with Go's.
 pub const VERSION: &str = "v0.9.0\n";
+
+/// What `d2-rs --version`, `d2-rs version` and the help header report:
+/// d2-rs's own release, where Go's `d2` reports D2's.
+pub const CLI_VERSION: &str = concat!("v", env!("CARGO_PKG_VERSION"), "\n");
 
 #[derive(Clone)]
 struct Flag {
@@ -236,7 +243,7 @@ fn help_with(flags: &[Flag], values: &[String], program: &str) -> Vec<u8> {
     let text = flag_table(&visible);
     include!("command_line_help.rs")
         .replace("{program}", program)
-        .replace("{version}", VERSION.trim_end())
+        .replace("{version}", CLI_VERSION.trim_end())
         .replace("{flags}", &text)
         .into_bytes()
 }
@@ -682,13 +689,13 @@ pub fn version_boundary(args: &[String]) -> Result<Boundary, String> {
         if positionals.len() > 1 {
             return Err(usage("version subcommand accepts no arguments"));
         }
-        return Ok(Boundary::Output(VERSION.as_bytes().to_vec()));
+        return Ok(Boundary::Output(CLI_VERSION.as_bytes().to_vec()));
     }
     if positionals.is_empty() {
         let version = flags.iter().position(|f| f.name == "version").unwrap();
         return Ok(Boundary::Output(
             if boolean(&values[version]) == Some(true) {
-                VERSION.as_bytes().to_vec()
+                CLI_VERSION.as_bytes().to_vec()
             } else {
                 help_with(&flags, &defaults, &program())
             },
@@ -739,8 +746,11 @@ mod tests {
                     assert_eq!(row["exit"], 0, "{}", row["name"]);
                     assert_eq!(
                         String::from_utf8(bytes).unwrap(),
+                        // d2-rs reports its own version where Go reports
+                        // D2's: the version line and the help header.
                         master_help(row["stdout"].as_str().unwrap())
-                            .replace("{program}", &program()),
+                            .replace("{program}", &program())
+                            .replacen(VERSION, CLI_VERSION, 1),
                         "{}",
                         row["name"]
                     );

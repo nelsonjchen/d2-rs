@@ -5,9 +5,12 @@ The upstream e2etests-cli suite observes most errors through an in-process
 xmain.TestState, so it cannot see what a user sees: mainFatal's printed
 lines, usage trailers, warnings and success logs. This tier runs both
 executables on the same invocations in fresh directories and compares exit
-code, stdout and stderr exactly. Two normalizations only: elapsed durations in
-success lines, and the program path (Rust runs under Go's basename so help
-text and argv[0] spell the same). Stdin carries a small diagram.
+code, stdout and stderr exactly. Three normalizations only: elapsed durations
+in success lines; the program path (Rust runs under Go's basename so help
+text and argv[0] spell the same); and each binary's own reported version,
+where it is the whole of stdout (`version`, `--version`) or the help header,
+since d2-rs reports its release where Go reports D2's. Output metadata such
+as data-d2-version is compared unchanged. Stdin carries a small diagram.
 
 Image-asset policy cases need no external network: a loopback HTTP server
 (substituted for {PORT} in FILES) serves one SVG and a 404, and the other
@@ -116,6 +119,14 @@ class AssetHandler(http.server.BaseHTTPRequestHandler):
         pass
 
 
+def normalize_version(stdout, version):
+    """Replace a binary's own version where the CLI reports it, nowhere else."""
+    if stdout == version + "\n":
+        return "VERSION\n"
+    # Help starts "<argv[0] basename> <version>", then "Usage:".
+    return re.sub(r"\A(\S+) " + re.escape(version) + r"\nUsage:\n", r"\1 VERSION\nUsage:\n", stdout, count=1)
+
+
 def run(binary, case, directory, epoch=None):
     words = case.split()
     environment = {key: value for key, value in os.environ.items() if key != "D2_ALLOW_PRIVATE_NETWORK"}
@@ -160,6 +171,9 @@ def main():
         program = work / "bin" / oracle.name
         program.parent.mkdir()
         shutil.copy2(rust, program)
+        versions = {name: subprocess.run([str(binary), "--version"], check=True, capture_output=True,
+                                         text=True, timeout=60).stdout.strip()
+                    for name, binary in (("go", oracle), ("rust", program))}
         rows = []
         for case in CASES:
             results = {}
@@ -172,6 +186,8 @@ def main():
                 (directory / "ok.svg").write_text(SVG_ASSET)
                 (directory / "dir.svg").mkdir()
                 results[name] = run(binary, case, directory, args.epoch)
+                if "stdout" in results[name]:
+                    results[name]["stdout"] = normalize_version(results[name]["stdout"], versions[name])
                 # The scratch directory name differs per engine; compare it as one token.
                 for key in ("stdout", "stderr"):
                     if key in results[name]:

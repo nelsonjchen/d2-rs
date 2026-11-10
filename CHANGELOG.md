@@ -21,6 +21,13 @@ Each release names the upstream Go D2 commit it matches, from
 - Tag pushes no longer rerun the CI test matrix, which already ran on the
   tagged commit's branch push.
 
+### Changed
+
+- `d2-rs --version`, `d2-rs version` and the `--help` header report d2-rs's
+  own release (such as `v0.1.5`) instead of the Go D2 version it matches
+  (`v0.9.0`). Output metadata (SVG `data-d2-version`, PNG EXIF) still carries
+  `v0.9.0`, so rendered files stay byte-identical with Go's.
+
 ## [0.1.4] - 2026-11-09
 
 Matches Go D2 `master` at 6a7b48378, as 0.1.0 does. Crates only; the npm

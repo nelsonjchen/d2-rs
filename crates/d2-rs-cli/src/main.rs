@@ -5014,7 +5014,7 @@ fn run_document_with_stdout(
             return command_line::help();
         }
         if argument == "-v" || argument == "--version" {
-            return Ok(command_line::VERSION.as_bytes().to_vec());
+            return Ok(command_line::CLI_VERSION.as_bytes().to_vec());
         }
         if argument == "--watch" || argument == "-w" {
             // `dispatch` diverts enabled watch invocations to the preview loop.
@@ -6547,7 +6547,7 @@ fn run_inner(args: &[String], input: &[u8]) -> Result<Vec<u8>, String> {
             validate_source(input, &args[1..])?;
             Ok(Vec::new())
         }
-        "version" if args.len() == 1 => Ok(command_line::VERSION.as_bytes().to_vec()),
+        "version" if args.len() == 1 => Ok(command_line::CLI_VERSION.as_bytes().to_vec()),
         "version" => Err(command_line::usage(
             "version subcommand accepts no arguments",
         )),
@@ -6948,13 +6948,19 @@ mod tests {
     }
 
     #[test]
-    fn version_reports_the_pinned_d2_version() {
-        assert_eq!(run(&["version".into()], &[]).unwrap(), b"v0.9.0\n");
+    fn version_reports_the_d2_rs_release() {
+        let expected = format!("v{}\n", env!("CARGO_PKG_VERSION"));
+        assert_eq!(run(&["version".into()], &[]).unwrap(), expected.as_bytes());
+        // Output metadata keeps the Go D2 version for byte parity.
+        assert_eq!(command_line::VERSION, "v0.9.0\n");
     }
 
     #[test]
     fn dispatch_version_does_not_require_stdin() {
-        assert_eq!(dispatch(&["version".into()]).unwrap(), b"v0.9.0\n");
+        assert_eq!(
+            dispatch(&["version".into()]).unwrap(),
+            command_line::CLI_VERSION.as_bytes()
+        );
     }
 
     #[test]
