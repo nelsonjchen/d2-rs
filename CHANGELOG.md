@@ -23,6 +23,14 @@ Each release names the upstream Go D2 commit it matches, from
 
 ### Changed
 
+- The native CLI is 13% smaller: 42.8 MB stripped on Linux arm64, down
+  from 49.2 MB (Go's `d2` is 40.8 MB), and 49.5 MB on x86-64, down from
+  56.6 MB. Release builds use fat LTO, and stable sorts share one copy per
+  element type instead of one per comparator. Output and speed are
+  unchanged.
+
+### Changed
+
 - `d2-rs --version`, `d2-rs version` and the `--help` header report d2-rs's
   own release (such as `v0.1.5`) instead of the Go D2 version it matches
   (`v0.9.0`). Output metadata (SVG `data-d2-version`, PNG EXIF) still carries
