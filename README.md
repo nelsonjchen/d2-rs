@@ -58,20 +58,8 @@ inputs and mutations of them under the same options; all 5,024 original jobs
 match. The only exceptions are 5 mutated inputs that crash the pinned Go
 itself, where d2-rs reports an error instead.
 
-**Known issues:** upstream's tests use small, well-formed diagrams and few
-code languages, so generated sweeps go beyond them: very large graphs,
-extreme sizes and scales, every shape, flag and Chroma lexer, and random
-mutations. They found and fixed many gaps; these are still open
-([issues](https://github.com/nelsonjchen/d2-rs/issues)):
-
-- **TALA memory:** with every seed routing at once, as in Go, a 200-node
-  fan-out peaks at about Go's memory (1.005×, down from 1.05×); per-seed
-  routing state is still larger than Go's ([#4](https://github.com/nelsonjchen/d2-rs/issues/4)).
-- **TALA error path:** a 400-node fan-out fails exactly as Go does, but takes
-  about 1.07× Go's wall time to reach the error, down from 1.55× ([#5](https://github.com/nelsonjchen/d2-rs/issues/5)).
-- **Very large inputs:** an 80,000-edge board reaches TALA's edge-limit error
-  in 0.7× Go's time but peaks at about 1.33× Go's memory, down from 1.48× ([#7](https://github.com/nelsonjchen/d2-rs/issues/7)).
-- **Binary size:** the native CLI is about 1.2× the size of Go's ([#8](https://github.com/nelsonjchen/d2-rs/issues/8)).
+**Known issues** are tracked in
+[GitHub issues](https://github.com/nelsonjchen/d2-rs/issues).
 
 ## Install
 
