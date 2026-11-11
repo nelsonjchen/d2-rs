@@ -1,0 +1,45 @@
+<!--
+WiX 7 source for the d2-rs Windows installer, adapted from Go D2's
+ci/release/windows/d2.wxs (MPL-2.0). It installs d2-rs.exe and its notices
+into Program Files\d2-rs and appends that directory to the system PATH.
+The UpgradeCode and component GUIDs are d2-rs's own, so the installer never
+replaces or upgrades an installed Go D2. Never change them: Windows matches
+upgrades by UpgradeCode.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+    <Package Name="d2-rs" UpgradeCode="e07615d4-6c1f-4c0f-b2f4-7ed59caa42c1" Language="1033" Codepage="utf-8" Version="$(var.D2RsVersion)" Manufacturer="d2-rs" InstallerVersion="500">
+        <SummaryInformation Keywords="Installer" Description="The d2-rs Installer" Manufacturer="d2-rs" Codepage="1252" />
+
+        <Media Id="1" Cabinet="d2rs.cab" EmbedCab="yes" />
+
+        <Feature Id="Complete" Level="1">
+            <ComponentRef Id="Executable" />
+            <ComponentRef Id="License" />
+            <ComponentRef Id="ThirdPartyNotices" />
+        </Feature>
+
+        <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A later version of [ProductName] is already installed. Setup will now exit." />
+
+        <StandardDirectory Id="ProgramFiles64Folder">
+            <Directory Id="INSTALLDIR" Name="d2-rs">
+                <Component Id="Executable" Guid="109ce62b-1a14-4425-94a6-4adbf9f79c5a">
+                    <File Id="D2RsExe" Name="d2-rs.exe" Source="d2-rs.exe" KeyPath="yes" />
+                    <Environment
+                      Id="D2RsPathEntry"
+                      Action="set"
+                      Part="last"
+                      Name="PATH"
+                      Permanent="no"
+                      System="yes"
+                      Value="[INSTALLDIR]" />
+                </Component>
+                <Component Id="License" Guid="acf6c5ca-2384-4cdd-9e8b-fb4d40b408f2">
+                    <File Id="LicenseFile" Name="LICENSE" Source="LICENSE" KeyPath="yes" />
+                </Component>
+                <Component Id="ThirdPartyNotices" Guid="f2d7b8ff-7426-4c3b-ab0c-c54a98db2d39">
+                    <File Id="ThirdPartyNoticesFile" Name="THIRD_PARTY_NOTICES.md" Source="THIRD_PARTY_NOTICES.md" KeyPath="yes" />
+                </Component>
+            </Directory>
+        </StandardDirectory>
+    </Package>
+</Wix>

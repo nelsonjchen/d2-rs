@@ -5,7 +5,8 @@ name: Release binaries
 # d2-<VERSION>-<OS>-<ARCH>.tar.gz archives, and attaches them with a
 # SHA256SUMS file to the GitHub release for the tag. The tests already ran on
 # the tagged commit's branch push, so this workflow only builds and
-# smoke-tests the binaries.
+# smoke-tests the binaries. Windows also gets an MSI installer for amd64
+# and arm64 (tools/release/windows), installed and uninstalled as a test.
 on:
   push:
     tags:
@@ -15,6 +16,10 @@ on:
       tag:
         description: Existing release tag to build, such as v0.1.4
         required: true
+      publish:
+        description: Upload the archives and installers to the release
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -92,11 +97,9 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  publish:
+  package:
     needs: build
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -111,6 +114,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: bins
+          pattern: bin-*
       - name: Package archives
         run: |
           set -euo pipefail
@@ -129,14 +133,90 @@ jobs:
             echo "expected six archives, got $count" >&2
             exit 1
           fi
-          (cd dist && sha256sum -- *.tar.gz >SHA256SUMS && sha256sum -c SHA256SUMS)
           for archive in dist/*.tar.gz; do
             echo "== $archive ($(stat -c %s "$archive") bytes)"
             tar -tvzf "$archive"
           done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-archives
+          path: dist/*.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
+  # Windows installers, like Go D2's d2-<VERSION>-windows-amd64.msi, built
+  # from the packaged archive on each architecture's own runner so the
+  # install test runs natively.
+  msi:
+    needs: package
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: amd64, runner: windows-latest }
+          - { arch: arm64, runner: windows-11-arm }
+    runs-on: ${{ matrix.runner }}
+    env:
+      # The repository owner accepted the WiX 7 OSMF EULA for d2-rs
+      # (tools/release/windows/build-msi.ps1).
+      WIX7_EULA_ACCEPTED: "true"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+    steps:
+      # This workflow's tools/release, which older tags lack.
+      - uses: actions/checkout@v4
+        with:
+          path: release-tools
+          persist-credentials: false
+          sparse-checkout: tools/release
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist-archives
+          path: dist
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Install WiX
+        shell: pwsh
+        run: |
+          dotnet tool install --global wix --version 7.0.0
+          "$env:USERPROFILE\.dotnet\tools" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+      - name: Build and test the installer
+        shell: pwsh
+        run: |
+          ./release-tools/tools/release/windows/build-msi.ps1 -Version $env:TAG -Arch ${{ matrix.arch }} `
+            -ArchivePath "dist/d2-rs-$env:TAG-windows-${{ matrix.arch }}.tar.gz" -OutputDirectory msi -InstallTest
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-msi-${{ matrix.arch }}
+          path: msi/*.msi
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: [package, msi]
+    if: github.event_name == 'push' || inputs.publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: dist-*
+          merge-multiple: true
+      - name: Checksum
+        run: |
+          set -euo pipefail
+          count=$(ls dist/*.tar.gz dist/*.msi | wc -l)
+          if [[ $count -ne 8 ]]; then
+            echo "expected six archives and two installers, got $count" >&2
+            exit 1
+          fi
+          (cd dist && sha256sum -- *.tar.gz *.msi >SHA256SUMS && sha256sum -c SHA256SUMS)
       - name: Upload to the release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           if ! gh release view "$TAG" >/dev/null 2>&1; then
@@ -144,4 +224,4 @@ jobs:
               --notes "See [CHANGELOG.md](https://github.com/${GITHUB_REPOSITORY}/blob/main/CHANGELOG.md)."
           fi
           # Replaces earlier copies of these assets; never touches the notes.
-          gh release upload "$TAG" dist/*.tar.gz dist/SHA256SUMS --clobber
+          gh release upload "$TAG" dist/*.tar.gz dist/*.msi dist/SHA256SUMS --clobber

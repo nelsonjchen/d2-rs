@@ -10,6 +10,14 @@ Each release names the upstream Go D2 commit it matches, from
 
 ## [Unreleased]
 
+### Added
+
+- Windows installers on GitHub releases, `d2-rs-<version>-windows-amd64.msi`
+  and `-windows-arm64.msi`, like Go D2's MSI. They install `d2-rs.exe` into
+  `Program Files\d2-rs` and add it to the system `PATH`. The release workflow
+  builds them with WiX 7 from the packaged archives, checks every installed
+  file against the archive, and installs and uninstalls each one as a test.
+
 ## [0.1.5] - 2026-11-11
 
 Matches Go D2 `master` at 6a7b48378, as 0.1.0 does. Crates, the npm
