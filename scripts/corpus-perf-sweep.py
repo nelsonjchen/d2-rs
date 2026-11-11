@@ -21,6 +21,7 @@ import importlib.util
 import json
 import re
 import statistics
+import subprocess
 import sys
 import tempfile
 import time
@@ -60,15 +61,41 @@ def run_job(job, implementations, work, repeat):
             source.write_text(script)
             output = directory / f"out.{fmt}"
             exit_code, wall, _cpu, rss = perf_bench.run(binary, engine, source, output, list(extra))
-            digest = hashlib.sha256(output.read_bytes()).hexdigest() if output.is_file() else None
-            samples[impl].append((exit_code, wall, rss, digest))
+            samples[impl].append((exit_code, wall, rss, output_digest(output)))
     median = {impl: {"exit": s[-1][0], "wall": statistics.median(x[1] for x in s),
                      "rss": statistics.median(x[2] for x in s), "hash": s[-1][3]}
               for impl, s in samples.items()}
     go, rust = median["go"], median["rust"]
+    identical = go["hash"] is not None and go["hash"] == rust["hash"]
+    error_match = False
+    if not identical and go["exit"] and rust["exit"] and go["hash"] is None and rust["hash"] is None:
+        # Both refused the input (e.g. Go's GIF pixel limit). That is parity
+        # when the error text matches; the timed runs discard stderr.
+        errors = {impl: failure_text(binary, engine, work / impl, fmt, extra)
+                  for impl, binary in implementations}
+        error_match = identical = go["exit"] == rust["exit"] and errors["go"] == errors["rust"]
     return {"case": name, "engine": engine, "format": fmt, "go": go, "rust": rust, "repeat": repeat,
             "wall_ratio": rust["wall"] / max(go["wall"], 1e-3), "rss_ratio": rust["rss"] / max(go["rss"], 1),
-            "identical": go["hash"] is not None and go["hash"] == rust["hash"]}
+            "identical": identical, "error_match": error_match}
+
+
+def output_digest(output):
+    """Hash a single output file, or a multi-board output directory."""
+    if output.is_file():
+        return hashlib.sha256(output.read_bytes()).hexdigest()
+    board_output = output.with_suffix("")
+    if board_output.is_dir():
+        inventory = perf_bench.output_inventory(board_output)
+        return hashlib.sha256(json.dumps(inventory, sort_keys=True).encode()).hexdigest()
+    return None
+
+
+def failure_text(binary, engine, directory, fmt, extra):
+    """Rerun a failed job once and return its stderr with the job directory removed."""
+    source, output = directory / "input.d2", directory / f"out.{fmt}"
+    result = subprocess.run([str(binary.resolve()), f"--layout={engine}", *extra, str(source), str(output)],
+                            capture_output=True, text=True, timeout=610, check=False)
+    return result.stderr.replace(str(directory), "<job>").strip()
 
 
 def summarize(rows):

@@ -43,6 +43,43 @@ class CorpusPerfSweepTests(unittest.TestCase):
         self.assertTrue(all(extra == ["--animate-interval=125"] for _, _, extra in seen))
         self.assertTrue(result["identical"])
 
+    def run_failing_job(self, errors):
+        def fake_run(binary, engine, source, output, extra=()):
+            return 1, 0.01, 0.01, 1000
+
+        original_run, original_failure = sweep.perf_bench.run, sweep.failure_text
+        sweep.perf_bench.run = fake_run
+        sweep.failure_text = lambda binary, engine, directory, fmt, extra: errors[directory.name]
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                return sweep.run_job(("case", "a -> b", "dagre", "gif", ()),
+                                     (("go", Path("go")), ("rust", Path("rust"))), Path(tmp), 1)
+        finally:
+            sweep.perf_bench.run, sweep.failure_text = original_run, original_failure
+
+    def test_matching_errors_are_identical(self):
+        result = self.run_failing_job({"go": "err: GIF frame pixels exceed the limit",
+                                       "rust": "err: GIF frame pixels exceed the limit"})
+        self.assertTrue(result["identical"])
+        self.assertTrue(result["error_match"])
+
+    def test_different_errors_are_not_identical(self):
+        result = self.run_failing_job({"go": "err: GIF frame pixels exceed the limit",
+                                       "rust": "err: something else"})
+        self.assertFalse(result["identical"])
+        self.assertFalse(result["error_match"])
+
+    def test_board_directories_are_hashed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "out.png"
+            boards = Path(tmp) / "out"
+            boards.mkdir()
+            (boards / "index.png").write_bytes(b"one")
+            first = sweep.output_digest(output)
+            (boards / "index.png").write_bytes(b"two")
+            self.assertIsNotNone(first)
+            self.assertNotEqual(first, sweep.output_digest(output))
+
     def test_every_case_gets_every_engine_and_export(self):
         formats = {fmt for fmt, _ in sweep.EXPORTS} | {"svg"}
         self.assertEqual(formats, {"svg", "png", "pdf", "pptx", "gif"})

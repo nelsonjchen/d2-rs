@@ -21,6 +21,7 @@ jobs:
       - run: uv run --no-project python -B -m unittest discover -s scripts -p "test_e2e_png_scoreboard.py" -v
       - run: uv run --no-project python -B -m unittest discover -s scripts -p "test_regen_fixtures.py" -v
       - run: uv run --no-project python -B -m unittest discover -s scripts -p "test_perf_bench.py" -v
+      - run: uv run --no-project python -B -m unittest discover -s scripts -p "test_corpus_perf_sweep.py" -v
       - run: uv run --no-project python -B -m unittest discover -s scripts -p "test_imageasset_policy_scoreboard.py" -v
       - run: uv run --no-project python -B -m unittest discover -s scripts -p "test_oracle_provenance.py" -v
       - run: uv run --no-project python -B -m unittest discover -s scripts -p "test_language_scoreboard.py" -v
