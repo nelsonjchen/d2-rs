@@ -5141,43 +5141,10 @@ impl BkModel {
                 }
             }
         }
-        let mut endpoint_groups = BTreeMap::<(NodeId, NodeId), (Vec<EdgeId>, Vec<EdgeId>)>::new();
-        for (edge_id, _edge) in graph.edges() {
-            let (source, target) = resolve_edge_endpoints(graph, edge_id);
-            let key = if reversed_ids.contains(&edge_id) {
-                (target, source)
-            } else {
-                (source, target)
-            };
-            let group = endpoint_groups.entry(key).or_default();
-            if reversed_ids.contains(&edge_id) {
-                group.1.push(edge_id);
-            } else {
-                group.0.push(edge_id);
-            }
-        }
-        let mut reversed_pairs = BTreeMap::new();
-        for (forward_edges, reversed_edges) in endpoint_groups.into_values() {
-            // Graphlib's conflict resolver visits entries from the tail of
-            // the layer first, so a reversed dummy pairs with the last
-            // forward parallel edge that shares its effective endpoints.
-            let Some(&forward_edge) = forward_edges.last() else {
-                continue;
-            };
-            for reversed_edge in reversed_edges {
-                let forward_chain = &chains[&forward_edge];
-                let reversed_chain = &chains[&reversed_edge];
-                for (&forward_node, &reversed_node) in
-                    forward_chain.iter().zip(reversed_chain.iter())
-                {
-                    if dummy_meta.contains_key(&forward_node)
-                        && dummy_meta.contains_key(&reversed_node)
-                    {
-                        reversed_pairs.insert(reversed_node, forward_node);
-                    }
-                }
-            }
-        }
+        // The partner of a reversed dummy is chosen per layer by
+        // sortSubgraph's pairwise scan (order::pair_reversed_dummies), not
+        // per edge: edge-label dummies never pair, so a reversed dummy can
+        // pair with any equal-barycenter ordinary forward parallel dummy.
 
         // initOrder walks successors from rank-sorted *simple* nodes. Dagro
         // excludes compound vertices themselves and follows successor
@@ -5250,7 +5217,6 @@ impl BkModel {
                 &model_ranks,
                 &edges,
                 &entry_layers,
-                &reversed_pairs,
                 &dummy_meta,
                 &all_nodes,
             );
@@ -5375,7 +5341,6 @@ fn bk_order_layers(
     ranks: &BTreeMap<NodeId, usize>,
     edges: &[(NodeId, NodeId)],
     entry_layers: &[Vec<NodeId>],
-    reversed_pairs: &BTreeMap<NodeId, NodeId>,
     dummy_meta: &BTreeMap<NodeId, (NodeId, NodeId, bool)>,
     all_nodes: &[NodeId],
 ) {
@@ -5432,154 +5397,43 @@ fn bk_order_layers(
             // mutable `order` attribute carries the current layering. Use the
             // insertion snapshot for entry indices and tie breaks, just as
             // Dagro's layer graphs do.
-            let original = entry_layers.get(rank).cloned().unwrap_or_default();
-            let mut sortable = Vec::<(NodeId, f64, usize)>::new();
-            let mut unsortable = Vec::<(NodeId, usize)>::new();
-            let mut barycenters = BTreeMap::<NodeId, Option<f64>>::new();
-            for (index, &id) in original.iter().enumerate() {
-                let mut weighted_sum = 0.0;
-                let mut weight = 0.0;
-                let neighbors = if up {
-                    successors.get(id)
-                } else {
-                    predecessors.get(id)
-                };
-                for &other in neighbors {
-                    if ranks.get(&other) != Some(&neighbor_rank) {
-                        continue;
-                    }
-                    if let Some(&position) = neighbor_positions.get(&other) {
-                        weighted_sum += position as f64;
-                        weight += 1.0;
-                    }
-                }
-                if weight > 0.0 {
-                    let barycenter = weighted_sum / weight;
-                    barycenters.insert(id, Some(barycenter));
-                    sortable.push((id, barycenter, index));
-                } else {
-                    barycenters.insert(id, None);
-                    unsortable.push((id, index));
-                }
-            }
-            let paired_reverse = original
+            let original = entry_layers
+                .get(rank)
+                .map(Vec::as_slice)
+                .unwrap_or_default();
+            let entries = original
                 .iter()
-                .copied()
-                .filter(|id| {
-                    let Some(forward) = reversed_pairs.get(id) else {
-                        return false;
+                .enumerate()
+                .map(|(index, &id)| {
+                    let mut weighted_sum = 0.0;
+                    let mut weight = 0.0;
+                    let neighbors = if up {
+                        successors.get(id)
+                    } else {
+                        predecessors.get(id)
                     };
-                    original.contains(forward)
-                        && matches!(
-                            (
-                                barycenters.get(id).copied().flatten(),
-                                barycenters.get(forward).copied().flatten()
-                            ),
-                            (Some(left), Some(right)) if left == right && left != 0.0
-                        )
-                })
-                .collect::<BTreeSet<_>>();
-            sortable.retain(|(id, _, _)| !paired_reverse.contains(id));
-            unsortable.retain(|(id, _)| !paired_reverse.contains(id));
-            sortable.sort_by(|left, right| {
-                left.1
-                    .partial_cmp(&right.1)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-                    .then_with(|| {
-                        if bias_right {
-                            // Dagro's `sortOrderEntries` uses descending
-                            // insertion indices for its right-biased ties
-                            // (`entryV.I > entryW.I`).
-                            right.2.cmp(&left.2)
-                        } else {
-                            left.2.cmp(&right.2)
+                    for &other in neighbors {
+                        if ranks.get(&other) != Some(&neighbor_rank) {
+                            continue;
                         }
-                    })
-            });
-            // sortOrderEntries keeps nodes without a barycenter at their
-            // original slots while consuming sortable entries in order.
-            unsortable.sort_by_key(|left| std::cmp::Reverse(left.1));
-            let mut sorted = Vec::with_capacity(original.len());
-            let mut vs_index = 0usize;
-            let mut unsortable_index = unsortable.len();
-            while unsortable_index > 0 && unsortable[unsortable_index - 1].1 <= vs_index {
-                sorted.push(unsortable[unsortable_index - 1].0);
-                unsortable_index -= 1;
-                vs_index += 1;
-            }
-            for entry in &sortable {
-                vs_index += 1;
-                sorted.push(entry.0);
-                while unsortable_index > 0 && unsortable[unsortable_index - 1].1 <= vs_index {
-                    sorted.push(unsortable[unsortable_index - 1].0);
-                    unsortable_index -= 1;
-                    vs_index += 1;
-                }
-            }
-            // Reinsert each removed feedback dummy immediately after its
-            // forward parallel dummy, preserving the source encounter order.
-            // Walk the original layer order. Repeated partners are inserted
-            // at the same anchor, so later insertions naturally appear
-            // before earlier ones, matching Dagro's encounter behavior.
-            for &reversed in &original {
-                let Some(&forward) = reversed_pairs.get(&reversed) else {
-                    continue;
-                };
-                if !paired_reverse.contains(&reversed) {
-                    continue;
-                }
-                let Some(index) = sorted.iter().position(|id| *id == forward) else {
-                    continue;
-                };
-                sorted.insert(index + 1, reversed);
-            }
-            layers[rank] = sorted;
+                        if let Some(&position) = neighbor_positions.get(&other) {
+                            weighted_sum += position as f64;
+                            weight += 1.0;
+                        }
+                    }
+                    let barycenter = (weight > 0.0).then(|| weighted_sum / weight);
+                    order::Entry::leaf(id, index, barycenter, weight)
+                })
+                .collect::<Vec<_>>();
+            // Dagro sortSubgraph on the flat layer graph, including its
+            // reversed-parallel pairing and UsedBias scan.
+            let sorted = order::sort_leaf_layer(entries, bias_right, dummy_meta);
+            layers[rank] = sorted.nodes;
             // Dagro toggles the tie bias only when this sweep is in its
             // switching phase and a non-zero equal barycenter actually used
             // the bias. Zero barycenters intentionally do not count.
-            if switch_bias {
-                // `sortSubgraph` marks UsedBias pair by pair after conflict
-                // resolution. Count a tie only when the two entries are not
-                // a forward/reversed copy of the same authored edge. Merely
-                // counting barycenter multiplicities over-pairs several
-                // reversed parallels and misses ties between two feedback
-                // entries.
-                let resolved = original.iter().copied().rev().collect::<Vec<_>>();
-                let mut should_toggle = false;
-                for left_index in 0..resolved.len() {
-                    let left = resolved[left_index];
-                    let Some(left_barycenter) = barycenters.get(&left).copied().flatten() else {
-                        continue;
-                    };
-                    if left_barycenter == 0.0 {
-                        continue;
-                    }
-                    for &right in &resolved[left_index + 1..] {
-                        let Some(right_barycenter) = barycenters.get(&right).copied().flatten()
-                        else {
-                            continue;
-                        };
-                        if right_barycenter != left_barycenter || right_barycenter == 0.0 {
-                            continue;
-                        }
-                        let reversed_pair = match (dummy_meta.get(&left), dummy_meta.get(&right)) {
-                            (Some((ls, lt, lr)), Some((rs, rt, rr))) => {
-                                ls == rs && lt == rt && lr != rr
-                            }
-                            _ => false,
-                        };
-                        if !reversed_pair {
-                            should_toggle = true;
-                            break;
-                        }
-                    }
-                    if should_toggle {
-                        break;
-                    }
-                }
-                if should_toggle {
-                    bias_right = !bias_right;
-                }
+            if switch_bias && sorted.used_bias {
+                bias_right = !bias_right;
             }
         }
         let crossings = order::cross_count(layers, &successors);
@@ -13588,6 +13442,76 @@ mod tests {
                 vec![label, empty_lane, empty_lane, empty_lane, None]
             );
         }
+    }
+
+    // D2 source `c` / `a -> b` / `b -> a` / `a -> b: l` through the pinned Go
+    // D2 (dagro v0.2.1). Its middle rank orders the labeled a -> b first, then
+    // the plain a -> b, then the reversed b -> a: the Go SVG's edge curves
+    // pass x ~= 102, 129.5 and 147 there, and b sits at x = 103 (d2-rs gave
+    // 97 before this fix). Node sizes are D2's 53x66. sortSubgraph pairs the reversed
+    // dummy with the plain forward dummy even though the edge-label dummy of
+    // the later labeled parallel edge ties with both.
+    #[test]
+    fn reversed_parallel_dummy_pairs_past_an_edge_label_dummy() {
+        let mut graph = Graph::default();
+        let size = Size {
+            width: 53.0,
+            height: 66.0,
+        };
+        let [c, a, b] = ["c", "a", "b"].map(|name| graph.add_node(Node::new(name, size)));
+        let plain = graph.add_edge(Edge {
+            source: a,
+            target: b,
+        });
+        let reversed = graph.add_edge(Edge {
+            source: b,
+            target: a,
+        });
+        let labeled = graph.add_edge(Edge {
+            source: a,
+            target: b,
+        });
+        graph.set_edge_label(
+            labeled,
+            Some(d2_rs_core::EdgeLabel {
+                text: "l".into(),
+                size: Size {
+                    width: 5.0,
+                    height: 21.0,
+                },
+                position: LabelPosition::Unset,
+                percentage: 50.0,
+            }),
+        );
+        // Labeled objects select the D2 source-graph (dagro) path.
+        for id in [c, a, b] {
+            graph.node_mut(id).unwrap().label_size = Some(Size {
+                width: 8.0,
+                height: 21.0,
+            });
+        }
+        let result = layout(&graph, &LayoutOptions::default()).unwrap();
+        let middle_x = |edge| {
+            let route = &result.routes[&edge];
+            route[route.len() / 2].x
+        };
+        assert!(
+            middle_x(labeled) < middle_x(plain) && middle_x(plain) < middle_x(reversed),
+            "labeled {:?} plain {:?} reversed {:?} boxes {:?}",
+            result.routes[&labeled],
+            result.routes[&plain],
+            result.routes[&reversed],
+            result.boxes
+        );
+        // Pinned Go SVG rects: c at (0, 0), a at (113, 0), b at (103, 187).
+        let origin = |id| {
+            let rect = result.boxes[&id];
+            (rect.origin.x, rect.origin.y)
+        };
+        assert_eq!(
+            [origin(c), origin(a), origin(b)],
+            [(0.0, 0.0), (113.0, 0.0), (103.0, 187.0)]
+        );
     }
 
     #[test]

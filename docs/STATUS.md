@@ -533,7 +533,9 @@ d2-rs and the pinned Go CLI on generated inputs (outputs and witnesses go to
   (2026-11-11, 3 seeds x 400 cases) found ovals with one authored dimension
   sized without `shapeOval.GetDimensionsToFit`'s aspect limit (fixed; every
   ELK case now matches) and a dagre ordering difference when opposing edges
-  between one pair carry a label after an unrelated node (open). Dagre and ELK
+  between one pair carry a label after an unrelated node (fixed: the flat
+  ordering path now pairs reversed dummies per entry pair like dagro's
+  sortSubgraph). Eight seeds (6,400 renders) then matched Go. Dagre and ELK
   now clip edges with the Go-exact `shape.TraceToShapeBorder` port; the older
   approximation is gone.
 - `scripts/fuzz-differential.py` and `scripts/fuzz-minimize.py`: random

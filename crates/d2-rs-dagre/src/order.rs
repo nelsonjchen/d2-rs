@@ -22,19 +22,31 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::num::NonZeroUsize;
 
 #[derive(Clone, Debug)]
-struct Entry {
+pub(super) struct Entry {
     nodes: Vec<NodeId>,
     index: usize,
     barycenter: Option<f64>,
     weight: f64,
 }
 
+impl Entry {
+    /// A barycenter entry for one layer-graph node at child position `index`.
+    pub(super) fn leaf(node: NodeId, index: usize, barycenter: Option<f64>, weight: f64) -> Self {
+        Self {
+            nodes: vec![node],
+            index,
+            barycenter,
+            weight,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default)]
-struct OrderResult {
-    nodes: Vec<NodeId>,
+pub(super) struct OrderResult {
+    pub(super) nodes: Vec<NodeId>,
     barycenter: Option<f64>,
     weight: f64,
-    used_bias: bool,
+    pub(super) used_bias: bool,
 }
 
 #[derive(Default)]
@@ -396,45 +408,7 @@ fn sort_subgraph(
             })
             .collect();
     }
-    let mut pairs = Vec::new();
-    let mut used_bias = false;
-    let mut i = 0;
-    while i < entries.len() {
-        let mut j = i + 1;
-        let mut removed_i = false;
-        while j < entries.len() {
-            let (Some(left), Some(right)) = (entries[i].barycenter, entries[j].barycenter) else {
-                j += 1;
-                continue;
-            };
-            if !truthy_number(left) || !truthy_number(right) || left != right {
-                j += 1;
-                continue;
-            }
-            let left_node = entries[i].nodes.first().copied();
-            let right_node = entries[j].nodes.first().copied();
-            let left_meta = left_node.and_then(|id| dummy_meta.get(&id));
-            let right_meta = right_node.and_then(|id| dummy_meta.get(&id));
-            if let (Some(&(ls, lt, lr)), Some(&(rs, rt, rr))) = (left_meta, right_meta)
-                && ls == rs
-                && lt == rt
-                && lr != rr
-            {
-                if lr {
-                    pairs.push((right_node.expect("dummy has an ID"), entries.remove(i)));
-                    removed_i = true;
-                    break;
-                }
-                pairs.push((left_node.expect("dummy has an ID"), entries.remove(j)));
-            } else {
-                used_bias = true;
-                j += 1;
-            }
-        }
-        if !removed_i {
-            i += 1;
-        }
-    }
+    let (pairs, used_bias) = pair_reversed_dummies(&mut entries, dummy_meta);
     let mut result = sort_entries(entries, pairs, bias_right);
     result.used_bias = used_bias;
     if let Some((left, right)) = borders {
@@ -457,6 +431,107 @@ fn sort_subgraph(
         }
     }
     result
+}
+
+/// Dagro sortSubgraph for a layer graph whose root children are all leaves,
+/// as in a graph without compounds. addSubgraphConstraints then never records
+/// a constraint, so resolveConflicts only reverses the entries (its source
+/// stack pops the last entry first) and no subgraph is expanded. `entries`
+/// are in layer-graph child order, with `index` set to that position.
+pub(super) fn sort_leaf_layer(
+    mut entries: Vec<Entry>,
+    bias_right: bool,
+    dummy_meta: &BTreeMap<NodeId, (NodeId, NodeId, bool)>,
+) -> OrderResult {
+    entries.reverse();
+    let (pairs, used_bias) = pair_reversed_dummies(&mut entries, dummy_meta);
+    let mut result = sort_entries(entries, pairs, bias_right);
+    result.used_bias = used_bias;
+    result
+}
+
+/// Dagro sortSubgraph's pairwise scan over the conflict-resolved entries
+/// (order_sort_subgraph.go, the `reversedPairs` loop). Two entries with the
+/// same truthy barycenter either form a forward/reversed pair of ordinary
+/// `dummy="edge"` nodes with equal edgeObj endpoints, in which case the
+/// reversed entry is removed and returned with its forward partner's node, or
+/// they mark the sort as tie-biased. The partner is chosen per entry pair, so
+/// an edge-label dummy between them never blocks a later ordinary partner.
+///
+/// Entries with different barycenters never interact, and a removed entry is
+/// always the reversed one while every pair key is a forward node. Running
+/// the scan per equal-barycenter group, in entry order, therefore gives the
+/// same removals, bias and per-key pair order as the full quadratic scan.
+fn pair_reversed_dummies(
+    entries: &mut Vec<Entry>,
+    dummy_meta: &BTreeMap<NodeId, (NodeId, NodeId, bool)>,
+) -> (Vec<(NodeId, Entry)>, bool) {
+    let mut ties = entries
+        .iter()
+        .enumerate()
+        .filter_map(|(index, entry)| {
+            entry
+                .barycenter
+                .filter(|&value| truthy_number(value))
+                .map(|value| (value, index))
+        })
+        .collect::<Vec<_>>();
+    if ties.len() < 2 {
+        return (Vec::new(), false);
+    }
+    ties.sort_unstable_by(|left, right| left.0.total_cmp(&right.0).then(left.1.cmp(&right.1)));
+    let mut paired = Vec::<(NodeId, usize)>::new();
+    let mut used_bias = false;
+    let mut group = Vec::new();
+    for tie in ties.chunk_by(|left, right| left.0 == right.0) {
+        if tie.len() < 2 {
+            continue;
+        }
+        group.clear();
+        group.extend(tie.iter().map(|&(_, index)| index));
+        let mut i = 0;
+        while i < group.len() {
+            let mut j = i + 1;
+            let mut removed_i = false;
+            while j < group.len() {
+                let left_node = entries[group[i]].nodes.first().copied();
+                let right_node = entries[group[j]].nodes.first().copied();
+                let left_meta = left_node.and_then(|id| dummy_meta.get(&id));
+                let right_meta = right_node.and_then(|id| dummy_meta.get(&id));
+                if let (Some(&(ls, lt, lr)), Some(&(rs, rt, rr))) = (left_meta, right_meta)
+                    && ls == rs
+                    && lt == rt
+                    && lr != rr
+                {
+                    if lr {
+                        paired.push((right_node.expect("dummy has an ID"), group.remove(i)));
+                        removed_i = true;
+                        break;
+                    }
+                    paired.push((left_node.expect("dummy has an ID"), group.remove(j)));
+                } else {
+                    used_bias = true;
+                    j += 1;
+                }
+            }
+            if !removed_i {
+                i += 1;
+            }
+        }
+    }
+    if paired.is_empty() {
+        return (Vec::new(), used_bias);
+    }
+    let mut slots = std::mem::take(entries)
+        .into_iter()
+        .map(Some)
+        .collect::<Vec<_>>();
+    let pairs = paired
+        .into_iter()
+        .map(|(key, index)| (key, slots[index].take().expect("entry is paired once")))
+        .collect();
+    *entries = slots.into_iter().flatten().collect();
+    (pairs, used_bias)
 }
 
 fn truthy_number(value: f64) -> bool {
@@ -896,6 +971,49 @@ mod tests {
         );
         assert_eq!(result.nodes, [2, 4, 3].map(NodeId));
         assert!(result.used_bias);
+    }
+
+    // The flat-layer entry point is sortSubgraph on a root with leaf children.
+    // An edge-label dummy (absent from dummy_meta) between a forward dummy
+    // and its reversed partner does not stop the pair from forming.
+    #[test]
+    fn leaf_layer_matches_sort_subgraph_across_edge_label_ties() {
+        let [forward, label, reversed, other] = [3, 4, 5, 6].map(NodeId);
+        let dummy_meta = [
+            (forward, (NodeId(1), NodeId(2), false)),
+            (reversed, (NodeId(1), NodeId(2), true)),
+            (other, (NodeId(0), NodeId(2), false)),
+        ]
+        .into();
+        let mut layer = LayerGraph::default();
+        let children = vec![forward, label, reversed, other];
+        layer.children.insert(None, children.clone());
+        for (id, source) in [(forward, 1), (label, 1), (reversed, 1), (other, 0)] {
+            layer.incoming.insert(id, vec![(NodeId(source), 1.0)]);
+        }
+        let positions = [(NodeId(0), 0), (NodeId(1), 1)].into();
+        for bias_right in [true, false] {
+            let expected = sort_subgraph(&layer, None, &[], &positions, bias_right, &dummy_meta);
+            let entries = children
+                .iter()
+                .enumerate()
+                .map(|(index, &id)| {
+                    let mut entry = barycenter(&layer, id, &positions);
+                    entry.index = index;
+                    entry
+                })
+                .collect();
+            let actual = sort_leaf_layer(entries, bias_right, &dummy_meta);
+            assert_eq!(actual.nodes, expected.nodes, "bias_right {bias_right}");
+            assert_eq!(actual.used_bias, expected.used_bias);
+            let tail = if bias_right {
+                [other, label, forward, reversed]
+            } else {
+                [other, forward, reversed, label]
+            };
+            assert_eq!(actual.nodes, tail, "bias_right {bias_right}");
+            assert!(actual.used_bias);
+        }
     }
 
     #[test]
