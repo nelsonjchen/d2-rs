@@ -2199,11 +2199,11 @@ fn structured_inner_padding(compiler: &Compiler, field: IrNodeId) -> f64 {
     }
 }
 
-fn sql_table_dimensions<M: GraphMeasurer>(
+fn sql_table_dimensions(
     compiler: &Compiler,
     field: IrNodeId,
     label_size: Size,
-    measurer: &M,
+    measurer: &dyn GraphMeasurer,
     theme_mono: bool,
 ) -> SqlTableDimensions {
     let Some(map) = compiler.arena.map(field) else {
@@ -2386,11 +2386,11 @@ fn class_method_rows(compiler: &Compiler, field: IrNodeId) -> Vec<(String, Strin
 /// fixed prefix/type padding and a 20px vertical row allowance. Keeping this
 /// calculation beside the SQL table sizing makes the graph lowering match the
 /// target stage before TALA sees the nodes.
-fn class_dimensions<M: GraphMeasurer>(
+fn class_dimensions(
     compiler: &Compiler,
     field: IrNodeId,
     label_size: Size,
-    measurer: &M,
+    measurer: &dyn GraphMeasurer,
 ) -> Size {
     // Source chooses row height from the first field, then the first
     // method if there are no fields, regardless of declaration interleaving.
@@ -2485,7 +2485,7 @@ fn ensure_sequence_endpoint(
     graph: &mut Graph,
     visible_nodes: usize,
     labels: &mut BTreeMap<GraphNodeId, String>,
-    measurer: &impl GraphMeasurer,
+    measurer: &dyn GraphMeasurer,
     theme_mono: bool,
 ) -> Option<(GraphNodeId, Option<usize>)> {
     if graph
@@ -3949,7 +3949,7 @@ fn add_implicit_node(
     nodes: &mut BTreeMap<String, GraphNodeId>,
     path: &str,
     label: &str,
-    measurer: &impl GraphMeasurer,
+    measurer: &dyn GraphMeasurer,
     theme_mono: bool,
 ) -> GraphNodeId {
     if let Some(id) = nodes.get(path).copied() {
@@ -4191,10 +4191,10 @@ mod board_plan_contract {
     }
 }
 
-fn lower_graph_with_projection<M: GraphMeasurer>(
+fn lower_graph_with_projection(
     compiler: &Compiler,
     root: IrNodeId,
-    measurer: &M,
+    measurer: &dyn GraphMeasurer,
     caps_lock: bool,
     theme_mono: bool,
     projection: GraphProjection,
@@ -4227,10 +4227,10 @@ fn lower_graph_with_projection<M: GraphMeasurer>(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn lower_graph_in_class_context<M: GraphMeasurer>(
+fn lower_graph_in_class_context(
     compiler: &Compiler,
     root: IrNodeId,
-    measurer: &M,
+    measurer: &dyn GraphMeasurer,
     caps_lock: bool,
     theme_mono: bool,
     legend_board: Option<IrNodeId>,
