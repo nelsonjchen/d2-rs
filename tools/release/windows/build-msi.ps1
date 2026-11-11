@@ -106,21 +106,14 @@ foreach ($name in $payload.Keys) {
     }
     Copy-Item -LiteralPath $payload[$name] -Destination (Join-Path $wixDirectory $name)
 }
-Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'd2-rs.wxs') -Destination $wixDirectory
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'd2-rs.wxs'), (Join-Path $PSScriptRoot 'd2-rs-ui.wxs') -Destination $wixDirectory
 
-# The license dialog shows LICENSE as RTF.
-$licenseText = [IO.File]::ReadAllText((Join-Path $wixDirectory 'LICENSE'))
-$escaped = $licenseText.Replace('\', '\\').Replace('{', '\{').Replace('}', '\}')
-$escaped = [regex]::Replace($escaped, '[^\u0000-\u007f]', { param($m) '\u' + [int][char]$m.Value + '?' })
-$escaped = $escaped.Replace("`r`n", "`n").Replace("`n", "\par`n")
-$rtf = "{\rtf1\ansi\deff0{\fonttbl{\f0\fmodern Consolas;}}\f0\fs16`n" + $escaped + "}"
-[IO.File]::WriteAllText((Join-Path $wixDirectory 'LICENSE.rtf'), $rtf, [Text.Encoding]::ASCII)
 
 $msiVersion = $Version.Substring(1).Split('-')[0]
 $wixArch = if ($Arch -eq 'amd64') { 'x64' } else { 'arm64' }
 Push-Location $wixDirectory
 try {
-    & wix build -acceptEula wix7 -arch $wixArch -ext WixToolset.UI.wixext -d "D2RsVersion=$msiVersion" -o d2-rs.msi ./d2-rs.wxs
+    & wix build -acceptEula wix7 -arch $wixArch -ext WixToolset.UI.wixext -d "D2RsVersion=$msiVersion" -o d2-rs.msi ./d2-rs.wxs ./d2-rs-ui.wxs
     if ($LASTEXITCODE -ne 0) {
         throw "wix exited with status $LASTEXITCODE"
     }

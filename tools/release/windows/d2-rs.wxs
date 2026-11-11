@@ -3,18 +3,18 @@ WiX 7 source for the d2-rs Windows installer, adapted from Go D2's
 ci/release/windows/d2.wxs (MPL-2.0).
 
 Unlike Go's per-machine MSI (d2lang/d2#2941), this is a dual-purpose package
-with WiX's WixUI_Advanced dialogs. Double-clicking it shows the license and an
-Install button that installs for the current user without administrator
-rights: d2-rs.exe and its notices go to %LOCALAPPDATA%\Programs\d2-rs, which
-is appended to the user PATH. The Advanced button offers an install for all
-users instead, into Program Files\d2-rs with the system PATH. Silent installs
-(msiexec /qn) are per-user too, and per-machine with ALLUSERS=1.
+with the dialogs in d2-rs-ui.wxs. Double-clicking it asks whether to install
+just for you, the default, which needs no administrator rights: d2-rs.exe and
+its notices go to %LOCALAPPDATA%\Programs\d2-rs, appended to the user PATH.
+Installing for all users puts it in Program Files\d2-rs with the system PATH.
+Silent installs (msiexec /qn) are per-user too, and per-machine with
+ALLUSERS=1.
 
 The UpgradeCode and component GUIDs are d2-rs's own, so the installer never
 replaces or upgrades an installed Go D2. Never change them once released:
 Windows matches upgrades by UpgradeCode and components by GUID.
 -->
-<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
     <Package Name="d2-rs" UpgradeCode="e07615d4-6c1f-4c0f-b2f4-7ed59caa42c1" Language="1033" Codepage="utf-8" Version="$(var.D2RsVersion)" Manufacturer="d2-rs" InstallerVersion="500" Scope="perUserOrMachine">
         <SummaryInformation Keywords="Installer" Description="The d2-rs Installer" Manufacturer="d2-rs" Codepage="1252" />
 
@@ -28,14 +28,9 @@ Windows matches upgrades by UpgradeCode and components by GUID.
             <ComponentRef Id="SystemPath" />
         </Feature>
 
-        <!-- WixUI_Advanced: per-user by default, per-machine on request. -->
         <Property Id="ApplicationFolderName" Value="d2-rs" />
         <Property Id="WixAppFolder" Value="WixPerUserFolder" />
-        <WixVariable Id="WixUILicenseRtf" Value="LICENSE.rtf" />
-        <ui:WixUI Id="WixUI_Advanced" />
-        <!-- WixUI_Advanced's own per-user default is %LOCALAPPDATA%\Apps; use the
-             Programs folder that Windows itself uses for per-user installs. -->
-        <SetProperty Id="WixPerUserFolder" Value="[LocalAppDataFolder]Programs\[ApplicationFolderName]" After="WixSetDefaultPerUserFolder" Sequence="both" />
+        <UIRef Id="D2RsUI" />
 
         <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A later version of [ProductName] is already installed. Setup will now exit." />
 
