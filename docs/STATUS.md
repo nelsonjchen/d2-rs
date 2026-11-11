@@ -538,6 +538,15 @@ d2-rs and the pinned Go CLI on generated inputs (outputs and witnesses go to
   sortSubgraph). Eight seeds (6,400 renders) then matched Go. Dagre and ELK
   now clip edges with the Go-exact `shape.TraceToShapeBorder` port; the older
   approximation is gone.
+- `scripts/graph-differential.py`: the same harness over a `wide` family of
+  ordinary diagrams (nested containers and grids, per-container directions,
+  label and icon positions, near constants, arrowheads and edge label
+  positions, style keywords, Markdown and code labels, SQL tables, classes,
+  sequence diagrams, `--sketch` and `--theme`) on dagre, ELK and TALA, with
+  line-level minimization of each mismatch. Its first run (2026-11-11, 4 seeds
+  x 300 cases) found 8 dagre, 2 ELK and 8 TALA mismatches; the dagre ones
+  reduce to `label.near` center-left/right on container children and
+  outside label positions on containers.
 - `scripts/fuzz-differential.py` and `scripts/fuzz-minimize.py`: random
   structural mutations of corpus inputs, flagging Rust panics, hangs and
   exit, error-text or output divergence, then line/character minimization.
