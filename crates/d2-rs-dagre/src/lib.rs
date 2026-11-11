@@ -318,6 +318,21 @@ pub fn layout_with_options_and_rank_trace_with_cancellation(
                 margin.left > 0.0 || margin.right > 0.0
             }
         });
+    // d2dagrelayout's adjustCrossRankSpacing (layout.go) shifts and grows
+    // every non-grid object, leaf or container, by the side margin and
+    // padding that Object.Spacing() reports: outside-left/right labels and
+    // icons, and inside middle-left/right ones. In a vertical flow those
+    // moves are on the x axis, which the raw Dagro cross coordinates do not
+    // contain.
+    let has_vertical_side_spacing = source_mode
+        && !horizontal_for(graph.direction)
+        && graph.nodes().any(|(id, node)| {
+            if node.grid_rows.is_some() || node.grid_columns.is_some() {
+                return false;
+            }
+            let (margin, padding) = spacing::object_spacing(graph, id);
+            margin.left > 0.0 || margin.right > 0.0 || padding.left > 0.0 || padding.right > 0.0
+        });
     let (mut boxes, mut bk_layout) =
         rank_nodes_with_model(graph, dagre_options, source_mode, trace_rank_ops);
     let mut fitted_source_routes = BTreeMap::new();
@@ -575,6 +590,7 @@ pub fn layout_with_options_and_rank_trace_with_cancellation(
             && !horizontal_for(graph.direction)
             && !has_modifier_margins
             && !has_leaf_cross_label_margins
+            && !has_vertical_side_spacing
             && !has_descendant_external_edges_without_direct_container_edge(graph)
             && !has_direct_source_compound_external_edge
         {
