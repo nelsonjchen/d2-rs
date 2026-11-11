@@ -7,7 +7,7 @@ Run through `uv run --no-project python scripts/regen-fixtures.py --only 'render
   requests  input generator: expands tools/fixtures/seeds/render-markdown/*.json
             into the job list read by the lib/textmeasure hook
   scene     runs the d2scenebuild Markdown scene hook and writes
-            markdown-scene-metadata and markdown-layout-viewport
+            markdown-scene-metadata
   tooltip   runs the d2svg positioned-tooltip hook and adds the callout
             boxes, tails, texts and viewBoxes parsed from its SVGs
 
@@ -54,29 +54,12 @@ def expand(seed: str) -> list[dict]:
     return out
 
 
-def headings() -> list[dict]:
-    seed = json.loads((SEEDS / "headings.json").read_text())
-    sources = [f"{'#' * level} {seed['heading']}\n\n{body}" for level in seed["levels"] for body in seed["bodies"]]
-    out = []
-    for family in seed["families"]:
-        for size in seed["sizes"]:
-            for source in sources:
-                level = len(source.split(" ", 1)[0])
-                # the trailing number counts every case of the run
-                out.append({"name": f"{family}-{size}-h{level}-{len(out)}",
-                            "source": source, "family": family, "size": size})
-    return out
-
-
 TEXTMEASURE_JOBS = [
     # (output, hook kind, SVG role paint, requests)
     ("markdown-natural-source-v090.json", "natural", "none", lambda: expand("natural")),
     ("markdown-recursive-paint-source-v090.json", "cells", "full8", lambda: expand("blocks")),
     ("markdown-table-paint-source-v090.json", "cells", "table6", lambda: expand("tables")),
     ("markdown-mixed-flow-source-v090.json", "cells", "full8", lambda: expand("mixed")),
-    ("markdown-table-inline-source-v090.json", "table-inline", "inline3", lambda: expand("table-inline")),
-    ("paragraph-wrap-source-v090.json", "wrap", "inline3", lambda: expand("wrap")),
-    ("markdown-heading-flow-source-v090.json", "heading", "none", headings),
 ]
 
 
@@ -103,10 +86,6 @@ def cmd_scene():
     go_test_hook("d2renderers/d2scenebuild", "tools/fixtures/hooks/render-markdown-scene/d2rs_markdown_scene_test.go",
                  "TestD2RSMarkdownScene", {"D2RS_SCENE_INPUT": str(requests), "D2RS_SCENE_OUTPUT": str(raw)})
     rows = json.loads(raw.read_text())
-    # Complete rows for the one snippet whose viewport/clip contract is checked.
-    viewport = [r for r in rows if r["request"]["Name"].startswith("metadata-21-")]
-    fixture_recipe.output(FIXTURES + "markdown-layout-viewport-source-v090.json").write_text(
-        json.dumps(viewport, indent=2) + "\n")
     metadata = []
     for s in rows:
         row = {"request": s["request"],

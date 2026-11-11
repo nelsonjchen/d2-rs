@@ -37,49 +37,6 @@ outputs = [
 ]
 
 [[recipe]]
-name = "render-probe-text-origins"
-description = "SQL table and code shape TextRun origins (float bits) over count/height/size and source/size/y grids"
-package = "d2renderers/d2scenebuild"
-hooks = ["tools/fixtures/hooks/render-text-origins/d2rs_text_origins_test.go"]
-test = "TestD2RSTextOrigins"
-outputs = [
-  "crates/d2-rs-render/tests/fixtures/sql-text-origins-source-v090.json",
-  "crates/d2-rs-render/tests/fixtures/code-line-origins-source-v090.json",
-]
-
-[[recipe]]
-name = "render-probe-live-external-label"
-description = "d2svg outside-label text origins and viewBoxes per variant x position x label size"
-package = "d2renderers/d2svg"
-hooks = ["tools/fixtures/hooks/render-live-external-label/d2rs_live_external_label_test.go"]
-test = "TestD2RSLiveExternalLabel"
-outputs = ["crates/d2-rs-render/tests/fixtures/live-external-label-source-v090.json"]
-
-[[recipe]]
-name = "render-probe-sketch-rectangle"
-description = "Rough rectangle path sets and sketch dots-pattern paint order"
-package = "d2renderers/d2scenebuild"
-hooks = ["tools/fixtures/hooks/render-sketch-rectangle/d2rs_sketch_rectangle_test.go"]
-test = "TestD2RSSketchRectangle"
-outputs = ["crates/d2-rs-render/tests/fixtures/sketch-rectangle-source-v090.json"]
-
-[[recipe]]
-name = "render-probe-class-text-origins"
-description = "Class shape TextRun origins (float bits) per font size x field/method counts"
-package = "d2renderers/d2scenebuild"
-hooks = ["tools/fixtures/hooks/render-class-text-origins/d2rs_class_text_origins_test.go"]
-test = "TestD2RSClassTextOrigins"
-outputs = ["crates/d2-rs-render/tests/fixtures/class-text-origins-source-v090.json"]
-
-[[recipe]]
-name = "render-probe-math-label-boxes"
-description = "Intrinsic LaTeX label image placement per shape kind x label position x effect x font size"
-package = "d2renderers/d2scenebuild"
-hooks = ["tools/fixtures/hooks/render-math-label-boxes/d2rs_math_label_boxes_test.go"]
-test = "TestD2RSMathLabelBoxes"
-outputs = ["crates/d2-rs-render/tests/fixtures/math-label-boxes-source-v090.json"]
-
-[[recipe]]
 name = "render-probe-outside-icon-bounds"
 description = "d2target BoundingBox with an outside icon per shape kind x icon position"
 package = "d2target"
@@ -87,69 +44,6 @@ hooks = ["tools/fixtures/hooks/render-outside-icon-bounds/d2rs_outside_icon_boun
 test = "TestD2RSOutsideIconBounds"
 outputs = ["crates/d2-rs-render/tests/fixtures/outside-icon-bounds-source-v090.json"]
 key_deps.upstream_paths = ["d2target", "lib", "d2renderers/d2fonts", "d2renderers/internal", "go.mod", "go.sum"]
-
-[[recipe]]
-name = "render-probe-polygon-arrowheads"
-description = "Polygon arrowhead paths and placement matrices (float bits) per arrowhead x width x side x direction"
-package = "d2renderers/d2scenebuild"
-hooks = ["tools/fixtures/hooks/render-polygon-arrowheads/d2rs_polygon_arrowheads_test.go"]
-test = "TestD2RSPolygonArrowheads"
-outputs = ["crates/d2-rs-render/tests/fixtures/polygon-arrowheads-source-v090.json"]
-
-# d2lib-compiled probes: scripts/render_probe_fixtures.py runs the
-# render-compile-probe hook and shapes each fixture.
-
-[[recipe]]
-name = "render-probe-appendix-bounds"
-kind = "command"
-upstream = true
-description = "Raw-target BoundingBox and appendix width for detouring connections (side x stroke x offset x effect)"
-argv = ["{python}", "scripts/render_probe_fixtures.py", "appendix-bounds"]
-outputs = [
-  "crates/d2-rs-render/tests/fixtures/appendix-bounds-source-v090.json",
-]
-key_deps.go_toolchain = true
-key_deps.files = ["scripts/fixture_recipe.py", "scripts/render_oracle_fixtures.py", "scripts/render_probe_fixtures.py",
-                  "tools/fixtures/seeds/render-probes.json", "tools/fixtures/hooks/render-compile-probe"]
-
-[[recipe]]
-name = "render-probe-markdown-background"
-kind = "command"
-upstream = true
-description = "Markdown shape background/clip scene nodes per theme x fill x opacity x size (TALA)"
-argv = ["{python}", "scripts/render_probe_fixtures.py", "markdown-background"]
-outputs = [
-  "crates/d2-rs-render/tests/fixtures/markdown-background-source-v090.json",
-]
-key_deps.go_toolchain = true
-key_deps.files = ["scripts/fixture_recipe.py", "scripts/render_oracle_fixtures.py", "scripts/render_probe_fixtures.py",
-                  "tools/fixtures/seeds/render-probes.json", "tools/fixtures/hooks/render-compile-probe"]
-
-[[recipe]]
-name = "render-probe-root-canvas-style"
-kind = "command"
-upstream = true
-description = "Root canvas background/double-border scene primitives and viewBoxes per root style (TALA)"
-argv = ["{python}", "scripts/render_probe_fixtures.py", "root-canvas-style"]
-outputs = [
-  "crates/d2-rs-render/tests/fixtures/root-canvas-style-source-v090.json",
-]
-key_deps.go_toolchain = true
-key_deps.files = ["scripts/fixture_recipe.py", "scripts/render_oracle_fixtures.py", "scripts/render_probe_fixtures.py",
-                  "tools/fixtures/seeds/render-probes.json", "tools/fixtures/hooks/render-compile-probe"]
-
-[[recipe]]
-name = "render-probe-connection-label-fill"
-kind = "command"
-upstream = true
-description = "Connection label fill rectangles in d2svg output and compiled targets (TALA)"
-argv = ["{python}", "scripts/render_probe_fixtures.py", "connection-label-fill"]
-outputs = [
-  "crates/d2-rs-render/tests/fixtures/connection-label-fill-source-v090.json",
-]
-key_deps.go_toolchain = true
-key_deps.files = ["scripts/fixture_recipe.py", "scripts/render_oracle_fixtures.py", "scripts/render_probe_fixtures.py",
-                  "tools/fixtures/seeds/render-probes.json", "tools/fixtures/hooks/render-compile-probe"]
 
 [[recipe]]
 name = "render-probe-sequence-note-references"
@@ -168,25 +62,10 @@ key_deps.files = ["scripts/fixture_recipe.py", "scripts/render_oracle_fixtures.p
 name = "render-probe-sequence-groups"
 kind = "command"
 upstream = true
-description = "Sequence group predicates/fills, targets, edge reference scopes and group label rectangles (TALA)"
+description = "Sequence group predicates and fills (TALA)"
 argv = ["{python}", "scripts/render_probe_fixtures.py", "sequence-groups"]
 outputs = [
   "crates/d2-rs-render/tests/fixtures/sequence-group-reference-source-v090.json",
-  "crates/d2-rs-render/tests/fixtures/sequence-render-roles-source-v090.json",
-  "crates/d2-rs-render/tests/fixtures/sequence-group-label-fill-source-v090.json",
-]
-key_deps.go_toolchain = true
-key_deps.files = ["scripts/fixture_recipe.py", "scripts/render_oracle_fixtures.py", "scripts/render_probe_fixtures.py",
-                  "tools/fixtures/seeds/render-probes.json", "tools/fixtures/hooks/render-compile-probe"]
-
-[[recipe]]
-name = "render-probe-sequence-extracted-labels"
-kind = "command"
-upstream = true
-description = "Grid-in-sequence targets and d2svg text inventories (TALA)"
-argv = ["{python}", "scripts/render_probe_fixtures.py", "sequence-extracted-labels"]
-outputs = [
-  "crates/d2-rs-render/tests/fixtures/sequence-extracted-labels-source-v090.json",
 ]
 key_deps.go_toolchain = true
 key_deps.files = ["scripts/fixture_recipe.py", "scripts/render_oracle_fixtures.py", "scripts/render_probe_fixtures.py",
@@ -194,14 +73,12 @@ key_deps.files = ["scripts/fixture_recipe.py", "scripts/render_oracle_fixtures.p
 
 [[recipe]]
 name = "render-probe-markdown-flow"
-description = "Public LayoutMarkdown/RenderMarkdown of list, HTML-case and list-width snippets x family x size"
+description = "Public LayoutMarkdown/RenderMarkdown of list-width snippets x family x size"
 package = "lib/textmeasure"
 hooks = ["tools/fixtures/hooks/render-markdown-flow/d2rs_markdown_flow_test.go"]
 test = "TestD2RSMarkdownFlow"
 inputs = ["tools/fixtures/seeds/render-markdown-flow.json"]
 outputs = [
-  "crates/d2-rs-render/tests/fixtures/markdown-flow-source-v090.json",
-  "crates/d2-rs-render/tests/fixtures/markdown-html-case-source-v090.json",
   "crates/d2-rs-render/tests/fixtures/markdown-list-width-source-v090.json",
 ]
 
@@ -215,49 +92,6 @@ outputs = ["crates/d2-rs-render/tests/fixtures/target-empty-config-bytes-source-
 key_deps.go_toolchain = true
 key_deps.files = ["scripts/fixture_recipe.py", "scripts/render_oracle_fixtures.py", "scripts/render_probe_fixtures.py",
                   "tools/fixtures/seeds/render-probes.json", "tools/fixtures/hooks/render-compile-probe"]
-
-[[recipe]]
-name = "render-probe-spore-sequence-lifeline-export"
-kind = "command"
-upstream = true
-description = "Raw synthetic sequence lifeline routes versus exported target routes (ELK)"
-argv = ["{python}", "scripts/render_probe_fixtures.py", "spore-sequence-lifeline-export"]
-outputs = ["crates/d2-rs-render/tests/fixtures/spore-sequence-lifeline-export-v090.json"]
-key_deps.go_toolchain = true
-key_deps.files = ["scripts/fixture_recipe.py", "scripts/render_oracle_fixtures.py", "scripts/render_probe_fixtures.py",
-                  "tools/fixtures/seeds/render-probes.json", "tools/fixtures/hooks/render-compile-probe"]
-
-[[recipe]]
-name = "render-probe-code-input-admission"
-description = "d2scenebuild validateCodeText over unit x repeat, byte, font-size and language boundaries"
-package = "d2renderers/d2scenebuild"
-hooks = ["tools/fixtures/hooks/render-scene-admission/d2rs_scene_admission_test.go"]
-test = "TestD2RSCodeInputAdmission"
-outputs = ["crates/d2-rs-render/tests/fixtures/code-input-admission-v090.json"]
-
-[[recipe]]
-name = "render-probe-latex-input-admission"
-description = "d2scenebuild validateLatexInput over unit x repeat boundaries"
-package = "d2renderers/d2scenebuild"
-hooks = ["tools/fixtures/hooks/render-scene-admission/d2rs_scene_admission_test.go"]
-test = "TestD2RSLatexInputAdmission"
-outputs = ["crates/d2-rs-render/tests/fixtures/latex-input-admission-v090.json"]
-
-[[recipe]]
-name = "render-probe-hidden-math-order"
-description = "d2scenebuild.Build error order of hidden/visible LaTeX connections next to a code shape"
-package = "d2renderers/d2scenebuild"
-hooks = ["tools/fixtures/hooks/render-scene-admission/d2rs_scene_admission_test.go"]
-test = "TestD2RSHiddenMathOrder"
-outputs = ["crates/d2-rs-render/tests/fixtures/hidden-math-order-v090.json"]
-
-[[recipe]]
-name = "render-probe-xml-render-text"
-description = "lib/svg.EscapeText and d2svg.RenderText over XML-hostile strings"
-package = "d2renderers/d2svg"
-hooks = ["tools/fixtures/hooks/render-xml-render-text/d2rs_xml_render_text_test.go"]
-test = "TestD2RSXMLRenderText"
-outputs = ["crates/d2-rs-render/tests/fixtures/xml-render-text-source-v090.json"]
 
 # Go standard library only: keyed on the toolchain, not the D2 pin.
 [[recipe]]
@@ -274,73 +108,9 @@ stdout = "crates/d2-rs-render/tests/fixtures/mime-registration-source-go127.json
 key_deps.upstream_paths = []
 
 [[recipe]]
-name = "render-probe-edge-icon-positions"
-kind = "command"
-upstream = true
-description = "d2target Connection.GetIconPosition per route x icon/label variant"
-argv = ["{python}", "scripts/render_probe_fixtures.py", "edge-icon-positions"]
-outputs = ["crates/d2-rs-render/tests/fixtures/edge-icon-positions-source-v090.json"]
-key_deps.go_toolchain = true
-key_deps.files = ["scripts/fixture_recipe.py", "scripts/render_oracle_fixtures.py", "scripts/render_probe_fixtures.py",
-                  "tools/fixtures/seeds/render-probes.json", "tools/fixtures/seeds/render-edge-icon-positions.json",
-                  "tools/fixtures/hooks/render-edge-icon-positions"]
-
-[[recipe]]
-name = "render-probe-class-header-underline"
-kind = "command"
-upstream = true
-description = "d2lib (dagre) targets of class headers and row underline roles"
-argv = ["{python}", "scripts/render_probe_fixtures.py", "class-header-underline"]
-outputs = ["crates/d2-rs-render/tests/fixtures/class-header-underline-source-v090.json"]
-key_deps.go_toolchain = true
-key_deps.files = ["scripts/fixture_recipe.py", "scripts/render_oracle_fixtures.py", "scripts/render_probe_fixtures.py",
-                  "tools/fixtures/seeds/render-probes.json", "tools/fixtures/hooks/render-compile-probe"]
-
-[[recipe]]
-name = "render-probe-legend-connection-errors"
-kind = "command"
-upstream = true
-description = "Pinned d2 CLI PNG exports of legend-connection sources: exit and stderr"
-argv = ["{python}", "scripts/render_probe_fixtures.py", "legend-connection-errors"]
-outputs = ["crates/d2-rs-render/tests/fixtures/legend-connection-errors-source-v090.json"]
-key_deps.go_toolchain = true
-key_deps.files = ["scripts/fixture_recipe.py", "scripts/render_oracle_fixtures.py", "scripts/render_probe_fixtures.py",
-                  "tools/fixtures/seeds/render-probes.json", "tools/fixtures/hooks/render-compile-probe"]
-
-[[recipe]]
-name = "render-probe-scene-label-admission"
-kind = "command"
-upstream = true
-description = "Pinned d2 CLI PNG exports of structured/code label languages: exit and scene errors"
-argv = ["{python}", "scripts/render_probe_fixtures.py", "scene-label-admission"]
-outputs = ["crates/d2-rs-render/tests/fixtures/scene-label-admission-v090.json"]
-key_deps.go_toolchain = true
-key_deps.files = ["scripts/fixture_recipe.py", "scripts/render_oracle_fixtures.py", "scripts/render_probe_fixtures.py",
-                  "tools/fixtures/seeds/render-probes.json", "tools/fixtures/hooks/render-compile-probe"]
-
-[[recipe]]
-name = "render-probe-class-sketch-scenes"
-description = "Public d2scenebuild sketch scenes of one class shape per field/method count x font size"
-package = "d2renderers/d2scenebuild"
-hooks = ["tools/fixtures/hooks/render-class-sketch-scenes/d2rs_class_sketch_scenes_test.go"]
-test = "TestD2RSClassSketchScenes"
-outputs = ["crates/d2-rs-render/tests/fixtures/class-sketch-scenes-source-v090.json"]
-
-[[recipe]]
 name = "render-probe-markdown-link-transactions"
 description = "addMarkdownLinkRegion transactions and link/appendix budget admission grid"
 package = "d2renderers/d2scenebuild"
 hooks = ["tools/fixtures/hooks/render-markdown-link-transactions/d2rs_markdown_link_transactions_test.go"]
 test = "TestD2RSMarkdownLinkTransactions"
 outputs = ["crates/d2-rs-render/tests/fixtures/markdown-link-transactions-source-v090.json"]
-
-[[recipe]]
-name = "render-probe-sketch-svg"
-description = "d2sketch Connection/Arrowheads SVG and rough-go operations; one dots-pattern sketch Rect"
-package = "d2renderers/d2sketch"
-hooks = ["tools/fixtures/hooks/render-sketch-svg/d2rs_sketch_svg_test.go"]
-test = "TestD2RSSketchSVG"
-outputs = [
-  "crates/d2-rs-render/tests/fixtures/sketch-svg-source-v090.json",
-  "crates/d2-rs-render/tests/fixtures/sketch-svg-rectangle-source-v090.json",
-]

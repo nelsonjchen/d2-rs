@@ -264,3 +264,17 @@ orphans were deleted; their data remains at `9b706ac1`.
 - `tests/runtime/go127-int63n.json`: a byte-identical duplicate of
   `crates/d2-rs-tala/src/internal/runtime/fixtures/go127-int63n.json`, the
   copy `go_rng.rs` actually reads (TALA area); nothing read the top-level one.
+
+## d2-rs-cli (third pass)
+
+Two CLI recipes were retired because their only readers, the Go-vs-Rust
+checker scripts `scripts/check-paged-subtrees.py` and
+`scripts/check-png-metadata.py`, were removed in `d8147d36` (Lane F cleanup);
+no Rust test ever read them. Their families were removed from
+`scripts/cli_go_fixtures.py`; the recipes and generator code can be read at
+`ceb68ee1`, the commit before the retirement.
+
+| Recipe | Retired output | Former reader |
+| --- | --- | --- |
+| `cli-paged-subtree` | `crates/d2-rs-cli/tests/fixtures/paged-subtree-source-v090.json` | `scripts/check-paged-subtrees.py` (removed in `d8147d36`) |
+| `cli-png-metadata` | `crates/d2-rs-cli/tests/fixtures/png-metadata-source-v090.json` | `scripts/check-png-metadata.py` (removed in `d8147d36`) |

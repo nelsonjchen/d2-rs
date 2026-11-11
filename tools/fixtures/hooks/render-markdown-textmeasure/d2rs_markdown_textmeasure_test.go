@@ -14,7 +14,6 @@ import (
 	"testing"
 
 	"github.com/PuerkitoBio/goquery"
-	"golang.org/x/net/html"
 
 	"github.com/d2lang/d2/d2renderers/d2fonts"
 )
@@ -31,13 +30,10 @@ func d2rsPaint(name string) MarkdownSVGOptions {
 	switch name {
 	case "none":
 		return MarkdownSVGOptions{}
-	case "inline3", "table6", "full8":
+	case "table6", "full8":
 		roles[MarkdownColorForeground] = MarkdownSVGPaint{Color: "#0A0F25"}
 		roles[MarkdownColorAccent] = MarkdownSVGPaint{Color: "#0D32B2"}
 		roles[MarkdownColorNeutralMuted] = MarkdownSVGPaint{Color: "#EEF1F8"}
-		if name == "inline3" {
-			break
-		}
 		roles[MarkdownColorCanvas] = MarkdownSVGPaint{Color: "#FFFFFF"}
 		roles[MarkdownColorCanvasSubtle] = MarkdownSVGPaint{Color: "#EEF1F8"}
 		roles[MarkdownColorBorder] = MarkdownSVGPaint{Color: "#0D32B2"}
@@ -90,51 +86,6 @@ func d2rsCells(t *testing.T, ruler *Ruler, rendered string, primary, mono *d2fon
 	return cells
 }
 
-// Paints the single paragraph's inline nodes at an explicit available width.
-func d2rsInlinePaint(t *testing.T, ruler *Ruler, markdown, family string, size int, width float64, cell bool, header bool, align string, paint MarkdownSVGOptions) (string, float64, *MarkdownLayout, string) {
-	primary := d2rsFamily(family)
-	mono := d2fonts.SourceCodePro
-	rendered, err := RenderMarkdown(markdown)
-	if err != nil {
-		t.Fatal(err)
-	}
-	doc, err := goquery.NewDocumentFromReader(strings.NewReader(rendered))
-	if err != nil {
-		t.Fatal(err)
-	}
-	body := doc.Find("body").First().Nodes[0]
-	normalizeMarkdownWhitespaceTree(body)
-	var paragraph *html.Node
-	for n := body.FirstChild; n != nil; n = n.NextSibling {
-		if n.Type == html.ElementNode && n.Data == "p" {
-			if paragraph != nil {
-				t.Fatal("multiple paragraphs")
-			}
-			paragraph = n
-		}
-	}
-	if paragraph == nil {
-		t.Fatal("missing paragraph")
-	}
-	nodes := []*html.Node{}
-	for n := paragraph.FirstChild; n != nil; n = n.NextSibling {
-		nodes = append(nodes, n)
-	}
-	ctx := markdownPaintContext{fontFamily: &primary, monoFontFamily: &mono, fontSize: size, fontScale: 1, fontStyle: d2fonts.FONT_STYLE_REGULAR, lineHeightFactor: MarkdownLineHeight, mono: primary == mono, role: MarkdownColorForeground}
-	if cell {
-		ctx.tableCell = true
-		ctx.lineHeightFactor = 1.25
-		ctx.textAlign = align
-		if header {
-			ctx.bold = true
-			ctx.fontStyle = d2fonts.FONT_STYLE_SEMIBOLD
-		}
-	}
-	painter := markdownPainter{ruler: ruler, layout: &MarkdownLayout{}}
-	height := painter.paintInlineNodes(nodes, 0, 0, ctx, width)
-	return rendered, height, painter.layout, painter.layout.SVG(paint)
-}
-
 func d2rsRunJob(t *testing.T, job d2rsMarkdownJob) []any {
 	ruler, err := NewRuler()
 	if err != nil {
@@ -172,57 +123,6 @@ func d2rsRunJob(t *testing.T, job d2rsMarkdownJob) []any {
 			}
 			row["svg"] = layout.SVG(paint)
 			rows = append(rows, row)
-		}
-	case "wrap":
-		var requests []struct {
-			Name, Markdown, Family string
-			Width                  float64
-			FontSize               int
-		}
-		if err := json.Unmarshal(job.Requests, &requests); err != nil {
-			t.Fatal(err)
-		}
-		for _, r := range requests {
-			rendered, height, layout, svg := d2rsInlinePaint(t, ruler, r.Markdown, r.Family, r.FontSize, r.Width, false, false, "", paint)
-			rows = append(rows, map[string]any{"request": r, "rendered_html": rendered, "painted_height": height, "primitives": layout.Primitives, "svg": svg})
-		}
-	case "table-inline":
-		var requests []struct {
-			Name, Markdown, Family string
-			Width                  float64
-			FontSize               int
-			Header                 bool
-			Align                  string
-		}
-		if err := json.Unmarshal(job.Requests, &requests); err != nil {
-			t.Fatal(err)
-		}
-		for _, r := range requests {
-			rendered, height, layout, svg := d2rsInlinePaint(t, ruler, r.Markdown, r.Family, r.FontSize, r.Width, true, r.Header, r.Align, paint)
-			rows = append(rows, map[string]any{"request": r, "rendered_html": rendered, "painted_height": height, "primitives": layout.Primitives, "svg": svg})
-		}
-	case "heading":
-		// Exported-API flow: no mono family, Go's sorted map keys.
-		var cases []struct {
-			Name   string `json:"name"`
-			Source string `json:"source"`
-			Family string `json:"family"`
-			Size   int    `json:"size"`
-		}
-		if err := json.Unmarshal(job.Requests, &cases); err != nil {
-			t.Fatal(err)
-		}
-		for _, c := range cases {
-			family := d2fonts.FontFamily(c.Family)
-			layout, err := LayoutMarkdown(c.Source, ruler, &family, nil, c.Size)
-			if err != nil {
-				t.Fatal(err)
-			}
-			rendered, err := RenderMarkdown(c.Source)
-			if err != nil {
-				t.Fatal(err)
-			}
-			rows = append(rows, map[string]any{"html": rendered, "name": c.Name, "source": c.Source, "family": c.Family, "size": c.Size, "layout": layout})
 		}
 	default:
 		t.Fatalf("unknown job kind %q", job.Kind)

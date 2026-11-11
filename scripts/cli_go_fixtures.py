@@ -143,94 +143,6 @@ def gif_subtree():
     output(FIXTURES + "gif-subtree-source-v090.json").write_text(dump(fixtures))
 
 
-PAGED_SOURCE = 'label: excluded root\na\nlayers: {\n one: {label: Selected; b; layers: {two: {label: Child; c}}}\n sibling: {d}\n}\n'
-PAGED_QUOTED = 'a\nlayers: {\n "x . y": {label: Selected; b; layers: {two: {c}}; scenarios: {next: {d}}}\n}\n'
-PAGED_FOLDER = 'layers: {one: {layers: {two: {c}}}}\n'
-PAGED_NO_NAV = 'label: Excluded\na\nlayers: {one: {b; layers: {two: {c}}}}\n'
-PAGED_CASES = [
-    ('nested', PAGED_SOURCE, 'layers.one.*', False, False), ('shorthand', PAGED_SOURCE, 'one.*', False, False),
-    ('quoted-mixed', PAGED_QUOTED, 'layers."x . y".*', False, False), ('folder', PAGED_FOLDER, 'layers.one.*', False, False),
-    ('leaf', PAGED_SOURCE, 'layers.one.layers.two.*', False, False), ('named-stdout', PAGED_SOURCE, 'layers.one.*', False, True),
-    ('root-stdout', PAGED_SOURCE, '*', False, True), ('stdin-file', PAGED_SOURCE, 'layers.one.*', True, False),
-    ('stdin-stdout', PAGED_SOURCE, 'layers.one.*', True, True), ('no-nav', PAGED_NO_NAV, 'one.*', False, False),
-    ('single', PAGED_SOURCE, 'one', False, False), ('root-only', PAGED_SOURCE, '', False, False),
-    ('folder-single', PAGED_FOLDER, 'one', False, False),
-]
-
-
-def inspect_paged(path: Path, fmt: str):
-    """run39 contract: every PPTX member, or every PDF page, drawing stream, image and annotation."""
-    if fmt == 'pptx':
-        with zipfile.ZipFile(path) as z:
-            names = z.namelist()
-            assert names and len(names) == len(set(names)) and z.testzip() is None
-            return {n: sha(z.read(n)) for n in names}
-    from pypdf import PdfReader
-    from pypdf.generic import IndirectObject
-    reader = PdfReader(path, strict=True)
-    assert reader.pages
-
-    def value(v):
-        if isinstance(v, IndirectObject):
-            pages = {p.indirect_reference.idnum: i for i, p in enumerate(reader.pages)}
-            if v.idnum in pages:
-                return {'page': pages[v.idnum]}
-            return value(v.get_object())
-        if isinstance(v, dict):
-            return {str(k): value(v.raw_get(k)) for k in v}
-        if isinstance(v, list):
-            return [value(x) for x in v]
-        if isinstance(v, (str, int, float, bool)) or v is None:
-            return v
-        return str(v)
-    pages = []
-    for p in reader.pages:
-        ims = []
-        for args, op in p.get_contents().operations:
-            if op != b'Do':
-                continue
-            im = p['/Resources']['/XObject'][args[0]].get_object()
-            mask = im.get('/SMask')
-            mask = mask.get_object() if mask else None
-            ims.append(dict(name=str(args[0]), width=im['/Width'], height=im['/Height'], rgb=sha(im.get_data()),
-                            compressed=sha(im._data), alpha=sha(mask.get_data()) if mask else None,
-                            compressed_alpha=sha(mask._data) if mask else None))
-        assert len(ims) == 1
-        pages.append(dict(box=list(p.mediabox), content=sha(p.get_contents().get_data()), images=ims,
-                          annotations=value(p.get('/Annots', []))))
-    return pages
-
-
-def paged_subtree():
-    fixtures = []
-    for name, source, target, use_stdin, use_stdout in PAGED_CASES:
-        for fmt in ['pdf', 'pptx']:
-            proc, out = stdio_run(fresh(f'{name}-{fmt}'), ['--pad=0', '--bundle=false', f'--stdout-format={fmt}',
-                                                         f'--target={target}'],
-                                  source, use_stdin, use_stdout, f"out.{fmt}")
-            row = dict(name=name, source=source, target=target, stdin=use_stdin, stdout=use_stdout, format=fmt)
-            if name == 'folder-single':
-                error = 'paged export requires at least one renderable board'
-                if proc.returncode == 0 or error not in proc.stderr.decode() or out.exists():
-                    sys.exit(f"{name} {fmt}: expected {error!r}: {proc.stderr!r}")
-                fixtures.append(dict(row, expected_error=error))
-                continue
-            if proc.returncode != 0 or not out.is_file() or not out.stat().st_size:
-                sys.exit(f"{name} {fmt}: {proc.stderr.decode(errors='replace')}")
-            row['expected'] = inspect_paged(out, fmt)
-            if fmt == 'pptx':
-                row['raw_sha256'] = sha(out.read_bytes())
-            fixtures.append(row)
-    output(FIXTURES + "paged-subtree-source-v090.json").write_text(dump(fixtures))
-
-
-PNG_SOURCE = 'a\nlayers: {one: {b; layers: {two: {c}}}}\n'
-PNG_CASES = [('file', False, False, ['--target=']), ('stdout', False, True, ['--target=']),
-             ('stdin-file', True, False, ['--target=']), ('stdin-stdout', True, True, ['--target=']),
-             ('root-tree', False, False, ['--target=*']), ('named-subtree', False, False, ['--target=one.*']),
-             ('omit-version', False, False, ['--target=', '--omit-version'])]
-
-
 def png_outputs(out: Path) -> dict[str, Path]:
     """The complete PNG inventory: one file, or every file of its board folder."""
     folder = out.with_suffix('')
@@ -240,18 +152,6 @@ def png_outputs(out: Path) -> dict[str, Path]:
     if not files:
         sys.exit(f"{out}: missing PNG output")
     return files
-
-
-def png_metadata():
-    fixtures = []
-    for name, use_stdin, use_stdout, flags in PNG_CASES:
-        proc, out = stdio_run(fresh(name), ['--pad=0', '--stdout-format=png', *flags], PNG_SOURCE,
-                              use_stdin, use_stdout, "out.png")
-        if proc.returncode != 0:
-            sys.exit(f"{name}: {proc.stderr.decode(errors='replace')}")
-        fixtures.append(dict(name=name, source=PNG_SOURCE, stdin=use_stdin, stdout=use_stdout, flags=flags,
-                             sha256={k: sha(p.read_bytes()) for k, p in png_outputs(out).items()}))
-    output(FIXTURES + "png-metadata-source-v090.json").write_text(dump(fixtures))
 
 
 SUBTREE_OUTPUT = [
@@ -819,7 +719,7 @@ def probe(name: str):
 
 FAMILIES = {
     **{f'probe-{name}': (lambda name=name: probe(name)) for name in PROBES},
-    'gif-subtree': gif_subtree, 'paged-subtree': paged_subtree, 'png-metadata': png_metadata,
+    'gif-subtree': gif_subtree,
     'subtree-output': subtree_output, 'animation-target-canvas': animation_target_canvas,
     'animation-io': animation_io, 'badge-paint-order': badge_paint_order, 'braket-png': braket_png,
     'unavailable-image': unavailable_image, 'tala-structured-font': tala_structured_font, 'paged-rgba': paged_rgba,

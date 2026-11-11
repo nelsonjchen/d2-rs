@@ -1,6 +1,6 @@
 # Public-API Go-oracle fixtures for crates/d2-rs-export: lib/pptx parts and
 # properties, lib/pdf documents/navigation/PNG pages, FPDF font subsets,
-# lib/png EXIF, archive/zip over the PPTX template, d2scene aspect matrices.
+# lib/png EXIF, archive/zip over the PPTX template.
 # One go-test-hook overlaid into lib/pdf
 # (tools/fixtures/hooks/renderexport-public-api, D2RS_PUBLIC_MODE per recipe) harvested from .reference/codex-runs/witness-inputs/run{30,31,32,34,36,40}
 # and tools/pdf-master-probe. PDF navigation/font fields are then extracted by
@@ -69,13 +69,12 @@ kind = "go-test-hook"
 package = "lib/pdf"
 hooks = ["tools/fixtures/hooks/renderexport-public-api/d2rs_public_api_test.go"]
 test = "TestD2RSPublicAPI"
-description = "lib/pdf AddPDFPage documents (links, navigation, fills, opaque/default PNG), split-IDAT PNG pages, d2scene aspect matrices"
+description = "lib/pdf AddPDFPage documents (links, navigation, fills, opaque/default PNG), split-IDAT PNG pages"
 env = { D2RS_PUBLIC_MODE = "pdf-master", D2RS_PUBLIC_OUT = "{stage}" }
 outputs = [
   "crates/d2-rs-export/tests/fixtures/pdf-png-idat-fpdf-master.json",
   "crates/d2-rs-export/tests/fixtures/pdf-documents-fpdf-master.json",
   "crates/d2-rs-export/tests/fixtures/pdf-opaque-default-fpdf-master.pdf",
-  "crates/d2-rs-export/tests/fixtures/vector-image-placement-source-master.json",
 ]
 
 [[recipe]]

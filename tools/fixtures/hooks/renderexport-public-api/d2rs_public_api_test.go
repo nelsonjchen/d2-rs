@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MPL-2.0
 // Oracle hook for the renderexport-public-* recipes (tools/fixtures/renderexport-export-public.toml):
-// pinned lib/pptx, lib/pdf, lib/png, archive/zip and d2scene public APIs. Overlaid into
+// pinned lib/pptx, lib/pdf, lib/png and archive/zip public APIs. Overlaid into
 // lib/pdf (package pdf) so it builds inside the pinned module. Inert unless run by
 // scripts/regen-fixtures.py.
 // Harvested from the v0.9.0-era witnesses .reference/codex-runs/witness-inputs/
-// run{30,31,32,34,36,40}*.go and tools/pdf-master-probe/{png,documents,matrix}.
+// run{30,31,32,34,36,40}*.go and tools/pdf-master-probe/{png,documents}.
 //
 // $D2RS_PUBLIC_MODE selects the mode; files are written under $D2RS_PUBLIC_OUT
 // (the recipe's stage or an intermediate directory). FPDF's supported fixed clock / catalog-sort
@@ -23,7 +23,6 @@ import (
 	"image/color"
 	"image/png"
 	"io"
-	"math"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -33,7 +32,6 @@ import (
 
 	"codeberg.org/go-pdf/fpdf"
 	"github.com/d2lang/d2/d2renderers/d2fonts"
-	"github.com/d2lang/d2/d2renderers/d2scene"
 	"github.com/d2lang/d2/d2target"
 	d2png "github.com/d2lang/d2/lib/png"
 	"github.com/d2lang/d2/lib/pptx"
@@ -78,7 +76,6 @@ func TestD2RSPublicAPI(t *testing.T) {
 	case "pdf-master":
 		d2rsPdfPNG(out)
 		d2rsPdfDocuments(out)
-		d2rsPlacement(out)
 	default:
 		panic("unknown mode " + mode)
 	}
@@ -440,41 +437,4 @@ func d2rsPdfDocuments(out string) {
 	data, err := json.MarshalIndent(documents, "", "  ")
 	d2rsCheck(err)
 	d2rsWrite(d2rsFixture(out, "pdf-documents-fpdf-master.json"), append(data, '\n'))
-}
-
-// raster-vector-placement-20261016/probe_test.go + tools/pdf-master-probe/matrix:
-// d2scene.AspectRatioMatrix bits for 6 boxes x 10 aligns x 2 fits.
-func d2rsPlacement(out string) {
-	type record struct {
-		Source      [4]float64 `json:"source"`
-		Destination [4]float64 `json:"destination"`
-		Aspect      [2]uint8   `json:"aspect"`
-		Bits        [6]uint64  `json:"bits"`
-	}
-	cases := [][2][4]float64{
-		{{0, 0, 100, 60}, {20.25, 10.3333333333333, 52.375, 45.625}},
-		{{-3.125, 7.25, 137.75, 19.25}, {-10.125, 22.375, 62, 46}},
-		{{1000.125, -2000.75, 333.3, 77.7}, {2430, 266, 46, 46}},
-		{{0, 0, 512, 512}, {120, 425, 62, 62}},
-		{{0, 0, 1e-150, 2e-150}, {.125, .375, 1e-148, 3e-148}},
-		{{-17.5, 42.25, 11.75, 19.125}, {.125, .375, 0, 0}},
-	}
-	box := func(b [4]float64) d2scene.Box { return d2scene.Box{X: b[0], Y: b[1], Width: b[2], Height: b[3]} }
-	rows := []record{}
-	for _, c := range cases {
-		for align := uint8(0); align < 10; align++ {
-			for fit := uint8(0); fit < 2; fit++ {
-				m, err := d2scene.AspectRatioMatrix(box(c[0]), box(c[1]), d2scene.AspectRatio{Align: d2scene.AspectAlign(align), Fit: d2scene.AspectFit(fit)})
-				d2rsCheck(err)
-				var bits [6]uint64
-				for i, v := range [6]float64{m.A, m.B, m.C, m.D, m.E, m.F} {
-					bits[i] = math.Float64bits(v)
-				}
-				rows = append(rows, record{c[0], c[1], [2]uint8{align, fit}, bits})
-			}
-		}
-	}
-	data, err := json.MarshalIndent(rows, "", "  ")
-	d2rsCheck(err)
-	d2rsWrite(d2rsFixture(out, "vector-image-placement-source-master.json"), append(data, '\n'))
 }

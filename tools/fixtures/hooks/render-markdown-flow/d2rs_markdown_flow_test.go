@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MPL-2.0
-// Oracle hook for crates/d2-rs-render/tests/fixtures/markdown-{flow,html-case,list-width}-source-v090.json
+// Oracle hook for crates/d2-rs-render/tests/fixtures/markdown-list-width-source-v090.json
 // (docs/FIXTURES.md): public LayoutMarkdown (no mono family) and
 // RenderMarkdown per snippet x family x size, from the seed
 // tools/fixtures/seeds/render-markdown-flow.json. Overlaid into

@@ -26,18 +26,6 @@ outputs = ["crates/d2-rs-cli/tests/fixtures/gif-subtree-source-v090.json"]
 argv = ["{python}", "scripts/cli_go_fixtures.py", "gif-subtree"]
 
 [[recipe]]
-name = "cli-paged-subtree"
-description = "Selected PDF/PPTX subtrees: every page, drawing stream, image, annotation and PPTX member"
-outputs = ["crates/d2-rs-cli/tests/fixtures/paged-subtree-source-v090.json"]
-argv = ["uv", "run", "--no-project", "--with", "pillow==11.3.0", "--with", "pypdf==5.9.0", "python", "scripts/cli_go_fixtures.py", "paged-subtree"]
-
-[[recipe]]
-name = "cli-png-metadata"
-description = "PNG file/stdin/stdout, subtree traversal and --omit-version file hashes"
-outputs = ["crates/d2-rs-cli/tests/fixtures/png-metadata-source-v090.json"]
-argv = ["{python}", "scripts/cli_go_fixtures.py", "png-metadata"]
-
-[[recipe]]
 name = "cli-subtree-output"
 description = "Selected SVG board directory trees"
 outputs = ["crates/d2-rs-cli/tests/fixtures/subtree-output-source-v090.json"]

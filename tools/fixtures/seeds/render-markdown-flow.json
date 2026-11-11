@@ -4,34 +4,6 @@
   "sizes": [12, 16, 20, 28],
   "sets": [
     {
-      "output": "crates/d2-rs-render/tests/fixtures/markdown-flow-source-v090.json",
-      "prefix": "",
-      "errors": false,
-      "sources": [
-        "**Server state cache**\n- entries.list (infinite)\n- entries.get",
-        "before\n* first\n* second\n\nafter",
-        "**Title**\n\n+ alpha\n+ beta",
-        "3. first\n4. second\n\nafter",
-        "before\n1. one\n2. two",
-        "before\n- **bold**\n- *italic*"
-      ]
-    },
-    {
-      "output": "crates/d2-rs-render/tests/fixtures/markdown-html-case-source-v090.json",
-      "prefix": "html-",
-      "errors": true,
-      "sources": [
-        "before\n- <STRONG>bold</STRONG> plain <EM>italic</EM>",
-        "before\n- <StRoNg>bold</sTrOnG>",
-        "<B>bold</B> plain <EM>italic</EM>",
-        "before\n- <CODE>value</CODE>",
-        "before\n- <A HREF=\"https://example.com/AbC\">link</A>",
-        "<SPAN>unsupported</SPAN>",
-        "<DiV>unsupported</dIv>",
-        "<I>unsupported italic tag</I>"
-      ]
-    },
-    {
       "output": "crates/d2-rs-render/tests/fixtures/markdown-list-width-source-v090.json",
       "prefix": "width-",
       "errors": false,
