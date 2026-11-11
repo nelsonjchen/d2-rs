@@ -1,13 +1,21 @@
 <!--
 WiX 7 source for the d2-rs Windows installer, adapted from Go D2's
-ci/release/windows/d2.wxs (MPL-2.0). It installs d2-rs.exe and its notices
-into Program Files\d2-rs and appends that directory to the system PATH.
+ci/release/windows/d2.wxs (MPL-2.0).
+
+Unlike Go's per-machine MSI (d2lang/d2#2941), this is a dual-purpose package
+with WiX's WixUI_Advanced dialogs. Double-clicking it shows the license and an
+Install button that installs for the current user without administrator
+rights: d2-rs.exe and its notices go to %LOCALAPPDATA%\Programs\d2-rs, which
+is appended to the user PATH. The Advanced button offers an install for all
+users instead, into Program Files\d2-rs with the system PATH. Silent installs
+(msiexec /qn) are per-user too, and per-machine with ALLUSERS=1.
+
 The UpgradeCode and component GUIDs are d2-rs's own, so the installer never
-replaces or upgrades an installed Go D2. Never change them: Windows matches
-upgrades by UpgradeCode.
+replaces or upgrades an installed Go D2. Never change them once released:
+Windows matches upgrades by UpgradeCode and components by GUID.
 -->
-<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
-    <Package Name="d2-rs" UpgradeCode="e07615d4-6c1f-4c0f-b2f4-7ed59caa42c1" Language="1033" Codepage="utf-8" Version="$(var.D2RsVersion)" Manufacturer="d2-rs" InstallerVersion="500">
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+    <Package Name="d2-rs" UpgradeCode="e07615d4-6c1f-4c0f-b2f4-7ed59caa42c1" Language="1033" Codepage="utf-8" Version="$(var.D2RsVersion)" Manufacturer="d2-rs" InstallerVersion="500" Scope="perUserOrMachine">
         <SummaryInformation Keywords="Installer" Description="The d2-rs Installer" Manufacturer="d2-rs" Codepage="1252" />
 
         <Media Id="1" Cabinet="d2rs.cab" EmbedCab="yes" />
@@ -16,28 +24,53 @@ upgrades by UpgradeCode.
             <ComponentRef Id="Executable" />
             <ComponentRef Id="License" />
             <ComponentRef Id="ThirdPartyNotices" />
+            <ComponentRef Id="UserPath" />
+            <ComponentRef Id="SystemPath" />
         </Feature>
+
+        <!-- WixUI_Advanced: per-user by default, per-machine on request. -->
+        <Property Id="ApplicationFolderName" Value="d2-rs" />
+        <Property Id="WixAppFolder" Value="WixPerUserFolder" />
+        <WixVariable Id="WixUILicenseRtf" Value="LICENSE.rtf" />
+        <ui:WixUI Id="WixUI_Advanced" />
+        <!-- WixUI_Advanced's own per-user default is %LOCALAPPDATA%\Apps; use the
+             Programs folder that Windows itself uses for per-user installs. -->
+        <SetProperty Id="WixPerUserFolder" Value="[LocalAppDataFolder]Programs\[ApplicationFolderName]" After="WixSetDefaultPerUserFolder" Sequence="both" />
 
         <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A later version of [ProductName] is already installed. Setup will now exit." />
 
         <StandardDirectory Id="ProgramFiles64Folder">
-            <Directory Id="INSTALLDIR" Name="d2-rs">
+            <Directory Id="APPLICATIONFOLDER" Name="d2-rs">
                 <Component Id="Executable" Guid="109ce62b-1a14-4425-94a6-4adbf9f79c5a">
                     <File Id="D2RsExe" Name="d2-rs.exe" Source="d2-rs.exe" KeyPath="yes" />
-                    <Environment
-                      Id="D2RsPathEntry"
-                      Action="set"
-                      Part="last"
-                      Name="PATH"
-                      Permanent="no"
-                      System="yes"
-                      Value="[INSTALLDIR]" />
                 </Component>
                 <Component Id="License" Guid="acf6c5ca-2384-4cdd-9e8b-fb4d40b408f2">
                     <File Id="LicenseFile" Name="LICENSE" Source="LICENSE" KeyPath="yes" />
                 </Component>
                 <Component Id="ThirdPartyNotices" Guid="f2d7b8ff-7426-4c3b-ab0c-c54a98db2d39">
                     <File Id="ThirdPartyNoticesFile" Name="THIRD_PARTY_NOTICES.md" Source="THIRD_PARTY_NOTICES.md" KeyPath="yes" />
+                </Component>
+                <Component Id="UserPath" Guid="7a7cdae8-4816-465a-b160-996a6c58fcd8" Condition="NOT ALLUSERS=1">
+                    <RegistryValue Root="HKCU" Key="Software\d2-rs" Name="UserPath" Type="integer" Value="1" KeyPath="yes" />
+                    <Environment
+                      Id="D2RsUserPathEntry"
+                      Action="set"
+                      Part="last"
+                      Name="PATH"
+                      Permanent="no"
+                      System="no"
+                      Value="[APPLICATIONFOLDER]" />
+                </Component>
+                <Component Id="SystemPath" Guid="1c4b2ea7-be40-4498-a1bd-e6b919de996d" Condition="ALLUSERS=1">
+                    <RegistryValue Root="HKLM" Key="Software\d2-rs" Name="SystemPath" Type="integer" Value="1" KeyPath="yes" />
+                    <Environment
+                      Id="D2RsSystemPathEntry"
+                      Action="set"
+                      Part="last"
+                      Name="PATH"
+                      Permanent="no"
+                      System="yes"
+                      Value="[APPLICATIONFOLDER]" />
                 </Component>
             </Directory>
         </StandardDirectory>

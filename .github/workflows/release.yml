@@ -179,6 +179,7 @@ jobs:
         shell: pwsh
         run: |
           dotnet tool install --global wix --version 7.0.0
+          & "$env:USERPROFILE\.dotnet\tools\wix.exe" extension add -acceptEula wix7 --global WixToolset.UI.wixext/7.0.0
           "$env:USERPROFILE\.dotnet\tools" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
       - name: Build and test the installer
         shell: pwsh

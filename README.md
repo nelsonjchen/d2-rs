@@ -82,10 +82,12 @@ a browser is quarantined; clear that with
 `xattr -d com.apple.quarantine bin/d2-rs` (`curl` downloads are not affected).
 
 On Windows, the release also has an installer for each architecture,
-`d2-rs-<version>-windows-amd64.msi` and `-windows-arm64.msi`. It installs
-`d2-rs.exe` into `Program Files\d2-rs` and adds that directory to the system
-`PATH`; it is unsigned, so SmartScreen asks before running it. To install
-silently:
+`d2-rs-<version>-windows-amd64.msi` and `-windows-arm64.msi`. Its **Install**
+button installs for the current user, with no administrator rights, into
+`%LOCALAPPDATA%\Programs\d2-rs` and adds that to your `PATH`; **Advanced**
+offers an install for all users into `Program Files\d2-rs` with the system
+`PATH`. The installer is unsigned, so SmartScreen asks before running it.
+Silent installs work the same way (add `ALLUSERS=1` for all users):
 
 ```powershell
 msiexec /i d2-rs-<version>-windows-amd64.msi /qn

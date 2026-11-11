@@ -13,10 +13,14 @@ Each release names the upstream Go D2 commit it matches, from
 ### Added
 
 - Windows installers on GitHub releases, `d2-rs-<version>-windows-amd64.msi`
-  and `-windows-arm64.msi`, like Go D2's MSI. They install `d2-rs.exe` into
-  `Program Files\d2-rs` and add it to the system `PATH`. The release workflow
-  builds them with WiX 7 from the packaged archives, checks every installed
-  file against the archive, and installs and uninstalls each one as a test.
+  and `-windows-arm64.msi`. Unlike Go D2's per-machine MSI
+  ([d2lang/d2#2941](https://github.com/d2lang/d2/issues/2941)), they install
+  for the current user by default, with no administrator rights, into
+  `%LOCALAPPDATA%\Programs\d2-rs` and the user `PATH`; the Advanced button
+  (or `ALLUSERS=1` with `msiexec /qn`) installs for all users into
+  `Program Files\d2-rs` and the system `PATH`. The release workflow builds them
+  with WiX 7 from the packaged archives, checks every installed file against
+  the archive, and installs and uninstalls each one in both scopes as a test.
 
 ## [0.1.5] - 2026-11-11
 

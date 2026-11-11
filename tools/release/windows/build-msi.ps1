@@ -1,7 +1,9 @@
 # Builds d2-rs-<VERSION>-windows-<ARCH>.msi from a release archive and checks
 # it: MSI properties, an administrative extraction whose files must match the
-# archive byte for byte, and (with -InstallTest) a real install that puts
-# d2-rs on the system PATH and an uninstall that removes it again.
+# archive byte for byte, and (with -InstallTest) real installs in both scopes:
+# the default per-user install (%LOCALAPPDATA%\Programs\d2-rs, user PATH, no
+# administrator rights) and ALLUSERS=1 (Program Files\d2-rs, system PATH),
+# each followed by an uninstall that must remove it again.
 # Adapted from Go D2's ci/release/windows/build.ps1 (MPL-2.0).
 #
 # WiX 7 binaries are distributed under the Open Source Maintenance Fee EULA
@@ -45,10 +47,6 @@ function Get-MsiProperty {
         throw "MSI property $Name is missing"
     }
     return $record.GetType().InvokeMember('StringData', 'GetProperty', $null, $record, 1)
-}
-
-function Get-MachinePath {
-    return [Environment]::GetEnvironmentVariable('Path', [EnvironmentVariableTarget]::Machine)
 }
 
 if (-not (Test-Path -LiteralPath $ArchivePath -PathType Leaf)) {
@@ -110,11 +108,19 @@ foreach ($name in $payload.Keys) {
 }
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'd2-rs.wxs') -Destination $wixDirectory
 
+# The license dialog shows LICENSE as RTF.
+$licenseText = [IO.File]::ReadAllText((Join-Path $wixDirectory 'LICENSE'))
+$escaped = $licenseText.Replace('\', '\\').Replace('{', '\{').Replace('}', '\}')
+$escaped = [regex]::Replace($escaped, '[^\u0000-\u007f]', { param($m) '\u' + [int][char]$m.Value + '?' })
+$escaped = $escaped.Replace("`r`n", "`n").Replace("`n", "\par`n")
+$rtf = "{\rtf1\ansi\deff0{\fonttbl{\f0\fmodern Consolas;}}\f0\fs16`n" + $escaped + "}"
+[IO.File]::WriteAllText((Join-Path $wixDirectory 'LICENSE.rtf'), $rtf, [Text.Encoding]::ASCII)
+
 $msiVersion = $Version.Substring(1).Split('-')[0]
 $wixArch = if ($Arch -eq 'amd64') { 'x64' } else { 'arm64' }
 Push-Location $wixDirectory
 try {
-    & wix build -acceptEula wix7 -arch $wixArch -d "D2RsVersion=$msiVersion" -o d2-rs.msi ./d2-rs.wxs
+    & wix build -acceptEula wix7 -arch $wixArch -ext WixToolset.UI.wixext -d "D2RsVersion=$msiVersion" -o d2-rs.msi ./d2-rs.wxs
     if ($LASTEXITCODE -ne 0) {
         throw "wix exited with status $LASTEXITCODE"
     }
@@ -173,32 +179,65 @@ if ($extract.ExitCode -notin @(0, 3010)) {
 }
 Assert-Payload -Directory $extractDirectory
 
-if ($InstallTest) {
-    $installDirectory = Join-Path $env:ProgramFiles 'd2-rs'
-    $logPath = Join-Path $workingDirectory 'install.log'
+function Test-PathEntry {
+    param(
+        [Parameter(Mandatory = $true)] [EnvironmentVariableTarget] $Target,
+        [Parameter(Mandatory = $true)] [string] $Directory
+    )
+    $value = [Environment]::GetEnvironmentVariable('Path', $Target)
+    if ($null -eq $value) { return $false }
+    $entries = $value -split ';' | ForEach-Object { $_.TrimEnd('\') }
+    return $entries -contains $Directory.TrimEnd('\')
+}
+
+# Installs, checks and uninstalls in one scope. The other scope's directory
+# and PATH must stay untouched throughout.
+function Test-InstallScope {
+    param(
+        [Parameter(Mandatory = $true)] [string] $Name,
+        [string] $Properties = '',
+        [Parameter(Mandatory = $true)] [string] $Directory,
+        [Parameter(Mandatory = $true)] [EnvironmentVariableTarget] $Target,
+        [Parameter(Mandatory = $true)] [string] $OtherDirectory,
+        [Parameter(Mandatory = $true)] [EnvironmentVariableTarget] $OtherTarget
+    )
+    $logPath = Join-Path $workingDirectory "install-$Name.log"
     $install = Start-Process -FilePath msiexec.exe -Wait -PassThru `
-        -ArgumentList "/i `"$msiPath`" /qn /norestart /l*v `"$logPath`""
+        -ArgumentList "/i `"$msiPath`" $Properties /qn /norestart /l*v `"$logPath`""
     if ($install.ExitCode -notin @(0, 3010)) {
-        throw "MSI install exited with status $($install.ExitCode); log: $logPath"
+        throw "$Name install exited with status $($install.ExitCode); log: $logPath"
     }
-    Assert-Payload -Directory $installDirectory
-    $pathEntries = (Get-MachinePath) -split ';' | ForEach-Object { $_.TrimEnd('\') }
-    if ($pathEntries -notcontains $installDirectory.TrimEnd('\')) {
-        throw "install did not add $installDirectory to the system PATH"
+    Assert-Payload -Directory $Directory
+    if (-not (Test-PathEntry -Target $Target -Directory $Directory)) {
+        throw "$Name install did not add $Directory to the $Target PATH"
+    }
+    if ((Test-Path -LiteralPath (Join-Path $OtherDirectory 'd2-rs.exe')) -or
+        (Test-PathEntry -Target $OtherTarget -Directory $OtherDirectory)) {
+        throw "$Name install also wrote to $OtherDirectory or the $OtherTarget PATH"
     }
 
     $uninstall = Start-Process -FilePath msiexec.exe -Wait -PassThru `
-        -ArgumentList "/x `"$msiPath`" /qn /norestart"
+        -ArgumentList "/x `"$msiPath`" $Properties /qn /norestart"
     if ($uninstall.ExitCode -notin @(0, 3010)) {
-        throw "MSI uninstall exited with status $($uninstall.ExitCode)"
+        throw "$Name uninstall exited with status $($uninstall.ExitCode)"
     }
-    if (Test-Path -LiteralPath (Join-Path $installDirectory 'd2-rs.exe')) {
-        throw 'uninstall left d2-rs.exe behind'
+    if (Test-Path -LiteralPath (Join-Path $Directory 'd2-rs.exe')) {
+        throw "$Name uninstall left d2-rs.exe behind"
     }
-    $pathEntries = (Get-MachinePath) -split ';' | ForEach-Object { $_.TrimEnd('\') }
-    if ($pathEntries -contains $installDirectory.TrimEnd('\')) {
-        throw "uninstall left $installDirectory on the system PATH"
+    if (Test-PathEntry -Target $Target -Directory $Directory) {
+        throw "$Name uninstall left $Directory on the $Target PATH"
     }
+    Write-Host "$Name install and uninstall: OK ($Directory)"
+}
+
+if ($InstallTest) {
+    $userDirectory = Join-Path $env:LOCALAPPDATA 'Programs\d2-rs'
+    $machineDirectory = Join-Path $env:ProgramFiles 'd2-rs'
+    # The default: current user only, no administrator rights needed.
+    Test-InstallScope -Name 'per-user' -Directory $userDirectory -Target User `
+        -OtherDirectory $machineDirectory -OtherTarget Machine
+    Test-InstallScope -Name 'per-machine' -Properties 'ALLUSERS=1' -Directory $machineDirectory -Target Machine `
+        -OtherDirectory $userDirectory -OtherTarget User
 }
 
 New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
