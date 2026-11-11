@@ -819,7 +819,7 @@ fn decode_remote_deflate(bytes: &[u8]) -> Result<Vec<u8>, String> {
 /// Applies D2 v0.9.0's bounded raster admission rules before an asset enters
 /// the retained SVG/raster asset map. SVG XML stays provider-owned; recognized
 /// raster signatures are probed here so malformed headers and oversized
-/// decoded canvases fail before resvg or a package encoder sees them.
+/// decoded canvases fail before the rasterizer or a package encoder sees them.
 fn validate_asset_bytes(source: &str, bytes: &[u8]) -> Result<(), String> {
     if bytes.is_empty() {
         return Err(format!("asset {source:?} is empty"));
@@ -2766,42 +2766,22 @@ fn render_source_partial_with_board_targets(
     render_options.target_root_label = target_root_label;
     render_options.include_config_in_hash = include_config_in_hash;
     // Discover actual rendered images in SVG order, as imgbundler does.
-    let mut d2svg_options: Option<d2_rs_render::RenderOptions> = None;
-    let unbundled = if d2svg_requested() {
-        let mut options = render_options.clone();
-        options.d2svg_hash_input = d2svg_subtree_hash_input(input, args, board_targets, || {
-            d2_rs_render::target_hash_input(
-                &graph,
-                &result,
-                &labels,
-                &styles,
-                &render_options,
-                sketch,
-            )
-        })?;
-        d2svg_options = Some(options.clone());
-        d2_rs_render::render_d2svg(&graph, &result, &labels, &styles, &options, sketch)?
-    } else {
-        d2_rs_render::render_svg_with_sketch_checked(
-            &graph,
-            &result,
-            &labels,
-            &styles,
-            render_options.clone(),
-            sketch,
-        )
-        .map_err(|error| error.to_string())?
-    };
+    let mut options = render_options.clone();
+    options.d2svg_hash_input = d2svg_subtree_hash_input(input, args, board_targets, || {
+        d2_rs_render::target_hash_input(&graph, &result, &labels, &styles, &render_options, sketch)
+    })?;
+    let unbundled =
+        d2_rs_render::render_d2svg(&graph, &result, &labels, &styles, &options, sketch)?;
     // imgbundler resolves each unique reference once, in rendered order.
     let (mut svg, failures) = imgbundler_cli::bundle(&source_args, bundle, &unbundled);
     // d2cli renderSingle: appendix.Append after bundling, then a trailing
     // newline.
-    if let Some(options) = d2svg_options.as_ref().filter(|o| o.force_appendix) {
+    if options.force_appendix {
         svg = d2_rs_render::d2svg_append_appendix(
-            &graph, &result, &labels, &styles, options, sketch, &svg,
+            &graph, &result, &labels, &styles, &options, sketch, &svg,
         )?;
     }
-    if d2svg_requested() && svg.last().is_some_and(|b| *b != b'\n') {
+    if svg.last().is_some_and(|b| *b != b'\n') {
         svg.push(b'\n');
     }
     Ok((svg, failures))
@@ -2811,46 +2791,29 @@ fn render_source_partial_with_board_targets(
 /// intentionally shares the same option hydration and source-layout boundary
 /// as SVG rendering; the multiboard wrapper then appends each child board in
 /// D2's root/layers/scenarios/steps order before hashing once.
-/// One animation frame's target data: hash bytes, legacy canvas, and (for
-/// the d2svg path) the board's target JSON with its hydrated options.
+/// One animation frame's target data: hash bytes and the board's target
+/// JSON with its hydrated options.
 struct AnimationTarget {
     hash_input: Vec<u8>,
-    canvas: d2_rs_export::SvgAnimationCanvas,
-    target_json: Option<Vec<u8>>,
+    target_json: Vec<u8>,
     render_options: d2_rs_render::RenderOptions,
     sketch: bool,
 }
 
 impl AnimationTarget {
-    fn package_svg(
-        &self,
-        svg: Vec<u8>,
-        interval: u64,
-        salt: Option<&str>,
-        source_args: &[String],
-    ) -> Result<Vec<u8>, String> {
-        if let Some(json) = &self.target_json {
-            // d2cli.compile uses RenderMultiboard and d2animate.Wrap even
-            // for a single board. Share the same target-based wrapper as
-            // document animation so fonts, styles and keyframes match Go.
-            let bundle = bundle_requested(source_args)?;
-            return d2_rs_render::render_d2svg_animated_with(
-                "",
-                &[(String::new(), json.clone(), true)],
-                &self.render_options,
-                self.sketch,
-                interval,
-                &mut |svg| bundle_animation_board(source_args, bundle, svg),
-            );
-        }
-        let hash = d2_rs_render::target_hash_id_from_input(&self.hash_input, salt);
-        d2_rs_export::package_svg_boards_with_animation_canvas(
-            &[svg],
+    /// d2cli.compile uses RenderMultiboard and d2animate.Wrap even for a
+    /// single board. Share the same target-based wrapper as document
+    /// animation so fonts, styles and keyframes match Go.
+    fn package_svg(&self, interval: u64, source_args: &[String]) -> Result<Vec<u8>, String> {
+        let bundle = bundle_requested(source_args)?;
+        d2_rs_render::render_d2svg_animated_with(
+            "",
+            &[(String::new(), self.target_json.clone(), true)],
+            &self.render_options,
+            self.sketch,
             interval,
-            Some(&hash),
-            Some(self.canvas),
+            &mut |svg| bundle_animation_board(source_args, bundle, svg),
         )
-        .map_err(|error| error.to_string())
     }
 }
 
@@ -2880,31 +2843,14 @@ fn render_source_target_animation(
     let (target_root_label, include_config_in_hash) = target_metadata?;
     render_options.target_root_label = target_root_label;
     render_options.include_config_in_hash = include_config_in_hash;
-    let bounds = d2_rs_render::target_diagram_bounds(
+    let target_json = d2_rs_render::target_diagram_json(
         &graph,
         &result,
         &labels,
         &styles,
         &render_options,
         sketch,
-    );
-    let canvas = d2_rs_export::SvgAnimationCanvas {
-        bounds,
-        pad: render_options.pad,
-        scale: render_options.scale,
-    };
-    let target_json = if d2svg_requested() {
-        Some(d2_rs_render::target_diagram_json(
-            &graph,
-            &result,
-            &labels,
-            &styles,
-            &render_options,
-            sketch,
-        )?)
-    } else {
-        None
-    };
+    )?;
     Ok(AnimationTarget {
         hash_input: d2_rs_render::target_hash_input(
             &graph,
@@ -2914,7 +2860,6 @@ fn render_source_target_animation(
             &render_options,
             sketch,
         ),
-        canvas,
         target_json,
         render_options,
         sketch,
@@ -3072,42 +3017,6 @@ fn bundle_animation_board(
 
 fn imgbundle_d2svg(source_args: &[String], bundle: bool, svg: Vec<u8>) -> Vec<u8> {
     imgbundler_cli::bundle(source_args, bundle, &svg).0
-}
-
-/// SVG output uses the byte-identical d2svg port (PLAN S6). Only tests of
-/// the earlier native renderer's own contract select it, per thread.
-// TODO(legacy-raster-cleanup): remove with the legacy renderer.
-fn d2svg_requested() -> bool {
-    #[cfg(test)]
-    if LEGACY_SVG_FOR_TEST.with(std::cell::Cell::get) {
-        return false;
-    }
-    true
-}
-
-#[cfg(test)]
-thread_local! {
-    /// Tests of the legacy SVG renderer's own contract pin it per thread
-    /// (the environment variable is process-global under parallel tests).
-    static LEGACY_SVG_FOR_TEST: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
-}
-
-#[cfg(test)]
-pub(crate) struct LegacySvgGuard;
-
-#[cfg(test)]
-impl LegacySvgGuard {
-    pub(crate) fn new() -> Self {
-        LEGACY_SVG_FOR_TEST.with(|flag| flag.set(true));
-        Self
-    }
-}
-
-#[cfg(test)]
-impl Drop for LegacySvgGuard {
-    fn drop(&mut self) {
-        LEGACY_SVG_FOR_TEST.with(|flag| flag.set(false));
-    }
 }
 
 fn render_source_format(
@@ -3368,7 +3277,7 @@ fn render_source_format_with_pptx_properties(
         .map_err(|error| error.to_string()),
         _ => match format {
             // PLAN S6: the byte-identical d2svg port.
-            ExportFormat::Svg if d2svg_requested() => d2_rs_render::render_d2svg(
+            ExportFormat::Svg => d2_rs_render::render_d2svg(
                 &graph,
                 &result,
                 &labels,
@@ -3377,15 +3286,6 @@ fn render_source_format_with_pptx_properties(
                 sketch,
             )
             .map(|svg| imgbundle_d2svg(&source_args, bundle, svg)),
-            ExportFormat::Svg => d2_rs_render::render_svg_with_sketch_checked(
-                &graph,
-                &result,
-                &labels,
-                &styles,
-                render_options,
-                sketch,
-            )
-            .map_err(|error| error.to_string()),
             ExportFormat::Png if png_pixel_scale.is_some() => d2_rs_export::render_png_at_scale(
                 &graph,
                 &result,
@@ -4429,9 +4329,6 @@ fn run_multiboard_document(
         return Ok(Vec::new());
     }
     if output_format == ExportFormat::Svg && animate_interval.is_some() {
-        let mut svg_boards = Vec::with_capacity(board_targets.len() + usize::from(root_renderable));
-        let mut target_hash_inputs = Vec::new();
-        let mut animation_canvas: Option<d2_rs_export::SvgAnimationCanvas> = None;
         let mut d2svg_frames: Vec<(String, Vec<u8>, bool)> = Vec::new();
         let mut d2svg_options: Option<(d2_rs_render::RenderOptions, bool)> = None;
         // HashID always includes the document root, even when it is a
@@ -4477,90 +4374,42 @@ fn run_multiboard_document(
             render_args.extend(source_adapter_args.iter().cloned());
             render_args.push(format!("--target={target}"));
             let frame = render_source_target_animation(input, &render_args)?;
-            let (hash_input, mut canvas) = (frame.hash_input, frame.canvas);
-            if let Some(json) = frame.target_json {
-                let renderable = !((target.is_empty() && !root_renderable)
-                    || (!target.is_empty() && !renderable_targets.contains(&target)));
-                d2svg_frames.push((target.clone(), json, renderable));
-                d2svg_options.get_or_insert((frame.render_options, frame.sketch));
-            }
-            if let Some(previous) = animation_canvas {
-                for axis in 0..2 {
-                    canvas.bounds[axis] = canvas.bounds[axis].min(previous.bounds[axis]);
-                    canvas.bounds[axis + 2] =
-                        canvas.bounds[axis + 2].max(previous.bounds[axis + 2]);
-                }
-            }
-            animation_canvas = Some(canvas);
-            target_hash_inputs.push((target.clone(), hash_input));
-            if (target.is_empty() && !root_renderable)
-                || (!target.is_empty() && !renderable_targets.contains(&target))
-            {
-                continue;
-            }
-            if !d2svg_requested() {
-                svg_boards.push(render_source_format(
-                    input,
-                    &render_args,
-                    ExportFormat::Svg,
-                )?);
-            }
+            let renderable = !((target.is_empty() && !root_renderable)
+                || (!target.is_empty() && !renderable_targets.contains(&target)));
+            d2svg_frames.push((target, frame.target_json, renderable));
+            d2svg_options.get_or_insert((frame.render_options, frame.sketch));
         }
-        if let Some((options, sketch)) = d2svg_options {
-            let packaged = d2_rs_render::render_d2svg_animated_with(
-                animation_root_target,
-                &d2svg_frames,
-                &options,
-                sketch,
-                animate_interval.unwrap_or(1000),
-                &mut |svg| bundle_animation_board(&source_path_args(input_path), bundle, svg),
-            )?;
-            // d2cli.renderToPaths bundles each rendered frame before
-            // d2animate.Wrap and propagates any resolver error. The native
-            // animation renderer retains image references through wrapping.
-            let (packaged, failures) =
-                imgbundler_cli::bundle(&source_path_args(input_path), bundle, &packaged);
-            if !failures.is_empty() {
-                return Err(report_asset_failures(&failures));
-            }
-            let packaged = finalize_svg_output(packaged, no_xml_tag, omit_version);
-            if requested_output.as_os_str() == "-" {
-                log_compile_success(Path::new(input_path), &requested_output, started.elapsed());
-                return Ok(packaged);
-            }
-            if let Some(parent) = requested_output
-                .parent()
-                .filter(|path| !path.as_os_str().is_empty())
-            {
-                std::fs::create_dir_all(parent)
-                    .map_err(|error| format!("could not create {}: {error}", parent.display()))?;
-            }
-            write_document_file(&requested_output, &packaged, output_format).map_err(|error| {
-                format!("could not write {}: {error}", requested_output.display())
-            })?;
-            log_compile_success(Path::new(input_path), &requested_output, started.elapsed());
-            return Ok(Vec::new());
-        }
-        let target_hash_input = d2_rs_render::recursive_target_hash_input(&target_hash_inputs);
-        let diagram_hash = d2_rs_render::target_hash_id_from_input(&target_hash_input, salt);
-        let packaged = d2_rs_export::package_svg_boards_with_animation_canvas(
-            &svg_boards,
+        // The document root is always the first target, so every animation
+        // has at least one frame.
+        let (options, sketch) =
+            d2svg_options.ok_or_else(|| "animation has no boards".to_owned())?;
+        let packaged = d2_rs_render::render_d2svg_animated_with(
+            animation_root_target,
+            &d2svg_frames,
+            &options,
+            sketch,
             animate_interval.unwrap_or(1000),
-            Some(&diagram_hash),
-            animation_canvas,
-        )
-        .map_err(|error| error.to_string())?;
+            &mut |svg| bundle_animation_board(&source_path_args(input_path), bundle, svg),
+        )?;
+        // d2cli.renderToPaths bundles each rendered frame before
+        // d2animate.Wrap and propagates any resolver error. The native
+        // animation renderer retains image references through wrapping.
+        let (packaged, failures) =
+            imgbundler_cli::bundle(&source_path_args(input_path), bundle, &packaged);
+        if !failures.is_empty() {
+            return Err(report_asset_failures(&failures));
+        }
         let packaged = finalize_svg_output(packaged, no_xml_tag, omit_version);
+        if requested_output.as_os_str() == "-" {
+            log_compile_success(Path::new(input_path), &requested_output, started.elapsed());
+            return Ok(packaged);
+        }
         if let Some(parent) = requested_output
             .parent()
             .filter(|path| !path.as_os_str().is_empty())
         {
             std::fs::create_dir_all(parent)
                 .map_err(|error| format!("could not create {}: {error}", parent.display()))?;
-        }
-        if requested_output.as_os_str() == "-" {
-            log_compile_success(Path::new(input_path), &requested_output, started.elapsed());
-            return Ok(packaged);
         }
         write_document_file(&requested_output, &packaged, output_format)
             .map_err(|error| format!("could not write {}: {error}", requested_output.display()))?;
@@ -5788,7 +5637,7 @@ fn run_document_with_stdout(
                 rendered = animation_context
                     .as_ref()
                     .expect("animated SVG context")
-                    .package_svg(rendered, interval, salt.as_deref(), &render_args)?;
+                    .package_svg(interval, &render_args)?;
                 preview = Some(rendered.clone());
             }
             if output_format == ExportFormat::Ascii {
@@ -5800,7 +5649,7 @@ fn run_document_with_stdout(
             (rendered, preview)
         } else {
             let rendered = if output_format == ExportFormat::Svg && animate_interval.is_some() {
-                let (svg, failures) = render_source_partial_with_board_targets(
+                let (_svg, failures) = render_source_partial_with_board_targets(
                     input.as_slice(),
                     &render_args,
                     hash_board_targets.as_deref(),
@@ -5811,12 +5660,7 @@ fn run_document_with_stdout(
                 animation_context
                     .as_ref()
                     .expect("animated SVG context")
-                    .package_svg(
-                        svg,
-                        animate_interval.unwrap_or(1000),
-                        salt.as_deref(),
-                        &render_args,
-                    )?
+                    .package_svg(animate_interval.unwrap_or(1000), &render_args)?
             } else if output_format == ExportFormat::Gif {
                 render_source_animated_gif(
                     input.as_slice(),
@@ -8326,31 +8170,14 @@ layers: {
 
     #[test]
     fn render_svg_connects_source_layout_and_labels() {
-        // Contract of the legacy native SVG renderer.
-        let _legacy = super::LegacySvgGuard::new();
         let output = run(&["render-svg".into(), "--seeds=7".into()], b"a -> b\n").unwrap();
         let output = String::from_utf8(output).unwrap();
-        assert!(output.starts_with("<svg xmlns=\"http://www.w3.org/2000/svg\""));
+        assert!(output.starts_with(
+            "<?xml version=\"1.0\" encoding=\"utf-8\"?><svg xmlns=\"http://www.w3.org/2000/svg\""
+        ));
         assert!(output.contains("<path d=\"M "));
         assert!(output.contains(">a</text>"));
         assert!(output.contains(">b</text>"));
-    }
-
-    #[test]
-    fn dagre_sequence_self_edges_keep_rounded_orthogonal_routes() {
-        // Contract of the legacy native SVG renderer.
-        let _legacy = super::LegacySvgGuard::new();
-        let source = b"sequence: { shape: sequence_diagram; worker -> worker: retry }\ncomplete: Complete\nsequence -> complete\n";
-        let output = run(&["render-svg".into(), "--engine=dagre".into()], source).unwrap();
-        let output = String::from_utf8(output).unwrap();
-        assert!(
-            output.contains(
-                "M 64 224 L 132 224 S 142 224 142 234 L 142 259 S 142 269 132 269 L 66 269"
-            )
-        );
-        assert!(output.contains("M 85 352 C 85 391 85 411 85 447"));
-        assert!(!output.contains("M 64 224 C 142 224 142 269 66 269"));
-        assert!(output.contains("stroke-dasharray=\"12,11.838767\" stroke-linecap=\"round\""));
     }
 
     #[test]
@@ -8379,13 +8206,16 @@ layers: {
 
     #[test]
     fn render_svg_accepts_d2_scale_option() {
-        // Contract of the legacy native SVG renderer.
-        let _legacy = super::LegacySvgGuard::new();
         let default_output = run(&["render-svg".into()], b"a\n").unwrap();
         let scaled_output = run(&["render-svg".into(), "--scale=2".into()], b"a\n").unwrap();
-        let root_attribute = |output: &[u8], name: &str| {
+        let root = |output: &[u8]| {
             let text = String::from_utf8_lossy(output);
-            text.split('>')
+            let start = text.find("<svg").expect("root SVG");
+            text[start..].split('>').next().unwrap().to_owned()
+        };
+        let root_attribute = |output: &[u8], name: &str| {
+            root(output)
+                .split('>')
                 .next()
                 .expect("root SVG")
                 .split(&format!("{name}=\""))
@@ -8400,11 +8230,7 @@ layers: {
             root_attribute(&scaled_output, "viewBox"),
             root_attribute(&default_output, "viewBox")
         );
-        let default_root = String::from_utf8_lossy(&default_output)
-            .split('>')
-            .next()
-            .unwrap()
-            .to_owned();
+        let default_root = root(&default_output);
         assert!(!default_root.contains("width=\"") && !default_root.contains("height=\""));
         let explicit = run(&["render-svg".into(), "--scale=1".into()], b"a\n").unwrap();
         assert!(!root_attribute(&explicit, "width").is_empty());
@@ -8445,8 +8271,6 @@ layers: {
 
     #[test]
     fn render_svg_applies_terminal_caps_lock_before_layout() {
-        // Contract of the legacy native SVG renderer.
-        let _legacy = super::LegacySvgGuard::new();
         let output = String::from_utf8(
             run(
                 &["render-svg".into(), "--theme=300".into()],
@@ -8456,7 +8280,7 @@ layers: {
         )
         .unwrap();
         assert!(output.contains(">HELLO WORLD</text>"), "{output}");
-        assert!(output.contains("Source Code Pro, monospace"), "{output}");
+        assert!(output.contains("font-mono"), "{output}");
     }
 
     #[test]
@@ -8690,27 +8514,25 @@ layers: {
 
     #[test]
     fn document_svg_metadata_flags_match_d2_boundary() {
-        // Contract of the legacy native SVG renderer.
-        let _legacy = super::LegacySvgGuard::new();
         let path =
             std::env::temp_dir().join(format!("d2-rs-svg-metadata-{}.d2", std::process::id()));
         std::fs::write(&path, b"a\n").unwrap();
         let base_args = || vec![path.to_string_lossy().into_owned(), "-".into()];
         let default = String::from_utf8(run_document(&base_args()).unwrap()).unwrap();
         assert!(default.starts_with("<?xml version=\"1.0\" encoding=\"utf-8\"?>"));
-        assert!(default.contains("d2Version=\"v0.9.0\""));
+        assert!(default.contains("data-d2-version=\"v0.9.0\""));
 
         let mut no_tag = vec!["--no-xml-tag".into()];
         no_tag.extend(base_args());
         let no_tag = String::from_utf8(run_document(&no_tag).unwrap()).unwrap();
         assert!(no_tag.starts_with("<svg"));
-        assert!(no_tag.contains("d2Version=\"v0.9.0\""));
+        assert!(no_tag.contains("data-d2-version=\"v0.9.0\""));
 
         let mut no_version = vec!["--omit-version".into()];
         no_version.extend(base_args());
         let no_version = String::from_utf8(run_document(&no_version).unwrap()).unwrap();
         assert!(no_version.starts_with("<?xml version=\"1.0\" encoding=\"utf-8\"?>"));
-        assert!(!no_version.contains("d2Version="));
+        assert!(!no_version.contains("data-d2-version="));
         std::fs::remove_file(path).unwrap();
     }
 
@@ -9409,8 +9231,6 @@ layers: {
 
     #[test]
     fn document_command_uses_recursive_v090_animation_hash() {
-        // Contract of the legacy native SVG renderer.
-        let _legacy = super::LegacySvgGuard::new();
         let suffix = format!(
             "{}-{}",
             std::process::id(),
@@ -9431,7 +9251,8 @@ layers: {
         assert!(run_document(&args).unwrap().is_empty());
         let output = std::fs::read_to_string(&output_path).unwrap();
         assert!(output.contains("d2Transition-d2-912644653-0"));
-        assert!(output.contains("d2-3603291771 d2-svg"));
+        // The recursive document hash names the marker definitions.
+        assert!(output.contains("mk-d2-3603291771-"));
         std::fs::remove_file(input_path).unwrap();
         std::fs::remove_file(output_path).unwrap();
     }
@@ -9579,36 +9400,34 @@ layers: {
 
     #[test]
     fn document_command_applies_source_layout_and_seed_config() {
-        // Contract of the legacy native SVG renderer.
-        let _legacy = super::LegacySvgGuard::new();
-        let path = std::env::temp_dir().join(format!("d2-rs-config-{}.d2", std::process::id()));
+        let suffix = std::process::id();
+        let configured_path = std::env::temp_dir().join(format!("d2-rs-config-{suffix}.d2"));
+        let explicit_path = std::env::temp_dir().join(format!("d2-rs-explicit-{suffix}.d2"));
         std::fs::write(
-            &path,
+            &configured_path,
             b"vars: {d2-config: {layout-engine: dagre; pad: 7; data: {tala-seeds: [7]}}}\na -> b\n",
         )
         .unwrap();
-        let args = vec![
+        std::fs::write(&explicit_path, b"a -> b\n").unwrap();
+        let configured = run_document(&[
             "--stdout-format=svg".into(),
-            path.to_string_lossy().into_owned(),
+            configured_path.to_string_lossy().into_owned(),
             "-".into(),
-        ];
-        let configured = run_document(&args).unwrap();
-        std::fs::remove_file(path).unwrap();
-        let explicit = render_source_format(
-            b"a -> b\n",
-            &[
-                "--engine=dagre".into(),
-                "--seeds=7".into(),
-                "--pad=7".into(),
-            ],
-            ExportFormat::Svg,
-        )
-        .map(|output| finalize_svg_output(output, false, false))
+        ])
         .unwrap();
-        // Original Go v0.9.0 retains document Config in Diagram.Bytes:
-        // these two inputs have identical geometry but different namespaces.
-        // Assert both source hashes before consistently relabeling all SVG
-        // definitions/references for the complete geometry/style comparison.
+        let explicit = run_document(&[
+            "--stdout-format=svg".into(),
+            "--layout=dagre".into(),
+            "--pad=7".into(),
+            explicit_path.to_string_lossy().into_owned(),
+            "-".into(),
+        ])
+        .unwrap();
+        std::fs::remove_file(configured_path).unwrap();
+        std::fs::remove_file(explicit_path).unwrap();
+        // Go retains document Config in Diagram.Bytes: these two inputs have
+        // identical geometry but different namespaces. The pinned Go CLI
+        // produces these hashes and the same bytes once relabeled.
         let configured = String::from_utf8(configured).unwrap();
         let explicit = String::from_utf8(explicit).unwrap();
         assert!(configured.contains("class=\"d2-1694691162 d2-svg\""));
@@ -9674,26 +9493,6 @@ layers: {
     }
 
     #[test]
-    fn render_svg_preserves_source_node_and_edge_styles() {
-        // Contract of the legacy native SVG renderer.
-        let _legacy = super::LegacySvgGuard::new();
-        let output = run(
-            &["render-svg".into()],
-            b"a: {style.fill: red; style.stroke: blue; style.stroke-width: 4; style.border-radius: 12; style.font-color: purple}\nb -> c: {style.stroke: green; style.stroke-dash: 2; style.bold: true}\n",
-        )
-        .unwrap();
-        let output = String::from_utf8(output).unwrap();
-        assert!(output.contains("fill=\"red\""));
-        assert!(output.contains("stroke=\"blue\""));
-        assert!(output.contains("stroke-width=\"4\""));
-        assert!(output.contains("stroke=\"green\""));
-        assert!(output.contains("stroke-dasharray=\"4,3.946256\""));
-        assert!(output.contains("font-weight=\"bold\""));
-        assert!(output.contains("rx=\"12\""));
-        assert!(output.contains("fill=\"purple\""));
-    }
-
-    #[test]
     fn render_svg_emits_node_links_and_tooltips() {
         let output = run(
             &["render-svg".into()],
@@ -9723,59 +9522,6 @@ layers: {
         assert!(output.contains(">tip</text>"));
         assert!(output.contains(">https://example.com</text>"));
         assert!(output.matches("viewBox=").count() >= 2);
-    }
-
-    #[test]
-    fn render_svg_emits_edge_links_and_tooltips() {
-        // Contract of the legacy native SVG renderer.
-        let _legacy = super::LegacySvgGuard::new();
-        let output = run(
-            &["render-svg".into()],
-            b"a -> b: {label: link; link: https://example.com/edge; tooltip: edge tip}\n",
-        )
-        .unwrap();
-        let output = String::from_utf8(output).unwrap();
-        assert!(output.contains(
-            "<a href=\"https://example.com/edge\" xlink:href=\"https://example.com/edge\">"
-        ));
-        assert!(output.contains("<title>edge tip</title>"));
-        assert!(output.contains(">link</text>"));
-        assert!(output.contains("</a>"));
-    }
-
-    #[test]
-    fn render_svg_emits_node_icons_at_the_requested_position() {
-        // Contract of the legacy native SVG renderer.
-        let _legacy = super::LegacySvgGuard::new();
-        let output = run(
-            &["render-svg".into(), "--bundle=false".into()],
-            b"a: {label: hello; icon: https://example.com/icon.svg; icon-position: inside-top-left}\n",
-        )
-        .unwrap();
-        let output = String::from_utf8(output).unwrap();
-        // D2 GetIconSize uses ceil(min(106, 92) / 2) for this inside icon.
-        assert!(output.contains("<rect x=\"0\" y=\"0\" width=\"106\" height=\"92\""));
-        assert!(output.contains(
-            "<image x=\"5\" y=\"5\" width=\"46\" height=\"46\" href=\"https://example.com/icon.svg\""
-        ));
-    }
-
-    #[test]
-    fn render_svg_uses_image_shape_icon_as_full_image_box() {
-        // Contract of the legacy native SVG renderer.
-        let _legacy = super::LegacySvgGuard::new();
-        let output = run(
-            &["render-svg".into(), "--bundle=false".into()],
-            b"a: {shape: image; icon: https://example.com/image.svg}\n",
-        )
-        .unwrap();
-        let output = String::from_utf8(output).unwrap();
-        assert!(output.contains(
-            "<image x=\"0\" y=\"0\" width=\"128\" height=\"128\" href=\"https://example.com/image.svg\""
-        ));
-        assert!(
-            !output.contains("width=\"24\" height=\"24\" href=\"https://example.com/image.svg\"")
-        );
     }
 
     #[test]
@@ -10596,218 +10342,6 @@ layers: {
             (number("x"), number("y"), number("width"), number("height")),
             (0.0, 0.0, 9.0, 24.0)
         );
-    }
-
-    #[test]
-    fn render_svg_class_shape_emits_header_and_member_rows() {
-        // Contract of the legacy native SVG renderer.
-        let _legacy = super::LegacySvgGuard::new();
-        let output = run(
-            &["render-svg".into()],
-            b"foo: {shape: class; +name: string; -id: int}\n",
-        )
-        .unwrap();
-        let output = String::from_utf8(output).unwrap();
-        assert!(output.contains("class=\"class_header d2-rs-fill-N1\""));
-        assert!(output.contains(">+</text>"));
-        assert!(output.contains(">name</text>"));
-        assert!(output.contains(">string</text>"));
-        assert!(output.contains(">-</text>"));
-        assert!(output.contains(">id</text>"));
-        assert!(output.contains(">int</text>"));
-        // The class target owns its title/member text; the generic label pass
-        // must not emit a second centered `foo` text node.
-        assert_eq!(output.matches(">foo</text>").count(), 1);
-
-        let empty = run(&["render-svg".into()], b"empty: {shape: class}\n").unwrap();
-        let empty = String::from_utf8(empty).unwrap();
-        assert!(empty.contains("class=\"class_header d2-rs-fill-N1\""));
-        assert!(empty.contains("stroke-width=\"2\""));
-
-        let methods = run(
-            &["render-svg".into()],
-            b"foo: {shape: class; +name: string; +get(): string; -set(x): void}\n",
-        )
-        .unwrap();
-        let methods = String::from_utf8(methods).unwrap();
-        assert!(methods.contains(">get()</text>"));
-        assert!(methods.contains(">set(x)</text>"));
-        // d2svg.drawClass emits one thin compartment rule; the outer
-        // rectangle already supplies the bottom border.
-        assert_eq!(methods.matches("<line ").count(), 1);
-        assert!(methods.contains("stroke-width=\"1\""));
-
-        let explicit = run(
-            &["render-svg".into()],
-            b"foo: {shape: class; style.font-size: 30; +name: string}\n",
-        )
-        .unwrap();
-        let explicit = String::from_utf8(explicit).unwrap();
-        assert!(explicit.contains("width=\"277\" height=\"174\""));
-        assert!(explicit.contains("width=\"277\" height=\"116\""));
-        assert!(explicit.contains("font-size=\"34\""));
-        assert!(explicit.contains("font-size=\"30\""));
-    }
-
-    #[test]
-    fn render_svg_sql_table_emits_header_types_and_constraints() {
-        // Contract of the legacy native SVG renderer.
-        let _legacy = super::LegacySvgGuard::new();
-        let output = run(
-            &["render-svg".into()],
-            b"users: {shape: sql_table; id: int { constraint: primary_key}; name: string}\n",
-        )
-        .unwrap();
-        let output = String::from_utf8(output).unwrap();
-        assert!(output.contains("class=\"class_header d2-rs-fill-N1\""));
-        assert_eq!(output.matches(">users</text>").count(), 1);
-        assert!(output.contains(">id</text>"));
-        assert!(output.contains(">int</text>"));
-        assert!(output.contains(">PK</text>"));
-        assert!(output.contains(">name</text>"));
-        assert!(output.contains(">string</text>"));
-        assert!(output.contains("d2-rs-text-B2"));
-        assert!(output.contains("d2-rs-text-N2"));
-        assert!(output.contains("stroke-width=\"2\""));
-    }
-
-    #[test]
-    fn render_svg_emits_reserved_legend_without_layout_nodes() {
-        // Contract of the legacy native SVG renderer.
-        let _legacy = super::LegacySvgGuard::new();
-        let output = run(
-            &["render-svg".into()],
-            br#"vars: {
-  d2-legend: "Legend" {
-    user: User {shape: person}
-    database: Database {shape: cylinder}
-    user -> database: Reads {style.stroke: blue; style.stroke-dash: 5}
-    hidden: Hidden {style.opacity: 0}
-  }
-}
-user: User
-database: Database
-user -> database: Uses
-"#,
-        )
-        .unwrap();
-        let output = String::from_utf8(output).unwrap();
-        assert!(output.contains("class=\"d2-rs-legend\""));
-        assert!(output.contains(">Legend</text>"));
-        assert!(output.contains(">User</text>"));
-        assert!(output.contains(">Database</text>"));
-        assert!(output.contains(">Reads</text>"));
-        assert!(output.contains("stroke=\"blue\""));
-        assert!(output.contains("stroke-dasharray="));
-        // Legend entries are target metadata and must not become ordinary
-        // layout nodes or duplicate the main diagram's labels.
-        assert_eq!(output.matches(">Hidden</text>").count(), 0);
-        assert_eq!(output.matches(">User</text>").count(), 2);
-        assert_eq!(output.matches(">Database</text>").count(), 2);
-    }
-
-    #[test]
-    fn render_svg_applies_patterns_transforms_underline_and_animated_edges() {
-        // Contract of the legacy native SVG renderer.
-        let _legacy = super::LegacySvgGuard::new();
-        let output = run(
-            &["render-svg".into()],
-            b"a: hello world {style.text-transform: uppercase; style.underline: true; style.fill-pattern: dots; style.shadow: true; style.multiple: true; style.double-border: true}\nb: box {style.3d: true}\na -> b: edge {style.animated: true; style.text-transform: uppercase}\n",
-        )
-        .unwrap();
-        let output = String::from_utf8(output).unwrap();
-        assert!(output.contains("d2-rs-pattern-dots"));
-        assert!(output.contains("HELLO WORLD"));
-        assert!(output.contains("text-decoration=\"underline\""));
-        assert!(output.contains("animation=\"dashdraw"));
-        assert!(output.contains("d2-rs-shadow-filter"));
-        assert!(output.matches("fill=\"none\"").count() >= 2);
-        assert!(output.contains(">EDGE</text>"));
-    }
-
-    #[test]
-    fn render_svg_emits_gradient_definitions_for_source_fills() {
-        // Contract of the legacy native SVG renderer.
-        let _legacy = super::LegacySvgGuard::new();
-        let output = run(
-            &["render-svg".into()],
-            b"a: gradient {style.fill: linear-gradient(to right, red, blue 75%)}\n",
-        )
-        .unwrap();
-        let output = String::from_utf8(output).unwrap();
-        assert!(output.contains("<linearGradient id=\"grad-"));
-        assert!(output.contains("x1=\"0%\" y1=\"50%\" x2=\"100%\" y2=\"50%\""));
-        assert!(output.contains("stop-color=\"red\""));
-        assert!(output.contains("stop-color=\"blue\""));
-        assert!(output.contains("fill=\"url(#grad-"));
-    }
-
-    #[test]
-    fn render_svg_honors_explicit_and_source_sketch_flags() {
-        // Contract of the legacy native SVG renderer.
-        let _legacy = super::LegacySvgGuard::new();
-        let explicit = run(
-            &["render-svg".into(), "--sketch".into()],
-            b"a: box\nb: box\na -> b\n",
-        )
-        .unwrap();
-        let explicit = String::from_utf8(explicit).unwrap();
-        // The Source-qualified rectangle painter emits fill and outline,
-        // rather than the former approximate overlay's class count.
-        assert_eq!(
-            explicit.matches("data-d2-rs-sketch-set=\"rough\"").count(),
-            4
-        );
-        assert!(explicit.contains("sketch-streak-overlay"));
-        assert!(explicit.contains("class=\"d2-rs-theme d2-rs-sketch\""));
-
-        let configured = run(
-            &["render-svg".into()],
-            b"vars: {d2-config: {sketch: true}}\na: box\n",
-        )
-        .unwrap();
-        let configured = String::from_utf8(configured).unwrap();
-        assert_eq!(
-            configured
-                .matches("data-d2-rs-sketch-set=\"rough\"")
-                .count(),
-            2
-        );
-        assert!(configured.contains("sketch-streak-overlay"));
-        assert!(configured.contains("class=\"d2-rs-theme d2-rs-sketch\""));
-    }
-
-    #[test]
-    fn render_svg_honors_explicit_inside_label_position() {
-        // Contract of the legacy native SVG renderer.
-        let _legacy = super::LegacySvgGuard::new();
-        let output = run(
-            &["render-svg".into()],
-            b"a: {label: hello; label-position: inside-top-left}\n",
-        )
-        .unwrap();
-        let output = String::from_utf8(output).unwrap();
-        // d2svg writes ordinary node labels from their measured label box and
-        // keeps the text anchor centered even for corner positions.
-        assert!(output.contains("text-anchor=\"middle\""));
-    }
-
-    #[test]
-    fn render_svg_renders_valid_edge_label_near_map() {
-        // Contract of the legacy native SVG renderer.
-        let _legacy = super::LegacySvgGuard::new();
-        let output = run(
-            &["render-svg".into()],
-            b"a -> b: {label: link { near: outside-top-right }}\n",
-        )
-        .unwrap();
-        let output = String::from_utf8(output).unwrap();
-        assert!(output.contains(">link</text>"));
-        // D2 positions route labels through a measured rectangle and centers
-        // the SVG text anchor even for an outside corner position.
-        assert!(output.contains("text-anchor=\"middle\""));
-        assert!(output.contains("font-size=\"16\""));
-        assert!(output.contains("font-style=\"italic\""));
     }
 
     #[test]

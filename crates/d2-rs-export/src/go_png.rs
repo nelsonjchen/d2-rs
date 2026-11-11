@@ -448,69 +448,6 @@ impl RowStream {
     }
 }
 
-/// NRGBA rows with image.NRGBA.Opaque's whole-frame color-type choice.
-/// Retain only the opaque prefix: transparency or the last row establishes
-/// the final color type, so a complete frame never needs a second copy.
-// TODO(legacy-raster-cleanup): only the SVG bridge streamed paged bands; the
-// scene path encodes whole paged frames as paged.go does.
-#[cfg_attr(not(test), allow(dead_code))]
-pub(crate) struct RgbaRowStream {
-    width: u32,
-    height: u32,
-    opaque_prefix: Vec<u8>,
-    stream: Option<RowStream>,
-}
-
-#[cfg_attr(not(test), allow(dead_code))]
-impl RgbaRowStream {
-    pub(crate) fn new(width: u32, height: u32) -> Self {
-        Self {
-            width,
-            height,
-            opaque_prefix: Vec::new(),
-            stream: None,
-        }
-    }
-
-    pub(crate) fn push_rows(&mut self, pixels: &[u8]) {
-        if self.stream.is_none() {
-            let opaque = pixels
-                .chunks(1 << 14)
-                .all(|block| block.chunks_exact(4).fold(255, |alpha, p| alpha & p[3]) == 255);
-            if !opaque
-                || self.opaque_prefix.len() + pixels.len()
-                    == self.width as usize * self.height as usize * 4
-            {
-                let mut stream =
-                    RowStream::new(self.width, self.height, if opaque { 3 } else { 4 });
-                stream.push_rows(&self.opaque_prefix, 4);
-                self.opaque_prefix = Vec::new();
-                self.stream = Some(stream);
-            }
-        }
-        if let Some(stream) = &mut self.stream {
-            stream.push_rows(pixels, 4);
-        } else {
-            if self.opaque_prefix.is_empty() {
-                self.opaque_prefix
-                    .reserve_exact(self.width as usize * self.height as usize * 4);
-            }
-            self.opaque_prefix.extend_from_slice(pixels);
-        }
-    }
-
-    pub(crate) fn finish(self) -> Vec<u8> {
-        match self.stream {
-            Some(stream) => stream.finish(),
-            None => {
-                let mut stream = RowStream::new(self.width, self.height, 3);
-                stream.push_rows(&self.opaque_prefix, 4);
-                stream.finish()
-            }
-        }
-    }
-}
-
 /// FPDF png.go splits already-filtered NRGBA rows, retaining each filter tag.
 /// xcompr.go then compresses each plane with zlib.BestSpeed in a single write.
 pub(crate) fn pdf_streams(
@@ -568,36 +505,6 @@ mod tests {
     use super::*;
     #[cfg(feature = "oracle-fixtures")]
     use base64::Engine;
-
-    #[test]
-    fn rgba_bands_preserve_whole_frame_color_type_and_bytes() {
-        let (width, height) = (113, 17);
-        for transparent_row in [None, Some(0), Some(8), Some(16)] {
-            let mut pixels = Vec::new();
-            for y in 0..height {
-                for x in 0..width {
-                    pixels.extend_from_slice(&[
-                        (x * 13 + y * 7) as u8,
-                        (x * 3 + y * 23) as u8,
-                        (x * 29 + y * 5) as u8,
-                        if transparent_row == Some(y) { 127 } else { 255 },
-                    ]);
-                }
-            }
-            let expected = super::encode(width, height, &pixels, 4).unwrap();
-            for rows in [1, 3, height] {
-                let mut stream = super::RgbaRowStream::new(width, height);
-                for band in pixels.chunks(width as usize * rows as usize * 4) {
-                    stream.push_rows(band);
-                }
-                assert_eq!(
-                    stream.finish(),
-                    expected,
-                    "alpha {transparent_row:?}, rows {rows}"
-                );
-            }
-        }
-    }
 
     /// image/png writer.go filter: score every candidate in full, in the
     /// order Up, Paeth, None, Sub, Average, keeping the first minimum.

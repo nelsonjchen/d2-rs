@@ -42,7 +42,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .unwrap_or_default(),
             ..Default::default()
         };
-        match diagram.render_svg(options, row["options"]["sketch"].as_bool().unwrap_or(false)) {
+        let sketch = row["options"]["sketch"].as_bool().unwrap_or(false);
+        match diagram.render_d2svg(&options, sketch, false, 0, false) {
             Ok(bytes) => {
                 std::fs::write(out.join(format!("{name}.svg")), bytes)?;
                 report.push(serde_json::json!({"name":name,"hash":hash,"success":true}));

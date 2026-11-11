@@ -458,23 +458,6 @@ impl TargetDiagram {
     pub fn is_folder_only(&self) -> bool {
         self.is_folder_only
     }
-
-    /// d2wasm.renderBoards evaluates children first, then prepends the current
-    /// board. Folder-only targets still contribute to hash/bounds, not frames.
-    pub fn render_svg_boards(
-        &self,
-        options: RenderOptions,
-        sketch: bool,
-    ) -> Result<Vec<Vec<u8>>, String> {
-        let mut boards = Vec::new();
-        for child in self.children() {
-            boards.extend(child.render_svg_boards(options.clone(), sketch)?);
-        }
-        if !self.is_folder_only {
-            boards.insert(0, self.render_svg(options, sketch)?);
-        }
-        Ok(boards)
-    }
 }
 
 fn position(s: &str) -> LabelPosition {
@@ -812,12 +795,9 @@ impl TargetShape {
 }
 
 /// Raw target paint metadata that cannot be reconstructed from an authored
-/// graph (notably exact target IDs, sorting levels and the hash input).
+/// graph: the diagram's font families.
 pub(super) struct PaintContext<'a> {
     diagram: &'a TargetDiagram,
-    hash: String,
-    legend_shapes: Vec<String>,
-    legend_connections: Vec<String>,
 }
 impl PaintContext<'_> {
     /// Diagram font metadata is independent of RenderOpts.Sketch in Go.
@@ -839,121 +819,6 @@ impl PaintContext<'_> {
             ),
             mono_label: false,
         }
-    }
-
-    pub(super) fn shape_order(&self, id: NodeId) -> (i64, i64) {
-        let s = &self.diagram.shapes.as_ref().unwrap()[id.0 as usize];
-        (s.z_index, s.level)
-    }
-    pub(super) fn blend(&self, id: NodeId) -> bool {
-        self.diagram.shapes.as_ref().unwrap()[id.0 as usize].blend
-    }
-    pub(super) fn edge_order(&self, id: EdgeId) -> i64 {
-        self.diagram.connections.as_ref().unwrap()[id.0 as usize].z_index
-    }
-    pub(super) fn edge_id(&self, id: EdgeId) -> &str {
-        &self.diagram.connections.as_ref().unwrap()[id.0 as usize].id
-    }
-    pub(super) fn label_fill(&self, id: NodeId) -> Option<&str> {
-        self.diagram.shapes.as_ref().unwrap()[id.0 as usize]
-            .label_fill
-            .as_deref()
-            .filter(|s| !s.is_empty())
-    }
-    pub(super) fn restrict_legend_font_corpora(&self, needs: &mut FontNeeds) {
-        if self.diagram.legend.is_none() || !needs.subset_corpus_valid {
-            return;
-        }
-        // d2target.Diagram.GetCorpus excludes structured members in legend
-        // icons. restrictFontCorpora falls back to that original corpus when
-        // rendering introduces a glyph absent from it.
-        let mut corpus = String::new();
-        let mut appendix_count = 0;
-        for shape in self.diagram.shapes.iter().flatten() {
-            corpus.push_str(&shape.label);
-            for value in [&shape.tooltip, &shape.link] {
-                if !value.is_empty() {
-                    corpus.push_str(value);
-                    appendix_count += 1;
-                    corpus.push_str(&appendix_count.to_string());
-                }
-            }
-            corpus.push_str(shape.pretty_link.as_deref().unwrap_or_default());
-            if shape.shape_type == "class" {
-                for field in shape.fields.iter().flatten() {
-                    corpus.push_str(&member_name(&field.name, &field.visibility));
-                    corpus.push_str(&field.type_text);
-                }
-                for method in shape.methods.iter().flatten() {
-                    corpus.push_str(&member_name(&method.name, &method.visibility));
-                    corpus.push_str(&method.return_type);
-                }
-            }
-            if shape.shape_type == "sql_table" {
-                for column in shape.columns.iter().flatten() {
-                    corpus.push_str(&column.name.label);
-                    corpus.push_str(&column.type_text.label);
-                    let constraints = column
-                        .constraint
-                        .iter()
-                        .flatten()
-                        .map(|v| match v.as_str() {
-                            "primary_key" => "PK",
-                            "foreign_key" => "FK",
-                            "unique" => "UNQ",
-                            _ => v,
-                        })
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    corpus.push_str(&constraints);
-                    corpus.push_str(&constraints);
-                }
-            }
-        }
-        for connection in self.diagram.connections.iter().flatten() {
-            corpus.push_str(&connection.label);
-            for label in [&connection.src_label, &connection.dst_label]
-                .into_iter()
-                .flatten()
-            {
-                corpus.push_str(&label.label);
-            }
-        }
-        if let Some(legend) = &self.diagram.legend {
-            corpus.push_str(if legend.label.is_empty() {
-                "Legend"
-            } else {
-                &legend.label
-            });
-            for shape in legend.shapes.iter().flatten() {
-                corpus.push_str(&shape.label);
-            }
-            for connection in legend.connections.iter().flatten() {
-                corpus.push_str(&connection.label);
-            }
-        }
-        for text in &needs.markdown_corpora {
-            corpus.push_str(text);
-        }
-        let legacy_all = corpus
-            .chars()
-            .any(|c| !c.is_ascii() || c == '\x7f' || (c < ' ' && c != '\n'));
-        for rendered in &mut needs.ordinary_corpora {
-            if !rendered.is_empty() && (legacy_all || rendered.chars().any(|c| !corpus.contains(c)))
-            {
-                *rendered = corpus.clone();
-            }
-        }
-    }
-
-    pub(super) fn legend_shape(&self, index: usize) -> &str {
-        &self.legend_shapes[index]
-    }
-    pub(super) fn legend_connection(&self, index: usize) -> &str {
-        &self.legend_connections[index]
-    }
-    pub(super) fn hash(&self) -> &str {
-        &self.hash
     }
 }
 
@@ -1212,12 +1077,7 @@ impl TargetDiagram {
             return Ok([0.0; 4]);
         }
         let (graph, result, _labels, styles) = self.lower_geometry(true)?;
-        let context = PaintContext {
-            diagram: self,
-            legend_shapes: Vec::new(),
-            legend_connections: Vec::new(),
-            hash: String::new(),
-        };
+        let context = PaintContext { diagram: self };
         let (left, top, right, bottom) = bounds_with_markdown_family_and_legend(
             &graph,
             &result,
@@ -1338,224 +1198,11 @@ impl TargetDiagram {
         let svg = d2svg::render_wasm(self, options, sketch, no_xml_tag, interval_ms, descendants)?;
         Ok(bundle_svg_images(&svg, &options.asset_data))
     }
-
-    /// Earlier native scene/SVG bridge, retained for consumers still migrating.
-    pub fn render_svg(&self, options: RenderOptions, sketch: bool) -> Result<Vec<u8>, String> {
-        let (graph, result, labels, styles) = self.lower_geometry(false)?;
-        let mut legend_shapes = Vec::new();
-        let mut legend_connections = Vec::new();
-        if let Some(legend) = &self.legend {
-            for (index, shape) in legend.shapes.iter().flatten().enumerate() {
-                if shape.label.is_empty() {
-                    legend_shapes.push(String::new());
-                    continue;
-                }
-                let mut shape = shape.clone();
-                shape.pos = HashIntPoint::default();
-                shape.width = 120;
-                shape.height = 120;
-                shape.label.clear();
-                let id = shape.id.clone();
-                let icon = Self {
-                    shapes: Some(vec![shape].into()),
-                    font_family: self.font_family.clone(),
-                    mono_font_family: self.mono_font_family.clone(),
-                    ..Default::default()
-                };
-                legend_shapes.push(icon_fragment(&icon, &id, &options, "shape", index)?);
-            }
-            for (index, connection) in legend.connections.iter().flatten().enumerate() {
-                if connection.label.is_empty() {
-                    legend_connections.push(String::new());
-                    continue;
-                }
-                // d2svg.renderLegendConnectionIcon copies only these fields
-                // into BaseConnection; endpoint labels, icons and links drop.
-                let c = connection;
-                let id = c.id.clone();
-                let item = TargetConnection {
-                    id: id.clone(),
-                    src_arrow: c.src_arrow.clone(),
-                    dst_arrow: c.dst_arrow.clone(),
-                    stroke_dash: c.stroke_dash,
-                    stroke_width: c.stroke_width,
-                    stroke: c.stroke.clone(),
-                    fill: c.fill.clone(),
-                    border_radius: c.border_radius,
-                    opacity: c.opacity,
-                    animated: c.animated,
-                    route: Some(
-                        vec![
-                            Some(HashPoint {
-                                x: GoFloat(0.0),
-                                y: GoFloat(0.0),
-                            }),
-                            Some(HashPoint {
-                                x: GoFloat(48.0),
-                                y: GoFloat(0.0),
-                            }),
-                        ]
-                        .into(),
-                    ),
-                    ..Default::default()
-                };
-                let icon = Self {
-                    connections: Some(vec![item].into()),
-                    ..Default::default()
-                };
-                legend_connections.push(icon_fragment(&icon, &id, &options, "connection", index)?);
-            }
-        }
-        let context = PaintContext {
-            diagram: self,
-            legend_shapes,
-            legend_connections,
-            hash: target_hash_id_from_input(
-                &self.hash_input().map_err(|e| e.to_string())?,
-                options.salt.as_deref(),
-            ),
-        };
-        Ok(render_svg_with_sketch_inner(
-            &graph,
-            &result,
-            &labels,
-            &styles,
-            options,
-            sketch,
-            None,
-            false,
-            None,
-            Some(&context),
-        ))
-    }
-}
-
-fn icon_fragment(
-    diagram: &TargetDiagram,
-    id: &str,
-    options: &RenderOptions,
-    kind: &str,
-    index: usize,
-) -> Result<String, String> {
-    let mut options = options.clone();
-    options.pad = 0.0;
-    options.scale = None;
-    options.force_appendix = false;
-    options.salt = Some(format!(
-        "{}-legend-{kind}-{index}",
-        options.salt.as_deref().unwrap_or("")
-    ));
-    let bytes = diagram.render_svg(options, false)?;
-    let svg = std::str::from_utf8(&bytes).map_err(|e| e.to_string())?;
-    let document = roxmltree::Document::parse(svg).map_err(|e| format!("legend icon: {e}"))?;
-    let mut class = svg_object_class(id);
-    let classes = diagram
-        .shapes
-        .as_ref()
-        .and_then(|s| s.first())
-        .map(|s| &s.classes)
-        .or_else(|| {
-            diagram
-                .connections
-                .as_ref()
-                .and_then(|c| c.first())
-                .map(|c| &c.classes)
-        });
-    for extra in classes.into_iter().flatten() {
-        class.push(' ');
-        class.push_str(extra);
-    }
-    let object = document
-        .descendants()
-        .find(|n| {
-            n.has_tag_name("g")
-                && n.attribute("class").is_some_and(|c| {
-                    c.split_ascii_whitespace()
-                        .eq(class.split_ascii_whitespace())
-                })
-        })
-        .ok_or_else(|| format!("legend {kind}[{index}] has no painted object"))?;
-    let mut out = String::new();
-    for node in document
-        .descendants()
-        .filter(|n| n.has_tag_name("defs") || n.has_tag_name("mask"))
-    {
-        // Go legend connections have no diagram-level clipping mask. The
-        // synthetic diagram mask would clip marker tips to the route bounds.
-        if kind == "connection" && node.has_tag_name("mask") {
-            continue;
-        }
-        if node.ancestors().any(|n| n == object) {
-            continue;
-        }
-        if node.ancestors().skip(1).any(|n| n.has_tag_name("defs")) {
-            continue;
-        }
-        out.push_str(&svg[node.range()]);
-    }
-    out.push_str(&svg[object.range()]);
-    Ok(out)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[cfg(feature = "oracle-fixtures")]
-    #[test]
-    fn original_go_raw_legend_hashes_canvases_and_text_origins() {
-        let fixture: Value = serde_json::from_str(d2_rs_testdata::oracle_fixture!(
-            "tests/fixtures/target-legend-source-v090.json"
-        ))
-        .unwrap();
-        let cases = fixture["cases"].as_array().unwrap();
-        assert_eq!(cases.len(), 33);
-        for row in cases {
-            let diagram: TargetDiagram = serde_json::from_value(row["diagram"].clone()).unwrap();
-            let options = RenderOptions {
-                pad: row["options"]["pad"].as_f64().unwrap(),
-                theme_id: row["options"]["themeID"].as_i64(),
-                ..Default::default()
-            };
-            let bytes = diagram
-                .without_children()
-                .render_svg(options, row["options"]["sketch"].as_bool().unwrap_or(false))
-                .unwrap();
-            let svg = std::str::from_utf8(&bytes).unwrap();
-            let doc = roxmltree::Document::parse(svg).unwrap();
-            assert_eq!(
-                doc.root_element().attribute("viewBox"),
-                row["viewbox"].as_str(),
-                "{}",
-                row["name"]
-            );
-            let hash = row["main_hash"].as_str().unwrap();
-            assert_eq!(
-                doc.descendants()
-                    .filter(|n| n.has_tag_name("svg")
-                        && n.attribute("class")
-                            .is_some_and(|c| c.split_ascii_whitespace().any(|c| c == hash)))
-                    .count(),
-                1,
-                "{}",
-                row["name"]
-            );
-            for expected in row["legend_text"].as_array().unwrap() {
-                let node = doc
-                    .descendants()
-                    .rfind(|n| n.has_tag_name("text") && n.text() == expected["text"].as_str())
-                    .unwrap();
-                for (actual, key) in [("x", "x"), ("y", "y"), ("class", "cls")] {
-                    assert_eq!(
-                        node.attribute(actual),
-                        expected[key].as_str(),
-                        "{} {}",
-                        row["name"],
-                        expected["text"]
-                    );
-                }
-            }
-        }
-    }
 
     #[cfg(feature = "oracle-fixtures")]
     fn fixtures() -> Value {
@@ -1563,75 +1210,6 @@ mod tests {
             "tests/fixtures/public-target-v090.json"
         ))
         .unwrap()
-    }
-    #[cfg(feature = "oracle-fixtures")]
-    #[test]
-    fn original_go_serialized_and_mutated_targets_keep_hashes_and_canvases() {
-        let fixtures = fixtures();
-        let cases = fixtures["cases"].as_array().unwrap();
-        assert_eq!(cases.len(), 32);
-        for row in cases {
-            let diagram: TargetDiagram = serde_json::from_value(row["diagram"].clone()).unwrap();
-            let board = diagram.without_children();
-            assert_eq!(
-                target_hash_id_from_input(&board.hash_input().unwrap(), None),
-                row["expected_hash"].as_str().unwrap(),
-                "{}",
-                row["name"]
-            );
-            let output = board
-                .render_svg(
-                    RenderOptions {
-                        pad: 20.,
-                        ..Default::default()
-                    },
-                    false,
-                )
-                .unwrap();
-            let svg = std::str::from_utf8(&output).unwrap();
-            let document = roxmltree::Document::parse(svg).unwrap();
-            assert_eq!(
-                document.root_element().attribute("viewBox"),
-                row["expected_view_box"].as_str(),
-                "{}",
-                row["name"]
-            );
-            assert!(svg.contains(row["expected_hash"].as_str().unwrap()));
-        }
-    }
-    #[cfg(feature = "oracle-fixtures")]
-    #[test]
-    fn supplied_fractional_routes_do_not_repeat_export_quantization() {
-        let cases: Value = serde_json::from_str(d2_rs_testdata::oracle_fixture!(
-            "tests/fixtures/public-target-precision-v090.json"
-        ))
-        .unwrap();
-        for row in cases.as_array().unwrap() {
-            let diagram: TargetDiagram = serde_json::from_value(row["diagram"].clone()).unwrap();
-            let output = diagram
-                .render_svg(
-                    RenderOptions {
-                        pad: 20.,
-                        ..Default::default()
-                    },
-                    false,
-                )
-                .unwrap();
-            let svg = std::str::from_utf8(&output).unwrap();
-            assert!(
-                svg.contains(row["expected_coordinate"].as_str().unwrap()),
-                "{}",
-                row["name"]
-            );
-            let document = roxmltree::Document::parse(svg).unwrap();
-            assert_eq!(
-                document.root_element().attribute("viewBox"),
-                row["expected_view_box"].as_str(),
-                "{}",
-                row["name"]
-            );
-            assert!(svg.contains(row["expected_hash"].as_str().unwrap()));
-        }
     }
     #[cfg(feature = "oracle-fixtures")]
     #[test]
@@ -1721,6 +1299,179 @@ mod tests {
         }
         assert_eq!((decoded, rejected, nil, source_fault), (1352, 674, 1, 1));
     }
+    #[test]
+    fn target_nil_slices_and_nullable_config_are_not_compiler_defaults() {
+        let nil: TargetDiagram = serde_json::from_str("{}").unwrap();
+        let empty: TargetDiagram =
+            serde_json::from_str(r#"{"shapes":[],"connections":[],"config":{}}"#).unwrap();
+        let nil = String::from_utf8(nil.hash_input().unwrap()).unwrap();
+        let empty = String::from_utf8(empty.hash_input().unwrap()).unwrap();
+        assert!(nil.starts_with("nullnull"));
+        assert!(empty.starts_with("[][]"));
+        assert!(empty.ends_with(r#"{"sketch":null,"themeID":null,"darkThemeID":null,"pad":null,"center":null,"layoutEngine":null}"#));
+        assert!(!nil.contains("themeID"));
+    }
+    #[cfg(feature = "oracle-fixtures")]
+    #[test]
+    fn original_get_board_accepts_wrapper_or_bare_name_without_source() {
+        let data = fixtures();
+        let row = data["cases"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r["name"] == "boards-clone")
+            .unwrap();
+        let tree: TargetDiagram = serde_json::from_value(row["diagram"].clone()).unwrap();
+        let board = tree.get_board(&["layers".into(), "alt".into()]).unwrap();
+        assert_eq!(board.name, "alt");
+        assert_eq!(
+            board.hash_input().unwrap(),
+            tree.get_board(&["alt".into()])
+                .unwrap()
+                .hash_input()
+                .unwrap()
+        );
+        assert!(tree.get_board(&["layers".into()]).is_none());
+        assert!(tree.get_board(&["missing".into()]).is_none());
+        assert_eq!(tree.without_children().children().count(), 0);
+    }
+    #[cfg(feature = "oracle-fixtures")]
+    #[test]
+    fn original_go_raw_legend_hashes_canvases_and_text_origins() {
+        let fixture: Value = serde_json::from_str(d2_rs_testdata::oracle_fixture!(
+            "tests/fixtures/target-legend-source-v090.json"
+        ))
+        .unwrap();
+        let cases = fixture["cases"].as_array().unwrap();
+        assert_eq!(cases.len(), 33);
+        for row in cases {
+            let diagram: TargetDiagram = serde_json::from_value(row["diagram"].clone()).unwrap();
+            let options = RenderOptions {
+                pad: row["options"]["pad"].as_f64().unwrap(),
+                theme_id: row["options"]["themeID"].as_i64(),
+                ..Default::default()
+            };
+            let bytes = diagram
+                .without_children()
+                .render_d2svg(
+                    &options,
+                    row["options"]["sketch"].as_bool().unwrap_or(false),
+                    false,
+                    0,
+                    false,
+                )
+                .unwrap();
+            let svg = std::str::from_utf8(&bytes).unwrap();
+            let doc = roxmltree::Document::parse(svg).unwrap();
+            assert_eq!(
+                doc.root_element().attribute("viewBox"),
+                row["viewbox"].as_str(),
+                "{}",
+                row["name"]
+            );
+            let hash = row["main_hash"].as_str().unwrap();
+            assert_eq!(
+                doc.descendants()
+                    .filter(|n| n.has_tag_name("svg")
+                        && n.attribute("class")
+                            .is_some_and(|c| c.split_ascii_whitespace().any(|c| c == hash)))
+                    .count(),
+                1,
+                "{}",
+                row["name"]
+            );
+            for expected in row["legend_text"].as_array().unwrap() {
+                let node = doc
+                    .descendants()
+                    .rfind(|n| n.has_tag_name("text") && n.text() == expected["text"].as_str())
+                    .unwrap();
+                for (actual, key) in [("x", "x"), ("y", "y"), ("class", "cls")] {
+                    assert_eq!(
+                        node.attribute(actual),
+                        expected[key].as_str(),
+                        "{} {}",
+                        row["name"],
+                        expected["text"]
+                    );
+                }
+            }
+        }
+    }
+    #[cfg(feature = "oracle-fixtures")]
+    #[test]
+    fn original_go_serialized_and_mutated_targets_keep_hashes_and_canvases() {
+        let fixtures = fixtures();
+        let cases = fixtures["cases"].as_array().unwrap();
+        assert_eq!(cases.len(), 32);
+        for row in cases {
+            let diagram: TargetDiagram = serde_json::from_value(row["diagram"].clone()).unwrap();
+            let board = diagram.without_children();
+            assert_eq!(
+                target_hash_id_from_input(&board.hash_input().unwrap(), None),
+                row["expected_hash"].as_str().unwrap(),
+                "{}",
+                row["name"]
+            );
+            let output = board
+                .render_d2svg(
+                    &RenderOptions {
+                        pad: 20.,
+                        ..Default::default()
+                    },
+                    false,
+                    false,
+                    0,
+                    false,
+                )
+                .unwrap();
+            let svg = std::str::from_utf8(&output).unwrap();
+            let document = roxmltree::Document::parse(svg).unwrap();
+            assert_eq!(
+                document.root_element().attribute("viewBox"),
+                row["expected_view_box"].as_str(),
+                "{}",
+                row["name"]
+            );
+            assert!(svg.contains(row["expected_hash"].as_str().unwrap()));
+        }
+    }
+    #[cfg(feature = "oracle-fixtures")]
+    #[test]
+    fn supplied_fractional_routes_do_not_repeat_export_quantization() {
+        let cases: Value = serde_json::from_str(d2_rs_testdata::oracle_fixture!(
+            "tests/fixtures/public-target-precision-v090.json"
+        ))
+        .unwrap();
+        for row in cases.as_array().unwrap() {
+            let diagram: TargetDiagram = serde_json::from_value(row["diagram"].clone()).unwrap();
+            let output = diagram
+                .render_d2svg(
+                    &RenderOptions {
+                        pad: 20.,
+                        ..Default::default()
+                    },
+                    false,
+                    false,
+                    0,
+                    false,
+                )
+                .unwrap();
+            let svg = std::str::from_utf8(&output).unwrap();
+            assert!(
+                svg.contains(row["expected_coordinate"].as_str().unwrap()),
+                "{}",
+                row["name"]
+            );
+            let document = roxmltree::Document::parse(svg).unwrap();
+            assert_eq!(
+                document.root_element().attribute("viewBox"),
+                row["expected_view_box"].as_str(),
+                "{}",
+                row["name"]
+            );
+            assert!(svg.contains(row["expected_hash"].as_str().unwrap()));
+        }
+    }
     #[cfg(feature = "oracle-fixtures")]
     #[test]
     fn original_go_render_only_themes_classes_and_label_fills() {
@@ -1753,7 +1504,7 @@ mod tests {
             let diagram: TargetDiagram = serde_json::from_value(row["diagram"].clone()).unwrap();
             let bytes = diagram
                 .without_children()
-                .render_svg(options, false)
+                .render_d2svg(&options, false, false, 0, false)
                 .unwrap();
             let svg = std::str::from_utf8(&bytes).unwrap();
             let document = roxmltree::Document::parse(svg).unwrap();
@@ -1808,12 +1559,15 @@ mod tests {
             let diagram: TargetDiagram = serde_json::from_value(row["diagram"].clone()).unwrap();
             let bytes = diagram
                 .without_children()
-                .render_svg(
-                    RenderOptions {
+                .render_d2svg(
+                    &RenderOptions {
                         pad: 20.0,
                         ..Default::default()
                     },
                     row["sketch"].as_bool().unwrap(),
+                    false,
+                    0,
+                    false,
                 )
                 .unwrap();
             let svg = std::str::from_utf8(&bytes).unwrap();
@@ -1860,18 +1614,6 @@ mod tests {
                     row["name"]
                 );
             }
-            let hand = row["diagram"]["fontFamily"] == "HandDrawn";
-            assert_eq!(
-                document
-                    .root_element()
-                    .attribute("class")
-                    .unwrap()
-                    .split_whitespace()
-                    .any(|c| c == "d2-rs-sketch"),
-                hand,
-                "{}",
-                row["name"]
-            );
         }
     }
     #[cfg(feature = "oracle-fixtures")]
@@ -1887,12 +1629,15 @@ mod tests {
             let diagram: TargetDiagram = serde_json::from_value(row["diagram"].clone()).unwrap();
             let bytes = diagram
                 .without_children()
-                .render_svg(
-                    RenderOptions {
+                .render_d2svg(
+                    &RenderOptions {
                         pad: 20.0,
                         ..Default::default()
                     },
                     row["sketch"].as_bool().unwrap(),
+                    false,
+                    0,
+                    false,
                 )
                 .unwrap();
             let svg = std::str::from_utf8(&bytes).unwrap();
@@ -1939,55 +1684,7 @@ mod tests {
                     row["name"]
                 );
             }
-            let hand = row["diagram"]["fontFamily"] == "HandDrawn";
-            assert_eq!(
-                document
-                    .root_element()
-                    .attribute("class")
-                    .unwrap()
-                    .split_whitespace()
-                    .any(|c| c == "d2-rs-sketch"),
-                hand,
-                "{}",
-                row["name"]
-            );
         }
-    }
-    #[test]
-    fn target_nil_slices_and_nullable_config_are_not_compiler_defaults() {
-        let nil: TargetDiagram = serde_json::from_str("{}").unwrap();
-        let empty: TargetDiagram =
-            serde_json::from_str(r#"{"shapes":[],"connections":[],"config":{}}"#).unwrap();
-        let nil = String::from_utf8(nil.hash_input().unwrap()).unwrap();
-        let empty = String::from_utf8(empty.hash_input().unwrap()).unwrap();
-        assert!(nil.starts_with("nullnull"));
-        assert!(empty.starts_with("[][]"));
-        assert!(empty.ends_with(r#"{"sketch":null,"themeID":null,"darkThemeID":null,"pad":null,"center":null,"layoutEngine":null}"#));
-        assert!(!nil.contains("themeID"));
-    }
-    #[cfg(feature = "oracle-fixtures")]
-    #[test]
-    fn original_get_board_accepts_wrapper_or_bare_name_without_source() {
-        let data = fixtures();
-        let row = data["cases"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .find(|r| r["name"] == "boards-clone")
-            .unwrap();
-        let tree: TargetDiagram = serde_json::from_value(row["diagram"].clone()).unwrap();
-        let board = tree.get_board(&["layers".into(), "alt".into()]).unwrap();
-        assert_eq!(board.name, "alt");
-        assert_eq!(
-            board.hash_input().unwrap(),
-            tree.get_board(&["alt".into()])
-                .unwrap()
-                .hash_input()
-                .unwrap()
-        );
-        assert!(tree.get_board(&["layers".into()]).is_none());
-        assert!(tree.get_board(&["missing".into()]).is_none());
-        assert_eq!(tree.without_children().children().count(), 0);
     }
     #[cfg(feature = "oracle-fixtures")]
     #[test]
@@ -2000,7 +1697,9 @@ mod tests {
             .find(|r| r["name"] == "sequence-clone")
             .unwrap();
         let tree: TargetDiagram = serde_json::from_value(row["diagram"].clone()).unwrap();
-        let svg = tree.render_svg(RenderOptions::default(), false).unwrap();
+        let svg = tree
+            .render_d2svg(&RenderOptions::default(), false, false, 0, false)
+            .unwrap();
         let document = roxmltree::Document::parse(std::str::from_utf8(&svg).unwrap()).unwrap();
         let shapes = document
             .descendants()

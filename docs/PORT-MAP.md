@@ -51,13 +51,13 @@ affects output is ported; the few that aren't are listed first.
 | `d2renderers/d2scene` | `d2-rs-scene` |
 | `d2renderers/d2scenebuild` | `d2-rs-scenebuild` |
 | `d2renderers/d2svgimport` | `d2-rs-scenebuild/src/svgimport_*.rs`, `d2-rs-export/src/svg_import*.rs` |
-| `d2renderers/d2raster`, `internal/scanline` | `d2-rs-raster`, `d2-rs-export/src/scanline.rs` |
+| `d2renderers/d2raster`, `internal/scanline` | `d2-rs-raster` |
 | `d2renderers/d2isometric`, `d2isometricimg` | `d2-rs-isometric` |
 | `d2renderers/d2latex` (and `mathjax-go`) | `d2-rs-math`, `d2-rs-render/src/d2svg/latex.rs` |
 | `d2renderers/d2fonts` | `d2-rs-render`, `d2-rs-text` |
 | `d2renderers/d2ascii` (`asciicanvas`, `asciishapes`, `asciiroute`, `charset`) | `d2-rs-export/src/ascii_target.rs` |
 | `d2renderers/internal/fontface` | `d2-rs-fontface` |
-| `d2renderers/internal/fontfallback` | `d2-rs-scenebuild/src/fallback.rs`, `d2-rs-export/src/font_fallback.rs` |
+| `d2renderers/internal/fontfallback` | `d2-rs-scenebuild/src/fallback.rs` |
 | `d2renderers/internal/patternassets` | `d2-rs-render/src/patternassets.rs` |
 | `d2renderers/internal/scenepaint` | `d2-rs-scenebuild/src/color.rs` |
 | `internal/rasterimage` | `d2-rs-raster/src/first_frame.rs`, `d2-rs-math/src/svg_image_config.rs` |
@@ -78,9 +78,9 @@ affects output is ported; the few that aren't are listed first.
 | `lib/pdf` | `d2-rs-export/src/{pdf_document,pdf_font}.rs` |
 | `lib/png` | `d2-rs-export/src/{go_png,png_image}.rs` |
 | `lib/pptx` | `d2-rs-export/src/{pptx,go_zip}.rs` |
-| `lib/xgif` | `d2-rs-export/src/{gif_quantize,gif_pixels}.rs` |
-| `lib/shape` | `d2-rs-render/src/shapes.rs` |
-| `lib/textmeasure` | `d2-rs-text/src/measure.rs`, `d2-rs-render/src/markdown_*.rs` |
+| `lib/xgif` | `d2-rs-export/src/gif_quantize.rs` |
+| `lib/shape` | `d2-rs-render/src/d2svg/shape.rs` |
+| `lib/textmeasure` | `d2-rs-text/src/measure.rs`, `d2-rs-render/src/markdown_scene.rs` |
 
 ## Front ends
 

@@ -209,14 +209,7 @@ fn source_diagram_json(
     root: bool,
     copy_slices: bool,
 ) -> Result<serde_json::Value, String> {
-    source_diagram_from_json(
-        frame
-            .target_json
-            .as_deref()
-            .ok_or("isometric export requires target JSON")?,
-        root,
-        copy_slices,
-    )
+    source_diagram_from_json(&frame.target_json, root, copy_slices)
 }
 
 fn source_diagram_from_json(
@@ -920,11 +913,9 @@ mod tests {
                 &["--engine=dagre".into(), format!("--target={target}")],
             )
             .unwrap();
-            let decoded = d2_rs_render::target::TargetDiagram::decode_json(
-                frame.target_json.as_deref().unwrap(),
-            )
-            .unwrap()
-            .unwrap();
+            let decoded = d2_rs_render::target::TargetDiagram::decode_json(&frame.target_json)
+                .unwrap()
+                .unwrap();
             assert_eq!(
                 String::from_utf8(frame.hash_input).unwrap(),
                 String::from_utf8(decoded.hash_input().unwrap()).unwrap(),

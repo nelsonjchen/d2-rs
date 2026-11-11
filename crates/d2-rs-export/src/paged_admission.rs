@@ -450,8 +450,9 @@ fn build_document(
     let mut diagram: d2_rs_target::Diagram =
         serde_json::from_slice(&json).map_err(|error| ExportError::Render(error.to_string()))?;
     // Graph API callers can attach icons after layout, without a positioned
-    // label state. Match render_svg_with_raster_sources_checked's default at
-    // this bridge; source-compiled diagrams already carry their positions.
+    // label state. Default them to inside-middle-center at this bridge, as the
+    // earlier SVG raster bridge did; source-compiled diagrams already carry
+    // their positions.
     for shape in diagram.shapes.iter_mut().flatten() {
         if shape.icon.is_some() && shape.icon_position.is_empty() {
             shape.icon_position = d2_rs_core::LabelPosition::InsideMiddleCenter

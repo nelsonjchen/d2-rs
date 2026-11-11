@@ -118,12 +118,15 @@ stored as `["text", count]` and expanded by the hooks.
 `e2etests-cli/testdata/raster/animation-1050.exp.gif`) are copied from the
 pinned upstream tree by recipe `renderexport-upstream-gifs`.
 
-### Kept
+### Kept, then removed with the legacy raster bridge
 
-| Path | Reason |
-| --- | --- |
-| `animated-first-frame.png`, `animated-first-frame.webp` | 207/202-byte hand-made animated APNG/WebP inputs; the tests assert their own decoded dimensions and colors, no Go output. |
-| `png-empty-dictionary-v090.json` | Hand-crafted PNG byte inputs only (no Go-produced field); the test checks d2-rs decoding against its own adapted bytes. |
+`animated-first-frame.png`, `animated-first-frame.webp` (207/202-byte
+hand-made animated APNG/WebP inputs) and `png-empty-dictionary-v090.json`
+(hand-crafted PNG byte inputs) were read only by tests of the earlier SVG
+raster bridge (`d2-rs-export` first-frame normalization and its PNG decoder).
+That bridge was deleted once PNG, PDF, PPTX and GIF output moved to
+`d2-rs-scenebuild` + `d2-rs-raster`, so the three seeds went with it. Their
+bytes remain in Git history before the removal commit.
 
 ## wasm (second pass)
 
