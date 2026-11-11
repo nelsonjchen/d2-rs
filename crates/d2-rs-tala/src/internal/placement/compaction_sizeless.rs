@@ -790,6 +790,7 @@ impl ArenaGraph {
             if let Some(label) = node.label_size.as_mut() {
                 label.width = (label.width * best_ratio).ceil();
                 label.height = (label.height * best_ratio).ceil();
+                node.refresh_scaled_label_spacing();
             }
         }
     }

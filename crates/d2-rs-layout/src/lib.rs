@@ -528,7 +528,13 @@ impl LayoutDispatcher {
             && (graph.root_grid_rows.is_some() || graph.root_grid_columns.is_some())
             && graph.nodes().any(|(_, node)| node.parent.is_some());
         if nested_root_grid {
-            let result = layout_root_grid_with_nested_cells(graph, options, engine, cancellation)?;
+            let result = layout_root_grid_with_nested_cells(
+                graph,
+                options,
+                engine,
+                cancellation,
+                defer_parent_routing,
+            )?;
             return Ok(result);
         }
         // LayoutNested dispatches diagram type before choosing the core
@@ -656,6 +662,7 @@ impl LayoutDispatcher {
                             options,
                             EngineKind::Dagre,
                             cancellation,
+                            false,
                         )?
                     } else {
                         grid::layout(graph, options).map_err(LayoutDispatchError::Tala)?
@@ -1055,6 +1062,7 @@ impl LayoutDispatcher {
                 source != target && (source.is_some() || target.is_some())
                     || source_grid != target_grid
                         && (source_grid.is_some() || target_grid.is_some())
+                    || root_grid_extracted_crossing(graph, edge.source, edge.target)
             })
             .collect::<Vec<_>>();
         for id in &deferred_nested_edges {
@@ -1136,7 +1144,11 @@ impl LayoutDispatcher {
                 .then_some(id)
             })
             .collect::<Vec<_>>();
-        order_extracted_edges(graph, &mut selected);
+        if graph.root_grid_rows.is_some() || graph.root_grid_columns.is_some() {
+            order_root_grid_extractions(graph, &mut selected);
+        } else {
+            order_extracted_edges(graph, &mut selected);
+        }
         reroute_selected_grid_edges(graph, &mut result, options, engine, cancellation, &selected)?;
         Ok(result)
     }
@@ -1279,6 +1291,7 @@ fn layout_root_grid_with_nested_cells(
     options: &LayoutOptions,
     engine: EngineKind,
     cancellation: Option<&CancellationToken>,
+    defer_extracted_routing: bool,
 ) -> Result<LayoutResult, LayoutDispatchError> {
     let mut result = empty_layout_result(options);
     for (id, node) in graph.nodes() {
@@ -1340,6 +1353,14 @@ fn layout_root_grid_with_nested_cells(
             grid::set_grid_edge_label(graph, &mut result, edge_id);
         }
     }
+    // A constant-near parent routes these crossings itself, after d2near
+    // has placed its near graphs (root_grid_extracted_crossing).
+    if defer_extracted_routing {
+        return Ok(result);
+    }
+    // LayoutNested restores crossings in extraction order: each one belongs
+    // to the first extracted cell graph in the queue, not to its edge index.
+    order_root_grid_extractions(graph, &mut extracted_edges);
     reroute_selected_grid_edges(
         graph,
         &mut result,
@@ -1349,6 +1370,46 @@ fn layout_root_grid_with_nested_cells(
         &extracted_edges,
     )?;
     Ok(result)
+}
+
+/// A document-root grid extracts a cross-cell edge whose endpoint lies inside
+/// a cell's nested graph. LayoutNested routes it only after d2near has placed
+/// the root's constant-near graphs, so those objects are routing obstacles.
+fn root_grid_extracted_crossing(graph: &Graph, source: NodeId, target: NodeId) -> bool {
+    if graph.root_grid_rows.is_none() && graph.root_grid_columns.is_none() {
+        return false;
+    }
+    let source_cell = root_grid_cell(graph, source);
+    let target_cell = root_grid_cell(graph, target);
+    source_cell.is_some()
+        && source_cell != target_cell
+        && (source_cell != Some(source) || target_cell != Some(target))
+}
+
+/// A document-root grid's LayoutNested queue holds only the root children.
+/// It extracts each constant-near child with itself and each container cell
+/// without itself, in queue order; a crossing belongs to the first extraction
+/// that holds one of its endpoints, and ties keep the edge order.
+fn order_root_grid_extractions(graph: &Graph, edges: &mut [EdgeId]) {
+    let cells = ordered_hierarchy_children(graph, None);
+    let owner = |id| {
+        let cell = root_grid_cell(graph, id)?;
+        let near = graph
+            .node(cell)
+            .is_some_and(|node| node.canvas_position.is_some());
+        if cell == id && !near {
+            return None;
+        }
+        cells.iter().position(|candidate| *candidate == cell)
+    };
+    edges.sort_by_key(|id| {
+        let edge = &graph.edges[id.0 as usize];
+        owner(edge.source)
+            .into_iter()
+            .chain(owner(edge.target))
+            .min()
+            .unwrap_or(usize::MAX)
+    });
 }
 
 fn root_grid_cell(graph: &Graph, id: NodeId) -> Option<NodeId> {
@@ -4084,7 +4145,12 @@ fn near_bounds(graph: &Graph, result: &LayoutResult) -> NearBounds {
         let label_rect = node
             .external_label
             .filter(|_| label_position.is_outside())
-            .map(|label| {
+            .map(|mut label| {
+                // The TALA patch replaces Object.LabelDimensions with its
+                // (possibly prescaled) label before d2near.Layout reads it.
+                if let Some(size) = result.node_labels.get(&id).and_then(|state| state.size) {
+                    label.size = size;
+                }
                 (
                     label.at_position(label_position).top_left(rect, 5.0),
                     label.size,

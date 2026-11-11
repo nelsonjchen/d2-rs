@@ -126,76 +126,19 @@ impl ArenaGraph {
                     }
                 }
                 if label_position_fixed && let Some(label) = node.label_size {
-                    let width = label.width + 10.0;
-                    let height = label.height + 10.0;
-                    match node.label_position {
-                        LabelPosition::OutsideTopLeft
-                        | LabelPosition::OutsideTopCenter
-                        | LabelPosition::OutsideTopRight => layout_margins.top = height,
-                        LabelPosition::OutsideBottomLeft
-                        | LabelPosition::OutsideBottomCenter
-                        | LabelPosition::OutsideBottomRight => layout_margins.bottom = height,
-                        LabelPosition::OutsideLeftTop
-                        | LabelPosition::OutsideLeftMiddle
-                        | LabelPosition::OutsideLeftBottom => layout_margins.left = width,
-                        LabelPosition::OutsideRightTop
-                        | LabelPosition::OutsideRightMiddle
-                        | LabelPosition::OutsideRightBottom => layout_margins.right = width,
-                        LabelPosition::InsideTopLeft
-                        | LabelPosition::InsideTopCenter
-                        | LabelPosition::InsideTopRight => node_padding.top = height,
-                        LabelPosition::InsideBottomLeft
-                        | LabelPosition::InsideBottomCenter
-                        | LabelPosition::InsideBottomRight => node_padding.bottom = height,
-                        LabelPosition::InsideMiddleLeft => node_padding.left = width,
-                        LabelPosition::InsideMiddleRight => node_padding.right = width,
-                        _ => {}
-                    }
+                    reserve_fixed_label_spacing(
+                        node.label_position,
+                        label,
+                        &mut layout_margins,
+                        &mut node_padding,
+                    );
                 }
                 // Mirror Graph.ComputeNodeSpacing -> Node.UpdateSpacing.
                 // Explicit outside icon positions reserve the icon's maximum
                 // rendered extent in the node margin, including image shapes.
                 // Inside positions reserve that extent as node padding.
                 if icon_position_fixed && let Some(position) = node.icon_position {
-                    match position {
-                        LabelPosition::InsideTopLeft
-                        | LabelPosition::InsideTopCenter
-                        | LabelPosition::InsideTopRight => {
-                            node_padding.top = node_padding.top.max(74.0)
-                        }
-                        LabelPosition::InsideBottomLeft
-                        | LabelPosition::InsideBottomCenter
-                        | LabelPosition::InsideBottomRight => {
-                            node_padding.bottom = node_padding.bottom.max(74.0)
-                        }
-                        LabelPosition::InsideMiddleLeft => {
-                            node_padding.left = node_padding.left.max(74.0)
-                        }
-                        LabelPosition::InsideMiddleRight => {
-                            node_padding.right = node_padding.right.max(74.0)
-                        }
-                        LabelPosition::OutsideTopLeft
-                        | LabelPosition::OutsideTopCenter
-                        | LabelPosition::OutsideTopRight => {
-                            layout_margins.top = layout_margins.top.max(74.0)
-                        }
-                        LabelPosition::OutsideBottomLeft
-                        | LabelPosition::OutsideBottomCenter
-                        | LabelPosition::OutsideBottomRight => {
-                            layout_margins.bottom = layout_margins.bottom.max(74.0)
-                        }
-                        LabelPosition::OutsideLeftTop
-                        | LabelPosition::OutsideLeftMiddle
-                        | LabelPosition::OutsideLeftBottom => {
-                            layout_margins.left = layout_margins.left.max(74.0)
-                        }
-                        LabelPosition::OutsideRightTop
-                        | LabelPosition::OutsideRightMiddle
-                        | LabelPosition::OutsideRightBottom => {
-                            layout_margins.right = layout_margins.right.max(74.0)
-                        }
-                        _ => {}
-                    }
+                    reserve_fixed_icon_spacing(position, &mut layout_margins, &mut node_padding);
                 }
                 if input.tala_decoded_members.is_none() {
                     containers.append_node(node.parent, id);
@@ -2832,6 +2775,124 @@ impl ArenaGraph {
             "edge_header":{"nil":self.edge_order.header().is_nil(),"len":self.edge_order.len(),"cap":self.edge_order.header().capacity(),
                 "slots":self.edge_order.header().capacity_slots().into_iter().map(|id|id.map(|id|self.edge_records[id.0 as usize].tala_id)).collect::<Vec<_>>()},
             "containers":containers,"inventory":inventory})
+    }
+}
+
+/// The side that `Node.UpdateSpacing` (layoutgraph/node.go) reserves for a
+/// fixed label or icon position: outside positions widen the margin, inside
+/// positions the padding.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SpacingSide {
+    MarginTop,
+    MarginRight,
+    MarginBottom,
+    MarginLeft,
+    PaddingTop,
+    PaddingRight,
+    PaddingBottom,
+    PaddingLeft,
+}
+
+fn spacing_side(position: LabelPosition) -> Option<SpacingSide> {
+    Some(match position {
+        LabelPosition::OutsideTopLeft
+        | LabelPosition::OutsideTopCenter
+        | LabelPosition::OutsideTopRight => SpacingSide::MarginTop,
+        LabelPosition::OutsideBottomLeft
+        | LabelPosition::OutsideBottomCenter
+        | LabelPosition::OutsideBottomRight => SpacingSide::MarginBottom,
+        LabelPosition::OutsideLeftTop
+        | LabelPosition::OutsideLeftMiddle
+        | LabelPosition::OutsideLeftBottom => SpacingSide::MarginLeft,
+        LabelPosition::OutsideRightTop
+        | LabelPosition::OutsideRightMiddle
+        | LabelPosition::OutsideRightBottom => SpacingSide::MarginRight,
+        LabelPosition::InsideTopLeft
+        | LabelPosition::InsideTopCenter
+        | LabelPosition::InsideTopRight => SpacingSide::PaddingTop,
+        LabelPosition::InsideBottomLeft
+        | LabelPosition::InsideBottomCenter
+        | LabelPosition::InsideBottomRight => SpacingSide::PaddingBottom,
+        LabelPosition::InsideMiddleLeft => SpacingSide::PaddingLeft,
+        LabelPosition::InsideMiddleRight => SpacingSide::PaddingRight,
+        _ => return None,
+    })
+}
+
+fn spacing_slot<'a>(
+    side: SpacingSide,
+    margins: &'a mut Insets,
+    padding: &'a mut Insets,
+) -> &'a mut f64 {
+    match side {
+        SpacingSide::MarginTop => &mut margins.top,
+        SpacingSide::MarginRight => &mut margins.right,
+        SpacingSide::MarginBottom => &mut margins.bottom,
+        SpacingSide::MarginLeft => &mut margins.left,
+        SpacingSide::PaddingTop => &mut padding.top,
+        SpacingSide::PaddingRight => &mut padding.right,
+        SpacingSide::PaddingBottom => &mut padding.bottom,
+        SpacingSide::PaddingLeft => &mut padding.left,
+    }
+}
+
+/// UpdateSpacing's fixed-label step: the label plus two 5px paddings.
+fn reserve_fixed_label_spacing(
+    position: LabelPosition,
+    label: Size,
+    margins: &mut Insets,
+    padding: &mut Insets,
+) {
+    let Some(side) = spacing_side(position) else {
+        return;
+    };
+    let extent = match side {
+        SpacingSide::MarginTop
+        | SpacingSide::MarginBottom
+        | SpacingSide::PaddingTop
+        | SpacingSide::PaddingBottom => label.height + 10.0,
+        _ => label.width + 10.0,
+    };
+    *spacing_slot(side, margins, padding) = extent;
+}
+
+/// UpdateSpacing's fixed-icon step: MaxIconSize plus two 5px paddings.
+fn reserve_fixed_icon_spacing(position: LabelPosition, margins: &mut Insets, padding: &mut Insets) {
+    if let Some(side) = spacing_side(position) {
+        let slot = spacing_slot(side, margins, padding);
+        *slot = slot.max(74.0);
+    }
+}
+
+impl ArenaNode {
+    /// Pipeline.Prescale enlarges a crowded node's label before Preprocess
+    /// runs Graph.ComputeNodeSpacing, so UpdateSpacing reserves the scaled
+    /// label. Construction reserved the measured one; replay UpdateSpacing's
+    /// label, icon and modifier steps for the side the label occupies.
+    pub(super) fn refresh_scaled_label_spacing(&mut self) {
+        if !self.label_position_fixed {
+            return;
+        }
+        let (Some(label), Some(side)) = (self.label_size, spacing_side(self.label_position)) else {
+            return;
+        };
+        let mut margins = self.layout_margins;
+        let mut padding = self.node_padding;
+        reserve_fixed_label_spacing(self.label_position, label, &mut margins, &mut padding);
+        if self.icon_position_fixed
+            && let Some(icon) = self.icon_position
+            && spacing_side(icon) == Some(side)
+        {
+            reserve_fixed_icon_spacing(icon, &mut margins, &mut padding);
+        }
+        let (dx, dy) = super::bounds::modifier_element_adjustments(self);
+        match side {
+            SpacingSide::MarginTop => margins.top += dy,
+            SpacingSide::MarginRight => margins.right += dx,
+            _ => {}
+        }
+        self.layout_margins = margins;
+        self.node_padding = padding;
     }
 }
 

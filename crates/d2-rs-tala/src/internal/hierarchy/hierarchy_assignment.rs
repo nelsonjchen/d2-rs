@@ -170,6 +170,16 @@ impl ArenaGraph {
             .filter_map(|edge| {
                 let from = self.direct_child_in_hierarchy_scope(edge.from, scope)?;
                 let to = self.direct_child_in_hierarchy_scope(edge.to, scope)?;
+                // makeSimpleDAG, isSource/isSink and countEdgeDirection read a
+                // directed edge through DirectedEndpoints, which points a
+                // source-arrow-only edge To -> From (layoutgraph/edge.go).
+                // The adapter canonicalizes only `<-`; an undirected `--`
+                // with an explicit source arrowhead still reaches here.
+                let (from, to) = if edge.source_arrow && !edge.target_arrow {
+                    (to, from)
+                } else {
+                    (from, to)
+                };
                 (from != to).then_some((from, to, edge.source_arrow != edge.target_arrow))
             })
             .collect()
