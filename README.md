@@ -72,9 +72,9 @@ Windows), the license and third-party notices, and a `Makefile` that installs
 the binary:
 
 ```sh
-curl -fsSLO https://github.com/nelsonjchen/d2-rs/releases/download/v0.1.6/d2-rs-v0.1.6-linux-amd64.tar.gz
-tar -xzf d2-rs-v0.1.6-linux-amd64.tar.gz
-make -C d2-rs-v0.1.6 install   # to /usr/local, or ~/.local if that is not writable
+curl -fsSLO https://github.com/nelsonjchen/d2-rs/releases/download/v0.1.7/d2-rs-v0.1.7-linux-amd64.tar.gz
+tar -xzf d2-rs-v0.1.7-linux-amd64.tar.gz
+make -C d2-rs-v0.1.7 install   # to /usr/local, or ~/.local if that is not writable
 ```
 
 The Linux binaries need glibc 2.35 or newer. On macOS, a binary downloaded with

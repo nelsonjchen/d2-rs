@@ -10,6 +10,43 @@ Each release names the upstream Go D2 commit it matches, from
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-11-11
+
+Matches Go D2 `master` at 6a7b48378, as 0.1.0 does. Crates, the npm
+package, prebuilt binaries and Windows installers.
+
+### Fixed
+
+Two new differential sweeps (`scripts/shape-trace-differential.py` and
+`scripts/graph-differential.py`) render seeded ordinary diagrams with Go and
+d2-rs on every engine. They found these differences from Go, now fixed:
+
+- Ovals with only `width` or only `height` set ignored Go's 3:1 aspect limit
+  on the label fit, so a long or tall label gave the wrong size.
+- Dagre: opposing edges between one pair of nodes, one labeled, after an
+  unrelated node, ordered their routes differently.
+- Dagre: `label.near: center-left`/`center-right` on objects inside
+  containers, and outside label positions on containers, lost Go's side
+  spacing and shifted the diagram.
+- ELK: labeled edges next to SQL-table ports were spaced 40 px apart
+  instead of 5; edges into a grid cell with a label wider than the cell
+  stopped short.
+- Grid cells holding a 3D hexagon were 8 px taller on every engine.
+- TALA: edges with only a source arrowhead were ranked backwards; labels
+  that TALA scales up kept their old spacing; `near` objects used unscaled
+  label sizes; edges crossing out of a root grid were routed before `near`
+  objects and restored in the wrong order.
+
+On 12 seeds x 300 generated diagrams, dagre and ELK now match Go on every
+case on arm64 and x86-64, and TALA on 3,595 of 3,600.
+
+### Changed
+
+- Dagre and ELK clip edges with the Go-exact shape tracer that TALA uses;
+  the older approximation is gone (no output change found).
+- 101 oracle fixture outputs that nothing read since the legacy renderer
+  was removed are retired, with reasons in `docs/fixture-retirements/`.
+
 ## [0.1.6] - 2026-11-11
 
 Matches Go D2 `master` at 6a7b48378, as 0.1.0 does. Prebuilt binaries and
@@ -221,6 +258,7 @@ Matches Go D2 `master` at 6a7b48378, as 0.1.0 does.
   path separators in diagnostics and one TALA layout differ in tests.
 
 [Unreleased]: https://github.com/nelsonjchen/d2-rs/commits/main
+[0.1.7]: https://crates.io/crates/d2-rs/0.1.7
 [0.1.6]: https://github.com/nelsonjchen/d2-rs/releases/tag/v0.1.6
 [0.1.5]: https://crates.io/crates/d2-rs/0.1.5
 [0.1.4]: https://crates.io/crates/d2-rs/0.1.4
