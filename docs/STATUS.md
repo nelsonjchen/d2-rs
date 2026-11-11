@@ -546,7 +546,13 @@ d2-rs and the pinned Go CLI on generated inputs (outputs and witnesses go to
   line-level minimization of each mismatch. Its first run (2026-11-11, 4 seeds
   x 300 cases) found 8 dagre, 2 ELK and 8 TALA mismatches; the dagre ones
   reduce to `label.near` center-left/right on container children and
-  outside label positions on containers.
+  outside label positions on containers. All four clusters are fixed (dagre
+  cross-axis side spacing, ELK label spacings and grid-cell edge label
+  state, the 3D hexagon grid margin, and five TALA/near causes): on 12 seeds
+  x 300 cases, dagre and ELK match Go on every case on arm64 and x86-64, and
+  TALA on 3,595 of 3,600. Open: a TALA sized-optimizer placement candidate
+  (seed 1 case 289, minimized), four more TALA cases, and one x86-64-only
+  dagre case (seed 7 case 136) that predates these fixes.
 - `scripts/fuzz-differential.py` and `scripts/fuzz-minimize.py`: random
   structural mutations of corpus inputs, flagging Rust panics, hangs and
   exit, error-text or output divergence, then line/character minimization.
