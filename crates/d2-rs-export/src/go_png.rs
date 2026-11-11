@@ -451,6 +451,9 @@ impl RowStream {
 /// NRGBA rows with image.NRGBA.Opaque's whole-frame color-type choice.
 /// Retain only the opaque prefix: transparency or the last row establishes
 /// the final color type, so a complete frame never needs a second copy.
+// TODO(legacy-raster-cleanup): only the SVG bridge streamed paged bands; the
+// scene path encodes whole paged frames as paged.go does.
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) struct RgbaRowStream {
     width: u32,
     height: u32,
@@ -458,6 +461,7 @@ pub(crate) struct RgbaRowStream {
     stream: Option<RowStream>,
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 impl RgbaRowStream {
     pub(crate) fn new(width: u32, height: u32) -> Self {
         Self {

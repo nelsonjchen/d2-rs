@@ -3074,14 +3074,15 @@ fn imgbundle_d2svg(source_args: &[String], bundle: bool, svg: Vec<u8>) -> Vec<u8
     imgbundler_cli::bundle(source_args, bundle, &svg).0
 }
 
-/// SVG output uses the byte-identical d2svg port (PLAN S6);
-/// D2_RS_SVG_RENDERER=legacy selects the earlier native renderer.
+/// SVG output uses the byte-identical d2svg port (PLAN S6). Only tests of
+/// the earlier native renderer's own contract select it, per thread.
+// TODO(legacy-raster-cleanup): remove with the legacy renderer.
 fn d2svg_requested() -> bool {
     #[cfg(test)]
     if LEGACY_SVG_FOR_TEST.with(std::cell::Cell::get) {
         return false;
     }
-    std::env::var("D2_RS_SVG_RENDERER").as_deref() != Ok("legacy")
+    true
 }
 
 #[cfg(test)]
@@ -3139,7 +3140,7 @@ fn render_source_png_with_links(
         args,
         frame_budget,
         page_fill,
-        d2_rs_export::render_paged_png_rgba_at_scale,
+        d2_rs_export::render_paged_png_with_links,
     )
 }
 
@@ -3162,7 +3163,7 @@ fn render_source_pdf_page_with_links(
         args,
         frame_budget,
         true,
-        d2_rs_export::render_paged_pdf_page_at_scale,
+        d2_rs_export::render_paged_pdf_page_with_links,
     )
 }
 
@@ -3204,26 +3205,17 @@ fn render_source_paged_frame_with_links<T>(
     // paged.go AddPDFPage resolves the page fill (GetFillRGB) only for PDF,
     // after the board rendered; PowerPoint slides never read the root fill.
     let fill = page_fill.then(|| d2_rs_export::document_page_fill(&graph, &render_options));
-    // paged.go renders transparent frames for both PDF and PowerPoint.
-    let png = render_frame(
-        &graph,
-        &result,
-        &labels,
-        &styles,
-        render_options.clone(),
-        sketch,
-        2,
-        frame_budget,
-    )
-    .map_err(|error| error.to_string())?;
-    // Go builds and validates the scene before extracting paged link regions.
-    let links = d2_rs_export::document_link_metadata(
+    // paged.go renders transparent frames for both PDF and PowerPoint, and
+    // maps the board's links from the same scene into the rendered frame.
+    let (png, links) = render_frame(
         &graph,
         &result,
         &labels,
         &styles,
         render_options,
         sketch,
+        2,
+        frame_budget,
     )
     .map_err(|error| error.to_string())?;
     // AddPDFPage returns GetFillRGB's color error unwrapped.
@@ -3257,6 +3249,12 @@ fn format_scene_error(format: ExportFormat, board: usize, error: String) -> Stri
     }
     if matches!(format, ExportFormat::Pdf | ExportFormat::Pptx) && error.starts_with("d2raster: ") {
         return format!("paged board {board} frame: {error}");
+    }
+    // paged.go pagedRenderer.render: "paged board %d links: %w".
+    if let Some(links_error) = error.strip_prefix("paged links: ")
+        && matches!(format, ExportFormat::Pdf | ExportFormat::Pptx)
+    {
+        return format!("paged board {board} links: {links_error}");
     }
     if !error.starts_with("scene: ") {
         return error;
@@ -3369,8 +3367,7 @@ fn render_source_format_with_pptx_properties(
         )
         .map_err(|error| error.to_string()),
         _ => match format {
-            // PLAN S6: opt into the byte-identical d2svg port while its
-            // coverage grows; the legacy renderer stays the default.
+            // PLAN S6: the byte-identical d2svg port.
             ExportFormat::Svg if d2svg_requested() => d2_rs_render::render_d2svg(
                 &graph,
                 &result,
@@ -3404,16 +3401,7 @@ fn render_source_format_with_pptx_properties(
                     .target_root_label
                     .as_deref()
                     .is_some_and(|label| !label.is_empty());
-                let links = d2_rs_export::document_link_metadata(
-                    &graph,
-                    &result,
-                    &labels,
-                    &styles,
-                    render_options.clone(),
-                    sketch,
-                )
-                .map_err(|error| error.to_string())?;
-                let png = d2_rs_export::render_png_rgba_at_scale(
+                let (png, links) = d2_rs_export::render_paged_png_with_links(
                     &graph,
                     &result,
                     &labels,
@@ -3421,6 +3409,7 @@ fn render_source_format_with_pptx_properties(
                     render_options,
                     sketch,
                     2,
+                    &mut d2_rs_export::PagedFrameBudget::default(),
                 )
                 .map_err(|error| error.to_string())?;
                 d2_rs_export::package_pptx_slides_with_document_properties(
@@ -3456,17 +3445,33 @@ fn render_source_format_with_pptx_properties(
         if matches!(format, ExportFormat::Svg | ExportFormat::Ascii) {
             Some(rendered.clone())
         } else {
-            Some(
-                d2_rs_render::render_svg_with_sketch_checked(
+            // A raster watch preview: raster.go renderRasterSVG renders d2svg
+            // with rasterRenderOptions (default scale 1), bundleRasterPreview
+            // embeds its images, and main.go appendRasterPreview appends the
+            // appendix.
+            preview_options.scale = Some(preview_options.scale.unwrap_or(1.0));
+            let svg = d2_rs_render::render_d2svg(
+                &graph,
+                &result,
+                &labels,
+                &styles,
+                &preview_options,
+                sketch,
+            )?;
+            let svg = imgbundle_d2svg(&source_args, true, svg);
+            Some(if preview_appendix {
+                d2_rs_render::d2svg_append_appendix(
                     &graph,
                     &result,
                     &labels,
                     &styles,
-                    preview_options,
+                    &preview_options,
                     sketch,
-                )
-                .map_err(|error| error.to_string())?,
-            )
+                    &svg,
+                )?
+            } else {
+                svg
+            })
         }
     } else {
         None
@@ -8321,7 +8326,7 @@ layers: {
 
     #[test]
     fn render_svg_connects_source_layout_and_labels() {
-        // Contract of the legacy native SVG renderer (D2_RS_SVG_RENDERER=legacy).
+        // Contract of the legacy native SVG renderer.
         let _legacy = super::LegacySvgGuard::new();
         let output = run(&["render-svg".into(), "--seeds=7".into()], b"a -> b\n").unwrap();
         let output = String::from_utf8(output).unwrap();
@@ -8333,7 +8338,7 @@ layers: {
 
     #[test]
     fn dagre_sequence_self_edges_keep_rounded_orthogonal_routes() {
-        // Contract of the legacy native SVG renderer (D2_RS_SVG_RENDERER=legacy).
+        // Contract of the legacy native SVG renderer.
         let _legacy = super::LegacySvgGuard::new();
         let source = b"sequence: { shape: sequence_diagram; worker -> worker: retry }\ncomplete: Complete\nsequence -> complete\n";
         let output = run(&["render-svg".into(), "--engine=dagre".into()], source).unwrap();
@@ -8374,7 +8379,7 @@ layers: {
 
     #[test]
     fn render_svg_accepts_d2_scale_option() {
-        // Contract of the legacy native SVG renderer (D2_RS_SVG_RENDERER=legacy).
+        // Contract of the legacy native SVG renderer.
         let _legacy = super::LegacySvgGuard::new();
         let default_output = run(&["render-svg".into()], b"a\n").unwrap();
         let scaled_output = run(&["render-svg".into(), "--scale=2".into()], b"a\n").unwrap();
@@ -8440,7 +8445,7 @@ layers: {
 
     #[test]
     fn render_svg_applies_terminal_caps_lock_before_layout() {
-        // Contract of the legacy native SVG renderer (D2_RS_SVG_RENDERER=legacy).
+        // Contract of the legacy native SVG renderer.
         let _legacy = super::LegacySvgGuard::new();
         let output = String::from_utf8(
             run(
@@ -8685,7 +8690,7 @@ layers: {
 
     #[test]
     fn document_svg_metadata_flags_match_d2_boundary() {
-        // Contract of the legacy native SVG renderer (D2_RS_SVG_RENDERER=legacy).
+        // Contract of the legacy native SVG renderer.
         let _legacy = super::LegacySvgGuard::new();
         let path =
             std::env::temp_dir().join(format!("d2-rs-svg-metadata-{}.d2", std::process::id()));
@@ -9404,7 +9409,7 @@ layers: {
 
     #[test]
     fn document_command_uses_recursive_v090_animation_hash() {
-        // Contract of the legacy native SVG renderer (D2_RS_SVG_RENDERER=legacy).
+        // Contract of the legacy native SVG renderer.
         let _legacy = super::LegacySvgGuard::new();
         let suffix = format!(
             "{}-{}",
@@ -9574,7 +9579,7 @@ layers: {
 
     #[test]
     fn document_command_applies_source_layout_and_seed_config() {
-        // Contract of the legacy native SVG renderer (D2_RS_SVG_RENDERER=legacy).
+        // Contract of the legacy native SVG renderer.
         let _legacy = super::LegacySvgGuard::new();
         let path = std::env::temp_dir().join(format!("d2-rs-config-{}.d2", std::process::id()));
         std::fs::write(
@@ -9670,7 +9675,7 @@ layers: {
 
     #[test]
     fn render_svg_preserves_source_node_and_edge_styles() {
-        // Contract of the legacy native SVG renderer (D2_RS_SVG_RENDERER=legacy).
+        // Contract of the legacy native SVG renderer.
         let _legacy = super::LegacySvgGuard::new();
         let output = run(
             &["render-svg".into()],
@@ -9722,7 +9727,7 @@ layers: {
 
     #[test]
     fn render_svg_emits_edge_links_and_tooltips() {
-        // Contract of the legacy native SVG renderer (D2_RS_SVG_RENDERER=legacy).
+        // Contract of the legacy native SVG renderer.
         let _legacy = super::LegacySvgGuard::new();
         let output = run(
             &["render-svg".into()],
@@ -9740,7 +9745,7 @@ layers: {
 
     #[test]
     fn render_svg_emits_node_icons_at_the_requested_position() {
-        // Contract of the legacy native SVG renderer (D2_RS_SVG_RENDERER=legacy).
+        // Contract of the legacy native SVG renderer.
         let _legacy = super::LegacySvgGuard::new();
         let output = run(
             &["render-svg".into(), "--bundle=false".into()],
@@ -9757,7 +9762,7 @@ layers: {
 
     #[test]
     fn render_svg_uses_image_shape_icon_as_full_image_box() {
-        // Contract of the legacy native SVG renderer (D2_RS_SVG_RENDERER=legacy).
+        // Contract of the legacy native SVG renderer.
         let _legacy = super::LegacySvgGuard::new();
         let output = run(
             &["render-svg".into(), "--bundle=false".into()],
@@ -10595,7 +10600,7 @@ layers: {
 
     #[test]
     fn render_svg_class_shape_emits_header_and_member_rows() {
-        // Contract of the legacy native SVG renderer (D2_RS_SVG_RENDERER=legacy).
+        // Contract of the legacy native SVG renderer.
         let _legacy = super::LegacySvgGuard::new();
         let output = run(
             &["render-svg".into()],
@@ -10646,7 +10651,7 @@ layers: {
 
     #[test]
     fn render_svg_sql_table_emits_header_types_and_constraints() {
-        // Contract of the legacy native SVG renderer (D2_RS_SVG_RENDERER=legacy).
+        // Contract of the legacy native SVG renderer.
         let _legacy = super::LegacySvgGuard::new();
         let output = run(
             &["render-svg".into()],
@@ -10668,7 +10673,7 @@ layers: {
 
     #[test]
     fn render_svg_emits_reserved_legend_without_layout_nodes() {
-        // Contract of the legacy native SVG renderer (D2_RS_SVG_RENDERER=legacy).
+        // Contract of the legacy native SVG renderer.
         let _legacy = super::LegacySvgGuard::new();
         let output = run(
             &["render-svg".into()],
@@ -10703,7 +10708,7 @@ user -> database: Uses
 
     #[test]
     fn render_svg_applies_patterns_transforms_underline_and_animated_edges() {
-        // Contract of the legacy native SVG renderer (D2_RS_SVG_RENDERER=legacy).
+        // Contract of the legacy native SVG renderer.
         let _legacy = super::LegacySvgGuard::new();
         let output = run(
             &["render-svg".into()],
@@ -10722,7 +10727,7 @@ user -> database: Uses
 
     #[test]
     fn render_svg_emits_gradient_definitions_for_source_fills() {
-        // Contract of the legacy native SVG renderer (D2_RS_SVG_RENDERER=legacy).
+        // Contract of the legacy native SVG renderer.
         let _legacy = super::LegacySvgGuard::new();
         let output = run(
             &["render-svg".into()],
@@ -10739,7 +10744,7 @@ user -> database: Uses
 
     #[test]
     fn render_svg_honors_explicit_and_source_sketch_flags() {
-        // Contract of the legacy native SVG renderer (D2_RS_SVG_RENDERER=legacy).
+        // Contract of the legacy native SVG renderer.
         let _legacy = super::LegacySvgGuard::new();
         let explicit = run(
             &["render-svg".into(), "--sketch".into()],
@@ -10774,7 +10779,7 @@ user -> database: Uses
 
     #[test]
     fn render_svg_honors_explicit_inside_label_position() {
-        // Contract of the legacy native SVG renderer (D2_RS_SVG_RENDERER=legacy).
+        // Contract of the legacy native SVG renderer.
         let _legacy = super::LegacySvgGuard::new();
         let output = run(
             &["render-svg".into()],
@@ -10789,7 +10794,7 @@ user -> database: Uses
 
     #[test]
     fn render_svg_renders_valid_edge_label_near_map() {
-        // Contract of the legacy native SVG renderer (D2_RS_SVG_RENDERER=legacy).
+        // Contract of the legacy native SVG renderer.
         let _legacy = super::LegacySvgGuard::new();
         let output = run(
             &["render-svg".into()],

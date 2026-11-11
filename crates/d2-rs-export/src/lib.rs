@@ -258,30 +258,15 @@ pub fn export_with_sketch(
     sketch: bool,
 ) -> Result<Vec<u8>, ExportError> {
     match format {
-        ExportFormat::Svg => d2_rs_render::render_svg_with_sketch_checked(
-            graph, result, labels, styles, options, sketch,
-        )
-        .map_err(|error| ExportError::Render(error.to_string())),
+        ExportFormat::Svg => {
+            d2_rs_render::render_d2svg(graph, result, labels, styles, &options, sketch)
+                .map_err(ExportError::Render)
+        }
         ExportFormat::Ascii => {
             render_ascii_with_options(graph, result, labels, styles, &options, sketch)
         }
         ExportFormat::Png => {
-            // encodePNGBands admits the scene before its first row. Rendering
-            // first and admitting afterwards returns the same result (the
-            // admission error wins over any render error) while the scene
-            // reuses the renderer's freed memory instead of raising its peak.
-            let admission_options = options.clone();
-            let rendered =
-                render_png_with_options(graph, result, labels, styles, options, sketch, 2);
-            paged_admission::png_preflight(
-                graph,
-                result,
-                labels,
-                styles,
-                &admission_options,
-                sketch,
-            )?;
-            rendered
+            render_png_with_options(graph, result, labels, styles, options, sketch, 2)
         }
         ExportFormat::Gif => {
             render_gif_with_options(graph, result, labels, styles, options, sketch)
@@ -302,11 +287,8 @@ pub fn add_png_exif_to_encoder_output(png: Vec<u8>, version: &str) -> Result<Vec
     go_png::with_exif(png, version).map_err(ExportError::Png)
 }
 
-/// Rasterizes the semantic SVG target with the native resvg/tiny-skia path.
-///
-/// This keeps PNG generation in-process and independent of a browser or Go
-/// helper.  The SVG remains the semantic source of truth, so shape, marker,
-/// clipping, and text changes are shared by both targets.
+/// Renders the graph's typed scene to an opaque PNG, as d2cli's PNG export
+/// does (raster_png_output.go renderPNGToWriter).
 pub fn render_png(
     graph: &Graph,
     result: &LayoutResult,
@@ -412,14 +394,7 @@ pub fn render_paged_png_rgba_at_scale(
     pixel_scale: u32,
     budget: &mut PagedFrameBudget,
 ) -> Result<Vec<u8>, ExportError> {
-    let mut stream: Option<go_png::RgbaRowStream> = None;
-    let mut encode_band = |width: usize, height: usize, band: &mut [u8]| {
-        unpremultiply_rgba(band);
-        stream
-            .get_or_insert_with(|| go_png::RgbaRowStream::new(width as u32, height as u32))
-            .push_rows(band);
-    };
-    let (width, height, rgba) = render_paged_frame(
+    render_paged_png_with_links(
         graph,
         result,
         labels,
@@ -428,19 +403,39 @@ pub fn render_paged_png_rgba_at_scale(
         sketch,
         pixel_scale,
         budget,
-        Some(&mut encode_band),
-    )?;
-    if rgba.is_empty()
-        && let Some(stream) = stream.take()
-    {
-        return Ok(stream.finish());
-    }
-    drop(stream);
-    go_png::encode(width, height, &rgba, 4).map_err(ExportError::Png)
+    )
+    .map(|(png, _)| png)
 }
 
-/// A paged signature shared by `render_paged_png_rgba_at_scale` and
-/// `render_paged_pdf_page_at_scale`.
+/// `render_paged_png_rgba_at_scale` with the board's links, mapped from the
+/// same scene into the frame (d2cli/paged.go pagedRenderer.render).
+pub fn render_paged_png_with_links(
+    graph: &Graph,
+    result: &LayoutResult,
+    labels: &BTreeMap<NodeId, String>,
+    styles: &BTreeMap<NodeId, SourceNodeStyle>,
+    options: RenderOptions,
+    sketch: bool,
+    pixel_scale: u32,
+    budget: &mut PagedFrameBudget,
+) -> Result<(Vec<u8>, Vec<DocumentLinkMetadata>), ExportError> {
+    let frame = render_paged_frame(
+        graph,
+        result,
+        labels,
+        styles,
+        options,
+        sketch,
+        pixel_scale,
+        budget,
+    )?;
+    let png =
+        go_png::encode(frame.width, frame.height, &frame.rgba, 4).map_err(ExportError::Png)?;
+    Ok((png, frame.links))
+}
+
+/// A paged signature shared by `render_paged_png_with_links` and
+/// `render_paged_pdf_page_with_links`: one board's image and its links.
 pub type PagedFrameRenderer<T> = fn(
     &Graph,
     &LayoutResult,
@@ -450,18 +445,18 @@ pub type PagedFrameRenderer<T> = fn(
     bool,
     u32,
     &mut PagedFrameBudget,
-) -> Result<T, ExportError>;
+) -> Result<(T, Vec<DocumentLinkMetadata>), ExportError>;
 
 /// One rendered PDF page image, ready for
 /// `package_pdf_page_rasters_with_navigation_metadata_for_theme`.
 #[derive(Clone, Debug)]
 pub struct PdfPage(PdfRasterPage);
 
-/// `render_paged_png_rgba_at_scale` for a PDF page. FPDF parses the page PNG
+/// `render_paged_png_with_links` for a PDF page. FPDF parses the page PNG
 /// back into color and alpha planes; PNG is lossless, so those planes are the
 /// frame's own unpremultiplied bytes. Only an opaque page, whose RGB PNG
 /// image data FPDF embeds as is, still needs the PNG.
-pub fn render_paged_pdf_page_at_scale(
+pub fn render_paged_pdf_page_with_links(
     graph: &Graph,
     result: &LayoutResult,
     labels: &BTreeMap<NodeId, String>,
@@ -470,8 +465,8 @@ pub fn render_paged_pdf_page_at_scale(
     sketch: bool,
     pixel_scale: u32,
     budget: &mut PagedFrameBudget,
-) -> Result<PdfPage, ExportError> {
-    let (width, height, rgba) = render_paged_frame(
+) -> Result<(PdfPage, Vec<DocumentLinkMetadata>), ExportError> {
+    let frame = render_paged_frame(
         graph,
         result,
         labels,
@@ -480,11 +475,9 @@ pub fn render_paged_pdf_page_at_scale(
         sketch,
         pixel_scale,
         budget,
-        None,
     )?;
-    pdf_page_from_rgba(width, height, rgba)?
-        .compacted()
-        .map(PdfPage)
+    let page = pdf_page_from_rgba(frame.width, frame.height, frame.rgba)?.compacted()?;
+    Ok((PdfPage(page), frame.links))
 }
 
 /// The `decode_pdf_png` result for `go_png::encode(width, height, rgba, 4)`,
@@ -583,10 +576,8 @@ mod pdf_page_from_rgba_tests {
     }
 }
 
-/// The frame of a paged board: unpremultiplied RGBA over a transparent page.
-/// `band_sink` encodes it band by band, bounding its effect layers; a PDF page
-/// keeps the whole-frame pass, since its page planes outweigh those layers.
-#[allow(clippy::too_many_arguments)]
+/// The frame of a paged board, unpremultiplied RGBA over a transparent page,
+/// with its links; charges the document's pixel allowance.
 fn render_paged_frame(
     graph: &Graph,
     result: &LayoutResult,
@@ -596,8 +587,7 @@ fn render_paged_frame(
     sketch: bool,
     pixel_scale: u32,
     budget: &mut PagedFrameBudget,
-    band_sink: Option<scanline::BandSink<'_>>,
-) -> Result<(u32, u32, Vec<u8>), ExportError> {
+) -> Result<paged_admission::PagedFrame, ExportError> {
     if budget.total_boards == 0 || budget.remaining_pixels == 0 {
         return Err(ExportError::Render(
             "paged export exhausted its operation budget".into(),
@@ -606,25 +596,7 @@ fn render_paged_frame(
     if pixel_scale == 0 {
         return Err(ExportError::Png("pixel scale must be positive".into()));
     }
-    // Go renders every paged board from its typed scene. The incremental Rust
-    // port still uses the SVG bridge for ordinary boards, but labels with
-    // default-ignorable controls require the scene shaper: XML/usvg can
-    // otherwise republish a different mixed-script run at the 1x paged scale.
-    if paged_scene_shaping_required(graph, labels) {
-        let (width, height, rgba) = paged_admission::render_frame(
-            graph,
-            result,
-            labels,
-            styles,
-            &options,
-            sketch,
-            pixel_scale,
-            budget,
-        )?;
-        budget.remaining_pixels -= u64::from(width) * u64::from(height);
-        return Ok((width, height, rgba));
-    }
-    paged_admission::preflight(
+    let frame = paged_admission::render_frame(
         graph,
         result,
         labels,
@@ -634,61 +606,13 @@ fn render_paged_frame(
         pixel_scale,
         budget,
     )?;
-    let (width, height, mut rgba) = rasterize_frame(
-        graph,
-        result,
-        labels,
-        styles,
-        options,
-        sketch,
-        pixel_scale,
-        None,
-        true,
-        false,
-        Some(budget.remaining_pixels.min(64 * 1024 * 1024)),
-        band_sink,
-    )?;
-    if !rgba.is_empty() {
-        // An unstreamed frame, or the resvg fallback's.
-        unpremultiply_rgba(&mut rgba);
-    }
-    budget.remaining_pixels -= u64::from(width) * u64::from(height);
-    Ok((width, height, rgba))
+    budget.remaining_pixels -= u64::from(frame.width) * u64::from(frame.height);
+    Ok(frame)
 }
 
-fn paged_scene_shaping_required(graph: &Graph, labels: &BTreeMap<NodeId, String>) -> bool {
-    let needs_scene = |text: &str| text.chars().any(font_shaping::ignorable);
-    labels.values().any(|text| needs_scene(text))
-        || graph
-            .edge_labels
-            .iter()
-            .flatten()
-            .any(|label| needs_scene(&label.text))
-        || graph.edge_arrowhead_labels.iter().any(|labels| {
-            labels
-                .source
-                .as_ref()
-                .is_some_and(|label| needs_scene(&label.text))
-                || labels
-                    .target
-                    .as_ref()
-                    .is_some_and(|label| needs_scene(&label.text))
-        })
-        || graph.legend.as_ref().is_some_and(|legend| {
-            needs_scene(&legend.label)
-                || legend.shapes.iter().any(|shape| needs_scene(&shape.label))
-                || legend.connections.iter().any(|connection| {
-                    needs_scene(&connection.label)
-                        || needs_scene(&connection.source_label)
-                        || needs_scene(&connection.target_label)
-                })
-                || legend.source_graph.as_ref().is_some_and(|source| {
-                    needs_scene(&source.label)
-                        || source.labels.values().any(|text| needs_scene(text))
-                })
-        })
-}
-
+// TODO(legacy-raster-cleanup): only the SVG raster bridge, now reachable from
+// its own tests alone, premultiplies its frames; delete with that bridge.
+#[cfg_attr(not(test), allow(dead_code))]
 fn unpremultiply_rgba(rgba: &mut [u8]) {
     for pixel in rgba.chunks_exact_mut(4) {
         let alpha = u32::from(pixel[3]);
@@ -715,19 +639,12 @@ fn render_png_with_options(
     sketch: bool,
     pixel_scale: u32,
 ) -> Result<Vec<u8>, ExportError> {
-    render_png_with_animation_time(
-        graph,
-        result,
-        labels,
-        styles,
-        options,
-        sketch,
-        pixel_scale,
-        None,
-        false,
-    )
+    paged_admission::render_png(graph, result, labels, styles, &options, sketch, pixel_scale)
 }
 
+// TODO(legacy-raster-cleanup): the SVG bridge's PNG encoder, no longer
+// called; delete with that bridge.
+#[allow(dead_code)]
 fn render_png_with_animation_time(
     graph: &Graph,
     result: &LayoutResult,
@@ -1083,9 +1000,26 @@ pub fn render_gif_png_with_options(
     options: RenderOptions,
     sketch: bool,
 ) -> Result<Vec<u8>, ExportError> {
-    render_png_with_animation_time(
-        graph, result, labels, styles, options, sketch, 1, None, true,
-    )
+    let (width, height, rgba) =
+        render_static_gif_frame(graph, result, labels, styles, &options, sketch)?;
+    let mut stream = go_png::RowStream::new(width, height, 3);
+    stream.push_rows(&rgba, 4);
+    Ok(stream.finish())
+}
+
+/// A one-board, one-frame GIF schedule's frame (raster.go
+/// renderGIFWithSession): opaque RGBA rows of the scene at 1x.
+fn render_static_gif_frame(
+    graph: &Graph,
+    result: &LayoutResult,
+    labels: &BTreeMap<NodeId, String>,
+    styles: &BTreeMap<NodeId, SourceNodeStyle>,
+    options: &RenderOptions,
+    sketch: bool,
+) -> Result<(u32, u32, Vec<u8>), ExportError> {
+    let mut board = GifBoard::plan(graph, result, labels, styles, options, sketch, 1, 1)?;
+    board.preflight()?;
+    board.render(0, 0)
 }
 
 /// Renders the 30-fps PNG samples used by an animated GIF export.
@@ -1608,7 +1542,7 @@ fn package_gif_frames_encoded<P: AsRef<[u8]>>(
             continue;
         }
         pixmaps.push(
-            resvg::tiny_skia::Pixmap::decode_png(png).map_err(|error| {
+            DecodedFrame::decode_png(png).map_err(|error| {
                 ExportError::Gif(format!("could not decode PNG frame: {error}"))
             })?,
         );
@@ -1657,6 +1591,54 @@ fn package_gif_frames_encoded<P: AsRef<[u8]>>(
         encoder.write_frame(&quantized.as_ref().expect("quantized frame").1);
     }
     Ok(encoder.finish())
+}
+
+/// A GIF frame's PNG decoded to premultiplied RGBA8, the pixels the frame
+/// quantizer has always received (tiny-skia 0.12 Pixmap::decode_png).
+struct DecodedFrame {
+    width: u32,
+    height: u32,
+    data: Vec<u8>,
+}
+
+impl DecodedFrame {
+    fn decode_png(png: &[u8]) -> Result<Self, String> {
+        let mut decoder = png::Decoder::new(Cursor::new(png));
+        decoder.set_transformations(
+            png::Transformations::normalize_to_color8() | png::Transformations::ALPHA,
+        );
+        let mut reader = decoder.read_info().map_err(|error| error.to_string())?;
+        let size = reader
+            .output_buffer_size()
+            .ok_or_else(|| "PNG frame is too large".to_owned())?;
+        let mut buffer = vec![0_u8; size];
+        let info = reader
+            .next_frame(&mut buffer)
+            .map_err(|error| error.to_string())?;
+        let mut data = apng_rgba8(&buffer[..info.buffer_size()], info.color_type)?;
+        for pixel in data.chunks_exact_mut(4) {
+            let alpha = u32::from(pixel[3]);
+            for channel in &mut pixel[..3] {
+                // tiny-skia color.rs premultiply_u8.
+                let product = u32::from(*channel) * alpha + 128;
+                *channel = ((product + (product >> 8)) >> 8) as u8;
+            }
+        }
+        Ok(Self {
+            width: info.width,
+            height: info.height,
+            data,
+        })
+    }
+    fn width(&self) -> u32 {
+        self.width
+    }
+    fn height(&self) -> u32 {
+        self.height
+    }
+    fn data(&self) -> &[u8] {
+        &self.data
+    }
 }
 
 /// Returns the centisecond delay for one unsampled board frame.
@@ -1741,16 +1723,12 @@ fn render_gif_with_options(
     options: RenderOptions,
     sketch: bool,
 ) -> Result<Vec<u8>, ExportError> {
-    // GIF frames retain the logical SVG pixel density in v0.9.0.
-    let (width, height, rgba) = rasterize_with_animation_time(
-        graph, result, labels, styles, options, sketch, 1, None, true,
-    )?;
+    let (width, height, rgba) =
+        render_static_gif_frame(graph, result, labels, styles, &options, sketch)?;
     let width_u16 = u16::try_from(width)
         .map_err(|_| ExportError::Gif("SVG width exceeds GIF's 65535-pixel limit".into()))?;
     let height_u16 = u16::try_from(height)
         .map_err(|_| ExportError::Gif("SVG height exceeds GIF's 65535-pixel limit".into()))?;
-    let mut rgba = rgba;
-    composite_over_white(&mut rgba);
     let mut output = Vec::new();
     {
         let mut encoder = gif::Encoder::new(&mut output, width_u16, height_u16, &[])
@@ -2315,8 +2293,7 @@ fn render_pdf_with_options(
     sketch: bool,
 ) -> Result<Vec<u8>, ExportError> {
     let header_rule_is_light = pdf_default_fill_is_light(options.theme_id);
-    let link_regions = pdf_link_regions(graph, result, labels, styles, &options, sketch)?;
-    let (width, height, rgba) = rasterize_with_animation_time_and_background(
+    let frame = render_paged_frame(
         graph,
         result,
         labels,
@@ -2324,116 +2301,16 @@ fn render_pdf_with_options(
         options,
         sketch,
         2,
-        None,
-        true,
-        false,
-        Some(64 * 1024 * 1024),
+        &mut PagedFrameBudget::default(),
     )
     .map_err(|error| match error {
         error @ ExportError::Render(_) => error,
         ExportError::Png(message) => ExportError::Pdf(message),
         other => ExportError::Pdf(other.to_string()),
     })?;
-    let page = pdf_raster_from_premultiplied_rgba(width, height, rgba)?;
+    let link_regions = linked_regions(frame.links);
+    let page = pdf_page_from_rgba(frame.width, frame.height, frame.rgba)?;
     encode_pdf_pages_with_links(&[page], &[link_regions], header_rule_is_light)
-}
-
-/// Returns the semantic link rectangles in output-page coordinates.  The
-/// raster image remains the visual source of truth; these regions restore the
-/// interactive part of D2's document target without embedding a browser or
-/// changing layout geometry.
-fn pdf_link_metadata(
-    graph: &Graph,
-    result: &LayoutResult,
-    labels: &BTreeMap<NodeId, String>,
-    styles: &BTreeMap<NodeId, SourceNodeStyle>,
-    options: &RenderOptions,
-    sketch: bool,
-) -> Result<Vec<DocumentLinkMetadata>, ExportError> {
-    let mut source_regions = document_links::target_regions(graph, result, labels, styles)?;
-    let has_markdown = styles.values().any(|style| {
-        style.markdown || matches!(style.language.as_deref(), Some("md" | "markdown"))
-    });
-    if source_regions.is_empty() && !has_markdown {
-        return Ok(Vec::new());
-    }
-    let svg_options = RenderOptions {
-        force_appendix: true,
-        ..options.clone()
-    };
-    let svg = d2_rs_render::render_svg_with_sketch_checked(
-        graph,
-        result,
-        labels,
-        styles,
-        svg_options,
-        sketch,
-    )
-    .map_err(|error| ExportError::Pdf(error.to_string()))?;
-    let markdown = d2_rs_render::markdown_scene::collect_svg(
-        &svg,
-        d2_rs_render::markdown_scene::LinkBudget::default(),
-        true,
-    )
-    .map_err(ExportError::Pdf)?;
-    // Scene construction adds titled Markdown links and edge tooltips to its
-    // static appendix even when the intermediate SVG has no appendix group.
-    let scene_appendix = !markdown.appendix.is_empty()
-        || graph.edges().any(|(id, _)| {
-            graph
-                .edge_tooltip(id)
-                .is_some_and(|value| !value.is_empty())
-        });
-    source_regions.extend(
-        markdown
-            .links
-            .into_iter()
-            .filter(|region| !region.url.is_empty())
-            .map(|region| DocumentLinkMetadata {
-                tooltip: region.tooltip,
-                board_target: !region.target.is_empty(),
-                region: DocumentLinkRegion {
-                    href: region.url,
-                    rect: Rect {
-                        origin: Point {
-                            x: region.r#box.x,
-                            y: region.r#box.y,
-                        },
-                        size: d2_rs_core::Size {
-                            width: region.r#box.width,
-                            height: region.r#box.height,
-                        },
-                    },
-                },
-            }),
-    );
-    let Some((view_left, view_top, view_width, view_height, outer_width, outer_height)) =
-        svg_viewbox_mapping(&svg, scene_appendix)
-    else {
-        return Err(ExportError::Pdf(
-            "could not determine SVG coordinate mapping for PDF links".into(),
-        ));
-    };
-    // The outer SVG dimensions carry the source logical scale. When an
-    // appendix resets that scale, its emitted dimensions already reflect it.
-    let scale_x = outer_width / view_width;
-    let scale_y = outer_height / view_height;
-    Ok(source_regions
-        .into_iter()
-        .map(|mut region| {
-            region.rect = Rect {
-                origin: Point {
-                    x: (region.rect.origin.x - view_left) * scale_x,
-                    y: (region.rect.origin.y - view_top) * scale_y,
-                },
-                size: d2_rs_core::Size {
-                    width: region.rect.size.width * scale_x,
-                    height: region.rect.size.height * scale_y,
-                },
-            };
-            region
-        })
-        .collect())
 }
 
 /// Computes source hyperlink rectangles in the rendered output coordinate
@@ -2446,27 +2323,22 @@ pub fn document_link_regions(
     options: RenderOptions,
     sketch: bool,
 ) -> Result<Vec<DocumentLinkRegion>, ExportError> {
-    pdf_link_regions(graph, result, labels, styles, &options, sketch)
+    document_link_metadata(graph, result, labels, styles, options, sketch).map(linked_regions)
 }
 
-fn pdf_link_regions(
-    graph: &Graph,
-    result: &LayoutResult,
-    labels: &BTreeMap<NodeId, String>,
-    styles: &BTreeMap<NodeId, SourceNodeStyle>,
-    options: &RenderOptions,
-    sketch: bool,
-) -> Result<Vec<DocumentLinkRegion>, ExportError> {
-    Ok(
-        pdf_link_metadata(graph, result, labels, styles, options, sketch)?
-            .into_iter()
-            .filter(|m| !m.href.is_empty())
-            .map(|m| m.region)
-            .collect(),
-    )
+/// The regions of links with a destination (pdfLinkShapes skips the rest).
+fn linked_regions(links: Vec<DocumentLinkMetadata>) -> Vec<DocumentLinkRegion> {
+    links
+        .into_iter()
+        .filter(|m| !m.href.is_empty())
+        .map(|m| m.region)
+        .collect()
 }
 
-/// Source scene links with URL/board provenance and tooltip text intact.
+/// Source scene links with URL/board provenance and tooltip text intact,
+/// mapped as d2cli/paged.go maps a board's links into its frame. Paged
+/// renders get the same links with their pixels from
+/// `render_paged_png_with_links` and `render_paged_pdf_page_with_links`.
 pub fn document_link_metadata(
     graph: &Graph,
     result: &LayoutResult,
@@ -2475,78 +2347,7 @@ pub fn document_link_metadata(
     options: RenderOptions,
     sketch: bool,
 ) -> Result<Vec<DocumentLinkMetadata>, ExportError> {
-    pdf_link_metadata(graph, result, labels, styles, &options, sketch)
-}
-
-fn svg_viewbox_mapping(svg: &[u8], scene_appendix: bool) -> Option<(f64, f64, f64, f64, f64, f64)> {
-    let text = std::str::from_utf8(svg).ok()?;
-    let document = roxmltree::Document::parse(text).ok()?;
-    let root = document.root_element();
-    let mut boxes = text
-        .match_indices("viewBox=\"")
-        .filter_map(|(offset, marker)| {
-            let start = offset + marker.len();
-            let end = text[start..].find('"')? + start;
-            let values = text[start..end]
-                .split_whitespace()
-                .map(str::parse::<f64>)
-                .collect::<Result<Vec<_>, _>>()
-                .ok()?;
-            (values.len() == 4).then_some(values)
-        });
-    let outer = boxes.next()?;
-    let inner = boxes.next()?;
-    // build.go resets logicalScale when the static appendix has rows, even
-    // if the intermediate SVG still carries the requested outer size.
-    let appendix = scene_appendix
-        || document.descendants().any(|node| {
-            node.is_element()
-                && node
-                    .attribute("class")
-                    .is_some_and(|classes| classes.split_whitespace().any(|c| c == "appendix"))
-        });
-    let width = if appendix {
-        outer[2]
-    } else {
-        root.attribute("width")
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(outer[2])
-    };
-    let height = if appendix {
-        outer[3]
-    } else {
-        root.attribute("height")
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(outer[3])
-    };
-    // paged.go mapPagedLinks uses the same meet viewport as the raster
-    // frame. Rounded logical dimensions can give the two axes different
-    // ratios; the smaller ratio applies to both, with optional centering.
-    let scale = (width / inner[2]).min(height / inner[3]);
-    if !scale.is_finite() || scale <= 0.0 {
-        return None;
-    }
-    let centered = root
-        .attribute("preserveAspectRatio")
-        .is_some_and(|value| value.starts_with("xMidYMid"));
-    let offset_x = if centered {
-        (width - inner[2] * scale) / 2.0
-    } else {
-        0.0
-    };
-    let offset_y = if centered {
-        (height - inner[3] * scale) / 2.0
-    } else {
-        0.0
-    };
-    Some((
-        inner[0] - offset_x / scale,
-        inner[1] - offset_y / scale,
-        inner[2],
-        inner[3],
-        inner[2] * scale,
-        inner[3] * scale,
-    ))
+    paged_admission::document_links(graph, result, labels, styles, &options, sketch)
 }
 
 fn pdf_literal(value: &str) -> String {
@@ -2756,8 +2557,16 @@ fn render_pptx_with_options(
         .target_root_label
         .as_deref()
         .is_some_and(|s| !s.is_empty());
-    let semantic_links = pdf_link_metadata(graph, result, labels, styles, &options, sketch)?;
-    let png = render_png_rgba_at_scale(graph, result, labels, styles, options, sketch, 2)?;
+    let (png, semantic_links) = render_paged_png_with_links(
+        graph,
+        result,
+        labels,
+        styles,
+        options,
+        sketch,
+        2,
+        &mut PagedFrameBudget::default(),
+    )?;
     package_pptx_slides_with_navigation_metadata(
         &[png],
         &[vec!["root".into()]],
@@ -2839,6 +2648,9 @@ fn composite_over_white(rgba: &mut [u8]) {
     }
 }
 
+// TODO(legacy-raster-cleanup): the SVG bridge's PDF page, no longer called;
+// delete with that bridge.
+#[allow(dead_code)]
 fn pdf_raster_from_premultiplied_rgba(
     width: u32,
     height: u32,
@@ -2893,6 +2705,9 @@ fn rasterize(
     )
 }
 
+// TODO(legacy-raster-cleanup): SVG raster bridge, reachable only from its
+// own tests; delete with that bridge.
+#[cfg_attr(not(test), allow(dead_code))]
 fn rasterize_with_animation_time(
     graph: &Graph,
     result: &LayoutResult,
@@ -2979,6 +2794,9 @@ fn validate_raster_frame_dimensions(
     }
 }
 
+// TODO(legacy-raster-cleanup): SVG raster bridge, reachable only from its
+// own tests; delete with that bridge.
+#[cfg_attr(not(test), allow(dead_code))]
 fn rasterize_with_animation_time_and_background(
     graph: &Graph,
     result: &LayoutResult,
@@ -7152,6 +6970,8 @@ mod markdown_document_link_source_contract {
     #[cfg(feature = "oracle-fixtures")]
     use d2_rs_core::{LabelPosition, Node, ShapeKind, Size};
     #[cfg(feature = "oracle-fixtures")]
+    use d2_rs_render::go_float::go_fmsub;
+    #[cfg(feature = "oracle-fixtures")]
     use d2_rs_tala::{LayoutReport, Score};
     #[cfg(feature = "oracle-fixtures")]
     #[test]
@@ -7236,25 +7056,49 @@ mod markdown_document_link_source_contract {
                 r["Family"] == "hand",
             )
             .unwrap();
+            // Go's scene links mapped as d2cli/paged.go mapPagedLinks maps
+            // them into the png.SCALE frame (lines 270-342: d2scenebuild's
+            // meet viewport over the ceiling frame, uncentered without
+            // --center (build.go:795-798), with the arm64 FMSUBD translation
+            // and Matrix.Point), returned in logical units (frame pixels /
+            // png.SCALE) as the document packagers take them.
             let view = &row["viewbox"];
-            let sx = row["logical_width"].as_f64().unwrap() / view["Width"].as_f64().unwrap();
-            let sy = row["logical_height"].as_f64().unwrap() / view["Height"].as_f64().unwrap();
+            let number = |value: &serde_json::Value, key: &str| value[key].as_f64().unwrap();
+            let (vx, vy) = (number(view, "X"), number(view, "Y"));
+            let (vw, vh) = (number(view, "Width"), number(view, "Height"));
+            let frame_width = (row["logical_width"].as_f64().unwrap() * 2.0).ceil();
+            let frame_height = (row["logical_height"].as_f64().unwrap() * 2.0).ceil();
+            let uniform = d2_rs_scene::go_min(frame_width / vw, frame_height / vh);
+            let mapping = d2_rs_scene::Matrix {
+                a: uniform,
+                b: 0.0,
+                c: 0.0,
+                d: uniform,
+                e: go_fmsub(vx, uniform, 0.0),
+                f: go_fmsub(vy, uniform, 0.0),
+            };
             let expected = row["links"]
                 .as_array()
                 .unwrap()
                 .iter()
                 .map(|link| {
                     let b = &link["Box"];
+                    let (x, y) = (number(b, "X"), number(b, "Y"));
+                    let top_left = mapping.point(d2_rs_scene::Point::new(x, y));
+                    let bottom_right = mapping.point(d2_rs_scene::Point::new(
+                        x + number(b, "Width"),
+                        y + number(b, "Height"),
+                    ));
                     DocumentLinkRegion {
                         href: link["URL"].as_str().unwrap().to_owned(),
                         rect: Rect {
                             origin: Point {
-                                x: (b["X"].as_f64().unwrap() - view["X"].as_f64().unwrap()) * sx,
-                                y: (b["Y"].as_f64().unwrap() - view["Y"].as_f64().unwrap()) * sy,
+                                x: top_left.x / 2.0,
+                                y: top_left.y / 2.0,
                             },
                             size: Size {
-                                width: b["Width"].as_f64().unwrap() * sx,
-                                height: b["Height"].as_f64().unwrap() * sy,
+                                width: (bottom_right.x - top_left.x) / 2.0,
+                                height: (bottom_right.y - top_left.y) / 2.0,
                             },
                         },
                     }
