@@ -2027,9 +2027,15 @@ fn grid_object_margin(
             _ => {}
         }
     }
+    // d2graph `GetModifierElementAdjustments`: a 3D hexagon's dy is the Go
+    // integer constant expression THREE_DEE_OFFSET / 2, which is 7.
     if node.is_3d {
         margin.right += 15.0;
-        margin.top += 15.0;
+        margin.top += if node.shape == d2_rs_core::ShapeKind::Hexagon {
+            7.0
+        } else {
+            15.0
+        };
     } else if node.is_multiple {
         margin.right += 10.0;
         margin.top += 10.0;
