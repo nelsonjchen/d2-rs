@@ -129,3 +129,39 @@ fn image_dimensions_keep_the_minimum_in_partial_svg_output() {
         }
     }
 }
+
+#[test]
+fn ovals_with_one_authored_dimension_keep_the_fit_aspect_limit() {
+    // shapeOval.GetDimensionsToFit caps the label fit with
+    // LimitAR(OVAL_AR_LIMIT = 3) before SizeToContent replaces the authored
+    // dimension, so a long label cannot flatten an oval whose width is set,
+    // nor a tall label narrow one whose height is set. Expected radii are the
+    // pinned Go CLI's SVG output for these sources (dagre and ELK agree).
+    let cases = [
+        (
+            "a: { shape: oval; width: 26; label: \"xxxxxxxxxxxxxxxxxxx\" }",
+            r#"<ellipse rx="13" ry="37""#,
+        ),
+        (
+            "a: { shape: oval; height: 30; label: \"a\\nb\\nc\\nd\\ne\\nf\" }",
+            r#"<ellipse rx="24" ry="15""#,
+        ),
+        (
+            "a: { shape: oval; width: 40; label: \"a long oval label\" }",
+            r#"<ellipse rx="20" ry="27""#,
+        ),
+        // No authored dimension: SizeToContent's own LimitAR already applied.
+        (
+            "a: { shape: oval; label: \"a long oval label\" }",
+            r#"<ellipse rx="112.5" ry="37.5""#,
+        ),
+    ];
+    for engine in ["dagre", "elk"] {
+        for (source, ellipse) in cases {
+            let output = compile(&format!("{source}\n"), engine, "svg");
+            assert!(output.status.success(), "{engine}: {source}");
+            let svg = String::from_utf8(output.stdout).unwrap();
+            assert!(svg.contains(ellipse), "{engine}: {source}\nwant {ellipse}");
+        }
+    }
+}

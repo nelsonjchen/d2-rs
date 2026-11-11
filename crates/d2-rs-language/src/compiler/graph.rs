@@ -3098,10 +3098,21 @@ fn fit_source_shape(options: ShapeFitOptions) -> Size {
         }
         ShapeKind::Oval => {
             let theta = f64::from((content_height.atan2(content_width)) as f32);
-            (
-                (std::f64::consts::SQRT_2 * (content_width + padding_x * theta.cos())).ceil(),
-                (std::f64::consts::SQRT_2 * (content_height + padding_y * theta.sin())).ceil(),
-            )
+            let width =
+                (std::f64::consts::SQRT_2 * (content_width + padding_x * theta.cos())).ceil();
+            let height =
+                (std::f64::consts::SQRT_2 * (content_height + padding_y * theta.sin())).ceil();
+            // shapeOval.GetDimensionsToFit ends with LimitAR(OVAL_AR_LIMIT) so a
+            // long label cannot flatten the oval. SizeToContent applies LimitAR
+            // again only when width or height is unset, so this one decides the
+            // height of an oval with an authored width (and vice versa).
+            if width > 3.0 * height {
+                (width, (width / 3.0).round())
+            } else if height > 3.0 * width {
+                ((height / 3.0).round(), height)
+            } else {
+                (width, height)
+            }
         }
         ShapeKind::Diamond => (
             (2.0 * (content_width + padding_x)).ceil(),

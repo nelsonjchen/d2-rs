@@ -527,6 +527,15 @@ d2-rs and the pinned Go CLI on generated inputs (outputs and witnesses go to
   arrowhead and CLI flag, plus sequence diagrams, grids, SQL/class shapes,
   Markdown elements, near constants and icons, as small boards.
 - `scripts/chroma-differential.py`: one snippet per Chroma lexer (368 cases).
+- `scripts/shape-trace-differential.py`: seeded small graphs of every
+  non-rectangular shape at sizes around the wedge thresholds, with parallel,
+  reversed and labeled edges and containers, on dagre and ELK. Its first run
+  (2026-11-11, 3 seeds x 400 cases) found ovals with one authored dimension
+  sized without `shapeOval.GetDimensionsToFit`'s aspect limit (fixed; every
+  ELK case now matches) and a dagre ordering difference when opposing edges
+  between one pair carry a label after an unrelated node (open). Dagre and ELK
+  now clip edges with the Go-exact `shape.TraceToShapeBorder` port; the older
+  approximation is gone.
 - `scripts/fuzz-differential.py` and `scripts/fuzz-minimize.py`: random
   structural mutations of corpus inputs, flagging Rust panics, hangs and
   exit, error-text or output divergence, then line/character minimization.
