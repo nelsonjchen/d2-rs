@@ -71,18 +71,14 @@ pub(super) fn between(
             let value = (start + i * (end - start) / (fit + 1.0)).round();
             // Source newDerivedNode: reserve before allocating each temporary.
             step(budget)?;
-            if let Some(b) = budget {
-                b.reserve_nodes(1)?;
-            }
+            budget.reserve_nodes(1)?;
             let mut pa = if horizontal {
                 Point { x: 0.0, y: value }
             } else {
                 Point { x: value, y: 0.0 }
             };
             step(budget)?;
-            if let Some(b) = budget {
-                b.reserve_nodes(1)?;
-            }
+            budget.reserve_nodes(1)?;
             let mut pb = pa;
             step(budget)?;
             let ra = rect(graph, a);
@@ -235,10 +231,15 @@ mod tests {
         let g = graph(100.0, 100.0, 1);
         let nodes = g.graph_node_order();
         let mut ovg = PortBuild::default();
-        ovg.add_ports(&g, &nodes, None).unwrap();
+        ovg.add_ports(
+            &g,
+            &nodes,
+            &super::super::route_search_guard::OvgBuildBudget::new(),
+        )
+        .unwrap();
         let before = ovg.nodes.len();
         let b = OvgBuildBudget::new();
-        ovg.add_tunnels(&g, &nodes, Some(&b)).unwrap();
+        ovg.add_tunnels(&g, &nodes, &b).unwrap();
         assert_eq!(ovg.nodes.len(), before);
         assert_eq!(
             b.observed_resources()[1],
@@ -261,7 +262,12 @@ mod tests {
     #[test]
     fn detached_parallel_endpoints_have_even_source_spacing() {
         let g = graph(5000.0, 1000.0, 3);
-        let tunnels = build(&g, &g.graph_node_order(), None).unwrap();
+        let tunnels = build(
+            &g,
+            &g.graph_node_order(),
+            &super::super::route_search_guard::OvgBuildBudget::new(),
+        )
+        .unwrap();
         assert_eq!(tunnels.len(), 3);
         assert_eq!(
             tunnels.iter().map(|t| t[0].point).collect::<Vec<_>>(),
@@ -289,7 +295,7 @@ mod tests {
             .unwrap();
         let b = OvgBuildBudget::new();
         assert!(
-            between(&g, &g.graph_node_order(), Some(NodeId(0)), None, Some(&b))
+            between(&g, &g.graph_node_order(), Some(NodeId(0)), None, &b)
                 .unwrap()
                 .is_none()
         );

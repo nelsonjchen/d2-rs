@@ -11,9 +11,6 @@ pub(super) struct OwnerGraphDirectionHeader {
     entries: Option<DirectionBacking>,
 }
 impl OwnerGraphDirectionHeader {
-    pub(super) fn is_nil(&self) -> bool {
-        self.entries.is_none()
-    }
     pub(super) fn same_allocation(&self, other: &Self) -> bool {
         match (&self.entries, &other.entries) {
             (Some(a), Some(b)) => Arc::ptr_eq(a, b),
@@ -128,19 +125,6 @@ impl ArenaGraph {
 #[cfg(test)]
 mod direction_header_tests {
     use super::*;
-    fn name(value: Orientation) -> &'static str {
-        match value {
-            Orientation::None => "none",
-            Orientation::TopLeft => "top-left",
-            Orientation::Right => "right",
-            Orientation::Left => "left",
-            Orientation::Bottom => "bottom",
-            Orientation::TopRight => "top-right",
-            Orientation::BottomLeft => "bottom-left",
-            Orientation::BottomRight => "bottom-right",
-            _ => panic!("unexpected orientation"),
-        }
-    }
     #[test]
     fn prepared_component_inherits_actual_independent_direction_header() {
         let mut input = Graph::default();

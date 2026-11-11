@@ -363,7 +363,9 @@ pub(super) fn edge_nodes(
         .iter()
         .flat_map(|(&node, ports)| ports.iter().map(move |&port| (node, port)))
         .collect::<Vec<_>>();
-    build.import_ports(&ports, None).unwrap();
+    build
+        .import_ports(&ports, &super::route_search_guard::OvgBuildBudget::new())
+        .unwrap();
     let scope = scope_nodes.iter().copied().collect::<BTreeSet<_>>();
     let mut points = Vec::new();
     for edge_id in &graph.edge_order.read() {
@@ -386,7 +388,12 @@ pub(super) fn edge_nodes(
         }
         points.extend(
             build
-                .edge_fill_points(graph, edge.from, edge.to, None)
+                .edge_fill_points(
+                    graph,
+                    edge.from,
+                    edge.to,
+                    &super::route_search_guard::OvgBuildBudget::new(),
+                )
                 .unwrap(),
         );
     }
@@ -446,12 +453,12 @@ mod tests {
             budget.check().unwrap();
             let mut build = PortBuild::default();
             let scope = graph.graph_node_order();
-            build.add_ports(&graph, &scope, Some(&budget)).unwrap();
+            build.add_ports(&graph, &scope, &budget).unwrap();
             build
-                .add_nodes_intersections(&graph, &scope, Some(&budget))
+                .add_nodes_intersections(&graph, &scope, &budget)
                 .unwrap();
             assert_eq!(build.fixed_cache.len(), 1);
-            build.add_edge_nodes(&graph, &scope, Some(&budget)).unwrap();
+            build.add_edge_nodes(&graph, &scope, &budget).unwrap();
             assert_eq!(build.fixed_cache.len(), 1);
             assert_eq!(build.nodes.len(), nodes as usize);
             assert_eq!(budget.observed_resources(), [work, nodes, 0, candidates]);
@@ -463,7 +470,11 @@ mod tests {
         let graph = graph(0.0, Point { x: 0.0, y: 0.0 });
         let mut build = PortBuild::default();
         build
-            .add_ports(&graph, &graph.graph_node_order(), None)
+            .add_ports(
+                &graph,
+                &graph.graph_node_order(),
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
             .unwrap();
         for side in [
             PortSide::Top,
@@ -472,12 +483,23 @@ mod tests {
             PortSide::Right,
         ] {
             assert_eq!(
-                build.ports_by_orientation(NodeId(0), side, None).unwrap(),
+                build
+                    .ports_by_orientation(
+                        NodeId(0),
+                        side,
+                        &super::super::route_search_guard::OvgBuildBudget::new()
+                    )
+                    .unwrap(),
                 [0]
             );
         }
         let points = build
-            .perimeter_points(&graph, NodeId(0), NodeId(1), None)
+            .perimeter_points(
+                &graph,
+                NodeId(0),
+                NodeId(1),
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
             .unwrap();
         assert_eq!(points.len(), 12);
         assert_eq!(
@@ -501,7 +523,11 @@ mod tests {
             .unwrap();
         let mut build = PortBuild::default();
         build
-            .add_ports(&graph, &graph.graph_node_order(), None)
+            .add_ports(
+                &graph,
+                &graph.graph_node_order(),
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
             .unwrap();
         let caller = Caller {
             polls: Cell::new(0),
@@ -509,11 +535,11 @@ mod tests {
         };
         let budget = OvgBuildBudget::with_context(&caller);
         let perimeter = build
-            .perimeter_points(&graph, NodeId(0), NodeId(1), Some(&budget))
+            .perimeter_points(&graph, NodeId(0), NodeId(1), &budget)
             .unwrap();
         assert_eq!(perimeter[0], Point { x: 10.0, y: -100.0 });
         let halfway = build
-            .halfway_points(&graph, NodeId(0), NodeId(1), Some(&budget))
+            .halfway_points(&graph, NodeId(0), NodeId(1), &budget)
             .unwrap();
         // Go rounds the newly read bottom-right (-1194.5) away from zero.
         assert_eq!(halfway[0], Point { x: 10.0, y: -537.5 });
@@ -528,7 +554,7 @@ mod tests {
         };
         let budget = OvgBuildBudget::with_context(&caller);
         assert_eq!(
-            tight_bounds(&graph, &[NodeId(0), NodeId(1)], Some(&budget)).unwrap(),
+            tight_bounds(&graph, &[NodeId(0), NodeId(1)], &budget).unwrap(),
             None
         );
         assert_eq!(caller.polls.get(), 2);
@@ -559,9 +585,27 @@ mod tests {
                     && group(&graph, node, Sequence).is_some())
         );
         let mut build = PortBuild::default();
-        build.add_ports(&graph, &scope, None).unwrap();
-        build.add_nodes_intersections(&graph, &scope, None).unwrap();
-        build.add_edge_nodes(&graph, &scope, None).unwrap();
+        build
+            .add_ports(
+                &graph,
+                &scope,
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
+            .unwrap();
+        build
+            .add_nodes_intersections(
+                &graph,
+                &scope,
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
+            .unwrap();
+        build
+            .add_edge_nodes(
+                &graph,
+                &scope,
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
+            .unwrap();
         assert_eq!(build.nodes.len(), 66); // Unmodified Go stage observer.
     }
     #[test]
@@ -572,7 +616,11 @@ mod tests {
         }
         let mut build = PortBuild::default();
         build
-            .add_ports(&graph, &graph.graph_node_order(), None)
+            .add_ports(
+                &graph,
+                &graph.graph_node_order(),
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
             .unwrap();
         assert_eq!(build.nodes.len(), 1);
         assert_eq!(build.nodes[0].point().x.to_bits(), 0);

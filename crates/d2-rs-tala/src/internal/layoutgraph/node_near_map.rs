@@ -198,15 +198,6 @@ impl NodeNearMap {
         }
     }
 
-    /// Iterate a separately retained map without retaining its allocation twice.
-    /// Each next() drops its read guard before the consumer's owner callback.
-    pub(super) fn borrowed_cursor(&self) -> impl Iterator<Item = Option<NodeId>> + '_ {
-        let end = self.cursor_end();
-        let mut next_slot = 0;
-        let mut seen = BTreeSet::new();
-        std::iter::from_fn(move || next_key(self, &mut next_slot, end, &mut seen))
-    }
-
     pub(super) fn same_allocation(&self, other: &Self) -> bool {
         match (&self.storage, &other.storage) {
             (None, None) => true,

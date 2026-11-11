@@ -9,53 +9,6 @@
 
 use super::*;
 
-pub(super) fn route_is_clear(
-    graph: &ArenaGraph,
-    route: &[Point],
-    boxes: &BTreeMap<NodeId, Rect>,
-    source: NodeId,
-    target: NodeId,
-) -> bool {
-    let source_container = graph.nodes[source.0 as usize].container;
-    let target_container = graph.nodes[target.0 as usize].container;
-    let route_point_containers = graph.visibility_point_containers(route);
-    if route
-        .iter()
-        .zip(route_point_containers)
-        .skip(1)
-        .take(route.len().saturating_sub(2))
-        .any(|(_, point_container)| {
-            !graph.visibility_container_is_admissible(
-                source_container,
-                target_container,
-                point_container,
-                false,
-            )
-        })
-    {
-        return false;
-    }
-
-    route.windows(2).all(|segment| {
-        boxes.iter().all(|(node, rect)| {
-            // SplitSubgraphs routes siblings in their container's child
-            // graph. The common ancestor itself is therefore route scope,
-            // not an obstacle inside that scope.
-            if is_ancestor(graph, *node, source) || is_ancestor(graph, *node, target) {
-                return true;
-            }
-            // Endpoint port rays are admitted by their outward/ingress gates,
-            // just as recovered OVG search admits source-center -> source-port
-            // and target-port -> target-center hops. This matters for
-            // non-rectangular shapes such as clouds, whose silhouette ports
-            // legitimately lie inside the shape's bounding rectangle.
-            *node == source
-                || *node == target
-                || !segment_touches_rect(segment[0], segment[1], *rect)
-        })
-    })
-}
-
 /// The pinned v0.9.0 box predicate used by `Node.PassesThrough` and
 /// `segmentIntersectsBox`. After broad-phase rejection and endpoint
 /// containment, it clips against the closed box and requires a positive
@@ -136,26 +89,6 @@ pub(super) fn segment_endpoints_from_ovg_nodes(points: &[Point]) -> Option<Vec<P
     Some(result)
 }
 
-/// Route.createSegmentEndpoints for a route whose synthetic endpoint centers
-/// have already been removed. Compare each original triple without iterative
-/// collinearity reduction; reversals and diagonal neighbors matter.
-pub(super) fn segment_endpoints_from_ports(points: &[Point]) -> Vec<Point> {
-    let Some(first) = points.first().copied() else {
-        return Vec::new();
-    };
-    let mut result = vec![first];
-    for triple in points.windows(3) {
-        let [previous, current, next] = [triple[0], triple[1], triple[2]];
-        if (current.x == previous.x && current.x != next.x)
-            || (current.y == previous.y && current.y != next.y)
-        {
-            result.push(current);
-        }
-    }
-    result.push(*points.last().unwrap());
-    result
-}
-
 pub(super) fn simplify_route(points: Vec<Point>) -> Vec<Point> {
     let mut result: Vec<Point> = Vec::with_capacity(points.len());
     for point in points {
@@ -179,32 +112,6 @@ pub(super) fn simplify_route(points: Vec<Point>) -> Vec<Point> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn source_segment_materialization_uses_original_neighbors() {
-        let diagonal = [
-            Point { x: 0.0, y: 0.0 },
-            Point { x: 1.0, y: 1.0 },
-            Point { x: 2.0, y: 2.0 },
-        ];
-        assert_eq!(
-            segment_endpoints_from_ports(&diagonal),
-            vec![diagonal[0], diagonal[2]]
-        );
-        let reversal = [
-            Point { x: 0.0, y: 0.0 },
-            Point { x: 0.0, y: 2.0 },
-            Point { x: 0.0, y: 1.0 },
-            Point { x: 3.0, y: 1.0 },
-        ];
-        assert_eq!(
-            segment_endpoints_from_ports(&reversal),
-            vec![reversal[0], reversal[2], reversal[3]]
-        );
-        let repeated = [Point { x: 1.0, y: 1.0 }; 2];
-        assert_eq!(segment_endpoints_from_ports(&repeated), repeated);
-        assert!(segment_endpoints_from_ports(&[]).is_empty());
-    }
 
     #[test]
     fn create_segment_endpoints_keeps_a_one_ulp_bend() {

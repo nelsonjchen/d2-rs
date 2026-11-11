@@ -1660,10 +1660,8 @@ fn reorder_duplicates_in_header(
             snapshots.push((edge, points, values));
         }
     }
-    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        reorder_duplicates_inner(graph, edges, context)
-    }));
-    if !matches!(&outcome, Ok(Ok(()))) {
+    let outcome = reorder_duplicates_inner(graph, edges, context);
+    if outcome.is_err() {
         // Go copies active pointer slots, without restoring point coordinates
         // or any spare capacity outside those original active slots.
         for (edge, points, values) in snapshots {
@@ -1676,10 +1674,7 @@ fn reorder_duplicates_in_header(
             graph.edge_records[edge].route.replace(points);
         }
     }
-    match outcome {
-        Ok(result) => result,
-        Err(payload) => std::panic::resume_unwind(payload),
-    }
+    outcome
 }
 pub(super) fn reorder_duplicates_checked(
     graph: &mut ArenaGraph,
@@ -1951,7 +1946,6 @@ mod tests {
     struct ReorderTestContext {
         polls: std::cell::Cell<u64>,
         stop: u64,
-        panic: bool,
         point: Option<super::super::owner_points::SharedOwnerPoint>,
     }
     impl super::super::limits::Context for ReorderTestContext {
@@ -1968,9 +1962,6 @@ mod tests {
                         x: 9876.5,
                         y: -1234.5,
                     });
-                }
-                if self.panic {
-                    panic!("reorder context panic");
                 }
                 return Some(super::super::limits::ContextError::Cancelled);
             }
@@ -2004,82 +1995,62 @@ mod tests {
         assert!(middle.slot(1).unwrap().same_allocation(&old_middle));
     }
     #[test]
-    fn reorder_public_restores_slots_on_each_cancel_and_panic() {
-        for panic in [false, true] {
-            for stop in 1..=10 {
-                let mut g = reorder_fixture();
-                let last = &mut g.edge_records[2];
-                std::mem::swap(&mut last.from, &mut last.to);
-                last.route.reverse();
-                let saved = g
-                    .edge_records
-                    .iter()
-                    .map(|e| {
-                        (
-                            e.route.clone(),
-                            e.route.header().iter_slots().collect::<Vec<_>>(),
-                        )
-                    })
-                    .collect::<Vec<_>>();
-                let c = ReorderTestContext {
-                    polls: 0.into(),
-                    stop,
-                    panic,
-                    point: None,
-                };
-                let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    reorder_duplicates_with_context(&mut g, Some(&c))
-                }));
-                if panic {
-                    assert!(result.is_err());
-                } else {
-                    assert!(result.unwrap().is_err());
-                }
-                for (e, (header, slots)) in g.edge_records.iter().zip(saved) {
-                    assert!(e.route.header().same_backing_allocation(&header.header()));
-                    assert_eq!(e.route.len(), header.len());
-                    assert_eq!(e.route.capacity(), header.capacity());
-                    for (i, slot) in slots.into_iter().enumerate() {
-                        assert!(e.route.slot(i).unwrap().same_allocation(&slot.unwrap()));
-                    }
+    fn reorder_public_restores_slots_on_each_cancel() {
+        for stop in 1..=10 {
+            let mut g = reorder_fixture();
+            let last = &mut g.edge_records[2];
+            std::mem::swap(&mut last.from, &mut last.to);
+            last.route.reverse();
+            let saved = g
+                .edge_records
+                .iter()
+                .map(|e| {
+                    (
+                        e.route.clone(),
+                        e.route.header().iter_slots().collect::<Vec<_>>(),
+                    )
+                })
+                .collect::<Vec<_>>();
+            let c = ReorderTestContext {
+                polls: 0.into(),
+                stop,
+                point: None,
+            };
+            assert!(reorder_duplicates_with_context(&mut g, Some(&c)).is_err());
+            for (e, (header, slots)) in g.edge_records.iter().zip(saved) {
+                assert!(e.route.header().same_backing_allocation(&header.header()));
+                assert_eq!(e.route.len(), header.len());
+                assert_eq!(e.route.capacity(), header.capacity());
+                for (i, slot) in slots.into_iter().enumerate() {
+                    assert!(e.route.slot(i).unwrap().same_allocation(&slot.unwrap()));
                 }
             }
         }
     }
     #[test]
     fn reorder_public_rollback_keeps_context_coordinate_mutation() {
-        for panic in [false, true] {
-            let mut g = reorder_fixture();
-            let point = g.edge_records[0].route.slot(0).unwrap();
-            let c = ReorderTestContext {
-                polls: 0.into(),
-                stop: 10,
-                panic,
-                point: Some(point.clone()),
-            };
-            let original = g.edge_records[1].route.clone();
-            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                reorder_duplicates_with_context(&mut g, Some(&c))
-            }));
-            if panic {
-                assert!(result.is_err());
-            } else {
-                assert!(result.unwrap().is_err());
+        let mut g = reorder_fixture();
+        let point = g.edge_records[0].route.slot(0).unwrap();
+        let c = ReorderTestContext {
+            polls: 0.into(),
+            stop: 10,
+            point: Some(point.clone()),
+        };
+        let original = g.edge_records[1].route.clone();
+        assert!(reorder_duplicates_with_context(&mut g, Some(&c)).is_err());
+        assert!(
+            g.edge_records[1]
+                .route
+                .header()
+                .same_backing_allocation(&original.header())
+        );
+        assert_eq!(
+            point.get(),
+            Point {
+                x: 9876.5,
+                y: -1234.5
             }
-            assert!(
-                g.edge_records[1]
-                    .route
-                    .header()
-                    .same_backing_allocation(&original.header())
-            );
-            assert_eq!(
-                point.get(),
-                Point {
-                    x: 9876.5,
-                    y: -1234.5
-                }
-            );
-        }
+        );
     }
     #[test]
     fn reorder_straight_two_null_points_does_not_dereference_them() {

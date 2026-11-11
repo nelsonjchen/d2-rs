@@ -9,10 +9,8 @@ impl ArenaGraph {
     pub(super) fn publish_sequence_creation(&mut self, index: usize, remembered: Option<OwnerMemberHeader>) -> Result<(), OwnerTopologyError> {
         let sequence = self.sequences[index].clone();
         let members = &sequence.members;
-        let mut fresh = Graph::default();
-        let local = fresh.add_node(crate::Node::new(String::new(), Size::default()));
-        fresh.tala_id_overrides[local.0 as usize] = Some(sequence.vessel_tala_id);
-        let entity = ArenaGraph::from_input(&fresh).nodes.remove(0);
+        // grouping/sequences.go:395 NewNode(id, 0, 0).
+        let entity = ArenaNode::new_unpositioned(Size::default(), sequence.vessel_tala_id);
         let vessel = self.retain_topology_node(entity);
         let group = self.new_owner_group(OwnerGroupKind::Sequence);
         let header = if let Some(header) = remembered { header } else {
@@ -109,7 +107,6 @@ impl ArenaGraph {
         }
         let map = self.owner_graph_group_map(OwnerGraphId(0), OwnerGroupKind::Sequence)?;
         self.write_owner_group_map_entry(&map, Some(vessel), Some(group))?;
-        self.descendant_cache.clear();
         Ok(())
     }
 }

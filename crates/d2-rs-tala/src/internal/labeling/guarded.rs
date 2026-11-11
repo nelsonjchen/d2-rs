@@ -294,7 +294,7 @@ fn transaction(
             )
         })
         .collect::<Vec<_>>();
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    let result = (|| {
         let mut work = Work::new(context.unwrap(), limit, location)?;
         work.recover_invariants = recover_invariants;
         if all {
@@ -302,8 +302,8 @@ fn transaction(
         } else {
             place_inner(graph, &selected, &work)
         }
-    }));
-    if !matches!(&result, Ok(Ok(()))) {
+    })();
+    if result.is_err() {
         for (id, position, icon) in nodes {
             graph.nodes[id.0 as usize].label_position = position;
             graph.nodes[id.0 as usize].icon_position = icon;
@@ -317,10 +317,7 @@ fn transaction(
             }
         }
     }
-    match result {
-        Ok(result) => result,
-        Err(payload) => std::panic::resume_unwind(payload),
-    }
+    result
 }
 fn label_box(
     graph: &ArenaGraph,

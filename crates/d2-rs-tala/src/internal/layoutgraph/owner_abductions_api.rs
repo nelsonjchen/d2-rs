@@ -32,21 +32,6 @@ impl OwnerAbductionHeader {
     pub(super) fn borrowed_slots(&self) -> impl Iterator<Item = Option<OwnerAbductionId>> + '_ {
         self.slice.borrowed_slots()
     }
-    pub(super) fn reslice_with_capacity(
-        &self,
-        low: usize,
-        high: usize,
-        max: usize,
-    ) -> Result<Self, OwnerTopologyError> {
-        Ok(Self {
-            arena: self.arena,
-            scope: self.scope,
-            slice: self
-                .slice
-                .reslice_with_capacity(low, high, max)
-                .map_err(|e| OwnerTopologyError::ContainerSlice(e.to_string()))?,
-        })
-    }
 }
 impl ArenaGraph {
     pub(super) fn validate_owner_abduction_header(

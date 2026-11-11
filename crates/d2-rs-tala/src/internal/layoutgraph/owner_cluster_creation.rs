@@ -13,13 +13,9 @@ impl ArenaGraph {
         let cluster = self.clusters[index].clone();
         let members = &cluster.members;
         let container = self.nodes[members[0].0 as usize].container;
-        let mut fresh = Graph::default();
-        let local = fresh.add_node(crate::Node::new(
-            String::new(),
-            self.cluster_vessel_size(index),
-        ));
-        fresh.tala_id_overrides[local.0 as usize] = Some(cluster.vessel_tala_id);
-        let mut entity = ArenaGraph::from_input(&fresh).nodes.remove(0);
+        // grouping/clusters.go:91 NewNode, already carrying the vessel size.
+        let mut entity =
+            ArenaNode::new_unpositioned(self.cluster_vessel_size(index), cluster.vessel_tala_id);
         entity.container = container;
         entity.position = self.pending_cluster_vessel_positions.get(&index).copied();
         if let Some(point) = entity.position {

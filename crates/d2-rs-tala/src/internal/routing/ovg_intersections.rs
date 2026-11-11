@@ -3,24 +3,21 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 //! Ordinary OVG intersections: pinned ovg.go and ovg_resource.go.
 use super::ovg_groups::group;
-use super::ovg_ports::{PortBuild, PortList, SharedPortNode};
+use super::ovg_ports::{PortBuild, PortList};
 use super::route_search_guard::OvgBuildBudget;
 use super::{ArenaGraph, NodeId, Point, Rect};
 use crate::internal::owner_groups::OwnerGroupKind::{Cluster, Sequence};
 use d2_rs_core::stable_sort::StableSort;
 use std::collections::{BTreeMap, BTreeSet};
-pub(super) type Budget<'a, 'b> = Option<&'a OvgBuildBudget<'b>>;
+pub(super) type Budget<'a, 'b> = &'a OvgBuildBudget<'b>;
 pub(super) fn check(budget: Budget<'_, '_>) -> Result<(), ()> {
-    budget.map_or(Ok(()), |b| b.check())
+    budget.check()
 }
 // Keep the constant one-unit charge in each scan. An outlined adapter would
 // restore the per-step call even when reserve_work's ordinary path inlines.
 #[inline(always)]
 pub(super) fn step(budget: Budget<'_, '_>) -> Result<(), ()> {
-    match budget {
-        Some(budget) => budget.reserve_work(1),
-        None => Ok(()),
-    }
+    budget.reserve_work(1)
 }
 pub(super) fn rect(graph: &ArenaGraph, node: NodeId) -> Rect {
     Rect {
@@ -309,27 +306,21 @@ impl PortBuild {
             .checked_mul(ys.len())
             .and_then(|n| u64::try_from(n).ok())
             .ok_or(())?;
-        if let Some(b) = budget {
-            b.reserve_candidates(count)?;
-            b.reserve_work(count)?;
-        }
+        budget.reserve_candidates(count)?;
+        budget.reserve_work(count)?;
         let mut x_order = Vec::with_capacity(xs.len());
         for &(x, ()) in xs.entries() {
             check(budget)?;
             x_order.push(x);
         }
-        if let Some(b) = budget {
-            b.reserve_sort_work(x_order.len())?;
-        }
+        budget.reserve_sort_work(x_order.len())?;
         sort(&mut x_order);
         let mut y_order = Vec::with_capacity(ys.len());
         for &(y, ()) in ys.entries() {
             check(budget)?;
             y_order.push(y);
         }
-        if let Some(b) = budget {
-            b.reserve_sort_work(y_order.len())?;
-        }
+        budget.reserve_sort_work(y_order.len())?;
         sort(&mut y_order);
         let fixed = self.fixed_overlaps(graph, graph_nodes, budget)?;
         let index = PortIndex::new(self, graph, graph_nodes, &fixed, budget)?;
@@ -416,9 +407,7 @@ impl PortIndex {
             }
         }
         for (_, values) in out.x_by_y.entries_mut().chain(out.y_by_x.entries_mut()) {
-            if let Some(b) = budget {
-                b.reserve_sort_work(values.len())?;
-            }
+            budget.reserve_sort_work(values.len())?;
             sort(values);
         }
         for (owners, blockers, horizontal) in [
@@ -485,25 +474,6 @@ impl PortIndex {
         budget: Budget<'_, '_>,
     ) -> Result<bool, ()> {
         self.unobstructed_with_point(build, graph, || Some(point), required, budget)
-    }
-
-    /// Source receiver-bound query: entry, per-port alignment and each blocker
-    /// read the current Point field after their respective context callbacks.
-    pub(super) fn unobstructed_node(
-        &self,
-        build: &PortBuild,
-        graph: &ArenaGraph,
-        node: &SharedPortNode,
-        required: usize,
-        budget: Budget<'_, '_>,
-    ) -> Result<bool, ()> {
-        self.unobstructed_with_point(
-            build,
-            graph,
-            || node.read().point_ref.as_ref().map(|point| point.get()),
-            required,
-            budget,
-        )
     }
 
     fn unobstructed_with_point(
@@ -669,9 +639,9 @@ mod tests {
         budget.check().unwrap();
         let mut build = PortBuild::default();
         let nodes = graph.graph_node_order();
-        build.add_ports(&graph, &nodes, Some(&budget)).unwrap();
+        build.add_ports(&graph, &nodes, &budget).unwrap();
         build
-            .add_nodes_intersections(&graph, &nodes, Some(&budget))
+            .add_nodes_intersections(&graph, &nodes, &budget)
             .unwrap();
         assert_eq!(build.nodes.len(), 1);
         assert_eq!(budget.observed_resources(), [354, 1, 0, 1]);
@@ -690,12 +660,31 @@ mod tests {
             .unwrap();
         let nodes = graph.graph_node_order();
         let mut build = PortBuild::default();
-        build.add_ports(&graph, &nodes, None).unwrap();
-        let index = PortIndex::new(&build, &graph, &nodes, &BTreeSet::new(), None).unwrap();
+        build
+            .add_ports(
+                &graph,
+                &nodes,
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
+            .unwrap();
+        let index = PortIndex::new(
+            &build,
+            &graph,
+            &nodes,
+            &BTreeSet::new(),
+            &super::super::route_search_guard::OvgBuildBudget::new(),
+        )
+        .unwrap();
         assert!(index.vertical.get(10.0).unwrap().contains(&NodeId(0)));
         assert!(
             !index
-                .unobstructed(&build, &graph, Point { x: 0.0, y: 130.0 }, 2, None)
+                .unobstructed(
+                    &build,
+                    &graph,
+                    Point { x: 0.0, y: 130.0 },
+                    2,
+                    &super::super::route_search_guard::OvgBuildBudget::new()
+                )
                 .unwrap()
         );
         point.set(Point {
@@ -707,7 +696,13 @@ mod tests {
         // rejection and clipping read the now-moved owner.
         assert!(
             index
-                .unobstructed(&build, &graph, Point { x: 0.0, y: 130.0 }, 2, None)
+                .unobstructed(
+                    &build,
+                    &graph,
+                    Point { x: 0.0, y: 130.0 },
+                    2,
+                    &super::super::route_search_guard::OvgBuildBudget::new()
+                )
                 .unwrap()
         );
     }
@@ -736,10 +731,10 @@ mod tests {
             budget.check().unwrap();
             let mut build = PortBuild::default();
             let nodes = graph.graph_node_order();
-            build.add_ports(&graph, &nodes, Some(&budget)).unwrap();
+            build.add_ports(&graph, &nodes, &budget).unwrap();
             assert_eq!(build.nodes.len(), 24);
             build
-                .add_nodes_intersections(&graph, &nodes, Some(&budget))
+                .add_nodes_intersections(&graph, &nodes, &budget)
                 .unwrap();
             assert_eq!(build.nodes.len(), 42);
             assert_eq!(budget.observed_resources(), [work, 42, 0, 100]);

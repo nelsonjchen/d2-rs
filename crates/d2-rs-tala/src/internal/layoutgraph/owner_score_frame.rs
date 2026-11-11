@@ -568,22 +568,6 @@ impl<'a> OwnerScoreFrame<'a> {
         Ok(self.container_direction(outer)? != Orientation::None)
     }
 
-    fn vessel_node(&self, vessel: TopologyVessel) -> Result<NodeId, OwnerScoreError> {
-        let exists = match vessel {
-            TopologyVessel::Cluster(index) => self.owner.clusters.get(index).is_some(),
-            TopologyVessel::Sequence(index) => self.owner.sequences.get(index).is_some(),
-        };
-        if !exists {
-            return Err(OwnerTopologyError::InvalidVessel(vessel).into());
-        }
-        let canonical = self
-            .owner
-            .topology_vessel_node(vessel)
-            .ok_or(OwnerTopologyError::UnboundVessel(vessel))?;
-        self.node(canonical)?;
-        Ok(canonical)
-    }
-
     /// quality_api.go26–31 and node.go2344–2352. Active means the actual
     /// bound vessel.Graph is nonnil (cluster.go222, sequence.go160), regardless
     /// of position or member ordering. A first member is never a vessel.

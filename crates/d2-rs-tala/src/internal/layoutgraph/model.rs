@@ -975,6 +975,78 @@ impl Clone for ArenaNode {
 }
 
 impl ArenaNode {
+    /// layoutgraph/node.go NewNode (717-729): an unnamed node with an empty
+    /// allocated edge slice and Near map, the default shape and a sized box
+    /// without a position. Equal to the node `ArenaGraph::from_input` builds
+    /// for a one-node graph of `crate::Node::new("", size)` with this TALA
+    /// id, without constructing that graph.
+    pub(super) fn new_unpositioned(size: Size, tala_id: i64) -> Self {
+        Self {
+            position: None,
+            rect: Rect {
+                origin: Point::default(),
+                size,
+            },
+            shape: ShapeKind::Rectangle,
+            is_container: false,
+            scoring_is_container: false,
+            scoring_is_aggregate_vessel: false,
+            is_invisible: false,
+            label_text_present: false,
+            force_hierarchy: false,
+            has_icon: false,
+            layout_margins: Insets::uniform(0.0),
+            loop_offsets: None,
+            edges: IncidentEdges::default(),
+            tala_id,
+            container: None,
+            cluster: None,
+            sequence: None,
+            scoring_container_ancestors: Vec::new(),
+            external_id: String::new(),
+            d2_id: None,
+            declared_size: None,
+            initial_position: None,
+            unpositioned_scope_translation: None,
+            nears: super::node_near_map::NodeNearMap::allocated(),
+            herd_assignment: None,
+            fixed_top_left: None,
+            hierarchy: None,
+            desired_width: None,
+            desired_height: None,
+            folded_label_min_size: None,
+            label_size: None,
+            scoring_container_parent: None,
+            scoring_cluster_vessel: None,
+            transaction_anchor_tala_id: None,
+            transaction_anchor_offset: None,
+            content_insets: Insets::uniform(60.0),
+            node_padding: Insets::uniform(0.0),
+            grid_rows: None,
+            grid_columns: None,
+            external_label: None,
+            table_column_count: None,
+            input_id: NodeId(0),
+            font_size: None,
+            owner_geometry_source: None,
+            owner_geometry_anchor: None,
+            scope_translation_materialized: false,
+            is_sequence_diagram: false,
+            label_position: LabelPosition::Unset,
+            label_position_fixed: false,
+            icon_position_fixed: false,
+            scoring_cluster_arrangement: None,
+            transaction_position_was_nil: false,
+            transaction_validation_only: false,
+            canvas_position: None,
+            label_aware_grid: false,
+            packed_grid: false,
+            is_3d: false,
+            is_multiple: false,
+            icon_position: None,
+        }
+    }
+
     /// A clone whose edge and near-map handles are supplied by the caller.
     /// Projections that immediately replace both fields use this instead of
     /// forking storage that would be discarded.
@@ -3194,8 +3266,6 @@ pub(super) struct ArenaGraph {
     pub(super) placement_scope_owned: bool,
     pub(super) root_hierarchy: bool,
     pub(super) containers: ContainerMap,
-    /// Historical traversal image; live traversal reads Containers directly.
-    pub(super) descendant_cache: Vec<Vec<NodeId>>,
     pub directions: BTreeMap<Option<NodeId>, Direction>,
     pub(super) scoring_directions: BTreeMap<Option<NodeId>, Direction>,
     /// TALA's `Graph.CopyEntitiesFrom` shares the direction maps keyed by

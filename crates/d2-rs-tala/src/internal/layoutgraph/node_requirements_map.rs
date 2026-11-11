@@ -95,18 +95,6 @@ impl NodeRequirementsMap {
         self.keys.insert(key)?;
         Ok(())
     }
-    pub(super) fn delete(&self, key: Option<NodeId>) {
-        if let Some(values) = &self.values {
-            values.write().expect("requirement map write").remove(&key);
-            self.keys.delete(key);
-        }
-    }
-    pub(super) fn clear(&self) {
-        if let Some(values) = &self.values {
-            values.write().expect("requirement map write").clear();
-            self.keys.clear();
-        }
-    }
     pub(super) fn snapshot(&self) -> NodeRequirementsMapSnapshot {
         NodeRequirementsMapSnapshot {
             original: self.retained(),
@@ -189,32 +177,6 @@ impl ArenaGraph {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::{Value, json};
-    fn state(map: &NodeRequirementsMap) -> Value {
-        let mut keys = map.raw_keys();
-        keys.sort_by_key(|k| k.map_or(0, |n| n.0 + 1));
-        let entries = keys
-            .into_iter()
-            .map(|key| {
-                let r = map.get(key);
-                [
-                    key.map_or(0, |n| n.0 as i64 + 1),
-                    r.edge_count,
-                    r.max_width,
-                    r.max_height,
-                ]
-            })
-            .collect::<Vec<_>>();
-        let missing = map.get(Some(NodeId(99)));
-        json!({"nil":map.is_nil(),"entries":entries,"missing":[missing.edge_count,missing.max_width,missing.max_height]})
-    }
-    fn observe(
-        field: &NodeRequirementsMap,
-        alias: &NodeRequirementsMap,
-        detached: &NodeRequirementsMap,
-    ) -> Value {
-        json!({"field":state(field),"alias":state(alias),"detached":state(detached)})
-    }
     #[test]
     fn owner_topology_snapshot_restores_full_values_and_clone_preserves_internal_aliases() {
         let mut input = crate::Graph::default();

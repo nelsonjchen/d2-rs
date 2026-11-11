@@ -319,36 +319,6 @@ fn vertical_or_horizontal_overlap(
     (both_vertical || both_horizontal) && segments_intersect(other_start, other_end, start, end)
 }
 
-/// Translation of recovered `Graph.RouteLine`.
-///
-/// `all_edge_indices` is the recovered `allEdges` slice. `ovgEdgeRouter`
-/// supplies only fixed and previously accepted edges, while
-/// `tryStraightEdgeFallback` deliberately supplies the graph's complete edge
-/// slice. During staged routing, accepted geometry lives in the router's
-/// route array even though the arena edge is not committed until the stage
-/// finishes; use that view for the same endpoint/overlap queries Go makes
-/// against its routed edge objects. The standalone fallback supplies `None`
-/// and therefore uses the committed arena points.
-pub(super) fn route_line(
-    graph: &ArenaGraph,
-    edge_index: usize,
-    all_edge_indices: &[usize],
-    routes: Option<&[Vec<Point>]>,
-) -> Option<LineRoute> {
-    route_line_with_overlap_mode(
-        graph,
-        edge_index,
-        all_edge_indices,
-        routes,
-        routes,
-        routes.is_some(),
-        false,
-        None,
-        None,
-        None,
-    )
-}
-
 /// RouteLine variant used by StraightEdgesFallback. The Go fallback evaluates
 /// a candidate against only the routes whose segments actually overlap it;
 /// ordinary route-line callers retain the recovered staged-search gate.
@@ -433,6 +403,7 @@ fn arrowhead_label_cost_with_budget(
     )
 }
 
+#[cfg(test)]
 pub(super) fn route_line_with_budget(
     graph: &ArenaGraph,
     edge_index: usize,
@@ -456,6 +427,7 @@ pub(super) fn route_line_with_budget(
 
 /// Error fallback uses original edge points for ordinary geometry queries.
 /// Published OVG routes supply only the prior positioned-label inventory.
+#[cfg(test)]
 pub(super) fn route_line_with_published_labels(
     graph: &ArenaGraph,
     edge_index: usize,

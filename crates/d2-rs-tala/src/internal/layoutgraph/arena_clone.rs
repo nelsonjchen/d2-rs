@@ -66,7 +66,6 @@ impl Clone for ArenaGraph {
             placement_scope_owned: self.placement_scope_owned,
             root_hierarchy: self.root_hierarchy,
             containers: ContainerMap::from_shared(maps[0].clone()),
-            descendant_cache: self.descendant_cache.clone(),
             directions: self.directions.clone(),
             scoring_directions: self.scoring_directions.clone(),
             directions_by_tala: self.directions_by_tala.clone(),

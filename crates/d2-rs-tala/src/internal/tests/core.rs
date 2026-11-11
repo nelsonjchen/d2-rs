@@ -12028,3 +12028,25 @@ fn assign_test_parent_herds(pipeline: &mut Pipeline, root: NodeId) {
         .unwrap();
     pipeline.restore_prepared_owner_scope(&prepared).unwrap();
 }
+
+#[test]
+fn unpositioned_node_constructor_equals_one_node_arena_construction() {
+    for (size, tala_id) in [
+        (Size::default(), 7_i64),
+        (
+            Size {
+                width: 128.0,
+                height: 276.0,
+            },
+            -42,
+        ),
+    ] {
+        let mut input = Graph::default();
+        let local = input.add_node(Node::new(String::new(), size));
+        input.tala_id_overrides[local.0 as usize] = Some(tala_id);
+        let expected = ArenaGraph::from_input(&input).nodes.remove(0);
+        let actual = ArenaNode::new_unpositioned(size, tala_id);
+        assert_eq!(format!("{actual:?}"), format!("{expected:?}"));
+        assert_eq!(actual.nears.is_nil(), expected.nears.is_nil());
+    }
+}

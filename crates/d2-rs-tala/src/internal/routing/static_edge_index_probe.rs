@@ -102,7 +102,7 @@ pub(in crate::internal) fn run(value: Value) -> Value {
         for node in &nodes {let id=build.allocate_node(node.point());build.nodes[id].write().point_ref=node.shared.clone();}
         for (connection,edge) in config["connections"].as_array().unwrap().iter().enumerate(){
             if let Some(changes)=config.get("connection_mutations").and_then(Value::as_array){for change in changes{if integer(change,"before",usize::MAX)==connection{nodes[integer(change,"node",0)].shared.as_ref().unwrap().set(point(&change["point"]));}}}
-            build.connect(edge[0].as_u64().unwrap() as usize,edge[1].as_u64().unwrap() as usize,None).unwrap();
+            build.connect(edge[0].as_u64().unwrap() as usize,edge[1].as_u64().unwrap() as usize,&super::super::route_search_guard::OvgBuildBudget::new()).unwrap();
         }
         if let Some(changes)=config.get("before_bind").and_then(Value::as_array){for change in changes{nodes[integer(change,"node",0)].shared.as_ref().unwrap().set(point(&change["point"]));}}
         let mut index=StaticEdgeIndex::from_build(&build);let mut observations=Vec::new();

@@ -23,15 +23,15 @@ fn route_container_is_admissible_guarded(
     target: Option<NodeId>,
     candidate: Option<NodeId>,
     fixed_overlap: bool,
-    budget: Option<&LocalRouteSearchWork>,
+    budget: &LocalRouteSearchWork,
 ) -> Option<bool> {
     let Some(candidate) = candidate else {
         return Some(true);
     };
     let source_inside =
-        super::route_search_guard::is_descendant_of(graph, source, Some(candidate), budget)?;
+        super::route_search_guard::is_descendant_of(graph, source, Some(candidate), Some(budget))?;
     let target_inside =
-        super::route_search_guard::is_descendant_of(graph, target, Some(candidate), budget)?;
+        super::route_search_guard::is_descendant_of(graph, target, Some(candidate), Some(budget))?;
     Some(source_inside || target_inside || fixed_overlap)
 }
 
@@ -39,12 +39,10 @@ fn route_container_is_admissible_guarded(
 fn ideal_turn_multiplier_guarded(
     point: Point,
     axes: &[(bool, f64)],
-    budget: Option<&LocalRouteSearchWork>,
+    budget: &LocalRouteSearchWork,
 ) -> Option<f64> {
     for &(vertical, position) in axes {
-        if let Some(budget) = budget {
-            budget.step().ok()?;
-        }
+        budget.step().ok()?;
         let coordinate = if vertical { point.x } else { point.y };
         if (coordinate - position).abs() <= 4.0 {
             return Some(0.98);
@@ -260,18 +258,16 @@ impl PreparedRouteSearch {
         source_count: usize,
         target_count: usize,
         has_table_column: bool,
-        budget: Option<&LocalRouteSearchWork>,
+        budget: &LocalRouteSearchWork,
     ) -> Option<()> {
         // Table hydration retains its existing path until its guarded port
         // walks are translated; do not treat it as qualified non-table setup.
         if has_table_column {
             return Some(());
         }
-        if let Some(budget) = budget {
-            budget
-                .reserve_product(source_count as u64, target_count as u64)
-                .ok()?;
-        }
+        budget
+            .reserve_product(source_count as u64, target_count as u64)
+            .ok()?;
         let mut blocked = BTreeSet::new();
         let (source_inside, target_inside) = self.ancestry?;
         if !source_inside && !target_inside {
@@ -315,7 +311,7 @@ impl PreparedRouteSearch {
         target_ports: &[Port],
         allowed_source: Option<&[Port]>,
         allowed_target: Option<&[Port]>,
-        budget: Option<&LocalRouteSearchWork>,
+        budget: &LocalRouteSearchWork,
     ) -> Option<()> {
         self.blocked_source.clear();
         self.blocked_target.clear();
@@ -325,9 +321,7 @@ impl PreparedRouteSearch {
         ] {
             if let Some(allowed) = allowed {
                 for port in raw {
-                    if let Some(guard) = budget {
-                        guard.step().ok()?;
-                    }
+                    budget.step().ok()?;
                     if !allowed.iter().any(|selected| selected.point == port.point) {
                         blocked.insert(super::go_point_map_key(port.point));
                     }
@@ -342,7 +336,7 @@ impl PreparedRouteSearch {
         &mut self,
         graph: &ArenaGraph,
         edge_index: usize,
-        budget: Option<&LocalRouteSearchWork>,
+        budget: &LocalRouteSearchWork,
     ) -> Option<()> {
         let edge = &graph.edge_records[edge_index];
         self.arrowhead_nodes.clear();
@@ -350,7 +344,7 @@ impl PreparedRouteSearch {
             return Some(());
         }
         self.arrowhead_nodes =
-            super::route_search_guard::filter_edge_ancestors(graph, edge_index, budget)?;
+            super::route_search_guard::filter_edge_ancestors(graph, edge_index, Some(budget))?;
         Some(())
     }
 
@@ -359,12 +353,20 @@ impl PreparedRouteSearch {
         graph: &ArenaGraph,
         source: NodeId,
         target: NodeId,
-        budget: Option<&LocalRouteSearchWork>,
+        budget: &LocalRouteSearchWork,
     ) -> Option<()> {
-        let source_inside =
-            super::route_search_guard::is_descendant_of(graph, Some(source), Some(target), budget)?;
-        let target_inside =
-            super::route_search_guard::is_descendant_of(graph, Some(target), Some(source), budget)?;
+        let source_inside = super::route_search_guard::is_descendant_of(
+            graph,
+            Some(source),
+            Some(target),
+            Some(budget),
+        )?;
+        let target_inside = super::route_search_guard::is_descendant_of(
+            graph,
+            Some(target),
+            Some(source),
+            Some(budget),
+        )?;
         self.ancestry = Some((source_inside, target_inside));
         Some(())
     }
@@ -456,50 +458,39 @@ impl PackedQueueState {
 
 fn queue_push(
     queue: &mut PriorityQueue<PackedQueueState>,
-    budget: Option<&LocalRouteSearchWork>,
+    budget: &LocalRouteSearchWork,
     priority: f64,
     value: QueueState,
 ) -> Option<Handle> {
     let value = PackedQueueState::pack(value);
-    match budget {
-        Some(budget) => queue
-            .push_guarded(priority, value, |units| budget.reserve(units))
-            .ok(),
-        None => Some(queue.push(priority, value)),
-    }
+    queue
+        .push_guarded(priority, value, |units| budget.reserve(units))
+        .ok()
 }
 
 fn queue_pop(
     queue: &mut PriorityQueue<PackedQueueState>,
-    budget: Option<&LocalRouteSearchWork>,
+    budget: &LocalRouteSearchWork,
 ) -> Option<(QueueState, f64)> {
-    if queue.len() != 0
-        && let Some(budget) = budget
-    {
+    if queue.len() != 0 {
         budget.step().ok()?;
     }
-    let (value, priority) = match budget {
-        Some(budget) => queue
-            .pop_guarded(|units| budget.reserve(units))
-            .ok()
-            .map(|entry| entry.into_parts()),
-        None => queue.pop(),
-    }?;
+    let (value, priority) = queue
+        .pop_guarded(|units| budget.reserve(units))
+        .ok()
+        .map(|entry| entry.into_parts())?;
     Some((value.unpack(), priority))
 }
 
 fn queue_decrease(
     queue: &mut PriorityQueue<PackedQueueState>,
-    budget: Option<&LocalRouteSearchWork>,
+    budget: &LocalRouteSearchWork,
     handle: Handle,
     priority: f64,
 ) -> Result<(), ()> {
-    match budget {
-        Some(budget) => queue
-            .decrease_guarded(handle, priority, |units| budget.reserve(units))
-            .map_err(|_| ()),
-        None => queue.decrease(handle, priority).map_err(|_| ()),
-    }
+    queue
+        .decrease_guarded(handle, priority, |units| budget.reserve(units))
+        .map_err(|_| ())
 }
 
 include!("visibility_canonical.rs");
@@ -602,15 +593,6 @@ struct Adjacency {
 }
 
 impl Adjacency {
-    fn with_capacity(nodes: usize) -> Self {
-        let mut offsets = Vec::with_capacity(nodes + 1);
-        offsets.push(0);
-        Self {
-            offsets,
-            entries: Vec::new(),
-        }
-    }
-
     /// The node count.
     fn len(&self) -> usize {
         self.offsets.len().saturating_sub(1)
@@ -639,17 +621,6 @@ impl Adjacency {
         self.offsets
             .push(u32::try_from(self.entries.len()).expect("OVG adjacency slot count"));
     }
-
-    /// Append a slot to the end of `node`'s slots, after its existing ones.
-    /// This shifts every later node; only non-canonical fixed-route import
-    /// adds slots to a finished table.
-    fn append_slot(&mut self, node: usize, slot: AdjacencyEntry) {
-        let end = self.offsets[node + 1] as usize;
-        self.entries.insert(end, slot);
-        for offset in &mut self.offsets[node + 1..] {
-            *offset += 1;
-        }
-    }
 }
 
 impl std::ops::Index<usize> for Adjacency {
@@ -663,6 +634,16 @@ impl std::ops::Index<usize> for Adjacency {
 }
 
 impl Adjacency {
+    #[cfg(test)]
+    fn with_capacity(nodes: usize) -> Self {
+        let mut offsets = Vec::with_capacity(nodes + 1);
+        offsets.push(0);
+        Self {
+            offsets,
+            entries: Vec::new(),
+        }
+    }
+
     /// Freeze a nested adjacency list (non-canonical construction) into
     /// the flat table, keeping every node's slot order.
     #[cfg(test)]
@@ -760,7 +741,6 @@ pub(super) struct VisibilityGraph {
     /// doing a point-to-index tree lookup for each query; the key is the same
     /// bitwise coordinate identity used by OVG interning.
     tunnel_points: BTreeSet<(u64, u64)>,
-    added_tree_ports: BTreeMap<NodeId, Vec<Port>>,
 }
 
 pub(super) struct AnyTargetRoute {
@@ -799,12 +779,10 @@ fn ordered_box_ids(graph_nodes: &[NodeId], boxes: &BTreeMap<NodeId, Rect>) -> Ve
 pub(super) fn fixed_overlaps_for_route(
     graph: &ArenaGraph,
     nodes: &[NodeId],
-    budget: Option<&LocalRouteSearchWork>,
+    budget: &LocalRouteSearchWork,
 ) -> Option<BTreeSet<NodeId>> {
     let step = || -> Option<()> {
-        if let Some(budget) = budget {
-            budget.step().ok()?;
-        }
+        budget.step().ok()?;
         Some(())
     };
     let has_fixed_ancestor = |node: NodeId| -> Option<bool> {
@@ -876,13 +854,13 @@ pub(super) fn fixed_overlaps_for_route(
                 graph,
                 Some(node),
                 Some(other),
-                budget,
+                Some(budget),
             )?;
             let other_below = super::route_search_guard::is_descendant_of(
                 graph,
                 Some(other),
                 Some(node),
-                budget,
+                Some(budget),
             )?;
             if node == other || node_below || other_below {
                 continue;
@@ -896,9 +874,7 @@ pub(super) fn fixed_overlaps_for_route(
             }
         }
     }
-    if let Some(budget) = budget {
-        budget.check().ok()?;
-    }
+    budget.check().ok()?;
     Some(overlaps)
 }
 
@@ -960,30 +936,6 @@ fn coordinate_key(coordinate: f64) -> u64 {
     super::go_float_map_key(coordinate)
 }
 
-fn unique_axis_coordinates(values: impl Iterator<Item = f64>) -> Vec<f64> {
-    let mut unique = BTreeMap::<u64, f64>::new();
-    let mut nan_values = Vec::new();
-    for value in values {
-        if value.is_nan() {
-            // Go map keys containing NaN are never equal, even to an
-            // identical NaN, so each serialized NaN remains a candidate.
-            nan_values.push(value);
-            continue;
-        }
-        unique
-            .entry(coordinate_key(value))
-            .and_modify(|stored| {
-                // total ordering sorts -0 before +0 and Vec::dedup keeps the
-                // negative zero representative when both occur.
-                if value == 0.0 && value.is_sign_negative() {
-                    *stored = value;
-                }
-            })
-            .or_insert(value);
-    }
-    unique.into_values().chain(nan_values).collect()
-}
-
 fn outward(side: PortSide) -> Point {
     match side {
         PortSide::Top => Point { x: 0.0, y: -1.0 },
@@ -997,26 +949,6 @@ fn follows_outward(delta: Point, side: PortSide) -> bool {
     let expected = outward(side);
     delta.x * expected.x + delta.y * expected.y > 0.0
         && (delta.x * expected.y - delta.y * expected.x).abs() < f64::EPSILON
-}
-
-fn simplify(points: Vec<Point>) -> Vec<Point> {
-    let mut result: Vec<Point> = Vec::with_capacity(points.len());
-    for point in points {
-        if result.last() == Some(&point) {
-            continue;
-        }
-        while result.len() >= 2 {
-            let a = result[result.len() - 2];
-            let b = result[result.len() - 1];
-            if (a.x == b.x && b.x == point.x) || (a.y == b.y && b.y == point.y) {
-                result.pop();
-            } else {
-                break;
-            }
-        }
-        result.push(point);
-    }
-    result
 }
 
 fn point_near_rect(point: Point, rect: Rect, delta: f64) -> bool {
@@ -1634,40 +1566,6 @@ fn add_hierarchy_level_points(
     // routing and makes the generated point inventory diffable.
 }
 
-fn point_on_rect(point: Point, rect: Rect) -> bool {
-    rect.origin.x <= point.x
-        && point.x <= rect.right()
-        && rect.origin.y <= point.y
-        && point.y <= rect.bottom()
-}
-
-fn segment_crosses_rect_interior(first: Point, second: Point, rect: Rect) -> bool {
-    if first.y == second.y {
-        first.y > rect.origin.y
-            && first.y < rect.bottom()
-            && first.x.min(second.x) < rect.right()
-            && first.x.max(second.x) > rect.origin.x
-    } else if first.x == second.x {
-        first.x > rect.origin.x
-            && first.x < rect.right()
-            && first.y.min(second.y) < rect.bottom()
-            && first.y.max(second.y) > rect.origin.y
-    } else {
-        true
-    }
-}
-
-/// Axis-aligned specialization of recovered `segmentIntersectsBox`.
-///
-/// Unlike the ordinary visibility obstruction test, TALA treats contact with
-/// the box boundary as an intersection here.
-fn segment_intersects_rect(first: Point, second: Point, rect: Rect) -> bool {
-    first.x.min(second.x) <= rect.right()
-        && rect.origin.x <= first.x.max(second.x)
-        && first.y.min(second.y) <= rect.bottom()
-        && rect.origin.y <= first.y.max(second.y)
-}
-
 // Recovered `Node.passesThrough` delegates to segmentIntersectsBox, whose
 // axis-range precheck is followed by endpoint containment and the four
 // orthogonal edge tests below. A bounding-box overlap alone is too broad for
@@ -1780,52 +1678,6 @@ fn segment_intersects_box_recovered(first: Point, second: Point, rect: Rect) -> 
     )
 }
 
-fn passes_through_allowing_direction(
-    first: Point,
-    second: Point,
-    rect: Rect,
-    ports: &[Port],
-    direction: Option<PortSide>,
-) -> bool {
-    if let Some(direction) = direction {
-        let delta = Point {
-            x: second.x - first.x,
-            y: second.y - first.y,
-        };
-        for port in ports {
-            // Node.passesThroughAllowingPorts applies portExceptionDirection
-            // to the original p1 -> p2 vector regardless of which endpoint
-            // matches a port. It does not reverse the vector for a p2 match.
-            if (port.point == first || port.point == second) && follows_outward(delta, direction) {
-                return false;
-            }
-        }
-    }
-    segment_intersects_rect(first, second, rect)
-}
-
-/// Apply Go's `OVGNode.portDirectionsForObstacle(...).any(...)` semantics.
-/// A coordinate can represent several snapped sides of the same owner (for
-/// example the left and bottom sides of a 1x1 node).  The obstacle check must
-/// evaluate every represented direction; one outward direction exempts the
-/// segment, while any other represented direction that intersects the box
-/// keeps it blocked.  Collapsing that metadata to the first side changes the
-/// visibility graph and can select a different routing corridor.
-fn passes_through_for_obstacle(
-    first: Point,
-    second: Point,
-    rect: Rect,
-    ports: &[Port],
-    directions: &[PortSide],
-) -> bool {
-    if directions.is_empty() {
-        return segment_intersects_rect(first, second, rect);
-    }
-    directions.iter().copied().all(|direction| {
-        passes_through_allowing_direction(first, second, rect, ports, Some(direction))
-    })
-}
-
 #[derive(Clone, Copy)]
 struct PortVisibilityInfo {
     owner: NodeId,
@@ -1833,60 +1685,6 @@ struct PortVisibilityInfo {
     owner_box: Rect,
     owner_sequence: Option<usize>,
     owner_invisible: bool,
-}
-
-/// Translation of recovered `OVGNode.hasUnobstructedLineToPorts`.
-///
-/// `addIntersections` does not retain the Cartesian product of all port axes.
-/// A candidate must be reachable along an unobstructed axis from ports owned
-/// by `required_owners` distinct nodes. Lines tangent to the owning node are
-/// not port rays, containers are not ordinary obstacles, and the port owner
-/// itself is excluded from the obstruction scan.
-fn has_unobstructed_line_to_ports(
-    point: Point,
-    graph: &ArenaGraph,
-    boxes: &BTreeMap<NodeId, Rect>,
-    graph_nodes: &[NodeId],
-    ports: &[(NodeId, Port)],
-    fixed_overlaps: &BTreeSet<NodeId>,
-    required_owners: usize,
-) -> bool {
-    let obstruction_nodes = graph_nodes
-        .iter()
-        .filter_map(|other| {
-            boxes.get(other).copied().map(|rect| {
-                let node = &graph.nodes[other.0 as usize];
-                (
-                    *other,
-                    rect,
-                    node.sequence,
-                    node.is_container,
-                    fixed_overlaps.contains(other),
-                )
-            })
-        })
-        .collect::<Vec<_>>();
-    let port_visibility = ports
-        .iter()
-        .filter_map(|(owner, port)| {
-            boxes.get(owner).copied().map(|owner_box| {
-                let node = &graph.nodes[owner.0 as usize];
-                PortVisibilityInfo {
-                    owner: *owner,
-                    port: *port,
-                    owner_box,
-                    owner_sequence: node.sequence,
-                    owner_invisible: node.is_invisible,
-                }
-            })
-        })
-        .collect::<Vec<_>>();
-    has_unobstructed_line_to_ports_with_obstructions(
-        point,
-        &port_visibility,
-        &obstruction_nodes,
-        required_owners,
-    )
 }
 
 fn has_unobstructed_line_to_ports_with_obstructions(
@@ -1970,26 +1768,6 @@ fn has_unobstructed_line_to_ports_with_obstructions(
 }
 
 impl VisibilityGraph {
-    pub(super) fn debug_neighbors(&self, point: Point) -> Option<Vec<Point>> {
-        let index = self.index_of(point)?;
-        Some(
-            self.edges
-                .tuples(index)
-                .map(|(next, _, _)| self.point(next))
-                .collect(),
-        )
-    }
-    /// Ports published by recovered `OVG.addTreeNodes` after the ordinary
-    /// port/intersection stages. They are endpoint candidates for later
-    /// ordinary edges even though they must not influence those earlier
-    /// stages.
-    pub(super) fn added_tree_ports(&self, node: NodeId) -> &[Port] {
-        self.added_tree_ports
-            .get(&node)
-            .map(Vec::as_slice)
-            .unwrap_or_default()
-    }
-
     pub(super) fn center_point(&self, node: NodeId) -> Option<Point> {
         self.centers.get(&node).map(|index| self.point(*index))
     }
@@ -2092,137 +1870,6 @@ impl VisibilityGraph {
         segments
     }
 
-    /// Add one fixed standalone route after `NewOVGFromGraph` construction.
-    /// Recovered `routeAdditionalEdges` interns each serialized route point
-    /// against the current occupied-point map, connects center -> points ->
-    /// center, and appends otherwise unseen points without port ownership.
-    pub(super) fn add_existing_route(
-        &mut self,
-        source: NodeId,
-        target: NodeId,
-        route: &[Point],
-    ) -> Vec<usize> {
-        self.add_existing_route_checked(source, target, route, None)
-            .expect("unbudgeted fixed-route import cannot fail")
-    }
-
-    /// coordinator.go's addPoint closure checks every input point, including
-    /// adjacent duplicates, then inserts and connects it before reading the
-    /// next point. Resource reservations use the same guard as the base OVG.
-    pub(super) fn add_existing_route_checked(
-        &mut self,
-        source: NodeId,
-        target: NodeId,
-        route: &[Point],
-        budget: Option<&OvgBuildBudget<'_>>,
-    ) -> Result<Vec<usize>, ()> {
-        let (Some(&source_center), Some(&target_center)) =
-            (self.centers.get(&source), self.centers.get(&target))
-        else {
-            return Ok(Vec::new());
-        };
-        if self.canonical.is_some() {
-            use crate::internal::owner_points::SharedOwnerPoint;
-            let mut imported = super::ovg_import::ImportedRoute::default();
-            let points = std::iter::once(self.point(source_center))
-                .chain(route.iter().copied())
-                .chain(std::iter::once(self.point(target_center)))
-                .collect::<Vec<_>>();
-            let mut result = Ok(());
-            for point in points {
-                result = self.canonical.as_mut().unwrap().build.import_route_point(
-                    Some(SharedOwnerPoint::new(point)),
-                    &mut imported,
-                    budget,
-                );
-                if result.is_err() {
-                    break;
-                }
-            }
-            self.refresh_canonical();
-            result?;
-            let view = self.canonical.as_ref().unwrap();
-            return Ok(imported
-                .nodes
-                .iter()
-                .map(|node| view.indices[node])
-                .collect());
-        }
-        let source_point = self.point(source_center);
-        let target_point = self.point(target_center);
-        let mut indices = Vec::with_capacity(route.len() + 2);
-        let mut last_point = None;
-        for point in std::iter::once(source_point)
-            .chain(route.iter().copied())
-            .chain(std::iter::once(target_point))
-        {
-            if let Some(budget) = budget {
-                budget.reserve_work(1)?;
-            }
-            if last_point == Some(point) {
-                continue;
-            }
-            last_point = Some(point);
-            // OccupiedPoints uses the latest equal coordinate, including for
-            // the source/target center and any coincident center identities.
-            let index = if let Some(index) = self.points.iter().rposition(|p| *p == point) {
-                index
-            } else {
-                if let Some(budget) = budget {
-                    budget.reserve_work(1)?; // addNodeUnchecked
-                    budget.reserve_nodes(1)?;
-                }
-                let index = self.points.len();
-                self.points.push(point);
-                self.edges.finish_node();
-                self.search_indices.push(index);
-                self.center_owners.push(None);
-                self.point_containers.push(None);
-                self.port_owners.push(BTreeSet::new());
-                self.near_port_owners.push(BTreeSet::new());
-                index
-            };
-            let previous = indices.last().copied();
-            indices.push(index);
-            let Some(first) = previous else {
-                continue;
-            };
-            if let Some(budget) = budget {
-                budget.reserve_work(1)?;
-            }
-            let first_is_center = self.center_owners[first].is_some();
-            let second_is_center = self.center_owners[index].is_some();
-            // guard.connect checks center compatibility before reserving an
-            // edge; OVG.Connect repeats that predicate without extra work.
-            if first_is_center && self.port_owners[index].is_empty()
-                || second_is_center && self.port_owners[first].is_empty()
-            {
-                continue;
-            }
-            if let Some(budget) = budget {
-                budget.reserve_edges(1)?;
-            }
-            let axis = if self.point(first).y == self.point(index).y {
-                Axis::Horizontal
-            } else if self.point(first).x == self.point(index).x {
-                Axis::Vertical
-            } else {
-                Axis::None
-            };
-            if first == index {
-                continue;
-            }
-            let dx = self.point(first).x - self.point(index).x;
-            let dy = self.point(first).y - self.point(index).y;
-            let distance = dy.mul_add(dy, dx * dx).sqrt();
-            self.edges
-                .append_slot(first, AdjacencyEntry::new(index, distance, axis, None));
-            self.edges
-                .append_slot(index, AdjacencyEntry::new(first, distance, axis, None));
-        }
-        Ok(indices)
-    }
-
     pub(super) fn point(&self, index: usize) -> Point {
         self.canonical.as_ref().map_or_else(
             || self.points[index],
@@ -2278,81 +1925,6 @@ impl VisibilityGraph {
     pub(super) fn is_rejected_hierarchy_point(&self, index: usize) -> bool {
         self.rejected_hierarchy_points
             .contains(&point_key(self.point(index)))
-    }
-
-    pub(super) fn segment_is_visible(&self, first: Point, second: Point) -> bool {
-        let Some(first) = self.index_of(first) else {
-            return false;
-        };
-        let Some(second) = self.index_of(second) else {
-            return false;
-        };
-        self.edges[first]
-            .iter()
-            .any(|slot| slot.neighbor() == second)
-            || (self.point(first).x == self.point(second).x
-                || self.point(first).y == self.point(second).y)
-                && fill_visible_path(self, first, second)
-    }
-
-    /// Return every OVG vertex encountered while walking one axis-aligned
-    /// segment, including both endpoints. TALA's `routeInSShape` retains these
-    /// intermediate nodes on tree routes so later edge searches recognize a
-    /// shared crossing vertex instead of charging the same crossing twice.
-    pub(super) fn orthogonal_path(&self, first: Point, second: Point) -> Option<Vec<Point>> {
-        let first_index = self.index_of(first)?;
-        let second_index = self.index_of(second)?;
-        let mut path = vec![first];
-        let mut current = first_index;
-        let mut visited = BTreeSet::from([current]);
-        while current != second_index {
-            let current_point = self.point(current);
-            let next = self.edges[current]
-                .iter()
-                .map(|slot| slot.neighbor())
-                .find(|neighbor| {
-                    let point = self.point(*neighbor);
-                    if first.x == second.x && point.x == current_point.x {
-                        (first.y < second.y && current_point.y < point.y)
-                            || (first.y > second.y && current_point.y > point.y)
-                    } else if first.y == second.y && point.y == current_point.y {
-                        (first.x < second.x && current_point.x < point.x)
-                            || (first.x > second.x && current_point.x > point.x)
-                    } else {
-                        false
-                    }
-                })?;
-            if !visited.insert(next) {
-                return None;
-            }
-            current = next;
-            path.push(self.point(current));
-        }
-        Some(path)
-    }
-
-    /// Direct translation of TALA's `routeInSShape` walk. The orientation is
-    /// the source-port side, and deliberately remains unchanged for the final
-    /// target-midpoint-to-target-port leg. That detail is observable: a route
-    /// can fail even when the target port is geometrically reachable in the
-    /// opposite direction, in which case TALA leaves the edge to ordinary OVG
-    /// routing.
-    pub(super) fn s_shape_route(
-        &self,
-        source: Point,
-        source_midpoint: Point,
-        target_midpoint: Point,
-        target: Point,
-        orientation: Orientation,
-    ) -> Option<Vec<Point>> {
-        self.s_shape_route_indices(
-            source,
-            source_midpoint,
-            target_midpoint,
-            target,
-            orientation,
-        )
-        .map(|indices| indices.into_iter().map(|index| self.point(index)).collect())
     }
 
     pub(super) fn s_shape_route_indices(
@@ -2457,68 +2029,6 @@ impl VisibilityGraph {
         Some(path)
     }
 
-    pub(super) fn contains_point(&self, point: Point) -> bool {
-        self.index_of(point).is_some()
-    }
-
-    fn connect(
-        edges: &mut [Vec<(usize, f64, Axis)>],
-        points: &[Point],
-        first: usize,
-        second: usize,
-        axis: Axis,
-    ) {
-        if first == second {
-            return;
-        }
-        let distance =
-            (points[first].x - points[second].x).abs() + (points[first].y - points[second].y).abs();
-        edges[first].push((second, distance, axis));
-        edges[second].push((first, distance, axis));
-    }
-
-    /// Source-shaped subset of recovered `NewOVGFromGraph`:
-    ///
-    /// * add every ordinary port;
-    /// * add legal X/Y port-axis intersections;
-    /// * add three 20-unit boundary layers and port connections to them;
-    /// * connect nearest visible nodes sharing an axis.
-    pub(super) fn from_ports(
-        graph: &ArenaGraph,
-        boxes: &BTreeMap<NodeId, Rect>,
-        graph_nodes: &[NodeId],
-        tree_node_order: &[NodeId],
-        all_ports: impl Iterator<Item = (NodeId, Port)>,
-    ) -> Self {
-        Self::from_ports_checked(graph, boxes, graph_nodes, tree_node_order, all_ports, None)
-            .expect("unbudgeted OVG construction cannot fail")
-    }
-
-    /// Build an OVG while enforcing v0.9.0's independent construction
-    /// resources. The completed graph is returned only after the local build
-    /// has passed its candidate/node/edge/work reservations.
-    pub(super) fn from_ports_checked(
-        graph: &ArenaGraph,
-        boxes: &BTreeMap<NodeId, Rect>,
-        graph_nodes: &[NodeId],
-        tree_node_order: &[NodeId],
-        all_ports: impl Iterator<Item = (NodeId, Port)>,
-        budget: Option<&OvgBuildBudget>,
-    ) -> Result<Self, String> {
-        let box_order = ordered_box_ids(graph_nodes, boxes);
-        Self::from_ports_ordered_checked(
-            graph,
-            boxes,
-            &box_order,
-            graph_nodes,
-            tree_node_order,
-            all_ports,
-            budget,
-            None,
-            None,
-        )
-    }
-
     /// `box_order` is TALA's `OVG.NodesInsideBoundingBox` order: nearby
     /// nodes, routed-scope nodes, then hierarchy members merged by source ID.
     pub(super) fn from_ports_ordered_checked(
@@ -2528,7 +2038,7 @@ impl VisibilityGraph {
         graph_nodes: &[NodeId],
         tree_node_order: &[NodeId],
         all_ports: impl Iterator<Item = (NodeId, Port)>,
-        budget: Option<&OvgBuildBudget>,
+        budget: &OvgBuildBudget,
         prepared_ports: Option<&mut super::ovg_ports::PortBuild>,
         hierarchies: Option<&[super::ovg_hierarchy::HierarchyOvg]>,
     ) -> Result<Self, String> {
@@ -2659,9 +2169,7 @@ impl VisibilityGraph {
         );
         if let Some(hierarchies) = hierarchies {
             for hierarchy in hierarchies {
-                if let Some(b) = budget {
-                    charge(b.reserve_work(1))?;
-                }
+                charge(budget.reserve_work(1))?;
                 charge(intersections.merge_hierarchy_ports(
                     &hierarchy.ports,
                     hierarchy.nodes.len(),
@@ -2689,9 +2197,7 @@ impl VisibilityGraph {
         let mut rejected_hierarchy_points = BTreeSet::new();
         if let Some(hierarchies) = hierarchies {
             for hierarchy in hierarchies {
-                if let Some(b) = budget {
-                    charge(b.reserve_work(1))?;
-                }
+                charge(budget.reserve_work(1))?;
                 charge(intersections.merge_hierarchy_nonports(&hierarchy.ports, budget))?;
             }
             points = intersections.member_nodes().map(|n| n.point()).collect();
@@ -2753,9 +2259,7 @@ impl VisibilityGraph {
             // Register occupancy without pretending its allocations were guarded;
             // later accounting still reserves those uncharged surviving nodes.
             for &point in &points {
-                intersections
-                    .add_point(point, None)
-                    .expect("unguarded point insertion");
+                intersections.add_point_unreserved(point);
             }
         }
         let first_edge_node = intersections.members.len();
@@ -2970,9 +2474,7 @@ impl VisibilityGraph {
         // preview while that table is built stacks both allocations at peak.
         drop(member_indices);
         drop(objects);
-        if let Some(budget) = budget
-            && intersections.unreserved_member_count() != 0
-        {
+        if intersections.unreserved_member_count() != 0 {
             // Legacy hierarchy imports are the only surviving memberships
             // not yet charged at publication. Centers, including removed ones,
             // were already charged by their source-shaped construction stage.
@@ -3019,7 +2521,6 @@ impl VisibilityGraph {
             near_port_owners: OwnerSets::default(),
             rejected_hierarchy_points,
             tunnel_points: tunnel_point_keys,
-            added_tree_ports,
         };
         // The caller reads the prepared build's ports back from the canonical
         // view, so hand the build over instead of keeping a second copy.
@@ -3027,236 +2528,12 @@ impl VisibilityGraph {
         Ok(result)
     }
 
-    pub(super) fn route(
-        &self,
-        graph: &ArenaGraph,
-        source_port: Port,
-        target_port: Port,
-        source_node: NodeId,
-        target_node: NodeId,
-    ) -> Vec<Point> {
-        let interaction_index = super::search::RouteInteractionIndex::new(self, graph);
-        self.route_scored(
-            graph,
-            source_port,
-            target_port,
-            source_node,
-            target_node,
-            None,
-            &interaction_index,
-            &BTreeMap::new(),
-        )
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub(super) fn route_scored(
-        &self,
-        graph: &ArenaGraph,
-        source_port: Port,
-        target_port: Port,
-        source_node: NodeId,
-        target_node: NodeId,
-        edge_index: Option<usize>,
-        interaction_index: &super::search::RouteInteractionIndex,
-        boxes: &BTreeMap<NodeId, Rect>,
-    ) -> Vec<Point> {
-        self.route_to_any(
-            graph,
-            source_port,
-            &[(target_port, 0.0)],
-            source_node,
-            target_node,
-            edge_index,
-            interaction_index,
-            boxes,
-        )
-        .map_or_else(Vec::new, |route| route.points)
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub(super) fn route_to_any(
-        &self,
-        graph: &ArenaGraph,
-        source_port: Port,
-        target_ports: &[(Port, f64)],
-        source_node: NodeId,
-        target_node: NodeId,
-        edge_index: Option<usize>,
-        interaction_index: &super::search::RouteInteractionIndex,
-        boxes: &BTreeMap<NodeId, Rect>,
-    ) -> Option<AnyTargetRoute> {
-        self.route_to_any_with_budget(
-            graph,
-            source_port,
-            target_ports,
-            source_node,
-            target_node,
-            edge_index,
-            interaction_index,
-            boxes,
-            None,
-        )
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub(super) fn route_to_any_with_budget(
-        &self,
-        graph: &ArenaGraph,
-        source_port: Port,
-        target_ports: &[(Port, f64)],
-        source_node: NodeId,
-        target_node: NodeId,
-        edge_index: Option<usize>,
-        interaction_index: &super::search::RouteInteractionIndex,
-        boxes: &BTreeMap<NodeId, Rect>,
-        budget: Option<&LocalRouteSearchWork>,
-    ) -> Option<AnyTargetRoute> {
-        self.route_between_any_with_budget(
-            graph,
-            &[(source_port, 0.0)],
-            target_ports,
-            source_node,
-            target_node,
-            edge_index,
-            interaction_index,
-            boxes,
-            false,
-            budget,
-        )
-        .map(|mut route| {
-            // The historical single-source API starts at the source port,
-            // whereas TALA's search follows predecessors through the center.
-            // Keep the requested launch as this wrapper's route boundary.
-            if let Some(&center) = self.centers.get(&source_node)
-                && let Some(start) = route.node_ids.iter().position(|&id| id == center)
-                && start != 0
-            {
-                route.node_ids.drain(..start);
-                route.points.drain(..start);
-                route.source = source_port;
-            }
-            route.cost -= 1.0;
-            route
-        })
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub(super) fn route_between_any(
-        &self,
-        graph: &ArenaGraph,
-        source_ports: &[(Port, f64)],
-        target_ports: &[(Port, f64)],
-        source_node: NodeId,
-        target_node: NodeId,
-        edge_index: Option<usize>,
-        interaction_index: &super::search::RouteInteractionIndex,
-        boxes: &BTreeMap<NodeId, Rect>,
-        overlap: bool,
-    ) -> Option<AnyTargetRoute> {
-        self.route_between_any_with_budget(
-            graph,
-            source_ports,
-            target_ports,
-            source_node,
-            target_node,
-            edge_index,
-            interaction_index,
-            boxes,
-            overlap,
-            None,
-        )
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub(super) fn route_between_any_with_budget(
-        &self,
-        graph: &ArenaGraph,
-        source_ports: &[(Port, f64)],
-        target_ports: &[(Port, f64)],
-        source_node: NodeId,
-        target_node: NodeId,
-        edge_index: Option<usize>,
-        interaction_index: &super::search::RouteInteractionIndex,
-        boxes: &BTreeMap<NodeId, Rect>,
-        overlap: bool,
-        budget: Option<&LocalRouteSearchWork>,
-    ) -> Option<AnyTargetRoute> {
-        let source_costs = source_ports
-            .iter()
-            .map(|(port, penalty)| (*port, 1.0 + penalty))
-            .collect::<Vec<_>>();
-        let target_costs = target_ports
-            .iter()
-            .map(|(port, penalty)| (*port, 1.0 + penalty))
-            .collect::<Vec<_>>();
-        self.route_between_connectors_with_budget(
-            graph,
-            &source_costs,
-            &target_costs,
-            source_node,
-            target_node,
-            edge_index,
-            interaction_index,
-            boxes,
-            overlap,
-            budget,
-        )
-    }
-
-    /// Candidates carry complete center/port connector costs, accumulated in
-    /// upstream operation order; do not decompose and reconstruct those floats.
-    #[allow(clippy::too_many_arguments)]
-    pub(super) fn route_between_connectors_with_budget(
-        &self,
-        graph: &ArenaGraph,
-        source_ports: &[(Port, f64)],
-        target_ports: &[(Port, f64)],
-        source_node: NodeId,
-        target_node: NodeId,
-        edge_index: Option<usize>,
-        interaction_index: &super::search::RouteInteractionIndex,
-        boxes: &BTreeMap<NodeId, Rect>,
-        overlap: bool,
-        budget: Option<&LocalRouteSearchWork>,
-    ) -> Option<AnyTargetRoute> {
-        let mut prepared = self.prepare_route_search(budget)?;
-        if let Some(index) = edge_index {
-            prepared.prepare_arrowhead_nodes(graph, index, budget)?;
-        }
-        prepared.prepare_ancestry(graph, source_node, target_node, budget)?;
-        prepared.prepare_blocked_ports(
-            graph,
-            source_node,
-            target_node,
-            boxes,
-            source_ports.len(),
-            target_ports.len(),
-            edge_index.is_some_and(|index| graph.edge_records[index].has_table_column()),
-            budget,
-        )?;
-        self.route_between_connectors_with_prepared_state(
-            graph,
-            source_ports,
-            target_ports,
-            source_node,
-            target_node,
-            edge_index,
-            interaction_index,
-            boxes,
-            overlap,
-            budget,
-            prepared,
-        )
-    }
-
     pub(super) fn prepare_route_search(
         &self,
-        budget: Option<&LocalRouteSearchWork>,
+        budget: &LocalRouteSearchWork,
     ) -> Option<PreparedRouteSearch> {
         let node_count = self.member_count();
-        if let Some(budget) = budget {
-            budget.reserve_product(node_count as u64, 3).ok()?;
-        }
+        budget.reserve_product(node_count as u64, 3).ok()?;
         let slots = take_search_slots(node_count);
         Some(PreparedRouteSearch {
             ancestry: None,
@@ -3282,7 +2559,7 @@ impl VisibilityGraph {
         interaction_index: &super::search::RouteInteractionIndex,
         boxes: &BTreeMap<NodeId, Rect>,
         overlap: bool,
-        budget: Option<&LocalRouteSearchWork>,
+        budget: &LocalRouteSearchWork,
         prepared: PreparedRouteSearch,
     ) -> Option<AnyTargetRoute> {
         #[cfg(feature = "diagnostic-traces")]
@@ -3314,22 +2591,20 @@ impl VisibilityGraph {
         interaction_index: &super::search::RouteInteractionIndex,
         boxes: &BTreeMap<NodeId, Rect>,
         overlap: bool,
-        budget: Option<&LocalRouteSearchWork>,
+        budget: &LocalRouteSearchWork,
         prepared: PreparedRouteSearch,
     ) -> Option<AnyTargetRoute> {
         // Symmetry inventory still reserves its source sum here. Non-table
         // blocked maps were already computed before usedPorts by the caller.
-        if let Some(budget) = budget {
-            if !prepared.symmetry_prepared {
-                budget
-                    .reserve_sum(source_ports.len() as u64, target_ports.len() as u64)
-                    .ok()?;
-            }
-            if !prepared.blocked_ports_prepared {
-                budget
-                    .reserve_product(source_ports.len() as u64, target_ports.len() as u64)
-                    .ok()?;
-            }
+        if !prepared.symmetry_prepared {
+            budget
+                .reserve_sum(source_ports.len() as u64, target_ports.len() as u64)
+                .ok()?;
+        }
+        if !prepared.blocked_ports_prepared {
+            budget
+                .reserve_product(source_ports.len() as u64, target_ports.len() as u64)
+                .ok()?;
         }
         // Go searches the retained Ports nodes. OccupiedPoints can later be
         // overwritten by a coincident center or imported route node.
@@ -3412,7 +2687,7 @@ impl VisibilityGraph {
                     serde_json::json!({
                         "event": "route-search-heap", "flavor": flavor,
                         "edge": graph.edge_records[edge_index].tala_id,
-                        "work": budget.map(LocalRouteSearchWork::used),
+                        "work": budget.used(),
                         "scope_nodes": graph.node_order.len(), "scope_edges": graph.edge_order.len(),
                         "operation": operation,
                         "x_bits": format!("0x{:016x}", self.point(node).x.to_bits()),
@@ -3587,22 +2862,18 @@ impl VisibilityGraph {
             // The pop's pointToRoute lookup also answers each hop's occupied
             // routes while the entry point's key is unchanged.
             let mut occupied_memo: super::search::OccupiedMemo<'_> = None;
-            if let Some(budget) = budget {
-                interaction_index.charge_occupied_routes_memo(
-                    (entry.node != source_index).then_some(self.point(entry.node)),
-                    budget,
-                    &mut occupied_memo,
-                )?;
-            }
+            interaction_index.charge_occupied_routes_memo(
+                (entry.node != source_index).then_some(self.point(entry.node)),
+                budget,
+                &mut occupied_memo,
+            )?;
             if entry.node == source_index {
                 // `connectPortsToCenter` appends the source center's port
                 // connectors in graph-port order. Search expands those actual
                 // adjacency entries; candidate filtering and its recovered
                 // source-port surcharge are applied at the connected point.
                 for source in self.edges[source_index].iter().map(|slot| slot.neighbor()) {
-                    if let Some(budget) = budget {
-                        budget.step().ok()?;
-                    }
+                    budget.step().ok()?;
                     #[cfg(feature = "diagnostic-traces")]
                     trace_neighbor(entry.node, source, entry.axis);
                     if blocked_source.contains(&super::go_point_map_key(self.point(source)))
@@ -3649,7 +2920,7 @@ impl VisibilityGraph {
                                 edge_index,
                                 [self.point(source_index), self.point(source)],
                                 hop_cost,
-                                budget,
+                                Some(budget),
                             )?;
                         }
                         let cost = entry_cost + hop_cost;
@@ -3708,9 +2979,7 @@ impl VisibilityGraph {
             let entry_edge_slots = self.canonical_adjacency(entry.node);
             for (adjacency, slot) in self.edges[entry.node].iter().enumerate() {
                 let (next, length) = (slot.neighbor(), slot.distance);
-                if let Some(budget) = budget {
-                    budget.step().ok()?;
-                }
+                budget.step().ok()?;
                 // Search never moves OVG points: read each endpoint once per hop,
                 // at the first place the hop reads it.
                 let entry_point = self.point(entry.node);
@@ -3776,7 +3045,7 @@ impl VisibilityGraph {
                                 edge_index,
                                 [entry_point, next_point],
                                 connector_cost,
-                                budget,
+                                Some(budget),
                             )?;
                         }
                         let candidate = entry_cost + connector_cost;
@@ -4022,7 +3291,7 @@ impl VisibilityGraph {
                             entry_edge_slots
                                 .map(|slots| Self::canonical_slot_edge(slots, adjacency)),
                             occupied,
-                            budget,
+                            Some(budget),
                         )?;
                     }
                     #[cfg(feature = "diagnostic-traces")]
@@ -4038,7 +3307,7 @@ impl VisibilityGraph {
                         edge_index,
                         endpoint_segment,
                         hop_cost,
-                        budget,
+                        Some(budget),
                     )?;
                     #[cfg(feature = "diagnostic-traces")]
                     {
@@ -4055,7 +3324,7 @@ impl VisibilityGraph {
                                 &endpoint_segment,
                                 false,
                                 &arrowhead_nodes,
-                                budget,
+                                Some(budget),
                             )?;
                     }
                     if target_port_nodes.contains(&next) {
@@ -4066,7 +3335,7 @@ impl VisibilityGraph {
                                 &endpoint_segment,
                                 true,
                                 &arrowhead_nodes,
-                                budget,
+                                Some(budget),
                             )?;
                     }
                     #[cfg(feature = "diagnostic-traces")]
@@ -4211,9 +3480,7 @@ impl VisibilityGraph {
         let mut seen = BTreeSet::new();
         while let Some(current_index) = current {
             // bestRoute charges before even the cycle check.
-            if let Some(budget) = budget {
-                budget.step().ok()?;
-            }
+            budget.step().ok()?;
             if !seen.insert(current_index) {
                 break;
             }
@@ -4289,9 +3556,7 @@ impl VisibilityGraph {
         // Source reverses with one guarded swap per pair, so exhaustion
         // during reconstruction cannot publish a partial drawable route.
         for left in 0..sequence.len() / 2 {
-            if let Some(budget) = budget {
-                budget.step().ok()?;
-            }
+            budget.step().ok()?;
             let right = sequence.len() - 1 - left;
             sequence.swap(left, right);
         }
@@ -4341,6 +3606,124 @@ impl VisibilityGraph {
     }
 }
 
+#[cfg(test)]
+impl VisibilityGraph {
+    pub(super) fn contains_point(&self, point: Point) -> bool {
+        self.index_of(point).is_some()
+    }
+
+    pub(super) fn segment_is_visible(&self, first: Point, second: Point) -> bool {
+        let Some(first) = self.index_of(first) else {
+            return false;
+        };
+        let Some(second) = self.index_of(second) else {
+            return false;
+        };
+        self.edges[first]
+            .iter()
+            .any(|slot| slot.neighbor() == second)
+            || (self.point(first).x == self.point(second).x
+                || self.point(first).y == self.point(second).y)
+                && fill_visible_path(self, first, second)
+    }
+
+    /// Candidates carry complete center/port connector costs, accumulated in
+    /// upstream operation order; do not decompose and reconstruct those floats.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn route_between_connectors_with_budget(
+        &self,
+        graph: &ArenaGraph,
+        source_ports: &[(Port, f64)],
+        target_ports: &[(Port, f64)],
+        source_node: NodeId,
+        target_node: NodeId,
+        edge_index: Option<usize>,
+        interaction_index: &super::search::RouteInteractionIndex,
+        boxes: &BTreeMap<NodeId, Rect>,
+        overlap: bool,
+        budget: &LocalRouteSearchWork,
+    ) -> Option<AnyTargetRoute> {
+        let mut prepared = self.prepare_route_search(budget)?;
+        if let Some(index) = edge_index {
+            prepared.prepare_arrowhead_nodes(graph, index, budget)?;
+        }
+        prepared.prepare_ancestry(graph, source_node, target_node, budget)?;
+        prepared.prepare_blocked_ports(
+            graph,
+            source_node,
+            target_node,
+            boxes,
+            source_ports.len(),
+            target_ports.len(),
+            edge_index.is_some_and(|index| graph.edge_records[index].has_table_column()),
+            budget,
+        )?;
+        self.route_between_connectors_with_prepared_state(
+            graph,
+            source_ports,
+            target_ports,
+            source_node,
+            target_node,
+            edge_index,
+            interaction_index,
+            boxes,
+            overlap,
+            budget,
+            prepared,
+        )
+    }
+
+    /// Source-shaped subset of recovered `NewOVGFromGraph`:
+    ///
+    /// * add every ordinary port;
+    /// * add legal X/Y port-axis intersections;
+    /// * add three 20-unit boundary layers and port connections to them;
+    /// * connect nearest visible nodes sharing an axis.
+    pub(super) fn from_ports(
+        graph: &ArenaGraph,
+        boxes: &BTreeMap<NodeId, Rect>,
+        graph_nodes: &[NodeId],
+        tree_node_order: &[NodeId],
+        all_ports: impl Iterator<Item = (NodeId, Port)>,
+    ) -> Self {
+        Self::from_ports_checked(
+            graph,
+            boxes,
+            graph_nodes,
+            tree_node_order,
+            all_ports,
+            &OvgBuildBudget::new(),
+        )
+        .expect("test OVG construction stays within the default budget")
+    }
+
+    /// Build an OVG while enforcing v0.9.0's independent construction
+    /// resources. The completed graph is returned only after the local build
+    /// has passed its candidate/node/edge/work reservations.
+    pub(super) fn from_ports_checked(
+        graph: &ArenaGraph,
+        boxes: &BTreeMap<NodeId, Rect>,
+        graph_nodes: &[NodeId],
+        tree_node_order: &[NodeId],
+        all_ports: impl Iterator<Item = (NodeId, Port)>,
+        budget: &OvgBuildBudget,
+    ) -> Result<Self, String> {
+        let box_order = ordered_box_ids(graph_nodes, boxes);
+        Self::from_ports_ordered_checked(
+            graph,
+            boxes,
+            &box_order,
+            graph_nodes,
+            tree_node_order,
+            all_ports,
+            budget,
+            None,
+            None,
+        )
+    }
+}
+
+#[cfg(test)]
 fn fill_visible_path(graph: &VisibilityGraph, from: usize, to: usize) -> bool {
     let start = graph.point(from);
     let end = graph.point(to);
@@ -4381,29 +3764,23 @@ mod tests {
         let point = Point { x: 10.0, y: 20.0 };
         let work = LocalRouteSearchWork::new(2);
         assert_eq!(
-            ideal_turn_multiplier_guarded(point, &axes, Some(&work)),
+            ideal_turn_multiplier_guarded(point, &axes, &work),
             Some(0.98)
         );
         assert_eq!(work.used(), 2);
         for limit in 0..2 {
             let work = LocalRouteSearchWork::new(limit);
-            assert_eq!(
-                ideal_turn_multiplier_guarded(point, &axes, Some(&work)),
-                None
-            );
+            assert_eq!(ideal_turn_multiplier_guarded(point, &axes, &work), None);
             assert!(work.exhausted());
         }
         let work = LocalRouteSearchWork::new(3);
         assert_eq!(
-            ideal_turn_multiplier_guarded(Point { x: 100.0, y: 100.0 }, &axes, Some(&work)),
+            ideal_turn_multiplier_guarded(Point { x: 100.0, y: 100.0 }, &axes, &work),
             Some(1.0)
         );
         assert_eq!(work.used(), 3);
         let work = LocalRouteSearchWork::new(0);
-        assert_eq!(
-            ideal_turn_multiplier_guarded(point, &[], Some(&work)),
-            Some(1.0)
-        );
+        assert_eq!(ideal_turn_multiplier_guarded(point, &[], &work), Some(1.0));
         assert_eq!(work.used(), 0);
     }
 
@@ -4427,7 +3804,7 @@ mod tests {
                     Some(other),
                     Some(root),
                     fixed,
-                    Some(&work)
+                    &work
                 ),
                 Some(true)
             );
@@ -4441,7 +3818,7 @@ mod tests {
                         Some(other),
                         Some(root),
                         fixed,
-                        Some(&work)
+                        &work
                     ),
                     None
                 );
@@ -4450,20 +3827,13 @@ mod tests {
         }
         let work = LocalRouteSearchWork::new(0);
         assert_eq!(
-            route_container_is_admissible_guarded(&graph, None, None, None, false, Some(&work)),
+            route_container_is_admissible_guarded(&graph, None, None, None, false, &work),
             Some(true)
         );
         assert_eq!(work.used(), 0);
         let work = LocalRouteSearchWork::new(2);
         assert_eq!(
-            route_container_is_admissible_guarded(
-                &graph,
-                None,
-                None,
-                Some(root),
-                false,
-                Some(&work)
-            ),
+            route_container_is_admissible_guarded(&graph, None, None, Some(root), false, &work),
             Some(false)
         );
         assert_eq!(work.used(), 2);
@@ -4484,13 +3854,13 @@ mod tests {
         let nodes = [a, b, c];
         let work = LocalRouteSearchWork::new(15);
         assert_eq!(
-            fixed_overlaps_for_route(&graph, &nodes, Some(&work)),
+            fixed_overlaps_for_route(&graph, &nodes, &work),
             Some(BTreeSet::from([a, b]))
         );
         assert_eq!(work.used(), 15);
         for limit in 0..15 {
             let work = LocalRouteSearchWork::new(limit);
-            assert!(fixed_overlaps_for_route(&graph, &nodes, Some(&work)).is_none());
+            assert!(fixed_overlaps_for_route(&graph, &nodes, &work).is_none());
             assert_eq!(work.used(), limit);
         }
         // An enclosed descendant is fixed through its parent, but the pair
@@ -4498,7 +3868,7 @@ mod tests {
         graph.nodes[b.0 as usize].container = Some(a);
         graph.nodes[b.0 as usize].fixed_top_left = None;
         assert_eq!(
-            fixed_overlaps_for_route(&graph, &[a, b], None),
+            fixed_overlaps_for_route(&graph, &[a, b], &LocalRouteSearchWork::new(u64::MAX)),
             Some(BTreeSet::new())
         );
         // Placement's cached aggregate view can omit this container hop.
@@ -4508,7 +3878,7 @@ mod tests {
         graph.active_node_containers = vec![None; graph.nodes.len()].into();
         let work = LocalRouteSearchWork::new(5);
         assert_eq!(
-            fixed_overlaps_for_route(&graph, &[a, b], Some(&work)),
+            fixed_overlaps_for_route(&graph, &[a, b], &work),
             Some(BTreeSet::new())
         );
         assert_eq!(work.used(), 5);
@@ -4543,23 +3913,14 @@ mod tests {
                     3,
                     4,
                     false,
-                    Some(&too_small)
+                    &too_small
                 )
                 .is_none()
         );
         assert!(!state.blocked_ports_prepared && state.blocked_source.is_empty());
         let work = LocalRouteSearchWork::new(12);
         state
-            .prepare_blocked_ports(
-                &graph,
-                source,
-                target,
-                &BTreeMap::new(),
-                3,
-                4,
-                false,
-                Some(&work),
-            )
+            .prepare_blocked_ports(&graph, source, target, &BTreeMap::new(), 3, 4, false, &work)
             .unwrap();
         assert!(state.blocked_ports_prepared);
         assert!(
@@ -4571,7 +3932,16 @@ mod tests {
         assert_eq!(work.used(), 12);
         state.ancestry = Some((true, false));
         state
-            .prepare_blocked_ports(&graph, source, target, &BTreeMap::new(), 3, 4, false, None)
+            .prepare_blocked_ports(
+                &graph,
+                source,
+                target,
+                &BTreeMap::new(),
+                3,
+                4,
+                false,
+                &LocalRouteSearchWork::new(u64::MAX),
+            )
             .unwrap();
         assert!(state.blocked_source.is_empty() && state.blocked_target.is_empty());
         let raw = super::super::ports(
@@ -4587,7 +3957,7 @@ mod tests {
         let selected = [raw[0]];
         let table_work = LocalRouteSearchWork::new(raw.len() as u64);
         state
-            .prepare_table_blocked_ports(&raw, &raw, None, Some(&selected), Some(&table_work))
+            .prepare_table_blocked_ports(&raw, &raw, None, Some(&selected), &table_work)
             .unwrap();
         assert_eq!(table_work.used(), raw.len() as u64);
         assert!(state.blocked_source.is_empty());
@@ -4608,7 +3978,7 @@ mod tests {
             let guard = LocalRouteSearchWork::new(limit);
             assert!(
                 state
-                    .prepare_table_blocked_ports(&raw, &raw, None, Some(&selected), Some(&guard))
+                    .prepare_table_blocked_ports(&raw, &raw, None, Some(&selected), &guard)
                     .is_none()
             );
             assert!(guard.exhausted());
@@ -4628,22 +3998,6 @@ mod tests {
         ArrowheadLabel, ContentAlignment, Edge, EdgeArrowheadLabels, Graph, Insets, LabelPosition,
         Node, ShapeKind, Size,
     };
-
-    #[test]
-    fn axis_coordinates_preserve_go_map_zero_and_nan_keys() {
-        let nan = f64::from_bits(0x7ff8_0000_0000_0001);
-        let mut coordinates = unique_axis_coordinates(
-            [0.0, -0.0, 2.0, 2.0, f64::INFINITY, f64::INFINITY, nan, nan].into_iter(),
-        );
-        coordinates.sort_by(f64::total_cmp);
-
-        assert_eq!(coordinates.len(), 5);
-        assert!(coordinates.contains(&2.0));
-        assert!(coordinates.iter().any(|value| value.is_infinite()));
-        assert!(coordinates.iter().filter(|value| value.is_nan()).count() == 2);
-        let zero = coordinates.iter().find(|value| **value == 0.0).unwrap();
-        assert!(zero.is_sign_negative());
-    }
 
     fn node(name: &str, width: f64, height: f64) -> Node {
         Node {
@@ -4766,156 +4120,6 @@ mod tests {
     }
 
     #[test]
-    fn fixed_route_import_preserves_generic_nodes_and_fmadd_distance() {
-        let source = NodeId(0);
-        let target = NodeId(1);
-        let points = vec![Point { x: 0.0, y: 0.0 }, Point { x: 20.0, y: 20.0 }];
-        let mut graph = VisibilityGraph {
-            canonical: None,
-            points: points.clone(),
-            edges: Adjacency::from_nested(vec![Vec::new(); points.len()]),
-            search_indices: (0..points.len()).collect(),
-            centers: BTreeMap::from([(source, 0), (target, 1)]),
-            center_owners: vec![Some(source), Some(target)],
-            point_containers: vec![None; points.len()],
-            port_owners: vec![BTreeSet::new(); points.len()].into(),
-            near_port_owners: vec![BTreeSet::new(); points.len()].into(),
-            rejected_hierarchy_points: BTreeSet::new(),
-            tunnel_points: BTreeSet::new(),
-            added_tree_ports: BTreeMap::new(),
-        };
-        let first = Point { x: 1.25, y: 2.5 };
-        let second = Point { x: 4.75, y: 7.125 };
-        graph.add_existing_route(source, target, &[first, second]);
-
-        assert_eq!(graph.search_indices[2..], [2, 3]);
-        assert!(
-            graph.edges[0].is_empty(),
-            "center-to-generic must be refused"
-        );
-        assert!(
-            graph.edges[1].is_empty(),
-            "generic-to-center must be refused"
-        );
-        let imported = graph.edges[2]
-            .iter()
-            .map(|entry| entry.tuple())
-            .find(|(neighbor, ..)| *neighbor == 3)
-            .unwrap();
-        let dx = first.x - second.x;
-        let dy = first.y - second.y;
-        assert_eq!(
-            imported.1.to_bits(),
-            dy.mul_add(dy, dx * dx).sqrt().to_bits()
-        );
-        assert_eq!(imported.2, Axis::None);
-        assert_eq!(search_axis(first, second), Axis::Vertical);
-        assert_eq!(
-            search_axis(
-                first,
-                Point {
-                    y: first.y,
-                    ..second
-                }
-            ),
-            Axis::Horizontal
-        );
-    }
-
-    #[test]
-    fn shared_endpoint_port_keeps_both_ovg_centers_and_two_published_endpoints() {
-        let mut input = Graph::default();
-        let source = input.add_node(node("source", 20.0, 20.0));
-        let target = input.add_node(node("target", 40.0, 40.0));
-        let graph = ArenaGraph::from_input(&input);
-        let shared = Point { x: 10.0, y: 0.0 };
-        let points = vec![Point { x: 0.0, y: 0.0 }, Point { x: 20.0, y: 0.0 }, shared];
-        let mut edges = vec![Vec::new(); points.len()];
-        VisibilityGraph::connect(&mut edges, &points, 0, 2, Axis::Horizontal);
-        VisibilityGraph::connect(&mut edges, &points, 1, 2, Axis::Horizontal);
-        let mut port_owners = vec![BTreeSet::new(); points.len()];
-        port_owners[2].extend([source, target]);
-        let visibility = VisibilityGraph {
-            canonical: None,
-            points,
-            edges: Adjacency::from_nested(edges),
-            search_indices: (0..3).collect(),
-            centers: BTreeMap::from([(source, 0), (target, 1)]),
-            center_owners: vec![Some(source), Some(target), None],
-            point_containers: vec![None; 3],
-            port_owners: port_owners.into(),
-            near_port_owners: vec![BTreeSet::new(); 3].into(),
-            rejected_hierarchy_points: BTreeSet::new(),
-            tunnel_points: BTreeSet::new(),
-            added_tree_ports: BTreeMap::new(),
-        };
-        let source_port = Port {
-            point: shared,
-            direction: PortSide::Right,
-            side: PortSide::Right,
-            index: 0,
-            tunnel: None,
-            is_center: true,
-        };
-        let target_port = Port {
-            point: shared,
-            direction: PortSide::Left,
-            side: PortSide::Left,
-            index: 0,
-            tunnel: None,
-            is_center: true,
-        };
-        let boxes = BTreeMap::from([
-            (
-                source,
-                Rect {
-                    origin: Point { x: -10.0, y: -10.0 },
-                    size: Size {
-                        width: 20.0,
-                        height: 20.0,
-                    },
-                },
-            ),
-            (
-                target,
-                Rect {
-                    origin: Point { x: 0.0, y: -20.0 },
-                    size: Size {
-                        width: 40.0,
-                        height: 40.0,
-                    },
-                },
-            ),
-        ]);
-        let interaction = super::super::search::RouteInteractionIndex::new(&visibility, &graph);
-
-        let route = visibility
-            .route_between_any(
-                &graph,
-                &[(source_port, 0.0)],
-                &[(target_port, 0.0)],
-                source,
-                target,
-                None,
-                &interaction,
-                &boxes,
-                false,
-            )
-            .expect("the source accepts a shared port between distinct OVG centers");
-        assert_eq!(route.points, vec![shared]);
-        assert_eq!(route.node_ids, vec![0, 2, 1]);
-        let nodes = route
-            .node_ids
-            .iter()
-            .map(|&i| visibility.point(i))
-            .collect::<Vec<_>>();
-        assert_eq!(
-            super::super::route_geometry::segment_endpoints_from_ovg_nodes(&nodes),
-            Some(vec![shared, shared])
-        );
-    }
-
-    #[test]
     fn invisible_node_center_is_not_marked_as_a_node_center() {
         let mut input = Graph::default();
         let invisible = input.add_node(node("invisible", 40.0, 40.0));
@@ -4949,181 +4153,11 @@ mod tests {
         assert!(!visibility.edges[center].is_empty());
         let array_units = visibility.member_count() as u64 * 3;
         let limited = LocalRouteSearchWork::new(array_units - 1);
-        assert!(visibility.prepare_route_search(Some(&limited)).is_none());
+        assert!(visibility.prepare_route_search(&limited).is_none());
         assert_eq!(limited.used(), 0);
         let exact = LocalRouteSearchWork::new(array_units);
-        assert!(visibility.prepare_route_search(Some(&exact)).is_some());
+        assert!(visibility.prepare_route_search(&exact).is_some());
         assert_eq!(exact.used(), array_units);
-    }
-
-    #[test]
-    fn invisible_port_owner_ignores_ordinary_node_obstructions() {
-        let mut input = Graph::default();
-        let owner = input.add_node(node("owner", 40.0, 40.0));
-        let blocker = input.add_node(node("blocker", 20.0, 20.0));
-        let mut arena = ArenaGraph::from_input(&input);
-        let boxes = BTreeMap::from([
-            (
-                owner,
-                Rect {
-                    origin: Point { x: 0.0, y: 0.0 },
-                    size: Size {
-                        width: 40.0,
-                        height: 40.0,
-                    },
-                },
-            ),
-            (
-                blocker,
-                Rect {
-                    origin: Point { x: 10.0, y: -40.0 },
-                    size: Size {
-                        width: 20.0,
-                        height: 20.0,
-                    },
-                },
-            ),
-        ]);
-        let port = Port {
-            point: Point { x: 20.0, y: 0.0 },
-            direction: PortSide::Top,
-            side: PortSide::Top,
-            index: 0,
-            tunnel: None,
-            is_center: false,
-        };
-        let candidate = Point { x: 20.0, y: -60.0 };
-        assert!(!has_unobstructed_line_to_ports(
-            candidate,
-            &arena,
-            &boxes,
-            &arena.graph_node_order(),
-            &[(owner, port)],
-            &BTreeSet::new(),
-            1,
-        ));
-
-        arena.nodes[owner.0 as usize].is_invisible = true;
-        assert!(has_unobstructed_line_to_ports(
-            candidate,
-            &arena,
-            &boxes,
-            &arena.graph_node_order(),
-            &[(owner, port)],
-            &BTreeSet::new(),
-            1,
-        ));
-    }
-
-    #[test]
-    fn fixed_route_import_appends_parallel_ovg_edges() {
-        let source = NodeId(0);
-        let target = NodeId(1);
-        let source_port = Point { x: 10.0, y: 0.0 };
-        let target_port = Point { x: 90.0, y: 0.0 };
-        let points = vec![
-            Point { x: 0.0, y: 0.0 },
-            Point { x: 100.0, y: 0.0 },
-            source_port,
-            target_port,
-        ];
-        let mut edges = vec![Vec::new(); points.len()];
-        VisibilityGraph::connect(&mut edges, &points, 0, 2, Axis::Horizontal);
-        VisibilityGraph::connect(&mut edges, &points, 2, 3, Axis::Horizontal);
-        VisibilityGraph::connect(&mut edges, &points, 3, 1, Axis::Horizontal);
-        let mut port_owners = vec![BTreeSet::new(); points.len()];
-        port_owners[2].insert(source);
-        port_owners[3].insert(target);
-        let mut graph = VisibilityGraph {
-            canonical: None,
-            points: points.clone(),
-            edges: Adjacency::from_nested(edges),
-            search_indices: (0..points.len()).collect(),
-            centers: BTreeMap::from([(source, 0), (target, 1)]),
-            center_owners: vec![Some(source), Some(target), None, None],
-            point_containers: vec![None; points.len()],
-            port_owners: port_owners.into(),
-            near_port_owners: vec![BTreeSet::new(); points.len()].into(),
-            rejected_hierarchy_points: BTreeSet::new(),
-            tunnel_points: BTreeSet::new(),
-            added_tree_ports: BTreeMap::new(),
-        };
-
-        graph.add_existing_route(source, target, &[source_port, target_port]);
-        assert_eq!(
-            graph.edges[2]
-                .iter()
-                .filter(|entry| entry.neighbor() == 3)
-                .count(),
-            2
-        );
-    }
-
-    #[test]
-    fn fixed_route_target_center_is_deduplicated_by_coordinate() {
-        let source = NodeId(0);
-        let target = NodeId(1);
-        let later_same_center = NodeId(2);
-        let target_point = Point { x: 100.0, y: 0.0 };
-        let source_port = Point { x: 10.0, y: 0.0 };
-        let points = vec![
-            Point { x: 0.0, y: 0.0 },
-            target_point,
-            target_point,
-            source_port,
-        ];
-        let mut port_owners = vec![BTreeSet::new(); points.len()];
-        port_owners[3].insert(source);
-        let mut graph = VisibilityGraph {
-            canonical: None,
-            points: points.clone(),
-            edges: Adjacency::from_nested(vec![Vec::new(); points.len()]),
-            search_indices: (0..points.len()).collect(),
-            centers: BTreeMap::from([(source, 0), (target, 1), (later_same_center, 2)]),
-            center_owners: vec![Some(source), Some(target), Some(later_same_center), None],
-            point_containers: vec![None; points.len()],
-            port_owners: port_owners.into(),
-            near_port_owners: vec![BTreeSet::new(); points.len()].into(),
-            rejected_hierarchy_points: BTreeSet::new(),
-            tunnel_points: BTreeSet::new(),
-            added_tree_ports: BTreeMap::new(),
-        };
-
-        graph.add_existing_route(source, target, &[source_port, target_point]);
-        assert!(
-            graph.edges[2].iter().all(|entry| entry.neighbor() != 1),
-            "equal-coordinate target center was appended as a zero-length hop"
-        );
-        assert!(graph.edges[1].is_empty());
-    }
-
-    #[test]
-    fn fixed_route_import_rejects_center_to_center_connections() {
-        let source = NodeId(0);
-        let target = NodeId(1);
-        let unrelated = NodeId(2);
-        let points = vec![
-            Point { x: 0.0, y: 0.0 },
-            Point { x: 100.0, y: 0.0 },
-            Point { x: 50.0, y: 0.0 },
-        ];
-        let mut graph = VisibilityGraph {
-            canonical: None,
-            points: points.clone(),
-            edges: Adjacency::from_nested(vec![Vec::new(); points.len()]),
-            search_indices: (0..points.len()).collect(),
-            centers: BTreeMap::from([(source, 0), (target, 1), (unrelated, 2)]),
-            center_owners: vec![Some(source), Some(target), Some(unrelated)],
-            point_containers: vec![None; points.len()],
-            port_owners: vec![BTreeSet::new(); points.len()].into(),
-            near_port_owners: vec![BTreeSet::new(); points.len()].into(),
-            rejected_hierarchy_points: BTreeSet::new(),
-            tunnel_points: BTreeSet::new(),
-            added_tree_ports: BTreeMap::new(),
-        };
-
-        graph.add_existing_route(source, target, &[points[2]]);
-        assert!((0..graph.edges.len()).all(|node| graph.edges[node].is_empty()));
     }
 
     #[test]
@@ -5175,7 +4209,6 @@ mod tests {
             near_port_owners: vec![BTreeSet::new(); points.len()].into(),
             rejected_hierarchy_points: BTreeSet::new(),
             tunnel_points: BTreeSet::new(),
-            added_tree_ports: BTreeMap::new(),
         };
         let fixed_route = [Point { x: 0.0, y: 0.0 }, Point { x: 100.0, y: 0.0 }];
         let rect = crate::internal::labels::arrowhead_label_rect_for_route(
@@ -5236,7 +4269,6 @@ mod tests {
             near_port_owners: vec![BTreeSet::new(); points.len()].into(),
             rejected_hierarchy_points: BTreeSet::new(),
             tunnel_points: BTreeSet::new(),
-            added_tree_ports: BTreeMap::new(),
         };
         let rect = crate::internal::labels::positioned_node_label_rect(&arena, obstacle).unwrap();
         let y = rect.origin.y + rect.size.height * 0.5;
@@ -5331,7 +4363,6 @@ mod tests {
             near_port_owners: vec![BTreeSet::new(); points.len()].into(),
             rejected_hierarchy_points: BTreeSet::new(),
             tunnel_points: BTreeSet::new(),
-            added_tree_ports: BTreeMap::new(),
         };
         let mut index = super::super::search::RouteInteractionIndex::new(&visibility, &arena);
         index.add_route(&arena, 0, &points[1..3], "test");
@@ -5341,75 +4372,6 @@ mod tests {
         assert_eq!(routed_segments, 1);
         assert_eq!(nearby_edges, 0);
         assert_eq!(overlaps, 0);
-    }
-
-    #[test]
-    fn orthogonal_path_retains_intermediate_crossing_vertices() {
-        let points = vec![
-            Point { x: 10.0, y: 0.0 },
-            Point { x: 10.0, y: 5.0 },
-            Point { x: 10.0, y: 10.0 },
-        ];
-        let mut edges = vec![Vec::new(); points.len()];
-        VisibilityGraph::connect(&mut edges, &points, 0, 1, Axis::Vertical);
-        VisibilityGraph::connect(&mut edges, &points, 1, 2, Axis::Vertical);
-        let graph = VisibilityGraph {
-            canonical: None,
-            points: points.clone(),
-            edges: Adjacency::from_nested(edges),
-            search_indices: (0..points.len()).collect(),
-            centers: BTreeMap::new(),
-            center_owners: vec![None; 3],
-            point_containers: vec![None; 3],
-            port_owners: vec![BTreeSet::new(); 3].into(),
-            near_port_owners: vec![BTreeSet::new(); 3].into(),
-            rejected_hierarchy_points: BTreeSet::new(),
-            tunnel_points: BTreeSet::new(),
-            added_tree_ports: BTreeMap::new(),
-        };
-
-        assert_eq!(graph.orthogonal_path(points[0], points[2]), Some(points));
-    }
-
-    #[test]
-    fn tree_s_shape_keeps_source_orientation_for_target_leg() {
-        let points = vec![
-            Point { x: 100.0, y: 0.0 },
-            Point { x: 50.0, y: 0.0 },
-            Point { x: 50.0, y: 20.0 },
-            Point { x: 100.0, y: 20.0 },
-        ];
-        let mut edges = vec![Vec::new(); points.len()];
-        VisibilityGraph::connect(&mut edges, &points, 0, 1, Axis::Horizontal);
-        VisibilityGraph::connect(&mut edges, &points, 1, 2, Axis::Vertical);
-        let graph = VisibilityGraph {
-            canonical: None,
-            points: points.clone(),
-            edges: Adjacency::from_nested(edges),
-            search_indices: (0..points.len()).collect(),
-            centers: BTreeMap::new(),
-            center_owners: vec![None; points.len()],
-            point_containers: vec![None; points.len()],
-            port_owners: vec![BTreeSet::new(); points.len()].into(),
-            near_port_owners: vec![BTreeSet::new(); points.len()].into(),
-            rejected_hierarchy_points: BTreeSet::new(),
-            tunnel_points: BTreeSet::new(),
-            added_tree_ports: BTreeMap::new(),
-        };
-
-        // TALA's routeInSShape uses the source port side for both horizontal
-        // legs. The final leg therefore cannot walk rightward here, and the
-        // sentinel route must fall back to ordinary OVG routing.
-        assert_eq!(
-            graph.s_shape_route(
-                points[0],
-                points[1],
-                points[2],
-                points[3],
-                Orientation::Right,
-            ),
-            None
-        );
     }
 
     #[test]
@@ -5473,156 +4435,6 @@ mod tests {
     }
 
     #[test]
-    fn aligned_tree_child_port_joins_the_visibility_port_inventory() {
-        let mut input = Graph::default();
-        let parent = input.add_node(node("parent", 52.0, 40.0));
-        let child = input.add_node(node("child", 53.0, 40.0));
-        let sentinel_edge = input.add_edge(Edge {
-            source: parent,
-            target: child,
-        });
-        let mut graph = ArenaGraph::from_input(&input);
-        graph.set_position(parent, Point { x: 0.0, y: 0.0 });
-        graph.set_position(child, Point { x: 0.0, y: 200.0 });
-        graph.tree_routing_nodes.insert(
-            child,
-            TreeRoutingNode {
-                parent,
-                sentinel_edge,
-                // TALA's tree carrier is the geometry orientation: Bottom
-                // selects the parent's bottom port and the child's top port
-                // for a child below the parent. The serialized edge's
-                // source-to-target orientation is derived separately.
-                orientation: super::super::Orientation::Bottom,
-                extraction_order: 0,
-            },
-        );
-        graph.publish_preprocessed_owner_trees();
-        let boxes = graph
-            .nodes
-            .iter()
-            .map(|node| {
-                (
-                    node.input_id,
-                    Rect {
-                        origin: node.position.unwrap(),
-                        size: node.rect.size,
-                    },
-                )
-            })
-            .collect::<BTreeMap<_, _>>();
-        let all_ports = graph
-            .nodes
-            .iter()
-            .flat_map(|node| {
-                super::super::ports(boxes[&node.input_id], node.shape)
-                    .into_iter()
-                    .map(move |port| (node.input_id, port))
-            })
-            .collect::<Vec<_>>();
-
-        let ovg = VisibilityGraph::from_ports(
-            &graph,
-            &boxes,
-            &graph.graph_node_order(),
-            &[parent, child],
-            all_ports.clone().into_iter(),
-        );
-
-        assert!(ovg.contains_point(Point { x: 26.0, y: 200.0 }));
-        assert_eq!(ovg.center_point(child), Some(Point { x: 26.5, y: 220.0 }));
-        assert_eq!(ovg.added_tree_ports(child).len(), 1);
-        assert_eq!(
-            ovg.added_tree_ports(child)[0].point,
-            Point { x: 26.0, y: 200.0 }
-        );
-        // Earlier topology can already own this coordinate for another node.
-        // Canonicalization must add the child's ownership, not suppress it.
-        let mut coincident_ports = all_ports;
-        let mut earlier_port = ovg.added_tree_ports(child)[0];
-        earlier_port.index = usize::MAX;
-        coincident_ports.push((parent, earlier_port));
-        let reused = VisibilityGraph::from_ports(
-            &graph,
-            &boxes,
-            &graph.graph_node_order(),
-            &[parent, child],
-            coincident_ports.into_iter(),
-        );
-        assert_eq!(reused.added_tree_ports(child).len(), 1);
-        assert_eq!(
-            reused.port_index(parent, earlier_port.point),
-            reused.port_index(child, earlier_port.point)
-        );
-        assert!(reused.port_index(child, earlier_port.point).is_some());
-    }
-
-    #[test]
-    fn boundary_layers_connect_same_side_ports_around_an_obstacle() {
-        let mut input = Graph::default();
-        let source = input.add_node(node("source", 40.0, 40.0));
-        let obstacle = input.add_node(node("obstacle", 80.0, 80.0));
-        let target = input.add_node(node("target", 40.0, 40.0));
-        let mut graph = ArenaGraph::from_input(&input);
-        graph.set_position(source, Point { x: 0.0, y: 100.0 });
-        graph.set_position(obstacle, Point { x: 80.0, y: 60.0 });
-        graph.set_position(target, Point { x: 200.0, y: 100.0 });
-
-        let boxes = graph
-            .nodes
-            .iter()
-            .map(|node| {
-                (
-                    node.input_id,
-                    Rect {
-                        origin: node.position.unwrap(),
-                        size: node.rect.size,
-                    },
-                )
-            })
-            .collect::<BTreeMap<_, _>>();
-        let all_ports = graph
-            .nodes
-            .iter()
-            .flat_map(|node| {
-                super::super::ports(boxes[&node.input_id], node.shape)
-                    .into_iter()
-                    .map(move |port| (node.input_id, port))
-            })
-            .collect::<Vec<_>>();
-        let source_port = super::super::ports(boxes[&source], ShapeKind::Rectangle)
-            .into_iter()
-            .find(|port| port.side == PortSide::Top && port.is_center)
-            .unwrap();
-        let target_port = super::super::ports(boxes[&target], ShapeKind::Rectangle)
-            .into_iter()
-            .find(|port| port.side == PortSide::Top && port.is_center)
-            .unwrap();
-
-        let ovg = VisibilityGraph::from_ports(
-            &graph,
-            &boxes,
-            &graph.graph_node_order(),
-            &graph.graph_node_order(),
-            all_ports.into_iter(),
-        );
-        let route = ovg.route(&graph, source_port, target_port, source, target);
-
-        assert_eq!(route.first(), Some(&source_port.point));
-        assert_eq!(route.last(), Some(&target_port.point));
-        assert!(route.len() > 2);
-        assert!(
-            route
-                .windows(2)
-                .all(|segment| !segment_crosses_rect_interior(
-                    segment[0],
-                    segment[1],
-                    boxes[&obstacle]
-                ))
-        );
-    }
-
-    #[test]
     fn corner_nodes_inside_the_twenty_unit_node_band_are_rejected() {
         let node_rect = Rect {
             origin: Point { x: 0.0, y: 0.0 },
@@ -5655,400 +4467,6 @@ mod tests {
                 Point { x: -60.0, y: 100.0 },
             ]
         );
-    }
-
-    #[test]
-    fn search_can_reenter_an_admissible_source_port_across_container_boundaries() {
-        let mut input = Graph::default();
-        let source_parent = input.add_node(node("source-parent", 100.0, 100.0));
-        let mut source_node = node("source", 20.0, 20.0);
-        source_node.parent = Some(source_parent);
-        let source = input.add_node(source_node);
-        let mut source_child = node("source-child", 1.0, 1.0);
-        source_child.parent = Some(source);
-        input.add_node(source_child);
-        let target_parent = input.add_node(node("target-parent", 100.0, 100.0));
-        let mut target_node = node("target", 20.0, 20.0);
-        target_node.parent = Some(target_parent);
-        let target = input.add_node(target_node);
-        let graph = ArenaGraph::from_input(&input);
-
-        let source_center = Point { x: 20.0, y: 0.0 };
-        let target_center = Point { x: -30.0, y: 0.0 };
-        let source_top = Port {
-            point: Point { x: 20.0, y: -10.0 },
-            direction: PortSide::Top,
-            side: PortSide::Top,
-            index: 0,
-            tunnel: None,
-            is_center: true,
-        };
-        let source_left = Port {
-            point: Point { x: 10.0, y: 0.0 },
-            direction: PortSide::Left,
-            side: PortSide::Left,
-            index: 0,
-            tunnel: None,
-            is_center: true,
-        };
-        let target_right = Port {
-            point: Point { x: -20.0, y: 0.0 },
-            direction: PortSide::Right,
-            side: PortSide::Right,
-            index: 0,
-            tunnel: None,
-            is_center: true,
-        };
-        let points = vec![
-            source_center,
-            target_center,
-            source_top.point,
-            Point { x: 20.0, y: -20.0 },
-            Point { x: 10.0, y: -20.0 },
-            source_left.point,
-            Point { x: 0.0, y: 0.0 },
-            target_right.point,
-        ];
-        let mut edges = vec![Vec::new(); points.len()];
-        for (first, second, axis) in [
-            (0, 2, Axis::Vertical),
-            (0, 5, Axis::Horizontal),
-            (2, 3, Axis::Vertical),
-            (3, 4, Axis::Horizontal),
-            (4, 5, Axis::Vertical),
-            (5, 6, Axis::Horizontal),
-            (6, 7, Axis::Horizontal),
-            (7, 1, Axis::Horizontal),
-        ] {
-            VisibilityGraph::connect(&mut edges, &points, first, second, axis);
-        }
-        let mut port_owners = vec![BTreeSet::new(); points.len()];
-        port_owners[2].insert(source);
-        port_owners[5].insert(source);
-        port_owners[7].insert(target);
-        let visibility = VisibilityGraph {
-            canonical: None,
-            points: points.clone(),
-            edges: Adjacency::from_nested(edges),
-            search_indices: (0..points.len()).collect(),
-            centers: BTreeMap::from([(source, 0), (target, 1)]),
-            center_owners: vec![
-                Some(source),
-                Some(target),
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-            ],
-            point_containers: vec![
-                Some(source),
-                Some(target),
-                Some(source),
-                None,
-                None,
-                Some(source),
-                None,
-                Some(target),
-            ],
-            port_owners: port_owners.into(),
-            near_port_owners: vec![BTreeSet::new(); points.len()].into(),
-            rejected_hierarchy_points: BTreeSet::new(),
-            tunnel_points: BTreeSet::new(),
-            added_tree_ports: BTreeMap::new(),
-        };
-        let boxes = BTreeMap::from([
-            (
-                source,
-                Rect {
-                    origin: Point { x: 10.0, y: -10.0 },
-                    size: Size {
-                        width: 20.0,
-                        height: 20.0,
-                    },
-                },
-            ),
-            (
-                target,
-                Rect {
-                    origin: Point { x: -40.0, y: -10.0 },
-                    size: Size {
-                        width: 20.0,
-                        height: 20.0,
-                    },
-                },
-            ),
-        ]);
-        assert!(!graph.visibility_container_is_admissible(
-            Some(source_parent),
-            Some(target_parent),
-            Some(source),
-            false,
-        ));
-
-        let interaction = super::super::search::RouteInteractionIndex::new(&visibility, &graph);
-        let route = visibility
-            .route_between_any(
-                &graph,
-                &[(source_top, 0.0), (source_left, 1_000_000.0)],
-                &[(target_right, 0.0)],
-                source,
-                target,
-                None,
-                &interaction,
-                &boxes,
-                false,
-            )
-            .unwrap();
-
-        assert_eq!(route.source.point, source_top.point);
-        assert_eq!(route.source.side, source_top.side);
-        assert_eq!(
-            route.points,
-            vec![
-                source_top.point,
-                Point { x: 20.0, y: -20.0 },
-                Point { x: 10.0, y: -20.0 },
-                source_left.point,
-                Point { x: 0.0, y: 0.0 },
-                target_right.point,
-            ]
-        );
-        assert_eq!(route.node_ids.len(), route.points.len() + 2);
-        assert_eq!(route.node_ids.first(), visibility.centers.get(&source));
-        assert_eq!(route.node_ids.last(), visibility.centers.get(&target));
-        assert_eq!(
-            route
-                .node_ids
-                .iter()
-                .skip(1)
-                .take(route.points.len())
-                .map(|index| visibility.point(*index))
-                .collect::<Vec<_>>(),
-            route.points
-        );
-    }
-
-    #[test]
-    fn intersections_require_unobstructed_axes_to_two_distinct_port_owners() {
-        let mut input = Graph::default();
-        let first = input.add_node(node("first", 40.0, 40.0));
-        let second = input.add_node(node("second", 40.0, 40.0));
-        let mut graph = ArenaGraph::from_input(&input);
-        graph.set_position(first, Point { x: 0.0, y: 0.0 });
-        graph.set_position(second, Point { x: 80.0, y: 80.0 });
-
-        let boxes = [first, second]
-            .into_iter()
-            .map(|node| {
-                (
-                    node,
-                    Rect {
-                        origin: graph.position(node).unwrap(),
-                        size: graph.nodes[node.0 as usize].rect.size,
-                    },
-                )
-            })
-            .collect::<BTreeMap<_, _>>();
-        let first_port = Port {
-            point: Point { x: 40.0, y: 20.0 },
-            direction: PortSide::Right,
-            side: PortSide::Right,
-            index: 0,
-            is_center: true,
-            tunnel: None,
-        };
-        let second_port = Port {
-            point: Point { x: 100.0, y: 80.0 },
-            direction: PortSide::Top,
-            side: PortSide::Top,
-            index: 0,
-            is_center: true,
-            tunnel: None,
-        };
-        let intersection = Point { x: 100.0, y: 20.0 };
-
-        assert!(!has_unobstructed_line_to_ports(
-            intersection,
-            &graph,
-            &boxes,
-            &graph.graph_node_order(),
-            &[(first, first_port)],
-            &BTreeSet::new(),
-            2,
-        ));
-        assert!(has_unobstructed_line_to_ports(
-            intersection,
-            &graph,
-            &boxes,
-            &graph.graph_node_order(),
-            &[(first, first_port), (second, second_port)],
-            &BTreeSet::new(),
-            2,
-        ));
-    }
-
-    #[test]
-    fn sequence_members_do_not_obstruct_each_others_port_axes() {
-        let mut input = Graph::default();
-        let first = input.add_node(node("first", 100.0, 100.0));
-        let second = input.add_node(node("second", 100.0, 100.0));
-        let mut graph = ArenaGraph::from_input(&input);
-        graph.set_position(first, Point { x: 0.0, y: 0.0 });
-        graph.set_position(second, Point { x: 65.0, y: 0.0 });
-        graph.nodes[first.0 as usize].sequence = Some(0);
-        graph.nodes[second.0 as usize].sequence = Some(0);
-
-        let boxes = [
-            (
-                first,
-                Rect {
-                    origin: Point { x: 0.0, y: 0.0 },
-                    size: Size {
-                        width: 100.0,
-                        height: 100.0,
-                    },
-                },
-            ),
-            (
-                second,
-                Rect {
-                    origin: Point { x: 65.0, y: 0.0 },
-                    size: Size {
-                        width: 100.0,
-                        height: 100.0,
-                    },
-                },
-            ),
-        ]
-        .into_iter()
-        .collect::<BTreeMap<_, _>>();
-        let ports = [
-            (
-                first,
-                Port {
-                    point: Point { x: 0.0, y: 25.0 },
-                    direction: PortSide::Left,
-                    side: PortSide::Left,
-                    index: 0,
-                    tunnel: None,
-                    is_center: false,
-                },
-            ),
-            (
-                second,
-                Port {
-                    point: Point { x: 65.0, y: 25.0 },
-                    direction: PortSide::Left,
-                    side: PortSide::Left,
-                    index: 0,
-                    tunnel: None,
-                    is_center: false,
-                },
-            ),
-        ];
-
-        assert!(has_unobstructed_line_to_ports(
-            Point { x: 200.0, y: 25.0 },
-            &graph,
-            &boxes,
-            &[first, second],
-            &ports,
-            &BTreeSet::new(),
-            2,
-        ));
-
-        graph.nodes[second.0 as usize].sequence = None;
-        assert!(!has_unobstructed_line_to_ports(
-            Point { x: 200.0, y: 25.0 },
-            &graph,
-            &boxes,
-            &[first, second],
-            &ports,
-            &BTreeSet::new(),
-            2,
-        ));
-    }
-
-    #[test]
-    fn nearby_boxes_are_not_ovg_intersection_obstacles_for_the_split_graph() {
-        let mut input = Graph::default();
-        let first = input.add_node(node("first", 40.0, 40.0));
-        let second = input.add_node(node("second", 40.0, 40.0));
-        let nearby = input.add_node(node("nearby", 20.0, 20.0));
-        let mut graph = ArenaGraph::from_input(&input);
-        graph.set_position(first, Point { x: 0.0, y: 0.0 });
-        graph.set_position(second, Point { x: 80.0, y: 0.0 });
-        graph.set_position(nearby, Point { x: 40.0, y: 10.0 });
-        let boxes = [
-            (
-                first,
-                Rect {
-                    origin: Point { x: 0.0, y: 0.0 },
-                    size: Size {
-                        width: 40.0,
-                        height: 40.0,
-                    },
-                },
-            ),
-            (
-                second,
-                Rect {
-                    origin: Point { x: 80.0, y: 0.0 },
-                    size: Size {
-                        width: 40.0,
-                        height: 40.0,
-                    },
-                },
-            ),
-            (
-                nearby,
-                Rect {
-                    origin: Point { x: 40.0, y: 10.0 },
-                    size: Size {
-                        width: 20.0,
-                        height: 20.0,
-                    },
-                },
-            ),
-        ]
-        .into_iter()
-        .collect::<BTreeMap<_, _>>();
-        let ports = [
-            (
-                first,
-                Port {
-                    point: Point { x: 20.0, y: 20.0 },
-                    direction: PortSide::Right,
-                    side: PortSide::Right,
-                    index: 0,
-                    tunnel: None,
-                    is_center: false,
-                },
-            ),
-            (
-                second,
-                Port {
-                    point: Point { x: 100.0, y: 20.0 },
-                    direction: PortSide::Left,
-                    side: PortSide::Left,
-                    index: 0,
-                    tunnel: None,
-                    is_center: false,
-                },
-            ),
-        ];
-
-        assert!(has_unobstructed_line_to_ports(
-            Point { x: 60.0, y: 20.0 },
-            &graph,
-            &boxes,
-            &[first, second],
-            &ports,
-            &BTreeSet::new(),
-            2,
-        ));
     }
 
     #[test]
@@ -6268,124 +4686,6 @@ mod tests {
             ovg.search_nodes()[ovg.centers[&nested]].container(),
             Some(container)
         );
-    }
-
-    #[test]
-    fn accepted_route_indexes_match_geometric_hop_scoring() {
-        let mut input = Graph::default();
-        let first = input.add_node(node("first", 40.0, 40.0));
-        let second = input.add_node(node("second", 40.0, 40.0));
-        let third = input.add_node(node("third", 40.0, 40.0));
-        input.add_edge(Edge {
-            source: first,
-            target: second,
-        });
-        input.add_edge(Edge {
-            source: second,
-            target: third,
-        });
-        let mut graph = ArenaGraph::from_input(&input);
-        graph.set_position(first, Point { x: 0.0, y: 0.0 });
-        graph.set_position(second, Point { x: 100.0, y: 80.0 });
-        graph.set_position(third, Point { x: 200.0, y: 0.0 });
-        let boxes = graph
-            .nodes
-            .iter()
-            .map(|node| {
-                (
-                    node.input_id,
-                    Rect {
-                        origin: node.position.unwrap(),
-                        size: node.rect.size,
-                    },
-                )
-            })
-            .collect::<BTreeMap<_, _>>();
-        let all_ports = graph
-            .nodes
-            .iter()
-            .flat_map(|node| {
-                super::super::ports(boxes[&node.input_id], node.shape)
-                    .into_iter()
-                    .map(move |port| (node.input_id, port))
-            })
-            .collect::<Vec<_>>();
-        let ovg = VisibilityGraph::from_ports(
-            &graph,
-            &boxes,
-            &graph.graph_node_order(),
-            &graph.graph_node_order(),
-            all_ports.into_iter(),
-        );
-        let segments = ovg.segments();
-        let accepted = segments
-            .iter()
-            .copied()
-            .find(|segment| segment[0].x == segment[1].x)
-            .unwrap();
-        let routes = vec![accepted.to_vec(), Vec::new()];
-        let mut index = super::super::search::RouteInteractionIndex::new(&ovg, &graph);
-        index.add_route(&graph, 0, &routes[0], "test");
-
-        for candidate in segments {
-            assert_eq!(
-                index.apply_cost(&graph, 1, candidate, 0.0),
-                super::super::search::route_interaction_cost(&graph, 1, &candidate, &routes,),
-                "indexed interaction drifted for {candidate:?}",
-            );
-        }
-    }
-
-    #[test]
-    fn same_line_port_exception_uses_the_line_endpoints_direction() {
-        let rect = Rect {
-            origin: Point { x: 0.0, y: 0.0 },
-            size: Size {
-                width: 300.0,
-                height: 300.0,
-            },
-        };
-        let first = Point { x: 150.0, y: 300.0 };
-        let second = Point { x: 150.0, y: 320.0 };
-        let ports = [Port {
-            point: first,
-            direction: PortSide::Top,
-            side: PortSide::Top,
-            index: 0,
-            tunnel: None,
-            is_center: false,
-        }];
-
-        assert!(!passes_through_allowing_direction(
-            first,
-            second,
-            rect,
-            &ports,
-            Some(PortSide::Bottom),
-        ));
-        assert!(passes_through_allowing_direction(
-            first,
-            second,
-            rect,
-            &ports,
-            Some(PortSide::Top),
-        ));
-
-        let second_endpoint_port = [Port {
-            point: second,
-            direction: PortSide::Top,
-            side: PortSide::Top,
-            index: 0,
-            tunnel: None,
-            is_center: false,
-        }];
-        assert!(!passes_through_allowing_direction(
-            first,
-            second,
-            rect,
-            &second_endpoint_port,
-            Some(PortSide::Bottom),
-        ));
     }
 
     #[test]

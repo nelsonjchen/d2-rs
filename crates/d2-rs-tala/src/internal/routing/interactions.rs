@@ -380,10 +380,6 @@ pub(super) fn edges_can_overlap_all_for_search_with(
     )
 }
 
-pub(super) fn edges_can_overlap(graph: &ArenaGraph, edge_index: usize, other_index: usize) -> bool {
-    edges_can_overlap_all(graph, edge_index, &[other_index])
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -502,13 +498,13 @@ mod tests {
             },
         );
         let mut graph = ArenaGraph::from_input(&input);
-        assert!(edges_can_overlap(&graph, 0, 1));
-        assert!(edges_can_overlap(&graph, 1, 0));
+        assert!(edges_can_overlap_all(&graph, 0, &[1]));
+        assert!(edges_can_overlap_all(&graph, 1, &[0]));
         graph.edge_records[1].target_arrowhead = Some("unfilled-triangle".into());
-        assert!(!edges_can_overlap(&graph, 0, 1));
+        assert!(!edges_can_overlap_all(&graph, 0, &[1]));
         graph.edge_records[1].target_arrow = false;
         graph.edge_records[1].target_arrowhead = Some("none".into());
-        assert!(!edges_can_overlap(&graph, 0, 1));
+        assert!(!edges_can_overlap_all(&graph, 0, &[1]));
     }
 
     #[test]

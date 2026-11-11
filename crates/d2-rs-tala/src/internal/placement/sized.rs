@@ -1268,21 +1268,16 @@ impl<'a> SizedOptimizer<'a> {
         scoring_context: Option<&dyn super::limits::Context>,
     ) -> Result<bool, OptimizationError> {
         if let Some(session) = owner_session {
-            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                self.move_to_best_inner(
-                    node,
-                    points,
-                    must_improve,
-                    Some(session),
-                    owner_guard.as_deref_mut(),
-                    scoring_context,
-                )
-            }));
+            let result = self.move_to_best_inner(
+                node,
+                points,
+                must_improve,
+                Some(&mut *session),
+                owner_guard.as_deref_mut(),
+                scoring_context,
+            );
             movement_adapter::mirror(self.graph, session);
-            match result {
-                Ok(result) => result,
-                Err(payload) => std::panic::resume_unwind(payload),
-            }
+            result
         } else {
             self.move_to_best_inner(
                 node,
@@ -2124,18 +2119,13 @@ impl<'a> SizedOptimizer<'a> {
         } else {
             self.placements(node, median, minimum, minimize)
         };
-        // The same allocation is shuffled and scored. Return it on every exit,
-        // including panic; no point clone conceals partial shuffle/error state.
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            evaluate(self, &mut points, owner_session, owner_guard)
-        }));
+        // The same allocation is shuffled and scored. Return it on every
+        // ordinary exit; no point clone conceals partial shuffle/error state.
+        let result = evaluate(self, &mut points, owner_session, owner_guard);
         if owning {
             self.placement_scratch.points = Some(points);
         }
-        match result {
-            Ok(result) => result,
-            Err(payload) => std::panic::resume_unwind(payload),
-        }
+        result
     }
 
     pub(super) fn initialize_owner_setup(
@@ -2340,7 +2330,7 @@ impl<'a> SizedOptimizer<'a> {
             self.graph.nodes[node.0 as usize].edges.header().clone(),
         );
         let protruding_children = self.graph.sized_protruding_children(node);
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let result = (|| {
             if let Some(session) = owner_session.as_deref_mut() {
                 let canonical = session
                     .canonical_node(node)
@@ -2444,14 +2434,11 @@ impl<'a> SizedOptimizer<'a> {
                     None,
                 )
             }
-        }));
+        })();
         self.graph.nodes[node.0 as usize]
             .edges
             .replace_header(old_edges.header());
-        match result {
-            Ok(result) => result,
-            Err(payload) => std::panic::resume_unwind(payload),
-        }
+        result
     }
 
     fn retry_hub_with_current_incidents(
@@ -2641,11 +2628,11 @@ impl<'a> SizedOptimizer<'a> {
             .update_current_member_positions(self.graph)
             .map_err(|error| OptimizationError::Invalid(error.to_string()))?;
         let mut scratch = std::mem::take(&mut self.mutation_scratch);
-        let operation = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let operation = (|| {
             session.capture_optimizer_mutation_state_into(&mut guard, &mut scratch)?;
             let workspace = rollback::WorkspaceSnapshot::capture(self.graph, session, &scratch)?;
             // sized_optimizer.go255–278 arms only after capture succeeds.
-            let trial = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let trial = (|| {
                 let changed = self.optimize_limit(
                     temperature,
                     if first_node_only { 1 } else { usize::MAX },
@@ -2657,24 +2644,18 @@ impl<'a> SizedOptimizer<'a> {
                 #[cfg(not(feature = "diagnostic-traces"))]
                 guard.finish()?;
                 Ok(changed)
-            }));
-            if !matches!(&trial, Ok(Ok(_))) {
+            })();
+            if trial.is_err() {
                 scratch
                     .restore(session.owner_mut())
                     .expect("captured sized optimizer owner binding");
                 workspace.restore(self.graph);
             }
-            match trial {
-                Ok(result) => result,
-                Err(payload) => std::panic::resume_unwind(payload),
-            }
-        }));
+            trial
+        })();
         scratch.release();
         self.mutation_scratch = scratch;
-        match operation {
-            Ok(result) => result,
-            Err(payload) => std::panic::resume_unwind(payload),
-        }
+        operation
     }
 
     pub(super) fn compact(

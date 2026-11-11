@@ -453,11 +453,10 @@ pub(in crate::internal) fn observe_simplify(
                     &graph.graph_node_order(),
                     (a >= 0).then_some(crate::NodeId(a as u32)),
                     (b >= 0).then_some(crate::NodeId(b as u32)),
-                    Some(&ports_budget),
+                    &ports_budget,
                 )
             } else {
-                super::ovg_tunnels::build(graph, &graph.graph_node_order(), Some(&ports_budget))
-                    .map(Some)
+                super::ovg_tunnels::build(graph, &graph.graph_node_order(), &ports_budget).map(Some)
             }
             .map_err(|_| failure())?;
             if let Some(tunnels) = result {
@@ -482,7 +481,7 @@ pub(in crate::internal) fn observe_simplify(
                 first,
                 second,
                 config["filter_short"].as_bool().unwrap_or(false),
-                Some(&ports_budget),
+                &ports_budget,
             )
             .map_err(|_| failure())?
             {
@@ -510,7 +509,7 @@ pub(in crate::internal) fn observe_simplify(
             ports_initialized = true;
             let nodes = graph.graph_node_order();
             ports
-                .add_ports(graph, &nodes, Some(&ports_budget))
+                .add_ports(graph, &nodes, &ports_budget)
                 .map_err(|_| failure())?;
             if !matches!(
                 operation,
@@ -527,28 +526,28 @@ pub(in crate::internal) fn observe_simplify(
                     | "port-imports"
             ) {
                 ports
-                    .add_nodes_intersections(graph, &nodes, Some(&ports_budget))
+                    .add_nodes_intersections(graph, &nodes, &ports_budget)
                     .map_err(|_| failure())?;
             }
             if matches!(operation, "edge-fill" | "trees") || boundary_stage {
                 ports
-                    .add_edge_nodes(graph, &nodes, Some(&ports_budget))
+                    .add_edge_nodes(graph, &nodes, &ports_budget)
                     .map_err(|_| failure())?;
             }
             if matches!(operation, "trees" | "tree-ports") || boundary_stage {
                 ports
-                    .add_tree_nodes(graph, &nodes, Some(&ports_budget))
+                    .add_tree_nodes(graph, &nodes, &ports_budget)
                     .map_err(|_| failure())?;
             }
             if boundary_stage {
-                let bounds = super::edge_nodes::tight_bounds(graph, &nodes, Some(&ports_budget))
+                let bounds = super::edge_nodes::tight_bounds(graph, &nodes, &ports_budget)
                     .map_err(|_| failure())?;
                 ports
-                    .add_boundary_layers(graph, &nodes, bounds, Some(&ports_budget))
+                    .add_boundary_layers(graph, &nodes, bounds, &ports_budget)
                     .map_err(|_| failure())?;
                 if operation != "boundary-layers" {
                     ports
-                        .add_port_boundary_nodes(graph, &nodes, &nodes, bounds, Some(&ports_budget))
+                        .add_port_boundary_nodes(graph, &nodes, &nodes, bounds, &ports_budget)
                         .map_err(|_| failure())?;
                 }
                 if matches!(
@@ -564,7 +563,7 @@ pub(in crate::internal) fn observe_simplify(
                         | "imports"
                 ) {
                     ports
-                        .add_corners(graph, &nodes, bounds, Some(&ports_budget))
+                        .add_corners(graph, &nodes, bounds, &ports_budget)
                         .map_err(|_| failure())?;
                 }
             }
@@ -582,7 +581,7 @@ pub(in crate::internal) fn observe_simplify(
                     | "imports"
             ) {
                 ports
-                    .add_tunnels(graph, &nodes, Some(&ports_budget))
+                    .add_tunnels(graph, &nodes, &ports_budget)
                     .map_err(|_| failure())?;
             }
             if matches!(
@@ -598,7 +597,7 @@ pub(in crate::internal) fn observe_simplify(
                     | "imports"
             ) {
                 ports
-                    .connect_nodes(graph, &nodes, Some(&ports_budget))
+                    .connect_nodes(graph, &nodes, &ports_budget)
                     .map_err(|message| {
                         ports_budget
                             .take_context_error()
@@ -620,7 +619,7 @@ pub(in crate::internal) fn observe_simplify(
                     | "imports"
             ) {
                 ports
-                    .connect_centers(graph, &nodes, Some(&ports_budget))
+                    .connect_centers(graph, &nodes, &ports_budget)
                     .map_err(|_| failure())?;
             }
             if matches!(
@@ -628,7 +627,7 @@ pub(in crate::internal) fn observe_simplify(
                 "port-isolation" | "isolated" | "containers" | "near" | "indexed" | "imports"
             ) {
                 ports
-                    .remove_isolated(Some(&ports_budget))
+                    .remove_isolated(&ports_budget)
                     .map_err(|_| failure())?;
             }
             if matches!(
@@ -642,7 +641,7 @@ pub(in crate::internal) fn observe_simplify(
                     | "imports"
             ) {
                 ports
-                    .map_containers(graph, Some(&ports_budget))
+                    .map_containers(graph, &ports_budget)
                     .map_err(|_| failure())?;
             }
             if matches!(
@@ -650,16 +649,14 @@ pub(in crate::internal) fn observe_simplify(
                 "port-near" | "port-indexed" | "port-imports" | "near" | "indexed" | "imports"
             ) {
                 ports
-                    .flag_near_ports(Some(&ports_budget))
+                    .flag_near_ports(&ports_budget)
                     .map_err(|_| failure())?;
             }
             if matches!(
                 operation,
                 "port-indexed" | "port-imports" | "indexed" | "imports"
             ) {
-                ports
-                    .assign_indices(Some(&ports_budget))
-                    .map_err(|_| failure())?;
+                ports.assign_indices(&ports_budget).map_err(|_| failure())?;
             }
             if imports {
                 let header = graph.edge_order.header();
@@ -697,7 +694,7 @@ pub(in crate::internal) fn observe_simplify(
                             graph,
                             edge,
                             imported_routes.last_mut().unwrap(),
-                            Some(&ports_budget),
+                            &ports_budget,
                         )
                         .map_err(|_| failure())?;
                 }

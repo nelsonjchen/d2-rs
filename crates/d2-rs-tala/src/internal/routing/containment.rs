@@ -7,7 +7,7 @@
 //! Deepest-first traversal assigns nodes, ports, and route points to the
 //! smallest eligible container while respecting boundary tolerances.
 
-use super::{ArenaGraph, NodeId, Point, Rect};
+use super::{ArenaGraph, NodeId};
 
 impl ArenaGraph {
     /// Graph.ContainerRDFSOrder's guarded traversal used by NormalizeGaps.
@@ -71,108 +71,12 @@ impl ArenaGraph {
         append_scope(self, None, &mut order);
         order
     }
-
-    fn visibility_point_container_in_order(
-        &self,
-        point: Point,
-        container_order: &[NodeId],
-    ) -> Option<NodeId> {
-        container_order.iter().copied().find(|container| {
-            node_rect(self, *container).is_some_and(|rect| point_on_node(rect, point))
-        })
-    }
-
-    /// Direct translation of recovered `OVG.mapNodesToContainer`.
-    ///
-    /// TALA computes the reverse-DFS container order once, then stores the
-    /// first containing node on every OVG node. Boundary points count as being
-    /// on a container.
-    pub(in crate::internal) fn visibility_point_containers(
-        &self,
-        points: &[Point],
-    ) -> Vec<Option<NodeId>> {
-        let container_order = self.container_reverse_dfs_order();
-        points
-            .iter()
-            .map(|point| self.visibility_point_container_in_order(*point, &container_order))
-            .collect()
-    }
-
-    pub(in crate::internal) fn visibility_point_container(&self, point: Point) -> Option<NodeId> {
-        self.visibility_point_containers(&[point])[0]
-    }
-
-    /// Translation of the ordinary OVG search gate at `ovg_edge_router.go:762`.
-    ///
-    /// An ordinary visibility node inside a container is traversable only when
-    /// at least one endpoint container is that container or one of its
-    /// descendants. Fixed-overlap containers are the recovered exception.
-    pub(in crate::internal) fn visibility_container_is_admissible(
-        &self,
-        source_container: Option<NodeId>,
-        target_container: Option<NodeId>,
-        candidate_container: Option<NodeId>,
-        candidate_is_fixed_overlap: bool,
-    ) -> bool {
-        let Some(candidate) = candidate_container else {
-            return true;
-        };
-        candidate_is_fixed_overlap
-            || self.container_descends_from(source_container, Some(candidate))
-            || self.container_descends_from(target_container, Some(candidate))
-    }
-
-    /// Option-shaped translation of recovered `Node.isDescendentOf`, including
-    /// its nil/root semantics and equality being considered descent.
-    fn container_descends_from(
-        &self,
-        node: Option<NodeId>,
-        maybe_ancestor: Option<NodeId>,
-    ) -> bool {
-        if node == maybe_ancestor {
-            return true;
-        }
-        let Some(mut current) = node else {
-            return false;
-        };
-        while let Some(parent) = self.nodes[current.0 as usize].container {
-            if Some(parent) == maybe_ancestor {
-                return true;
-            }
-            current = parent;
-        }
-        maybe_ancestor.is_none()
-    }
-}
-
-pub(super) fn is_ancestor(graph: &ArenaGraph, ancestor: NodeId, mut node: NodeId) -> bool {
-    while let Some(parent) = graph.nodes[node.0 as usize].container {
-        if parent == ancestor {
-            return true;
-        }
-        node = parent;
-    }
-    false
-}
-
-fn node_rect(graph: &ArenaGraph, node: NodeId) -> Option<Rect> {
-    Some(Rect {
-        origin: graph.nodes[node.0 as usize].position?,
-        size: graph.nodes[node.0 as usize].rect.size,
-    })
-}
-
-fn point_on_node(rect: Rect, point: Point) -> bool {
-    rect.origin.x <= point.x
-        && point.x <= rect.right()
-        && rect.origin.y <= point.y
-        && point.y <= rect.bottom()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ContentAlignment, Graph, Insets, LabelPosition, Node, ShapeKind, Size};
+    use crate::{ContentAlignment, Graph, Insets, LabelPosition, Node, Point, ShapeKind, Size};
 
     fn node(name: &str, width: f64, height: f64) -> Node {
         Node {
@@ -240,33 +144,5 @@ mod tests {
             arena.container_reverse_dfs_order(),
             vec![inner, sibling, outer]
         );
-    }
-
-    #[test]
-    fn visibility_point_maps_to_deepest_container_in_recovered_order() {
-        let (arena, outer, _, inner) = nested_arena();
-        assert_eq!(
-            arena.visibility_point_container(Point { x: 175.0, y: 175.0 }),
-            Some(inner)
-        );
-        assert_eq!(
-            arena.visibility_point_container(Point { x: 300.0, y: 300.0 }),
-            Some(outer),
-            "recovered isPointOnNode includes the boundary"
-        );
-        assert_eq!(
-            arena.visibility_point_container(Point { x: 400.0, y: 400.0 }),
-            None
-        );
-    }
-
-    #[test]
-    fn search_gate_allows_endpoint_ancestry_but_rejects_sibling_container() {
-        let (arena, outer, sibling, inner) = nested_arena();
-        assert!(arena.visibility_container_is_admissible(Some(inner), None, Some(inner), false));
-        assert!(arena.visibility_container_is_admissible(Some(inner), None, Some(outer), false));
-        assert!(!arena.visibility_container_is_admissible(Some(inner), None, Some(sibling), false));
-        assert!(arena.visibility_container_is_admissible(Some(inner), None, Some(sibling), true));
-        assert!(arena.visibility_container_is_admissible(Some(inner), None, None, false));
     }
 }

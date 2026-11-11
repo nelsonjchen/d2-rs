@@ -15,7 +15,6 @@ use super::owner_sizeless_constructor::{OwnerOptimizerRng, OwnerSizelessOptimize
 use super::scoring::OwnerSizelessEdgeLengthScorer;
 use super::scoring_context::ScoreContext;
 use super::{ArenaGraph, NodeId, OwnerScoreSession, Point};
-use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
 
 // Open comparison tolerance used by the reference geometry package.
 const PRECISION: f64 = 0.0001;
@@ -51,18 +50,14 @@ pub(super) fn move_owner_node_to_best<P>(
     guard: &mut OptimizationWorkGuard<'_>,
 ) -> Result<bool, OptimizationError> {
     owner_candidate_start(workspace, node, session, guard)?;
-    let result = catch_unwind(AssertUnwindSafe(|| {
-        search_owner_node_to_best(workspace, node, points, read_point, session, context, guard)
-    }));
+    let result =
+        search_owner_node_to_best(workspace, node, points, read_point, session, context, guard);
     refresh_owner_candidate_positions(
         workspace,
         session.owner(),
         session.current_mapping().nodes(),
     );
-    match result {
-        Ok(result) => result,
-        Err(payload) => resume_unwind(payload),
-    }
+    result
 }
 
 fn owner_candidate_start(
@@ -614,28 +609,24 @@ impl<'a> SizelessOptimizer<'a> {
                 .map_err(|e| OptimizationError::Invalid(e.to_string()))?,
             );
         }
-        let result = catch_unwind(AssertUnwindSafe(|| {
-            self.owner_optimizer
-                .as_ref()
-                .unwrap()
-                .optimize_with_limit(
-                    self.graph,
-                    session,
-                    context,
-                    temperature,
-                    limits::MAX_OPTIMIZATION_WORK_UNITS,
-                )
-                .map_err(|e| OptimizationError::Invalid(e.to_string()))
-        }));
+        let result = self
+            .owner_optimizer
+            .as_ref()
+            .unwrap()
+            .optimize_with_limit(
+                self.graph,
+                session,
+                context,
+                temperature,
+                limits::MAX_OPTIMIZATION_WORK_UNITS,
+            )
+            .map_err(|e| OptimizationError::Invalid(e.to_string()));
         refresh_owner_candidate_positions(
             self.graph,
             session.owner(),
             session.current_mapping().nodes(),
         );
-        match result {
-            Ok(result) => result,
-            Err(payload) => resume_unwind(payload),
-        }
+        result
     }
 
     pub(super) fn release_owner_geometry(&mut self, session: &mut OwnerScoreSession<'_>) {
@@ -1289,6 +1280,7 @@ mod tests {
     use crate::internal::{CanonicalScoreMapping, OwnerGraphId};
     use crate::{ContentAlignment, Edge, Graph, Insets, Node, ShapeKind, Size};
     use std::cell::Cell;
+    use std::panic::{AssertUnwindSafe, catch_unwind};
 
     struct OwnerSearchContext;
 
@@ -1400,7 +1392,7 @@ mod tests {
     }
 
     #[test]
-    fn production_owner_phase_publishes_before_error_or_resumed_panic() {
+    fn production_owner_phase_publishes_before_error_and_resumes_panic() {
         struct Stop(bool);
         impl Context for Stop {
             fn done(&self) -> Option<bool> {
@@ -1447,7 +1439,8 @@ mod tests {
                         .contains("context canceled")
                 );
             }
-            for node in [first, second] {
+            // Only an error return publishes; an unwound pass is discarded.
+            for node in [first, second].into_iter().filter(|_| !panic) {
                 assert_eq!(
                     optimizer.graph.position(node),
                     session.owner().position(node)
@@ -2263,7 +2256,7 @@ mod tests {
     }
 
     #[test]
-    fn owner_candidate_search_preserves_panic_payload_after_actual_and_dense_cleanup() {
+    fn owner_candidate_search_preserves_panic_payload_after_owner_cleanup() {
         struct PanicAtScore(Cell<usize>);
         impl Context for PanicAtScore {
             fn done(&self) -> Option<bool> {
@@ -2298,18 +2291,11 @@ mod tests {
             payload.downcast_ref::<&str>(),
             Some(&"candidate scorer panic")
         );
+        // The session's Drop restores the owner; the unwound dense workspace
+        // is left unspecified because the seed recovery discards it.
         assert_eq!(
             [session.owner().position(c), session.owner().position(child)],
             before
-        );
-        assert_eq!(
-            optimizer
-                .graph
-                .nodes
-                .iter()
-                .map(|node| node.position)
-                .collect::<Vec<_>>(),
-            mapped_owner_positions(&session)
         );
     }
 

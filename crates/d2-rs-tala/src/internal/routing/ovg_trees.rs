@@ -74,12 +74,12 @@ mod tests {
             };
             let budget = OvgBuildBudget::with_context(&context);
             let mut ovg = PortBuild::default();
-            ovg.add_ports(&graph, &graph.graph_node_order(), Some(&budget))
+            ovg.add_ports(&graph, &graph.graph_node_order(), &budget)
                 .unwrap();
             let before = budget.observed_resources();
             let before_nodes = ovg.nodes.len();
             let added = ovg
-                .add_tree_nodes(&graph, &graph.graph_node_order(), Some(&budget))
+                .add_tree_nodes(&graph, &graph.graph_node_order(), &budget)
                 .unwrap();
             assert_eq!(added[&NodeId(1)].len(), 1);
             assert_eq!(added[&NodeId(1)][0].point, Point { x: 26.0, y: 200.0 });
@@ -91,7 +91,7 @@ mod tests {
             );
             let before = budget.observed_resources();
             assert!(
-                ovg.add_tree_nodes(&graph, &graph.graph_node_order(), Some(&budget))
+                ovg.add_tree_nodes(&graph, &graph.graph_node_order(), &budget)
                     .unwrap()
                     .is_empty()
             );
@@ -119,18 +119,30 @@ mod tests {
             .set_owner_graph_node_to_tree_map(OwnerGraphId(0), map.clone())
             .unwrap();
         let mut ovg = PortBuild::default();
-        ovg.add_ports(&graph, &graph.graph_node_order(), None)
-            .unwrap();
+        ovg.add_ports(
+            &graph,
+            &graph.graph_node_order(),
+            &super::super::route_search_guard::OvgBuildBudget::new(),
+        )
+        .unwrap();
         assert!(
-            ovg.add_tree_nodes(&graph, &graph.graph_node_order(), None)
-                .unwrap()
-                .is_empty()
+            ovg.add_tree_nodes(
+                &graph,
+                &graph.graph_node_order(),
+                &super::super::route_search_guard::OvgBuildBudget::new()
+            )
+            .unwrap()
+            .is_empty()
         );
         graph
             .write_owner_node_to_tree_entry(&map, Some(NodeId(1)), None)
             .unwrap();
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            ovg.add_tree_nodes(&graph, &graph.graph_node_order(), None)
+            ovg.add_tree_nodes(
+                &graph,
+                &graph.graph_node_order(),
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
         }));
         assert!(result.is_err());
     }
@@ -150,9 +162,13 @@ mod tests {
         };
         let budget = OvgBuildBudget::with_context(&context);
         let mut ovg = PortBuild::default();
-        ovg.add_ports(&graph, &graph.graph_node_order(), None)
-            .unwrap();
-        ovg.add_tree_nodes(&graph, &graph.graph_node_order(), Some(&budget))
+        ovg.add_ports(
+            &graph,
+            &graph.graph_node_order(),
+            &super::super::route_search_guard::OvgBuildBudget::new(),
+        )
+        .unwrap();
+        ovg.add_tree_nodes(&graph, &graph.graph_node_order(), &budget)
             .unwrap();
         // Change tree.Node at the final addNode check: source has already
         // selected its branch and point, but publishes on the loop's owner.
@@ -165,10 +181,14 @@ mod tests {
         };
         let budget = OvgBuildBudget::with_context(&context);
         let mut ovg = PortBuild::default();
-        ovg.add_ports(&graph, &graph.graph_node_order(), None)
-            .unwrap();
+        ovg.add_ports(
+            &graph,
+            &graph.graph_node_order(),
+            &super::super::route_search_guard::OvgBuildBudget::new(),
+        )
+        .unwrap();
         let added = ovg
-            .add_tree_nodes(&graph, &graph.graph_node_order(), Some(&budget))
+            .add_tree_nodes(&graph, &graph.graph_node_order(), &budget)
             .unwrap();
         assert_eq!(
             graph.owner_tree(tree).unwrap().fields().node,
@@ -193,10 +213,14 @@ mod tests {
             };
             let budget = OvgBuildBudget::with_context(&context);
             let mut ovg = PortBuild::default();
-            ovg.add_ports(&graph, &graph.graph_node_order(), None)
-                .unwrap();
+            ovg.add_ports(
+                &graph,
+                &graph.graph_node_order(),
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
+            .unwrap();
             let added = ovg
-                .add_tree_nodes(&graph, &graph.graph_node_order(), Some(&budget))
+                .add_tree_nodes(&graph, &graph.graph_node_order(), &budget)
                 .unwrap();
             assert_eq!(added[&NodeId(1)][0].point, Point { x: 26.0, y: 200.0 });
             let index = ovg.ports[&NodeId(1)].last().unwrap().0;
@@ -407,9 +431,7 @@ impl PortBuild {
         };
         if let Some(point) = derived {
             step(budget)?;
-            if let Some(b) = budget {
-                b.reserve_nodes(1)?;
-            }
+            budget.reserve_nodes(1)?;
             child_port = TreePort::Derived(point);
         }
         for &(index, _) in self.ports.get(&child).into_iter().flatten() {

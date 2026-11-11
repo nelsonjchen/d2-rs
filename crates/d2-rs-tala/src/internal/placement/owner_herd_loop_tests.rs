@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 use super::*;
 use crate::internal::shared_topology::{OwnerHerd, OwnerHerdMap};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 fn observe_herd_map(owner: &ArenaGraph, map: &OwnerHerdMap) -> Value {
     let mut keys = map
         .keys()

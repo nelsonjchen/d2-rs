@@ -134,11 +134,6 @@ impl<T: Copy> PriorityQueue<T> {
         self.push_inner(priority, value)
     }
 
-    /// Compatibility spelling retained for the first Rust router bridge.
-    pub(super) fn enqueue(&mut self, priority: f64, value: T) -> Handle {
-        self.push(priority, value)
-    }
-
     /// Push after reserving the exact v0.9.0 heap-sift work bound.
     pub(super) fn enqueue_guarded<E>(
         &mut self,
@@ -163,11 +158,6 @@ impl<T: Copy> PriorityQueue<T> {
     /// Source-shaped `priorityQueue.pop` without a work budget.
     pub(super) fn pop(&mut self) -> Option<(T, f64)> {
         self.pop_inner().ok().map(EntryValue::into_parts)
-    }
-
-    /// Compatibility spelling retained for the first Rust router bridge.
-    pub(super) fn dequeue_min(&mut self) -> Option<(T, f64)> {
-        self.pop()
     }
 
     /// Pop after reserving the exact v0.9.0 heap-sift work bound.
@@ -203,15 +193,6 @@ impl<T: Copy> PriorityQueue<T> {
                     "new priority is not less than old priority"
                 }
             })
-    }
-
-    /// Compatibility spelling retained for the first Rust router bridge.
-    pub(super) fn decrease_key(
-        &mut self,
-        handle: Handle,
-        priority: f64,
-    ) -> Result<(), &'static str> {
-        self.decrease(handle, priority)
     }
 
     /// Lower a queued priority after validating the handle and reserving work.
@@ -400,15 +381,15 @@ mod tests {
     #[test]
     fn upstream_decrease_and_equal_priority_order() {
         let mut queue = PriorityQueue::new();
-        queue.enqueue(1.0, 0);
-        let second = queue.enqueue(2.0, 1);
-        queue.enqueue(1.0, 2);
-        queue.decrease_key(second, 1.0).unwrap();
+        queue.push(1.0, 0);
+        let second = queue.push(2.0, 1);
+        queue.push(1.0, 2);
+        queue.decrease(second, 1.0).unwrap();
         for value in 0..3 {
-            assert_eq!(queue.dequeue_min(), Some((value, 1.0)));
+            assert_eq!(queue.pop(), Some((value, 1.0)));
         }
-        assert!(queue.dequeue_min().is_none());
-        assert!(queue.decrease_key(second, 0.0).is_err());
+        assert!(queue.pop().is_none());
+        assert!(queue.decrease(second, 0.0).is_err());
     }
 
     #[test]
@@ -418,29 +399,29 @@ mod tests {
         let mut handles = Vec::new();
         for i in 0..(ENTRY_CHUNK_SIZE * 2 + 1) {
             let priority = ((i * 37) % 100) as f64;
-            handles.push(queue.enqueue(priority, i));
+            handles.push(queue.push(priority, i));
             expected.push((i, priority));
         }
         for i in (0..expected.len()).step_by(17) {
             let priority = -((i + 1) as f64);
-            queue.decrease_key(handles[i], priority).unwrap();
+            queue.decrease(handles[i], priority).unwrap();
             expected[i].1 = priority;
         }
         expected.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap().then(a.0.cmp(&b.0)));
         for pair in expected {
-            assert_eq!(queue.dequeue_min(), Some(pair));
+            assert_eq!(queue.pop(), Some(pair));
         }
     }
 
     #[test]
     fn invalid_decrease_preserves_queue() {
         let mut queue = PriorityQueue::new();
-        let first = queue.enqueue(1.0, 1);
-        queue.enqueue(2.0, 2);
-        assert!(queue.decrease_key(first, 1.0).is_err());
-        assert_eq!(queue.dequeue_min(), Some((1, 1.0)));
-        assert!(queue.decrease_key(first, 0.0).is_err());
-        assert_eq!(queue.dequeue_min(), Some((2, 2.0)));
+        let first = queue.push(1.0, 1);
+        queue.push(2.0, 2);
+        assert!(queue.decrease(first, 1.0).is_err());
+        assert_eq!(queue.pop(), Some((1, 1.0)));
+        assert!(queue.decrease(first, 0.0).is_err());
+        assert_eq!(queue.pop(), Some((2, 2.0)));
     }
 
     #[test]
@@ -467,8 +448,8 @@ mod tests {
         assert_eq!(rejected, PriorityQueueError::Work("reject"));
         assert!(queue.empty());
 
-        let first = queue.enqueue(1.0, 1);
-        let second = queue.enqueue(2.0, 2);
+        let first = queue.push(1.0, 1);
+        let second = queue.push(2.0, 2);
         let rejected = queue.pop_guarded(|_| Err::<(), _>("reject")).unwrap_err();
         assert_eq!(rejected, PriorityQueueError::Work("reject"));
         assert_eq!(
@@ -483,23 +464,23 @@ mod tests {
             .decrease_guarded(first, 0.0, |_| Err::<(), _>("reject"))
             .unwrap_err();
         assert_eq!(rejected, PriorityQueueError::Work("reject"));
-        assert_eq!(queue.dequeue_min(), Some((1, 1.0)));
+        assert_eq!(queue.pop(), Some((1, 1.0)));
     }
 
     #[test]
     fn reset_reuses_entry_handles_and_order() {
         let mut queue = PriorityQueue::new();
-        let first = queue.enqueue(1.0, 1);
+        let first = queue.push(1.0, 1);
         queue.reset();
-        let second = queue.enqueue(2.0, 2);
+        let second = queue.push(2.0, 2);
         assert_eq!(first, second);
-        assert_eq!(queue.dequeue_min(), Some((2, 2.0)));
+        assert_eq!(queue.pop(), Some((2, 2.0)));
     }
 
     #[test]
     fn guarded_dequeue_returns_value_and_priority() {
         let mut queue = PriorityQueue::new();
-        queue.enqueue(3.0, 7);
+        queue.push(3.0, 7);
         let value = queue
             .pop_guarded(|units| {
                 assert_eq!(units, 2);

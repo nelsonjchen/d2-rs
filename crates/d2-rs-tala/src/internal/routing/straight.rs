@@ -119,17 +119,6 @@ pub(super) fn estimated_edge_cost_against(
         + CROSSING_COST * crossing_count as f64
 }
 
-/// Go estimateRouteCostGuarded over the explicitly selected edge inventory.
-/// Work is checked before each length segment, edge visit, and crossing pair.
-pub(super) fn estimated_selected_edge_cost_with_budget(
-    edge_index: usize,
-    points: &[Point],
-    routes: &[Vec<Point>],
-    other_edges: &[usize],
-    budget: &super::route_search_guard::LocalRouteSearchWork,
-) -> Option<f64> {
-    estimated_selected_edge_cost_with_work(edge_index, points, routes, other_edges, budget)
-}
 pub(super) fn estimated_selected_edge_cost_with_work(
     edge_index: usize,
     points: &[Point],
@@ -344,20 +333,19 @@ mod tests {
             ],
         ];
         let work = super::super::route_search_guard::LocalRouteSearchWork::new(4);
-        let cost = estimated_selected_edge_cost_with_budget(0, &points, &routes, &[1], &work);
+        let cost = estimated_selected_edge_cost_with_work(0, &points, &routes, &[1], &work);
         assert_eq!(cost.unwrap().to_bits(), (10.0_f64 + 0.110592).to_bits());
         assert_eq!(work.used(), 4);
         for limit in 0..4 {
             let work = super::super::route_search_guard::LocalRouteSearchWork::new(limit);
             assert!(
-                estimated_selected_edge_cost_with_budget(0, &points, &routes, &[1], &work)
-                    .is_none()
+                estimated_selected_edge_cost_with_work(0, &points, &routes, &[1], &work).is_none()
             );
             assert_eq!(work.used(), limit);
         }
         let work = super::super::route_search_guard::LocalRouteSearchWork::new(2);
         assert_eq!(
-            estimated_selected_edge_cost_with_budget(0, &points, &routes, &[0], &work),
+            estimated_selected_edge_cost_with_work(0, &points, &routes, &[0], &work),
             Some(10.0)
         );
         assert_eq!(work.used(), 2);

@@ -41,7 +41,6 @@ pub(super) enum OwnerScoreSessionError {
     PendingPreparedComponent,
     PendingTrial,
     UncapturedNode(NodeId),
-    UncapturedEdge(EdgeId),
     MemberMappingMismatch,
     UnpositionedNode(NodeId),
     UnsupportedNestedVessel(NodeId),
@@ -1612,9 +1611,6 @@ impl<'a> OwnerScoreSession<'a> {
             .owner
             .compute_owner_graph_cell_size(self.current_view)?)
     }
-    pub(super) fn initialize_current_turn_cost(&self) -> Result<f64, OwnerScoreSessionError> {
-        Ok(self.owner.owner_graph_turn_cost(self.current_view)?)
-    }
 
     /// The numerical workspace and canonical view represent one Go Graph,
     /// including its lazy cost fields (graph.go532–549). Keep the first reader
@@ -2548,15 +2544,6 @@ impl<'a> OwnerScoreSession<'a> {
         Ok(score(&frame))
     }
 
-    /// sizeless_optimizer.go404–407 passes EdgeAbductions:nil. The enclosing
-    /// placement session can still retain its prepared slice for sized scoring.
-    pub(super) fn with_frame_without_abductions<R>(
-        &self,
-        score: impl for<'frame> FnOnce(&OwnerScoreFrame<'frame>) -> R,
-    ) -> Result<R, OwnerScoreSessionError> {
-        self.with_frame_abductions(None, score)
-    }
-
     pub(super) fn score_sizeless_owner(
         &mut self,
         scorer: &mut super::scoring::OwnerSizelessEdgeLengthScorer,
@@ -2972,27 +2959,6 @@ impl<'a> OwnerScoreSession<'a> {
         for (node, geometry) in canonical {
             self.publish_canonical(node, geometry)?;
         }
-        Ok(())
-    }
-    pub(super) fn publish_local_edge_points(
-        &mut self,
-        local: EdgeId,
-        points: Vec<Point>,
-    ) -> Result<(), OwnerScoreSessionError> {
-        let canonical = self.mapping.canonical_edge(local)?;
-        if self
-            .trials
-            .iter()
-            .any(|trial| !trial.edges.iter().any(|(edge, _)| *edge == canonical))
-        {
-            return Err(OwnerScoreSessionError::UncapturedEdge(canonical));
-        }
-        let edge = self
-            .owner
-            .edge_records
-            .get_mut(canonical.0 as usize)
-            .ok_or(OwnerTopologyError::UnknownEdge(canonical))?;
-        edge.route.replace(RoutePoints::literal(&(points)));
         Ok(())
     }
 

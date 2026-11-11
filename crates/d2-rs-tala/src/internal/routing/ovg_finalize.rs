@@ -249,11 +249,19 @@ mod tests {
         };
         let budget = OvgBuildBudget::with_context(&context);
         assert_eq!(
-            container_order(&graph, None, Some(&budget)).unwrap(),
+            container_order(&graph, None, &budget).unwrap(),
             [NodeId(1), NodeId(0)]
         );
         assert_eq!(context.polls.get(), 6);
-        assert!(container_order(&graph, None, None).unwrap().is_empty());
+        assert!(
+            container_order(
+                &graph,
+                None,
+                &super::super::route_search_guard::OvgBuildBudget::new()
+            )
+            .unwrap()
+            .is_empty()
+        );
     }
     #[test]
     fn container_mapping_reads_live_geometry_and_retains_unmatched_state() {
@@ -276,10 +284,20 @@ mod tests {
         };
         let budget = OvgBuildBudget::with_context(&context);
         let mut build = PortBuild::default();
-        let node = build.add_point(Point { x: 20.0, y: 20.0 }, None).unwrap();
-        let outside = build.add_point(Point { x: -1.0, y: -1.0 }, None).unwrap();
+        let node = build
+            .add_point(
+                Point { x: 20.0, y: 20.0 },
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
+            .unwrap();
+        let outside = build
+            .add_point(
+                Point { x: -1.0, y: -1.0 },
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
+            .unwrap();
         build.nodes[outside].write().set_container(Some(NodeId(1)));
-        build.map_containers(&graph, Some(&budget)).unwrap();
+        build.map_containers(&graph, &budget).unwrap();
         assert_eq!(build.nodes[node].read().container(), Some(NodeId(0)));
         assert_eq!(build.nodes[outside].read().container(), Some(NodeId(1)));
         assert_eq!(context.polls.get(), 13); // No extra final poll.
@@ -305,13 +323,23 @@ mod tests {
         graph
             .set_owner_node_group(vessel, OwnerGroupKind::Cluster, None)
             .unwrap();
-        assert_eq!(container_order(&graph, None, None).unwrap(), [NodeId(1)]);
+        assert_eq!(
+            container_order(
+                &graph,
+                None,
+                &super::super::route_search_guard::OvgBuildBudget::new()
+            )
+            .unwrap(),
+            [NodeId(1)]
+        );
         graph
             .write_owner_group_map_entry(&map, Some(vessel), None)
             .unwrap();
         assert!(
             std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| container_order(
-                &graph, None, None
+                &graph,
+                None,
+                &super::super::route_search_guard::OvgBuildBudget::new()
             )))
             .is_err()
         );
@@ -332,13 +360,35 @@ mod tests {
                         tunnel: None,
                     },
                 )],
-                None,
+                &super::super::route_search_guard::OvgBuildBudget::new(),
             )
             .unwrap();
-        let close = build.add_point(Point { x: 29.0, y: 0.0 }, None).unwrap();
-        let boundary = build.add_point(Point { x: 30.0, y: 0.0 }, None).unwrap();
-        build.connect(0, close, None).unwrap();
-        build.connect(close, boundary, None).unwrap();
+        let close = build
+            .add_point(
+                Point { x: 29.0, y: 0.0 },
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
+            .unwrap();
+        let boundary = build
+            .add_point(
+                Point { x: 30.0, y: 0.0 },
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
+            .unwrap();
+        build
+            .connect(
+                0,
+                close,
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
+            .unwrap();
+        build
+            .connect(
+                close,
+                boundary,
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
+            .unwrap();
         (build, close, boundary)
     }
     #[test]
@@ -350,20 +400,24 @@ mod tests {
             mutate: None,
         };
         let budget = OvgBuildBudget::with_context(&context);
-        assert!(build.flag_near_ports(Some(&budget)).is_err());
+        assert!(build.flag_near_ports(&budget).is_err());
         assert_eq!(
             build.nodes[close].read().near_ports.as_deref().cloned(),
             Some(BTreeSet::from([NodeId(0)]))
         );
         assert!(build.nodes[boundary].read().near_ports.is_none());
-        build.flag_near_ports(None).unwrap();
+        build
+            .flag_near_ports(&super::super::route_search_guard::OvgBuildBudget::new())
+            .unwrap();
         assert!(build.nodes[boundary].read().near_ports.is_none());
     }
     #[test]
     fn near_flags_follow_ports_retained_outside_current_membership() {
         let (mut build, close, _) = near_graph();
         build.members.retain(|&node| node != 0);
-        build.flag_near_ports(None).unwrap();
+        build
+            .flag_near_ports(&super::super::route_search_guard::OvgBuildBudget::new())
+            .unwrap();
         assert_eq!(
             build.nodes[close].read().near_ports.as_deref().cloned(),
             Some(BTreeSet::from([NodeId(0)]))
@@ -378,18 +432,28 @@ mod tests {
                     x: f64::NAN,
                     y: 0.0,
                 },
-                None,
+                &super::super::route_search_guard::OvgBuildBudget::new(),
             )
             .unwrap();
-        build.add_existing_node(node, None).unwrap();
-        build.add_existing_node(node, None).unwrap();
+        build
+            .add_existing_node(
+                node,
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
+            .unwrap();
+        build
+            .add_existing_node(
+                node,
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
+            .unwrap();
         let context = Caller {
             polls: Cell::new(0),
             cancel: 3,
             mutate: None,
         };
         let budget = OvgBuildBudget::with_context(&context);
-        assert!(build.assign_indices(Some(&budget)).is_err());
+        assert!(build.assign_indices(&budget).is_err());
         assert_eq!(build.nodes[node].read().index(), 1);
         let context = Caller {
             polls: Cell::new(0),
@@ -397,7 +461,7 @@ mod tests {
             mutate: None,
         };
         let budget = OvgBuildBudget::with_context(&context);
-        build.assign_indices(Some(&budget)).unwrap();
+        build.assign_indices(&budget).unwrap();
         assert_eq!(build.nodes[node].read().index(), 2);
         assert_eq!(context.polls.get(), 3);
     }

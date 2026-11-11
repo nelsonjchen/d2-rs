@@ -81,11 +81,6 @@ pub(super) trait SlotStore<T>: Send + Sync + Sized {
             self.store(start + offset, value.clone());
         }
     }
-    fn fill_nil(&self, range: Range<usize>) {
-        for index in range {
-            self.store(index, None);
-        }
-    }
     /// Go's append(prefix, suffix...) removal: shift the tail left over the
     /// first match. Returns whether a slot matched.
     fn remove_first(&self, range: Range<usize>, value: &Option<T>) -> bool
@@ -221,12 +216,6 @@ impl<T: Clone + Eq + Send + Sync> SlotStore<T> for LockedSlots<T> {
             return;
         }
         self.write()[start..start + values.len()].clone_from_slice(values);
-    }
-    fn fill_nil(&self, range: Range<usize>) {
-        if range.is_empty() {
-            return;
-        }
-        self.write()[range].fill(None);
     }
     fn remove_first(&self, range: Range<usize>, value: &Option<T>) -> bool {
         if range.is_empty() {
@@ -591,10 +580,6 @@ impl<T: OwnerPointer> SharedOwnerPointerSlice<T> {
         backing.slots.copy_out(self.start..self.start + length)
     }
 
-    pub(super) fn reslice(&self, low: usize, high: usize) -> Result<Self, ContainerSliceError> {
-        self.reslice_with_capacity(low, high, self.cap)
-    }
-
     pub(super) fn reslice_with_capacity(
         &self,
         low: usize,
@@ -664,10 +649,6 @@ impl<T: OwnerPointer> SharedOwnerPointerSlice<T> {
         Ok(result)
     }
 
-    pub(super) fn append_value(&self, node: T) -> Result<Self, ContainerSliceError> {
-        self.append(&[Some(node)])
-    }
-
     /// node.go1072–1080 uses append(prefix, suffix...), not slices.Delete:
     /// remove only the first match, shift in place, retain the stale tail.
     pub(super) fn remove_first_slot(&self, value: Option<T>) -> Self {
@@ -687,18 +668,6 @@ impl<T: OwnerPointer> SharedOwnerPointerSlice<T> {
             len: self.len - 1,
             ..self.clone()
         }
-    }
-
-    pub(super) fn clear_visible(&self) {
-        if let Some(backing) = &self.backing {
-            backing.slots.fill_nil(self.start..self.start + self.len);
-        }
-    }
-
-    /// Independent graph cloning uses make(len), including a nonnil empty
-    /// result for nil/empty input. It is distinct from header Clone above.
-    pub(super) fn clone_allocated(&self) -> Result<Self, ContainerSliceError> {
-        Self::from_slots(&self.visible_slots())
     }
 
     /// Detach one header, including its complete backing and stale slots.
@@ -826,13 +795,6 @@ impl<T: OwnerPointer> SharedOwnerPointerSlice<T> {
                     .map(|backing| backing.slots.slot_ptr(self.start + index))
             })
             .flatten()
-    }
-
-    #[cfg(any(test, feature = "diagnostic-traces"))]
-    pub(super) fn backing_address(&self) -> Option<usize> {
-        self.backing
-            .as_ref()
-            .map(|backing| Arc::as_ptr(backing) as usize)
     }
 }
 

@@ -1961,9 +1961,21 @@ pub(crate) fn route_existing_with_cancellation(
     requested: &[EdgeId],
     cancellation: Option<&CancellationToken>,
 ) -> Result<LayoutResult, LayoutError> {
-    with_cancellation(cancellation, || {
-        route_existing_impl(input, options, requested, cancellation)
+    recover_edge_routing(|| {
+        with_cancellation(cancellation, || {
+            route_existing_impl(input, options, requested, cancellation)
+        })
     })
+}
+
+// adapter.go RouteEdges: `defer recoverAsError("edge routing", &err)` turns a
+// panic anywhere in the call into one fixed error, ahead of context errors.
+// The routed graph is local to the call, so nothing partial is published.
+fn recover_edge_routing<T>(
+    route: impl FnOnce() -> Result<T, LayoutError>,
+) -> Result<T, LayoutError> {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(route))
+        .unwrap_or(Err(LayoutError::EdgeRoutingInvariant))
 }
 
 // adapter.go translates a source-only arrow as Dst -> Src. Keep the
@@ -4406,7 +4418,7 @@ mod race_seed_tests {
             input.set_initial_position(id, Some(Point { x, y: 0.0 }));
         }
         let mut graph = ArenaGraph::from_input(&input);
-        assert!(!graph.tree_routing_nodes.is_empty());
+        assert!(graph.tree_routing_nodes.is_empty());
         let positions = graph
             .nodes
             .iter()
@@ -4937,6 +4949,34 @@ mod refinement_api_tests;
 #[cfg(test)]
 mod optional_proposal_contract {
     use super::*;
+    #[test]
+    fn route_edges_panic_is_go_recovered_error() {
+        let error = recover_edge_routing::<()>(|| panic!("routing invariant")).unwrap_err();
+        assert!(matches!(error, LayoutError::EdgeRoutingInvariant));
+        assert_eq!(
+            error.to_string(),
+            "TALA edge routing failed due to an internal invariant"
+        );
+        // A panic wins over a context error, as recoverAsError overwrites err.
+        let token = CancellationToken::new();
+        let error = recover_edge_routing::<()>(|| {
+            with_cancellation(Some(&token), || {
+                token.cancel();
+                panic!("interrupted routing")
+            })
+        })
+        .unwrap_err();
+        assert!(matches!(error, LayoutError::EdgeRoutingInvariant));
+        assert!(matches!(
+            recover_edge_routing(|| Ok::<_, LayoutError>(7)),
+            Ok(7)
+        ));
+        assert!(matches!(
+            recover_edge_routing::<()>(|| Err(LayoutError::Cancelled)),
+            Err(LayoutError::Cancelled)
+        ));
+    }
+
     #[test]
     fn source_optional_errors_and_panics_preserve_incumbent_and_context() {
         let incumbent = 17usize;

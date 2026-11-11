@@ -3420,6 +3420,10 @@ pub enum LayoutError {
     /// A seed attempt recovered an internal panic, as original runLocalSeed does.
     #[error("TALA seed layout failed due to an internal invariant")]
     SeedInvariant,
+    /// Standalone TALA edge routing recovered an internal panic, as original
+    /// RouteEdges does through `recoverAsError("edge routing", &err)`.
+    #[error("TALA edge routing failed due to an internal invariant")]
+    EdgeRoutingInvariant,
     /// Every configured TALA seed failed, in request order.
     #[error("all TALA seed attempts failed: {details}", details = layout_seed_failure_text(.attempts))]
     AllSeedAttemptsFailed {

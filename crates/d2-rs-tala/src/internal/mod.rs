@@ -368,18 +368,8 @@ mod compaction_sized;
 mod compaction_sizeless;
 #[path = "placement/compaction_transition.rs"]
 mod compaction_transition;
-#[path = "engine/compositions.rs"]
-mod compositions;
-#[path = "engine/compositions_nested.rs"]
-mod compositions_nested;
-#[path = "engine/compositions_packs.rs"]
-mod compositions_packs;
-#[path = "engine/compositions_structures.rs"]
-mod compositions_structures;
 #[path = "hierarchy/compound.rs"]
 mod compound;
-#[path = "engine/container_grids.rs"]
-mod container_grids;
 #[path = "placement/container_orientation.rs"]
 mod container_orientation;
 #[path = "packing/container_packing.rs"]

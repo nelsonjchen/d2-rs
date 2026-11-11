@@ -243,9 +243,6 @@ impl IncidentEdge {
         };
         SharedPortNode(other.clone(), node.1.clone())
     }
-    pub(super) fn same_record(&self, edge: &SharedPortEdge) -> bool {
-        Weak::ptr_eq(&self.record, &Arc::downgrade(&edge.record))
-    }
 }
 /// An incident slot in an OVG node's edge backing array. Stored slots never
 /// carried an owner root; the reading header supplies it.
@@ -315,14 +312,46 @@ mod tests {
     fn rewritten_endpoint_domains_retain_incidents_and_release_without_cycles() {
         for side in [0, 1, 2] {
             let mut original = PortBuild::default();
-            let a = original.add_point(Point { x: 1., y: 2. }, None).unwrap();
-            let b = original.add_point(Point { x: 11., y: 2. }, None).unwrap();
-            original.connect(a, b, None).unwrap();
+            let a = original
+                .add_point(
+                    Point { x: 1., y: 2. },
+                    &super::super::route_search_guard::OvgBuildBudget::new(),
+                )
+                .unwrap();
+            let b = original
+                .add_point(
+                    Point { x: 11., y: 2. },
+                    &super::super::route_search_guard::OvgBuildBudget::new(),
+                )
+                .unwrap();
+            original
+                .connect(
+                    a,
+                    b,
+                    &super::super::route_search_guard::OvgBuildBudget::new(),
+                )
+                .unwrap();
             let edge = original.edges[0].clone();
             let mut foreign = PortBuild::default();
-            let c = foreign.add_point(Point { x: 101., y: 102. }, None).unwrap();
-            let d = foreign.add_point(Point { x: 111., y: 102. }, None).unwrap();
-            foreign.connect(c, d, None).unwrap();
+            let c = foreign
+                .add_point(
+                    Point { x: 101., y: 102. },
+                    &super::super::route_search_guard::OvgBuildBudget::new(),
+                )
+                .unwrap();
+            let d = foreign
+                .add_point(
+                    Point { x: 111., y: 102. },
+                    &super::super::route_search_guard::OvgBuildBudget::new(),
+                )
+                .unwrap();
+            foreign
+                .connect(
+                    c,
+                    d,
+                    &super::super::route_search_guard::OvgBuildBudget::new(),
+                )
+                .unwrap();
             let nodes = [
                 Arc::downgrade(&original.nodes[a].0),
                 Arc::downgrade(&original.nodes[b].0),
@@ -357,9 +386,20 @@ mod tests {
     #[test]
     fn retained_nodes_edges_and_headers_keep_objects_then_release_every_allocation() {
         let mut source = PortBuild::default();
-        let a = source.add_point(Point { x: 1.0, y: 2.0 }, None).unwrap();
+        let a = source
+            .add_point(
+                Point { x: 1.0, y: 2.0 },
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
+            .unwrap();
         let b = source.allocate_node(Point { x: 11.0, y: 2.0 });
-        source.connect(a, b, None).unwrap();
+        source
+            .connect(
+                a,
+                b,
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
+            .unwrap();
         let node = source.nodes[a].clone();
         let captured = node.read().edges.clone();
         let retained_edge = source.edges[0].clone();
@@ -369,13 +409,30 @@ mod tests {
         let old_edge = Arc::downgrade(&retained_edge.record);
         let mut receiver = PortBuild::default();
         let local = receiver.import_object(node.clone());
-        let c = receiver.add_point(Point { x: 1.0, y: 12.0 }, None).unwrap();
+        let c = receiver
+            .add_point(
+                Point { x: 1.0, y: 12.0 },
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
+            .unwrap();
         let receiver_root = Arc::downgrade(&receiver.nodes[c].1);
         let receiver_node = Arc::downgrade(&receiver.nodes[c].0);
-        receiver.connect(local, c, None).unwrap();
+        receiver
+            .connect(
+                local,
+                c,
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
+            .unwrap();
         let late = source.allocate_node(Point { x: 1.0, y: 22.0 });
         let late_node = Arc::downgrade(&source.nodes[late].0);
-        source.connect(a, late, None).unwrap();
+        source
+            .connect(
+                a,
+                late,
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
+            .unwrap();
         let late_edge = Arc::downgrade(&source.edges[1].record);
         drop(source);
         drop(receiver);

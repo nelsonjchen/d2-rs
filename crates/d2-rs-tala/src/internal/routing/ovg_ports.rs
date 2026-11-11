@@ -241,17 +241,8 @@ impl SharedPortNode {
     pub(super) fn point(&self) -> Point {
         self.read().point()
     }
-    pub(super) fn container(&self) -> Option<NodeId> {
-        self.read().container()
-    }
-    pub(super) fn near_ports(&self) -> Option<BTreeSet<NodeId>> {
-        self.read().near_ports.as_deref().cloned()
-    }
     pub(super) fn is_tunnel(&self) -> bool {
         self.read().is_tunnel()
-    }
-    pub(super) fn index(&self) -> usize {
-        self.read().index()
     }
 }
 #[derive(Clone, Debug)]
@@ -511,9 +502,7 @@ impl PortBuild {
         {
             return Ok(());
         }
-        if let Some(b) = budget {
-            b.reserve_edges(1)?;
-        }
+        budget.reserve_edges(1)?;
         let index = self.edges.len();
         let edge =
             super::ovg_objects::SharedPortEdge::new(&self.nodes[from], &self.nodes[to], from, to);
@@ -537,21 +526,17 @@ impl PortBuild {
     pub(super) fn add_point(
         &mut self,
         point: Point,
-        budget: Option<&OvgBuildBudget<'_>>,
+        budget: &OvgBuildBudget<'_>,
     ) -> Result<usize, ()> {
-        if let Some(budget) = budget {
-            budget.reserve_work(1)?;
-        }
+        budget.reserve_work(1)?;
         let reflexive = !point.x.is_nan() && !point.y.is_nan();
         let key = super::go_point_map_key(point);
         if reflexive && let Some(index) = self.occupied.get(&key).map(occupant_slot) {
             return Ok(index);
         }
-        if let Some(budget) = budget {
-            budget.reserve_nodes(1)?;
-        }
+        budget.reserve_nodes(1)?;
         let index = self.allocate_node(point);
-        self.publish_member(index, budget.is_some());
+        self.publish_member(index, true);
         Ok(index)
     }
 
@@ -702,14 +687,23 @@ impl PortBuild {
             .filter(|reserved| !**reserved)
             .count()
     }
+    /// Register a point the legacy hierarchy merge already materialized,
+    /// without charging it; `unreserved_member_count` charges it later.
+    pub(super) fn add_point_unreserved(&mut self, point: Point) {
+        let reflexive = !point.x.is_nan() && !point.y.is_nan();
+        if reflexive && self.occupied.contains_key(&super::go_point_map_key(point)) {
+            return;
+        }
+        let index = self.allocate_node(point);
+        self.publish_member(index, false);
+    }
+
     pub(super) fn add_existing_node(
         &mut self,
         index: usize,
-        budget: Option<&OvgBuildBudget<'_>>,
+        budget: &OvgBuildBudget<'_>,
     ) -> Result<usize, ()> {
-        if let Some(b) = budget {
-            b.reserve_work(1)?;
-        }
+        budget.reserve_work(1)?;
         let point = self.nodes[index].point();
         if !point.x.is_nan()
             && !point.y.is_nan()
@@ -720,10 +714,8 @@ impl PortBuild {
         {
             return Ok(occupant);
         }
-        if let Some(b) = budget {
-            b.reserve_nodes(1)?;
-        }
-        self.publish_member(index, budget.is_some());
+        budget.reserve_nodes(1)?;
+        self.publish_member(index, true);
         Ok(index)
     }
 
@@ -750,10 +742,8 @@ impl PortBuild {
                 .write()
                 .set_node_center(!graph.nodes[owner.0 as usize].is_invisible);
             step(budget)?;
-            if let Some(b) = budget {
-                b.reserve_nodes(1)?;
-            }
-            self.publish_member(center, budget.is_some());
+            budget.reserve_nodes(1)?;
+            self.publish_member(center, true);
             let count = self.ports.get(&owner).map_or(0, |ports| ports.len());
             for slot in 0..count {
                 let port = self.ports[&owner][slot].0;
@@ -1231,9 +1221,7 @@ impl PortBuild {
         check(budget)?;
         let mut imported = BTreeMap::new();
         for (&owner, ports) in other.ports.iter() {
-            if let Some(b) = budget {
-                b.reserve_work(ports.len() as u64 + 1)?;
-            }
+            budget.reserve_work(ports.len() as u64 + 1)?;
             let mut canonical_ports = PortList::with_capacity(ports.len());
             for &(foreign, mut port) in ports.iter() {
                 let local = *imported
@@ -1267,9 +1255,7 @@ impl PortBuild {
             }
             self.ports.insert(owner, canonical_ports);
         }
-        if let Some(b) = budget {
-            b.reserve_work(graph_node_count as u64)?;
-        }
+        budget.reserve_work(graph_node_count as u64)?;
         check(budget)
     }
     pub(super) fn merge_hierarchy_nonports(
@@ -1297,21 +1283,15 @@ impl PortBuild {
         &mut self,
         graph: &ArenaGraph,
         nodes: &[NodeId],
-        budget: Option<&OvgBuildBudget<'_>>,
+        budget: &OvgBuildBudget<'_>,
     ) -> Result<(), ()> {
-        if let Some(budget) = budget {
-            budget.check()?;
-        }
+        budget.check()?;
         let mut skip_pathing = BTreeSet::new();
         for children in graph.containers.values() {
-            if let Some(budget) = budget {
-                budget.reserve_work(1)?;
-            }
+            budget.reserve_work(1)?;
             let mut connected = false;
             for &child in &children {
-                if let Some(budget) = budget {
-                    budget.reserve_work(1)?;
-                }
+                budget.reserve_work(1)?;
                 if !graph.nodes[child.0 as usize].edges.is_empty() {
                     connected = true;
                     break;
@@ -1319,17 +1299,13 @@ impl PortBuild {
             }
             if !connected {
                 for child in children {
-                    if let Some(budget) = budget {
-                        budget.reserve_work(1)?;
-                    }
+                    budget.reserve_work(1)?;
                     skip_pathing.insert(child);
                 }
             }
         }
         for &owner in nodes {
-            if let Some(budget) = budget {
-                budget.reserve_work(1)?;
-            }
+            budget.reserve_work(1)?;
             if skip_pathing.contains(&owner) {
                 continue;
             }
@@ -1355,13 +1331,9 @@ impl PortBuild {
                 PortSide::Bottom,
                 PortSide::Right,
             ] {
-                if let Some(budget) = budget {
-                    budget.reserve_work(1)?;
-                }
+                budget.reserve_work(1)?;
                 for snap in relative.iter().copied().filter(|point| point.side == side) {
-                    if let Some(budget) = budget {
-                        budget.reserve_work(1)?;
-                    }
+                    budget.reserve_work(1)?;
                     let rect = Rect {
                         origin: graph.position(owner).expect(
                             "runtime error: invalid memory address or nil pointer dereference",
@@ -1396,9 +1368,7 @@ impl PortBuild {
                 .enumerate()
                 .filter(|(_, point)| point.is_center)
             {
-                if let Some(budget) = budget {
-                    budget.reserve_work(1)?;
-                }
+                budget.reserve_work(1)?;
                 let node_index = self.ports[&owner][index].0;
                 self.nodes[node_index]
                     .write()
@@ -1408,9 +1378,7 @@ impl PortBuild {
                     .center = true;
             }
         }
-        if let Some(budget) = budget {
-            budget.check()?;
-        }
+        budget.check()?;
         Ok(())
     }
 
@@ -1419,7 +1387,7 @@ impl PortBuild {
     pub(super) fn import_ports(
         &mut self,
         ports: &[(NodeId, Port)],
-        budget: Option<&OvgBuildBudget<'_>>,
+        budget: &OvgBuildBudget<'_>,
     ) -> Result<(), ()> {
         for &(owner, mut port) in ports {
             let index = self.add_point(port.point, budget)?;
@@ -1448,7 +1416,7 @@ impl PortBuild {
         &self,
         owner: NodeId,
         side: PortSide,
-        budget: Option<&OvgBuildBudget<'_>>,
+        budget: &OvgBuildBudget<'_>,
     ) -> Result<Vec<usize>, ()> {
         let direction = match side {
             PortSide::Top => 4,
@@ -1459,9 +1427,7 @@ impl PortBuild {
         let mut seen = BTreeSet::new();
         let mut result = Vec::new();
         for &(index, _) in self.ports.get(&owner).into_iter().flatten() {
-            if let Some(b) = budget {
-                b.reserve_work(1)?;
-            }
+            budget.reserve_work(1)?;
             if !seen.insert(index) {
                 continue;
             }
@@ -1469,9 +1435,7 @@ impl PortBuild {
                 result.push(index);
             }
         }
-        if let Some(b) = budget {
-            b.check()?;
-        }
+        budget.check()?;
         Ok(result)
     }
 
@@ -1585,12 +1549,24 @@ mod tests {
         );
         let mut build = PortBuild::default();
         let owner = NodeId(63);
-        build.add_ports(&graph, &[owner], None).unwrap();
+        build
+            .add_ports(
+                &graph,
+                &[owner],
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
+            .unwrap();
         assert!(build.ports.get(&NodeId(0)).is_none());
         let original = build.nodes[build.ports[&owner][0].0].clone();
 
         let remaining = (0..63).chain([64]).map(NodeId).collect::<Vec<_>>();
-        build.add_ports(&graph, &remaining, None).unwrap();
+        build
+            .add_ports(
+                &graph,
+                &remaining,
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
+            .unwrap();
         assert_eq!(
             build.ports.keys().copied().collect::<Vec<_>>(),
             (0..65).map(NodeId).collect::<Vec<_>>()
@@ -1622,7 +1598,7 @@ mod tests {
                         y: -20.0
                     },
                     4,
-                    None,
+                    &super::super::route_search_guard::OvgBuildBudget::new(),
                 )
                 .unwrap()
         );
@@ -1641,7 +1617,7 @@ mod tests {
             let mut ports = PortBuild::default();
             assert!(
                 ports
-                    .connect_centers(&graph, &[NodeId(0)], Some(&budget))
+                    .connect_centers(&graph, &[NodeId(0)], &budget)
                     .is_err()
             );
             let center = ports.centers[&NodeId(0)];
@@ -1670,7 +1646,7 @@ mod tests {
         let budget = OvgBuildBudget::with_context(&context);
         let mut ports = PortBuild::default();
         ports
-            .connect_centers(&graph, &[NodeId(0), NodeId(0)], Some(&budget))
+            .connect_centers(&graph, &[NodeId(0), NodeId(0)], &budget)
             .unwrap();
         assert_eq!(
             ports.nodes[ports.members[0]].read().point(),
@@ -1691,7 +1667,11 @@ mod tests {
             let graph = graph(40.0, true);
             let mut ports = PortBuild::default();
             ports
-                .add_ports(&graph, &graph.graph_node_order(), None)
+                .add_ports(
+                    &graph,
+                    &graph.graph_node_order(),
+                    &super::super::route_search_guard::OvgBuildBudget::new(),
+                )
                 .unwrap();
             let before = ports.members.clone();
             let context = Caller {
@@ -1701,7 +1681,7 @@ mod tests {
                 point: None,
             };
             let budget = OvgBuildBudget::with_context(&context);
-            assert!(ports.remove_isolated(Some(&budget)).is_err());
+            assert!(ports.remove_isolated(&budget).is_err());
             assert_eq!(ports.members.len(), if at_end { 0 } else { before.len() });
             assert!(ports.members_allocated);
             assert_eq!(ports.nodes.len(), before.len());
@@ -1721,28 +1701,56 @@ mod tests {
                     x: f64::NAN,
                     y: 0.0,
                 },
-                None,
+                &super::super::route_search_guard::OvgBuildBudget::new(),
             )
             .unwrap();
-        ports.add_existing_node(node, None).unwrap();
+        ports
+            .add_existing_node(
+                node,
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
+            .unwrap();
         assert_eq!(ports.nodes.len(), 1);
         assert_eq!(ports.members, [node, node]);
         assert_eq!(ports.nan_occupied.len(), 2);
-        ports.connect(node, node, None).unwrap();
-        ports.remove_isolated(None).unwrap();
+        ports
+            .connect(
+                node,
+                node,
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
+            .unwrap();
+        ports
+            .remove_isolated(&super::super::route_search_guard::OvgBuildBudget::new())
+            .unwrap();
         assert_eq!(ports.members, [node, node]);
         assert_eq!(ports.nodes[node].read().edges, [0, 0]);
         let graph = graph(0.0, false);
         let mut ports = PortBuild::default();
         ports
-            .add_ports(&graph, &graph.graph_node_order(), None)
+            .add_ports(
+                &graph,
+                &graph.graph_node_order(),
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
             .unwrap();
         let original = ports.members[0];
-        ports.connect_centers(&graph, &[NodeId(0)], None).unwrap();
+        ports
+            .connect_centers(
+                &graph,
+                &[NodeId(0)],
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
+            .unwrap();
         let center = ports.centers[&NodeId(0)];
         assert_ne!(center, original);
         assert_eq!(
-            ports.add_point(Point { x: 0.0, y: 0.0 }, None).unwrap(),
+            ports
+                .add_point(
+                    Point { x: 0.0, y: 0.0 },
+                    &super::super::route_search_guard::OvgBuildBudget::new()
+                )
+                .unwrap(),
             center
         );
         assert!(ports.nodes[center].read().owners.is_empty());
@@ -1753,7 +1761,12 @@ mod tests {
         // routing/ovg_node.go NewOVGNode and ovg_hierarchy.go's direction
         // transform leave the nil portOwnersByNode map unallocated.
         let mut ports = PortBuild::default();
-        let node = ports.add_point(Point { x: 10.0, y: 20.0 }, None).unwrap();
+        let node = ports
+            .add_point(
+                Point { x: 10.0, y: 20.0 },
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
+            .unwrap();
         assert_eq!(ports.owner_directions(node).count(), 0);
         assert_eq!(ports.port_directions(node, NodeId(0)), 0);
         assert!(ports.nodes[node].read().owners.0.is_none());
@@ -1787,7 +1800,7 @@ mod tests {
         budget.check().unwrap();
         let mut ports = PortBuild::default();
         ports
-            .add_ports(&graph, &graph.graph_node_order(), Some(&budget))
+            .add_ports(&graph, &graph.graph_node_order(), &budget)
             .unwrap();
         assert_eq!(budget.observed_resources(), [68, 1, 0, 0]);
         assert_eq!(context.polls.get(), 72);
@@ -1820,7 +1833,13 @@ mod tests {
         );
         let mut build = PortBuild::default();
         for owner in (0..65).rev().map(NodeId) {
-            build.add_ports(&graph, &[owner], None).unwrap();
+            build
+                .add_ports(
+                    &graph,
+                    &[owner],
+                    &super::super::route_search_guard::OvgBuildBudget::new(),
+                )
+                .unwrap();
         }
         assert_eq!(build.nodes.len(), 1);
         let shared = build.nodes[0].clone();
@@ -1872,7 +1891,7 @@ mod tests {
         budget.check().unwrap();
         let mut ports = PortBuild::default();
         ports
-            .add_ports(&graph, &graph.graph_node_order(), Some(&budget))
+            .add_ports(&graph, &graph.graph_node_order(), &budget)
             .unwrap();
         assert_eq!(ports.nodes[0].point(), Point { x: 10.0, y: 0.0 });
         assert_eq!(
@@ -1905,7 +1924,7 @@ mod tests {
             let mut ports = PortBuild::default();
             assert!(
                 ports
-                    .add_ports(&graph, &graph.graph_node_order(), Some(&budget))
+                    .add_ports(&graph, &graph.graph_node_order(), &budget)
                     .is_err()
             );
             assert_eq!(budget.observed_resources(), [work, 0, 0, 0]);

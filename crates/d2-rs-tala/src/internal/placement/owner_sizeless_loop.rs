@@ -6,7 +6,6 @@ use super::limits::{Context, OptimizationError, OptimizationWorkGuard};
 use super::owner_placement::OwnerPlacementError;
 use super::owner_sizeless_constructor::OwnerSizelessOptimizer;
 use super::{ArenaGraph, NodeId, OwnerScoreSession};
-use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
 
 #[cfg(test)]
 #[path = "owner_sizeless_loop_tests.rs"]
@@ -65,7 +64,7 @@ impl OwnerSizelessOptimizer {
             .into());
         }
         let mut scratch = self.take_mutation_scratch();
-        let result = catch_unwind(AssertUnwindSafe(|| {
+        let result = (|| {
             scratch.capture_into(session.owner_mut(), self.selected_graph(), &mut guard)?;
             // Retain the actual field map, then release its RefCell borrow
             // before real context callbacks can replace that field.
@@ -74,28 +73,22 @@ impl OwnerSizelessOptimizer {
             let occupied_snapshot = occupied.capture_with_owner(&mut guard, session.owner_mut())?;
             #[cfg(not(feature = "diagnostic-traces"))]
             let occupied_snapshot = occupied.capture_with_step(|| guard.step())?;
-            let trial = catch_unwind(AssertUnwindSafe(|| {
+            let trial = (|| {
                 self.optimize_guarded(workspace, session, context, temperature, &mut guard)?;
                 finish(session, &mut guard)?;
                 Ok::<(), OwnerPlacementError>(())
-            }));
-            if !matches!(&trial, Ok(Ok(()))) {
+            })();
+            if trial.is_err() {
                 scratch
                     .restore(session.owner_mut())
                     .expect("captured optimizer owner binding");
                 occupied_snapshot.restore(&mut self.occupied().borrow_mut());
             }
-            match trial {
-                Ok(result) => result,
-                Err(panic) => resume_unwind(panic),
-            }
-        }));
+            trial
+        })();
         scratch.release();
         self.retain_mutation_scratch(scratch);
-        match result {
-            Ok(result) => result,
-            Err(panic) => resume_unwind(panic),
-        }
+        result
     }
 
     pub(super) fn optimize_guarded(

@@ -81,15 +81,6 @@ use super::nodeshape::ports::{
     center_port_for_side_with_table_column_count, mirrored_port_index, nth_port_on_side,
 };
 
-fn outward(side: PortSide) -> Point {
-    match side {
-        PortSide::Top => Point { x: 0.0, y: -1.0 },
-        PortSide::Left => Point { x: -1.0, y: 0.0 },
-        PortSide::Bottom => Point { x: 0.0, y: 1.0 },
-        PortSide::Right => Point { x: 1.0, y: 0.0 },
-    }
-}
-
 fn opposite(side: PortSide) -> PortSide {
     match side {
         PortSide::Top => PortSide::Bottom,
@@ -213,52 +204,6 @@ fn side_matches_orientation(side: PortSide, orientation: Orientation) -> bool {
     }
 }
 
-fn segment_hits_rect(start: Point, end: Point, rect: Rect) -> bool {
-    if (start.x - end.x).abs() < f64::EPSILON {
-        let low = start.y.min(end.y);
-        let high = start.y.max(end.y);
-        start.x > rect.origin.x
-            && start.x < rect.right()
-            && high > rect.origin.y
-            && low < rect.bottom()
-    } else if (start.y - end.y).abs() < f64::EPSILON {
-        let low = start.x.min(end.x);
-        let high = start.x.max(end.x);
-        start.y > rect.origin.y
-            && start.y < rect.bottom()
-            && high > rect.origin.x
-            && low < rect.right()
-    } else {
-        true
-    }
-}
-
-fn segment_touches_rect(start: Point, end: Point, rect: Rect) -> bool {
-    if (start.x - end.x).abs() < f64::EPSILON {
-        let low = start.y.min(end.y);
-        let high = start.y.max(end.y);
-        start.x >= rect.origin.x
-            && start.x <= rect.right()
-            && high >= rect.origin.y
-            && low <= rect.bottom()
-    } else if (start.y - end.y).abs() < f64::EPSILON {
-        let low = start.x.min(end.x);
-        let high = start.x.max(end.x);
-        start.y >= rect.origin.y
-            && start.y <= rect.bottom()
-            && high >= rect.origin.x
-            && low <= rect.right()
-    } else {
-        true
-    }
-}
-
-fn edge_passes_through_rect(points: &[Point], rect: Rect) -> bool {
-    points
-        .windows(2)
-        .any(|segment| segment_hits_rect(segment[0], segment[1], rect))
-}
-
 fn contained_by(inner: Rect, outer: Rect) -> bool {
     inner.origin.x >= outer.origin.x
         && inner.origin.y >= outer.origin.y
@@ -311,15 +256,12 @@ fn contains_with_delta(rect: Rect, point: Point, delta: f64) -> bool {
         && point.y <= rect.bottom() + delta
 }
 
-mod assignment;
 mod balance;
 mod balance_owner;
 mod channel_candidates;
-mod channel_geometry;
 pub(in crate::internal) mod channel_points;
 pub(in crate::internal) mod channel_safety;
 pub(in crate::internal) mod channel_solver;
-mod channel_stage;
 mod cluster_branching;
 mod containment;
 mod crosshatch;
@@ -353,21 +295,14 @@ mod tunnels;
 mod visibility;
 
 pub(crate) use crate::internal::loops::self_loop_routes;
-#[cfg(test)]
-pub(super) use assignment::assign_swappable_routes_in_edge_order;
-#[cfg(test)]
-pub(super) use assignment::routes_can_swap_edges;
 pub(super) use balance::{balance_edge_segments, balance_edge_segments_with_budget};
 pub(super) use cluster_branching::{
     fix_cluster_edge_branching, fix_cluster_edge_branching_with_budget,
 };
-use containment::is_ancestor;
 pub(super) use crosshatch::crosshatch_with_budget;
 pub(super) use dejitter::dejitter;
 pub(super) use hierarchy::top_down_left_right_edge_order;
-use interactions::edges_can_overlap;
-pub(super) use nudge::{nudge_edge_channels, nudge_edge_channels_with_budget};
-use route_geometry::{route_is_clear, simplify_route};
+pub(super) use nudge::nudge_edge_channels_with_budget;
 pub(super) use route_search_guard::{
     LocalRouteSearchWork, MAX_EDGE_ROUTING_STAGE_WORK_UNITS, MAX_ROUTE_SEARCH_WORK_UNITS,
     MAX_ROUTE_STAGE_WORK_UNITS, RouteStageWork,
@@ -381,12 +316,10 @@ pub(super) use search::route_edges_with_cancellation;
 pub(super) use search::{
     initialize_standalone_routing_costs, route_edges, route_edges_with_cancellation_and_aggregate,
 };
-pub(super) use shortcut::{shortcut_edge_routes, shortcut_edge_routes_with_budget};
+pub(super) use shortcut::shortcut_edge_routes_with_budget;
 pub(super) use simplify::{simplify_edge_routes, simplify_edge_routes_with_budget};
 pub(super) use straight::{straight_edges_fallback, straight_edges_fallback_with_budget};
 use swap_ports::node_rect;
-#[cfg(test)]
-pub(super) use swap_ports::refine_edge;
 pub(super) use swap_ports::{swap_edge_ports, swap_edge_ports_with_budget};
 pub(super) use trace::{trace_edges_to_shape_border, trace_edges_to_shape_border_with_budget};
 

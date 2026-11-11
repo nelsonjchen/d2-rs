@@ -12,7 +12,6 @@ use super::occupied::{OccupiedPointMap, OccupiedPointSnapshot};
 use super::owner_score_session::OwnerOptimizerMutationSnapshot;
 use super::{ArenaGraph, OwnerGraphId, OwnerScoreSession};
 use std::cell::RefCell;
-use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
 
 trait OwnerOptimizerReceiver {
     fn owner_mut(&mut self) -> &mut ArenaGraph;
@@ -120,7 +119,7 @@ fn with_optimizer_mutation_receiver<T, Receiver: OwnerOptimizerReceiver>(
     #[cfg(not(feature = "diagnostic-traces"))]
     let mut guard = OptimizationWorkGuard::new(Some(context), "sizelessOptimizer.optimize", limit)?;
 
-    let operation = catch_unwind(AssertUnwindSafe(|| {
+    let operation = (|| {
         let receiver = session.receiver();
         scratch.capture_into(session.owner_mut(), receiver, &mut guard)?;
         let occupied_ref = occupied.borrow().clone();
@@ -130,34 +129,21 @@ fn with_optimizer_mutation_receiver<T, Receiver: OwnerOptimizerReceiver>(
         let occupied_snapshot = occupied_ref.capture(&mut guard)?;
 
         // Only this successful pair of captures arms the error/panic handler.
-        let armed = catch_unwind(AssertUnwindSafe(|| {
+        let armed = (|| {
             let value = body(session, occupied, &mut guard)?;
             #[cfg(feature = "diagnostic-traces")]
             guard.finish_with_owner(session.owner_mut())?;
             #[cfg(not(feature = "diagnostic-traces"))]
             guard.finish()?;
             Ok(value)
-        }));
-        match armed {
-            Ok(Ok(value)) => Ok(value),
-            Ok(Err(error)) => {
-                restore_pass(session, occupied, scratch, &occupied_snapshot)?;
-                Err(error)
-            }
-            Err(payload) => {
-                // Replacing the arena or deleting its stable nodes is outside
-                // this binding. Report that unsupported restoration explicitly.
-                restore_pass(session, occupied, scratch, &occupied_snapshot)
-                    .expect("owner optimizer panic restore requires the original arena nodes");
-                resume_unwind(payload)
-            }
+        })();
+        if armed.is_err() {
+            restore_pass(session, occupied, scratch, &occupied_snapshot)?;
         }
-    }));
+        armed
+    })();
     scratch.release();
-    match operation {
-        Ok(result) => result,
-        Err(payload) => resume_unwind(payload),
-    }
+    operation
 }
 
 #[cfg(test)]
@@ -168,6 +154,7 @@ mod tests {
     use crate::internal::{ArenaGraph, CanonicalScoreMapping, OwnerGraphId};
     use crate::{Graph, Node, NodeId, Point, Size};
     use std::cell::Cell;
+    use std::panic::{AssertUnwindSafe, catch_unwind};
     use std::sync::Arc;
 
     struct QuietContext;
@@ -266,9 +253,7 @@ mod tests {
     #[test]
     fn armed_owner_pass_rethrows_exact_panic_and_keeps_consumed_rng() {
         let (mut owner, mapping) = fixture(false);
-        let before = owner.position(NodeId(0));
-        let original = OccupiedPointMap::default();
-        let occupied = RefCell::new(original.clone());
+        let occupied = RefCell::new(OccupiedPointMap::default());
         let mut scratch = OwnerOptimizerMutationSnapshot::default();
         let mut session =
             OwnerScoreSession::new(&mut owner, OwnerGraphId(0), mapping, None).unwrap();
@@ -299,11 +284,8 @@ mod tests {
             actual.downcast_ref::<Arc<String>>().unwrap(),
             &payload
         ));
-        assert_eq!(session.owner().position(NodeId(0)), before);
-        assert!(occupied.borrow().is_nil());
+        // The unwound pass is not restored: the seed recovery discards it.
         assert_eq!(rng.draw_count(), entry_draws + 1);
-        assert!(!scratch.is_complete());
-        assert_eq!(scratch.captured_nodes().len(), 0);
     }
 
     #[test]

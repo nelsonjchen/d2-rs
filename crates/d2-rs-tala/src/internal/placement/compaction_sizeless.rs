@@ -585,17 +585,15 @@ impl ArenaGraph {
             .transpose()
             .map_err(compaction_candidates::optimization_error)?;
         let positions = compaction_sized::CompactionWorkspacePositions::capture(self);
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            self.compact_sizeless_kernel(
-                horizontal,
-                factor,
-                active,
-                owner_positions.as_mut().map(|snapshot| snapshot.session()),
-                context,
-                move_work_limit,
-            )
-        }));
-        if matches!(&result, Ok(Ok(()))) {
+        let result = self.compact_sizeless_kernel(
+            horizontal,
+            factor,
+            active,
+            owner_positions.as_mut().map(|snapshot| snapshot.session()),
+            context,
+            move_work_limit,
+        );
+        if result.is_ok() {
             if let Some(snapshot) = owner_positions.as_mut() {
                 snapshot.commit();
             }
@@ -608,10 +606,7 @@ impl ArenaGraph {
             }
             self.cost_cache.restore_routing(routing);
         }
-        match result {
-            Ok(result) => result,
-            Err(payload) => std::panic::resume_unwind(payload),
-        }
+        result
     }
 
     fn compact_sizeless_kernel(

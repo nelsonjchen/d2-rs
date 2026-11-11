@@ -46,262 +46,6 @@ fn table_port_allowed(allowed: &Option<Vec<Port>>, candidate: Port) -> bool {
     })
 }
 
-fn follows_outward(delta: Point, side: PortSide) -> bool {
-    let expected = outward(side);
-    delta.x * expected.x + delta.y * expected.y > 0.0
-        && (delta.x * expected.y - delta.y * expected.x).abs() < f64::EPSILON
-}
-
-fn candidate_route(
-    graph: &ArenaGraph,
-    source: Port,
-    target: Port,
-    source_node: NodeId,
-    target_node: NodeId,
-    boxes: &BTreeMap<NodeId, Rect>,
-    explore_both_axis_orders: bool,
-    allow_direct_intersection: bool,
-) -> Vec<Point> {
-    let candidates = if source.side == opposite(target.side) {
-        match source.side {
-            PortSide::Left | PortSide::Right => {
-                let middle = ((source.point.x + target.point.x) * 0.5).floor();
-                vec![vec![
-                    source.point,
-                    Point {
-                        x: middle,
-                        y: source.point.y,
-                    },
-                    Point {
-                        x: middle,
-                        y: target.point.y,
-                    },
-                    target.point,
-                ]]
-            }
-            PortSide::Top | PortSide::Bottom => {
-                let middle = ((source.point.y + target.point.y) * 0.5).floor();
-                vec![vec![
-                    source.point,
-                    Point {
-                        x: source.point.x,
-                        y: middle,
-                    },
-                    Point {
-                        x: target.point.x,
-                        y: middle,
-                    },
-                    target.point,
-                ]]
-            }
-        }
-    } else if source.side == target.side {
-        // The OVG contains both its padded subgraph boundary and the visible
-        // axes immediately outside every obstacle band. This is one candidate
-        // inventory for every shape; shape-specific port geometry and the
-        // ordinary route score decide which visible track wins.
-        let clearance = graph.cell_size + 1.0;
-        let source_box = boxes[&source_node];
-        let target_box = boxes[&target_node];
-        let limit = match source.side {
-            PortSide::Top => source_box.origin.y.min(target_box.origin.y) - clearance,
-            PortSide::Bottom => source_box.bottom().max(target_box.bottom()) + clearance,
-            PortSide::Left => source_box.origin.x.min(target_box.origin.x) - clearance,
-            PortSide::Right => source_box.right().max(target_box.right()) + clearance,
-        };
-        // `newVisibilityGraph` also contributes the unbounded endpoint range
-        // one hundred units beyond the outermost endpoint box.  Keep that
-        // visible lane distinct from the padded subgraph boundary: the two
-        // coincide only when the padding happens to be zero.
-        let endpoint_boundary = match source.side {
-            PortSide::Top => source_box.origin.y.min(target_box.origin.y) - 100.0,
-            PortSide::Bottom => source_box.bottom().max(target_box.bottom()) + 100.0,
-            PortSide::Left => source_box.origin.x.min(target_box.origin.x) - 100.0,
-            PortSide::Right => source_box.right().max(target_box.right()) + 100.0,
-        };
-        let padded_boundary = match source.side {
-            PortSide::Top | PortSide::Left => limit - 100.0,
-            PortSide::Bottom | PortSide::Right => limit + 100.0,
-        };
-        let mut tracks = vec![endpoint_boundary, padded_boundary];
-        for (node, rect) in boxes {
-            if *node == source_node || *node == target_node {
-                continue;
-            }
-            let obstacle_tracks = match source.side {
-                PortSide::Top | PortSide::Bottom => {
-                    [rect.origin.y - clearance, rect.bottom() + clearance]
-                }
-                PortSide::Left | PortSide::Right => {
-                    [rect.origin.x - clearance, rect.right() + clearance]
-                }
-            };
-            tracks.extend(
-                obstacle_tracks
-                    .into_iter()
-                    .filter(|track| match source.side {
-                        PortSide::Top | PortSide::Left => *track < limit,
-                        PortSide::Bottom | PortSide::Right => *track > limit,
-                    }),
-            );
-        }
-        tracks.stable_sort_by(|left, right| match source.side {
-            PortSide::Top | PortSide::Left => right.total_cmp(left),
-            PortSide::Bottom | PortSide::Right => left.total_cmp(right),
-        });
-        tracks.dedup_by(|left, right| left == right);
-        tracks
-            .into_iter()
-            .map(|track| match source.side {
-                PortSide::Top | PortSide::Bottom => vec![
-                    source.point,
-                    Point {
-                        x: source.point.x,
-                        y: track,
-                    },
-                    Point {
-                        x: target.point.x,
-                        y: track,
-                    },
-                    target.point,
-                ],
-                PortSide::Left | PortSide::Right => vec![
-                    source.point,
-                    Point {
-                        x: track,
-                        y: source.point.y,
-                    },
-                    Point {
-                        x: track,
-                        y: target.point.y,
-                    },
-                    target.point,
-                ],
-            })
-            .collect()
-    } else {
-        // Hierarchy scopes require an explicit visibility junction between
-        // perpendicular rays. This direct candidate builder handles no such
-        // junction, so it cannot invent one across scope boundaries. Tunnel
-        // pairs are handled earlier; flat scopes may use the intersection below.
-        if !allow_direct_intersection {
-            return Vec::new();
-        }
-        // TALA's visibility graph includes the orthogonal intersection of
-        // perpendicular endpoint rays. When that intersection is unobstructed,
-        // findLShapedRoute returns the direct three-point path without adding
-        // artificial clearance stubs.
-        let direct_source_axis = Point {
-            x: source.point.x,
-            y: target.point.y,
-        };
-        let direct_target_axis = Point {
-            x: target.point.x,
-            y: source.point.y,
-        };
-        let source_delta = outward(source.side);
-        let first = Point {
-            x: source.point.x + source_delta.x * 30.0,
-            y: source.point.y + source_delta.y * 30.0,
-        };
-        let target_delta = outward(target.side);
-        let last = Point {
-            x: target.point.x + target_delta.x * 30.0,
-            y: target.point.y + target_delta.y * 30.0,
-        };
-        let first_corner = if (first.x - last.x).abs() < (first.y - last.y).abs() {
-            Point {
-                x: first.x,
-                y: last.y,
-            }
-        } else {
-            Point {
-                x: last.x,
-                y: first.y,
-            }
-        };
-        let second_corner = if first_corner.x == first.x {
-            Point {
-                x: last.x,
-                y: first.y,
-            }
-        } else {
-            Point {
-                x: first.x,
-                y: last.y,
-            }
-        };
-        // Recovered findLShapedRoute explores both axis orders. Preserve the
-        // shorter-axis-first order as the tie preference. The alternate is
-        // active with the represented flat flavor search below; the current
-        // hierarchy-aware approximation retains its existing candidate set.
-        let mut routes = Vec::new();
-        if allow_direct_intersection {
-            routes.push(vec![source.point, direct_source_axis, target.point]);
-            routes.push(vec![source.point, direct_target_axis, target.point]);
-        }
-        routes.push(vec![source.point, first, first_corner, last, target.point]);
-        if explore_both_axis_orders {
-            routes.push(vec![source.point, first, second_corner, last, target.point]);
-        }
-        routes
-    };
-    for route in candidates {
-        let route = simplify_route(route);
-        let leaves_source = route.get(1).is_some_and(|next| {
-            follows_outward(
-                Point {
-                    x: next.x - source.point.x,
-                    y: next.y - source.point.y,
-                },
-                source.side,
-            )
-        });
-        let enters_target = route
-            .len()
-            .checked_sub(2)
-            .and_then(|index| route.get(index))
-            .is_some_and(|previous| {
-                follows_outward(
-                    Point {
-                        x: previous.x - target.point.x,
-                        y: previous.y - target.point.y,
-                    },
-                    target.side,
-                )
-            });
-        // Recovered `addNodesIntersections` calls `Graph.isPointNearANode`,
-        // which rejects an intersection inside the fixed twenty-unit band of
-        // any non-container node. Containers are deliberately skipped. This
-        // is an OVG-topology rule, not an endpoint-route surcharge: a direct
-        // perpendicular candidate through some third node's exclusion band
-        // does not exist in TALA's graph at all.
-        let clears_turn_band = is_ancestor(graph, source_node, target_node)
-            || is_ancestor(graph, target_node, source_node)
-            || route[1..route.len() - 1].iter().all(|turn| {
-                boxes.iter().all(|(node, rect)| {
-                    graph.nodes[node.0 as usize].is_container
-                        || !point_near_rect(*turn, *rect, 20.0)
-                })
-            });
-        if leaves_source
-            && enters_target
-            && clears_turn_band
-            && route_is_clear(graph, &route, boxes, source_node, target_node)
-        {
-            return route;
-        }
-    }
-    Vec::new()
-}
-
-fn length(route: &[Point]) -> f64 {
-    route
-        .windows(2)
-        .map(|pair| (pair[0].x - pair[1].x).abs() + (pair[0].y - pair[1].y).abs())
-        .sum()
-}
-
 pub(super) fn ideal_turn_axes_for_slingshot(source: Rect, target: Rect) -> Vec<(bool, f64)> {
     let source_after_target_x = source.origin.x > target.right();
     let target_after_source_x = target.origin.x > source.right();
@@ -379,13 +123,6 @@ pub(super) fn distance_to_boundary_for_ovg(point: Point, rect: Rect) -> f64 {
     }
 }
 
-fn point_near_rect(point: Point, rect: Rect, margin: f64) -> bool {
-    rect.origin.x - margin <= point.x
-        && point.x <= rect.right() + margin
-        && rect.origin.y - margin <= point.y
-        && point.y <= rect.bottom() + margin
-}
-
 /// Recovered `Cluster.hasDesirableArrangementTo` for the materialized Rust
 /// cluster state. An endpoint cluster prefers row members when the other node
 /// is above or below its vessel, and column members when it is left or right.
@@ -437,64 +174,6 @@ fn cluster_has_desirable_arrangement_to(
         }
         _ => false,
     }
-}
-
-/// Recovered `Graph.getSourceAndTargetClusterNodes`.  Cluster membership is
-/// graph-owned state, so it must be consulted independently of the endpoint's
-/// current `Node.cluster` backlink (which can be stale while aggregate
-/// vessels are being flattened or restored).
-/// Turn contribution from recovered `ovgEdgeRouter.search`.
-///
-/// Ordinary OVG search slightly rewards turns on the midpoint axes returned
-/// by `Node.getIdealTurnAxes`. It also charges an additional full turn when a
-/// turn occurs within twenty units of either endpoint boundary.
-fn search_turn_cost(
-    graph: &ArenaGraph,
-    source: NodeId,
-    target: NodeId,
-    route: &[Point],
-    boxes: &BTreeMap<NodeId, Rect>,
-) -> f64 {
-    if route.len() < 3 {
-        return 0.0;
-    }
-    let source_rect = boxes[&source];
-    let target_rect = boxes[&target];
-    let axes = ideal_turn_axes_for_slingshot(source_rect, target_rect);
-    let has_ancestry = is_ancestor(graph, source, target) || is_ancestor(graph, target, source);
-    let mut cost = 0.0;
-
-    for index in 1..route.len() - 1 {
-        let previous = route[index - 1];
-        let turn = route[index];
-        let next = route[index + 1];
-        let arrived_horizontally = previous.y == turn.y;
-        let leaves_horizontally = turn.y == next.y;
-        if arrived_horizontally == leaves_horizontally {
-            continue;
-        }
-        let multiplier = if axes.iter().any(|(vertical, position)| {
-            if *vertical {
-                (turn.x - position).abs() <= 4.0
-            } else {
-                (turn.y - position).abs() <= 4.0
-            }
-        }) {
-            0.98
-        } else {
-            1.0
-        };
-        cost += multiplier * graph.routing_costs.1;
-        if !has_ancestry {
-            if distance_to_boundary_for_ovg(turn, target_rect) <= 20.0 {
-                cost += graph.routing_costs.1;
-            }
-            if distance_to_boundary_for_ovg(turn, source_rect) <= 20.0 {
-                cost += graph.routing_costs.1;
-            }
-        }
-    }
-    cost
 }
 
 /// Translation of recovered `Route.isOpposingColinear`.
@@ -754,24 +433,6 @@ fn mirrored_center_port_coordinate_is_used(
         })
 }
 
-fn parallel_axis_overlap(first: [Point; 2], second: [Point; 2]) -> Option<f64> {
-    let first_vertical = first[0].x == first[1].x;
-    let second_vertical = second[0].x == second[1].x;
-    let first_horizontal = first[0].y == first[1].y;
-    let second_horizontal = second[0].y == second[1].y;
-    if first_vertical && second_vertical {
-        let overlap = first[0].y.min(first[1].y) <= second[0].y.max(second[1].y)
-            && second[0].y.min(second[1].y) <= first[0].y.max(first[1].y);
-        return overlap.then_some((first[0].x - second[0].x).abs());
-    }
-    if first_horizontal && second_horizontal {
-        let overlap = first[0].x.min(first[1].x) <= second[0].x.max(second[1].x)
-            && second[0].x.min(second[1].x) <= first[0].x.max(first[1].x);
-        return overlap.then_some((first[0].y - second[0].y).abs());
-    }
-    None
-}
-
 /// Incremental translation of TALA's `ovgEdgeRouter.addRoute` indexes.
 ///
 /// TALA performs the geometric comparisons once after accepting a route.
@@ -1003,10 +664,6 @@ impl RouteInteractionIndex {
         Some(())
     }
 
-    pub(super) fn new(visibility: &super::visibility::VisibilityGraph, graph: &ArenaGraph) -> Self {
-        Self::new_with_node_labels(visibility, graph, false)
-    }
-
     pub(super) fn new_with_node_labels(
         visibility: &super::visibility::VisibilityGraph,
         graph: &ArenaGraph,
@@ -1073,16 +730,6 @@ impl RouteInteractionIndex {
         }
     }
 
-    pub(super) fn add_route(
-        &mut self,
-        graph: &ArenaGraph,
-        edge_index: usize,
-        route: &[Point],
-        _trace_flavor: &str,
-    ) {
-        let _ = self.add_route_with_budget(graph, edge_index, route, _trace_flavor, None);
-    }
-
     /// Publish an accepted route while charging the same mutation boundaries
     /// as v0.9.0's guarded `ovgEdgeRouter.addRoute`. The unbudgeted wrapper is
     /// retained for prepasses and tests; route flavors pass their local guard
@@ -1108,31 +755,6 @@ impl RouteInteractionIndex {
             budget,
         )
         .is_ok()
-    }
-
-    /// Publish a route while preserving the source OVG-node identities when
-    /// the caller still has them. Fixed-route import uses this path because
-    /// coordinate equality is not pointer equality in `ovgEdgeRouter.addRoute`.
-    fn add_route_with_node_ids(
-        &mut self,
-        graph: &ArenaGraph,
-        edge_index: usize,
-        route: &[Point],
-        ovg_node_ids: Option<&[usize]>,
-        _trace_flavor: &str,
-        budget: Option<&LocalRouteSearchWork>,
-    ) -> Result<(), RoutePublicationError> {
-        self.add_route_with_node_identity(
-            graph,
-            edge_index,
-            route,
-            ovg_node_ids,
-            false,
-            None,
-            None,
-            _trace_flavor,
-            budget,
-        )
     }
 
     /// Publish a generated route with its exact visibility-graph node IDs.
@@ -1542,24 +1164,6 @@ impl RouteInteractionIndex {
         )
     }
 
-    fn accepted_route_points(&self, edge_index: usize, route: &[Point]) -> Vec<Point> {
-        let mut points = Vec::with_capacity(route.len() + 2);
-        if let Some((source, _)) = self.route_centers[edge_index] {
-            points.push(source);
-        }
-        for point in route.iter().copied() {
-            if points.last() != Some(&point) {
-                points.push(point);
-            }
-        }
-        if let Some((_, target)) = self.route_centers[edge_index]
-            && points.last() != Some(&target)
-        {
-            points.push(target);
-        }
-        points
-    }
-
     pub(super) fn candidate_arrowhead_label_cost_for_end_guarded(
         &self,
         graph: &ArenaGraph,
@@ -1628,40 +1232,6 @@ impl RouteInteractionIndex {
         )
     }
 
-    pub(super) fn candidate_arrowhead_label_cost_for_end(
-        &self,
-        graph: &ArenaGraph,
-        edge_index: usize,
-        route: &[Point],
-        is_target: bool,
-    ) -> f64 {
-        let Some(candidate) = crate::internal::labels::positioned_arrowhead_label_for_route(
-            edge_index,
-            &graph.edge_records[edge_index],
-            route,
-            is_target,
-        ) else {
-            return 0.0;
-        };
-        let overlapping_edge_count = self
-            .routes
-            .iter()
-            .filter(|published| {
-                published.edge != edge_index
-                    && crate::internal::labels::positioned_arrowhead_label_overlaps_route(
-                        &candidate,
-                        &published.points(),
-                    )
-            })
-            .count();
-        crate::internal::labels::positioned_arrowhead_label_cost(
-            graph,
-            &candidate,
-            &self.positioned_arrowhead_labels,
-            overlapping_edge_count,
-        )
-    }
-
     /// Go arrowheadLabelOverlapPenalty extracts every interior OVG point,
     /// then rebuilds the non-ancestor inventory for this proposed route.
     pub(super) fn candidate_arrowhead_label_cost_for_route_guarded(
@@ -1690,16 +1260,6 @@ impl RouteInteractionIndex {
         Some(source + target)
     }
 
-    pub(super) fn candidate_arrowhead_label_cost_for_route(
-        &self,
-        graph: &ArenaGraph,
-        edge_index: usize,
-        route: &[Point],
-    ) -> f64 {
-        self.candidate_arrowhead_label_cost_for_end(graph, edge_index, route, false)
-            + self.candidate_arrowhead_label_cost_for_end(graph, edge_index, route, true)
-    }
-
     fn crosses_routed_segment(&self, candidate_segment: [Point; 2]) -> bool {
         self.routed_set
             .intersects(
@@ -1707,16 +1267,6 @@ impl RouteInteractionIndex {
                 None,
             )
             .expect("unguarded edge-set query")
-    }
-
-    /// Once-per-pop work from search's occupiedEdges inventory and
-    /// edgeCanOverlapEdgesGuarded. Multiplicity in pointToRoute is meaningful.
-    pub(super) fn charge_occupied_routes(
-        &self,
-        point: Option<Point>,
-        budget: &LocalRouteSearchWork,
-    ) -> Option<()> {
-        self.charge_occupied_routes_memo(point, budget, &mut None)
     }
 
     /// `charge_occupied_routes`, leaving the pop's lookup in `memo` for the
@@ -1786,41 +1336,6 @@ impl RouteInteractionIndex {
             .ok()
     }
 
-    pub(super) fn apply_route_interaction_cost(
-        &self,
-        graph: &ArenaGraph,
-        edge_index: usize,
-        candidate_segment: [Point; 2],
-        current_cost: f64,
-    ) -> f64 {
-        self.apply_route_interaction_cost_guarded(
-            graph,
-            edge_index,
-            candidate_segment,
-            current_cost,
-            None,
-        )
-        .expect("unbounded interaction scan")
-    }
-
-    pub(super) fn apply_route_interaction_cost_guarded(
-        &self,
-        graph: &ArenaGraph,
-        edge_index: usize,
-        candidate_segment: [Point; 2],
-        current_cost: f64,
-        budget: Option<&LocalRouteSearchWork>,
-    ) -> Option<f64> {
-        self.apply_route_interaction_cost_for_edge(
-            graph,
-            edge_index,
-            candidate_segment,
-            current_cost,
-            None,
-            budget,
-        )
-    }
-
     /// `point_to_routes[point]`, reusing `memo` when it holds this point's
     /// key. The map changes only through `&mut self`, so a lookup memoized
     /// earlier in a search remains the answer for an equal key.
@@ -1842,27 +1357,6 @@ impl RouteInteractionIndex {
             .unwrap_or(&[]);
         *memo = Some((key, routes));
         routes
-    }
-
-    pub(super) fn apply_route_interaction_cost_for_edge(
-        &self,
-        graph: &ArenaGraph,
-        edge_index: usize,
-        candidate_segment: [Point; 2],
-        current_cost: f64,
-        static_edge: Option<usize>,
-        budget: Option<&LocalRouteSearchWork>,
-    ) -> Option<f64> {
-        let occupied_edges = self.occupied_routes_memo(candidate_segment[0], &mut None);
-        self.apply_route_interaction_cost_with_occupied(
-            graph,
-            edge_index,
-            candidate_segment,
-            current_cost,
-            static_edge,
-            occupied_edges,
-            budget,
-        )
     }
 
     /// `apply_route_interaction_cost_for_edge` given `point_to_routes` at
@@ -2026,23 +1520,6 @@ impl RouteInteractionIndex {
         })
     }
 
-    pub(super) fn apply_label_obstacle_cost(
-        &self,
-        graph: &ArenaGraph,
-        edge_index: usize,
-        candidate_segment: [Point; 2],
-        current_cost: f64,
-    ) -> f64 {
-        self.apply_label_obstacle_cost_guarded(
-            graph,
-            edge_index,
-            candidate_segment,
-            current_cost,
-            None,
-        )
-        .expect("unbounded label scan")
-    }
-
     /// D2 search charges every positioned label visited, including misses.
     pub(super) fn apply_label_obstacle_cost_guarded(
         &self,
@@ -2084,306 +1561,6 @@ impl RouteInteractionIndex {
         }
         Some(cost)
     }
-
-    pub(super) fn apply_cost(
-        &self,
-        graph: &ArenaGraph,
-        edge_index: usize,
-        candidate_segment: [Point; 2],
-        current_cost: f64,
-    ) -> f64 {
-        let cost =
-            self.apply_route_interaction_cost(graph, edge_index, candidate_segment, current_cost);
-        self.apply_label_obstacle_cost(graph, edge_index, candidate_segment, cost)
-    }
-}
-
-pub(super) fn route_interaction_cost(
-    graph: &ArenaGraph,
-    edge_index: usize,
-    candidate: &[Point],
-    routed: &[Vec<Point>],
-) -> f64 {
-    let mut cost = 0.0;
-    for candidate_segment in candidate.windows(2) {
-        let current = candidate_segment[0];
-        let adjacent = candidate_segment[1];
-        let occupied_edges = routed
-            .iter()
-            .enumerate()
-            .filter_map(|(other_index, route)| route.contains(&current).then_some(other_index))
-            .collect::<Vec<_>>();
-        let adjacent_is_on_route = routed.iter().any(|route| route.contains(&adjacent));
-        let occupied_are_shareable = super::interactions::edges_can_overlap_all_for_search(
-            graph,
-            edge_index,
-            &occupied_edges,
-        );
-
-        // addRoute registers a route on the exact static OVG edges it covers,
-        // and separately marks OVG edges within five units as nearby. Search
-        // consults those edge-keyed maps; it does not compare the candidate
-        // against every geometric segment as the former Rust approximation
-        // did. Rust routes omit TALA's synthetic center nodes, so every stored
-        // segment here corresponds to the internal OVG-node range addRoute
-        // indexes.
-        let mut overlapping_edges = Vec::new();
-        let mut has_nearby_edge = false;
-        let mut opposing_share = false;
-        let mut intersects_edge_set = false;
-        for (other_index, route) in routed.iter().enumerate() {
-            for routed_segment in route.windows(2) {
-                if let Some(axis_distance) = parallel_axis_overlap(
-                    [candidate_segment[0], candidate_segment[1]],
-                    [routed_segment[0], routed_segment[1]],
-                ) {
-                    if axis_distance <= 5.0 {
-                        has_nearby_edge = true;
-                    }
-                    if axis_distance == 0.0 {
-                        overlapping_edges.push(other_index);
-                        let directed = graph.edge_records[edge_index].source_arrow
-                            != graph.edge_records[edge_index].target_arrow;
-                        let other_directed = graph.edge_records[other_index].source_arrow
-                            != graph.edge_records[other_index].target_arrow;
-                        opposing_share |= directed
-                            && other_directed
-                            && route_is_opposing_collinear(
-                                route,
-                                Some((
-                                    graph.nodes[graph.edge_records[other_index].from.0 as usize]
-                                        .rect
-                                        .center(),
-                                    graph.nodes[graph.edge_records[other_index].to.0 as usize]
-                                        .rect
-                                        .center(),
-                                )),
-                                candidate_segment[0],
-                                candidate_segment[1],
-                            );
-                    }
-                }
-                if segments_intersect(
-                    candidate_segment[0],
-                    candidate_segment[1],
-                    routed_segment[0],
-                    routed_segment[1],
-                ) && !candidate_segment
-                    .iter()
-                    .any(|point| routed_segment.contains(point))
-                {
-                    intersects_edge_set = true;
-                }
-            }
-        }
-        overlapping_edges.sort_unstable();
-        overlapping_edges.dedup();
-
-        let prohibited_share = opposing_share
-            || (!overlapping_edges.is_empty()
-                && !super::interactions::edges_can_overlap_all_for_search(
-                    graph,
-                    edge_index,
-                    &overlapping_edges,
-                ))
-            || (occupied_edges.is_empty() && !adjacent_is_on_route && has_nearby_edge);
-        if prohibited_share {
-            cost += if graph.edge_records[edge_index].is_between_table_columns() {
-                1_000_000.0
-            } else {
-                10_000_000.0
-            };
-            continue;
-        }
-
-        let crosses_occupied_point =
-            !occupied_edges.is_empty() && !adjacent_is_on_route && !occupied_are_shareable;
-        if crosses_occupied_point || intersects_edge_set {
-            cost += graph.routing_costs.0;
-        }
-    }
-    cost
-}
-
-fn point_on_segment(point: Point, segment: &[Point]) -> bool {
-    let [first, second] = segment else {
-        return false;
-    };
-    if first.x == second.x {
-        point.x == first.x && first.y.min(second.y) <= point.y && point.y <= first.y.max(second.y)
-    } else if first.y == second.y {
-        point.y == first.y && first.x.min(second.x) <= point.x && point.x <= first.x.max(second.x)
-    } else {
-        false
-    }
-}
-
-fn connect_port_to_point(port: Port, point: Point) -> Option<Vec<Point>> {
-    let outward = outward(port.side);
-    let delta = Point {
-        x: point.x - port.point.x,
-        y: point.y - port.point.y,
-    };
-    if delta.x * outward.x + delta.y * outward.y <= 0.0 {
-        return None;
-    }
-    let bend = match port.side {
-        PortSide::Left | PortSide::Right => Point {
-            x: point.x,
-            y: port.point.y,
-        },
-        PortSide::Top | PortSide::Bottom => Point {
-            x: port.point.x,
-            y: point.y,
-        },
-    };
-    Some(simplify_route(vec![port.point, bend, point]))
-}
-
-fn port_segment_join_points(port: Port, segment: &[Point]) -> Vec<Point> {
-    let [first, second] = segment else {
-        return Vec::new();
-    };
-    let direction = outward(port.side);
-    let stub = Point {
-        x: port.point.x + direction.x * 30.0,
-        y: port.point.y + direction.y * 30.0,
-    };
-    let mut points = Vec::with_capacity(2);
-
-    match port.side {
-        PortSide::Left | PortSide::Right => {
-            if first.x == second.x {
-                points.push(Point {
-                    x: first.x,
-                    y: port.point.y,
-                });
-            } else if first.y == second.y {
-                points.push(Point {
-                    x: stub.x,
-                    y: first.y,
-                });
-            }
-        }
-        PortSide::Top | PortSide::Bottom => {
-            if first.y == second.y {
-                points.push(Point {
-                    x: port.point.x,
-                    y: first.y,
-                });
-            } else if first.x == second.x {
-                points.push(Point {
-                    x: first.x,
-                    y: stub.y,
-                });
-            }
-        }
-    }
-
-    points.retain(|point| {
-        point_on_segment(*point, segment)
-            && connect_port_to_point(port, *point).is_some()
-            && *point != *first
-            && *point != *second
-    });
-    points.dedup();
-    points
-}
-
-fn shared_route_candidates(
-    graph: &ArenaGraph,
-    edge_index: usize,
-    source: Port,
-    target: Port,
-    boxes: &BTreeMap<NodeId, Rect>,
-    routed: &[Vec<Point>],
-) -> Vec<Vec<Point>> {
-    let edge = &graph.edge_records[edge_index];
-    let mut candidates = Vec::new();
-
-    for (other_index, other_route) in routed.iter().enumerate() {
-        if other_route.len() < 2
-            || other_index == edge_index
-            || !edges_can_overlap(graph, edge_index, other_index)
-        {
-            continue;
-        }
-        let other = &graph.edge_records[other_index];
-
-        let oriented_to_target = if other.to == edge.to && other_route.last() == Some(&target.point)
-        {
-            Some(other_route.clone())
-        } else if other.from == edge.to && other_route.first() == Some(&target.point) {
-            Some(other_route.iter().rev().copied().collect())
-        } else {
-            None
-        };
-        if let Some(route_to_target) = oriented_to_target {
-            for join_index in 0..route_to_target.len() - 1 {
-                let join = route_to_target[join_index];
-                let Some(mut candidate) = connect_port_to_point(source, join) else {
-                    continue;
-                };
-                candidate.extend_from_slice(&route_to_target[join_index + 1..]);
-                let candidate = simplify_route(candidate);
-                if route_is_clear(graph, &candidate, boxes, edge.from, edge.to) {
-                    candidates.push(candidate);
-                }
-            }
-            for (segment_index, segment) in route_to_target.windows(2).enumerate() {
-                for join in port_segment_join_points(source, segment) {
-                    let Some(mut candidate) = connect_port_to_point(source, join) else {
-                        continue;
-                    };
-                    candidate.extend_from_slice(&route_to_target[segment_index + 1..]);
-                    let candidate = simplify_route(candidate);
-                    if route_is_clear(graph, &candidate, boxes, edge.from, edge.to) {
-                        candidates.push(candidate);
-                    }
-                }
-            }
-        }
-
-        let oriented_from_source =
-            if other.from == edge.from && other_route.first() == Some(&source.point) {
-                Some(other_route.clone())
-            } else if other.to == edge.from && other_route.last() == Some(&source.point) {
-                Some(other_route.iter().rev().copied().collect())
-            } else {
-                None
-            };
-        if let Some(route_from_source) = oriented_from_source {
-            for join_index in 1..route_from_source.len() {
-                let join = route_from_source[join_index];
-                let Some(mut connector) = connect_port_to_point(target, join) else {
-                    continue;
-                };
-                connector.reverse();
-                let mut candidate = route_from_source[..join_index].to_vec();
-                candidate.append(&mut connector);
-                let candidate = simplify_route(candidate);
-                if route_is_clear(graph, &candidate, boxes, edge.from, edge.to) {
-                    candidates.push(candidate);
-                }
-            }
-            for (segment_index, segment) in route_from_source.windows(2).enumerate() {
-                for join in port_segment_join_points(target, segment) {
-                    let Some(mut connector) = connect_port_to_point(target, join) else {
-                        continue;
-                    };
-                    connector.reverse();
-                    let mut candidate = route_from_source[..=segment_index].to_vec();
-                    candidate.extend(connector);
-                    let candidate = simplify_route(candidate);
-                    if route_is_clear(graph, &candidate, boxes, edge.from, edge.to) {
-                        candidates.push(candidate);
-                    }
-                }
-            }
-        }
-    }
-
-    candidates
 }
 
 #[derive(Clone)]
@@ -2399,31 +1576,13 @@ struct RouteOvgContext {
     existing_routes: std::sync::Arc<[super::ovg_import::ExistingRoute]>,
 }
 
-fn build_route_ovg_context(
-    graph: &ArenaGraph,
-    scope_nodes: &[NodeId],
-    nearby_nodes: &[NodeId],
-    ordered_edges: &[usize],
-    fixed_routes: Option<&[Vec<Point>]>,
-) -> RouteOvgContext {
-    build_route_ovg_context_checked(
-        graph,
-        scope_nodes,
-        nearby_nodes,
-        ordered_edges,
-        fixed_routes,
-        None,
-    )
-    .expect("unbudgeted OVG construction cannot fail")
-}
-
 fn build_route_ovg_context_checked(
     graph: &ArenaGraph,
     scope_nodes: &[NodeId],
     nearby_nodes: &[NodeId],
     ordered_edges: &[usize],
     fixed_routes: Option<&[Vec<Point>]>,
-    ovg_budget: Option<&super::route_search_guard::OvgBuildBudget>,
+    ovg_budget: &super::route_search_guard::OvgBuildBudget,
 ) -> Result<RouteOvgContext, String> {
     let mut working = graph.clone();
     build_route_ovg_context_mut(
@@ -2442,22 +1601,18 @@ fn build_route_ovg_context_mut(
     nearby_nodes: &[NodeId],
     ordered_edges: &[usize],
     fixed_routes: Option<&[Vec<Point>]>,
-    ovg_budget: Option<&super::route_search_guard::OvgBuildBudget>,
+    ovg_budget: &super::route_search_guard::OvgBuildBudget,
 ) -> Result<RouteOvgContext, String> {
-    if let Some(budget) = ovg_budget {
-        budget
-            .check()
-            .map_err(|_| "OVG construction cancelled".to_owned())?;
-    }
+    ovg_budget
+        .check()
+        .map_err(|_| "OVG construction cancelled".to_owned())?;
     let mut ordinary_nodes = nearby_nodes.to_vec();
     let mut hierarchies = Vec::new();
     let mut seen = BTreeSet::new();
     for &node in scope_nodes {
-        if let Some(budget) = ovg_budget {
-            budget
-                .reserve_work(1)
-                .map_err(|_| "OVG classification cancelled".to_owned())?;
-        }
+        ovg_budget
+            .reserve_work(1)
+            .map_err(|_| "OVG classification cancelled".to_owned())?;
         if let Some(hierarchy) = graph.nodes[node.0 as usize].hierarchy.clone() {
             if seen.insert(hierarchy.record.allocation_key()) {
                 hierarchies.push(
@@ -2545,11 +1700,9 @@ fn build_route_ovg_context_mut(
     if fixed_routes.is_some() {
         let mut imported = Vec::new();
         for edge_id in graph.edge_order.header().iter_slots() {
-            if let Some(budget) = ovg_budget {
-                budget.reserve_work(1).map_err(|_| {
-                    "OVG fixed-route import cancelled or exceeded its work limit".to_owned()
-                })?;
-            }
+            ovg_budget.reserve_work(1).map_err(|_| {
+                "OVG fixed-route import cancelled or exceeded its work limit".to_owned()
+            })?;
             let edge_id =
                 edge_id.expect("runtime error: invalid memory address or nil pointer dereference");
             let edge_index = edge_id.0 as usize;
@@ -2633,65 +1786,24 @@ struct PreparedRouteFlavor {
     router_edges: Vec<usize>,
 }
 
-fn route_edges_in_order(
-    graph: &ArenaGraph,
-    scope_nodes: &[NodeId],
-    nearby_nodes: &[NodeId],
-    ordered_edges: &[usize],
-    construction_order: &[usize],
-    trace_flavor: &'static str,
-    fixed_routes: Option<&[Vec<Point>]>,
-    shared_context: Option<&RouteOvgContext>,
-    ovg_budget: Option<&super::route_search_guard::OvgBuildBudget>,
-    budget: Option<&LocalRouteSearchWork>,
-) -> RouteFlavorResponse {
-    match prepare_route_flavor(
-        graph,
-        scope_nodes,
-        nearby_nodes,
-        ordered_edges,
-        construction_order,
-        trace_flavor,
-        fixed_routes,
-        shared_context,
-        ovg_budget,
-        budget,
-    ) {
-        Ok(prepared) => generate_route_flavor(
-            graph,
-            scope_nodes,
-            ordered_edges,
-            trace_flavor,
-            fixed_routes,
-            budget,
-            prepared,
-        ),
-        Err(response) => response,
-    }
-}
-
 fn prepare_route_flavor(
     graph: &ArenaGraph,
     scope_nodes: &[NodeId],
-    nearby_nodes: &[NodeId],
     ordered_edges: &[usize],
     construction_order: &[usize],
     trace_flavor: &str,
     fixed_routes: Option<&[Vec<Point>]>,
-    shared_context: Option<&RouteOvgContext>,
-    ovg_budget: Option<&super::route_search_guard::OvgBuildBudget>,
+    shared_context: &RouteOvgContext,
     budget: Option<&LocalRouteSearchWork>,
 ) -> Result<PreparedRouteFlavor, RouteFlavorResponse> {
     prepare_route_flavor_owned(
         graph,
         scope_nodes,
-        nearby_nodes,
         ordered_edges,
         construction_order,
         trace_flavor,
         fixed_routes,
-        shared_context.cloned(),
-        ovg_budget,
+        shared_context.clone(),
         budget,
     )
 }
@@ -2701,40 +1813,13 @@ fn prepare_route_flavor(
 fn prepare_route_flavor_owned(
     graph: &ArenaGraph,
     scope_nodes: &[NodeId],
-    nearby_nodes: &[NodeId],
     ordered_edges: &[usize],
     construction_order: &[usize],
     trace_flavor: &str,
     fixed_routes: Option<&[Vec<Point>]>,
-    shared_context: Option<RouteOvgContext>,
-    ovg_budget: Option<&super::route_search_guard::OvgBuildBudget>,
+    context: RouteOvgContext,
     budget: Option<&LocalRouteSearchWork>,
 ) -> Result<PreparedRouteFlavor, RouteFlavorResponse> {
-    let context = if let Some(shared_context) = shared_context {
-        shared_context
-    } else {
-        match build_route_ovg_context_checked(
-            graph,
-            scope_nodes,
-            nearby_nodes,
-            ordered_edges,
-            fixed_routes,
-            ovg_budget,
-        ) {
-            Ok(context) => context,
-            Err(error) => {
-                return Err((
-                    vec![Vec::new(); graph.edge_records.len()],
-                    ordered_edges.len(),
-                    f64::INFINITY,
-                    vec![None; graph.edge_records.len()],
-                    Some(crate::LayoutError::BadRouteState(error)),
-                    Vec::new(),
-                    Vec::new(),
-                ));
-            }
-        }
-    };
     let RouteOvgContext {
         boxes,
         obstacle_node_order,
@@ -3065,7 +2150,7 @@ fn generate_route_flavor(
     ordered_edges: &[usize],
     trace_flavor: &'static str,
     fixed_routes: Option<&[Vec<Point>]>,
-    budget: Option<&LocalRouteSearchWork>,
+    budget: &LocalRouteSearchWork,
     prepared: PreparedRouteFlavor,
 ) -> RouteFlavorResponse {
     let PreparedRouteFlavor {
@@ -3096,13 +2181,13 @@ fn generate_route_flavor(
             if std::env::var("D2_TRACE_GENERATION_WORK").as_deref() == Ok("1") {
                 eprintln!(
                     "{}",
-                    serde_json::json!({"event":"generation-work","scope_nodes":graph.node_order.len(),"scope_edges":graph.edge_order.len(),"edge":edge.tala_id,"flavor":trace_flavor,"phase":phase,"work":budget.map(LocalRouteSearchWork::used)})
+                    serde_json::json!({"event":"generation-work","scope_nodes":graph.node_order.len(),"scope_edges":graph.edge_order.len(),"edge":edge.tala_id,"flavor":trace_flavor,"phase":phase,"work":budget.used()})
                 );
             }
         };
         #[cfg(feature = "diagnostic-traces")]
         trace_generation("begin");
-        if budget.is_some_and(|guard| guard.step().is_err()) {
+        if budget.step().is_err() {
             unrouted += router_edge_count - this_edge_order_index;
             break;
         }
@@ -3128,7 +2213,7 @@ fn generate_route_flavor(
             crate::internal::trace_env_value("TALA_TRACE_DISABLE_SLINGSHOT_EDGE")
                 .is_some_and(|value| value == edge.tala_id.to_string());
         if !disable_slingshot
-            && !super::slingshot::charge_outer_call(graph, edge_index, orientation, budget)
+            && !super::slingshot::charge_outer_call(graph, edge_index, orientation, Some(budget))
         {
             // Go's slingshot worker reports the resource error through the
             // flavor guard. The sticky exhausted bit is checked by the
@@ -3150,7 +2235,7 @@ fn generate_route_flavor(
                 &routes,
                 &interaction_index,
                 trace_flavor,
-                budget,
+                Some(budget),
                 &slingshot_checkers,
             )
             && !mismatched_tunnel_endpoints(route.source, route.target)
@@ -3167,7 +2252,7 @@ fn generate_route_flavor(
                 &route.node_ids,
                 Some(&visibility),
                 trace_flavor,
-                budget,
+                Some(budget),
             ) {
                 // generateRoutes returns addRoute's error immediately. A
                 // nonempty numerical path does not make failed publication a
@@ -3196,7 +2281,7 @@ fn generate_route_flavor(
                 &routes,
                 &interaction_index,
                 trace_flavor,
-                budget,
+                Some(budget),
                 &slingshot_checkers,
             )
             && !mismatched_tunnel_endpoints(route.source, route.target)
@@ -3213,7 +2298,7 @@ fn generate_route_flavor(
                 &route.node_ids,
                 Some(&visibility),
                 trace_flavor,
-                budget,
+                Some(budget),
             ) {
                 // generateRoutes returns addRoute's error immediately. A
                 // nonempty numerical path does not make failed publication a
@@ -3242,7 +2327,7 @@ fn generate_route_flavor(
         #[cfg(feature = "diagnostic-traces")]
         trace_generation("search-arrays-done");
         if interaction_index
-            .prepare_search_node_labels(graph, edge_index, budget)
+            .prepare_search_node_labels(graph, edge_index, Some(budget))
             .is_none()
         {
             unrouted += router_edge_count - this_edge_order_index;
@@ -3261,13 +2346,13 @@ fn generate_route_flavor(
             && border_distance > 20.0
         {
             interaction_index
-                .materialize_quick_route_records(budget)
+                .materialize_quick_route_records(Some(budget))
                 .and_then(|materialized| {
                     route_line::route_line_with_route_records(
                         graph,
                         edge_index,
                         &materialized,
-                        budget,
+                        Some(budget),
                     )
                 })
         } else {
@@ -3295,7 +2380,7 @@ fn generate_route_flavor(
                 &node_ids,
                 Some(&visibility),
                 trace_flavor,
-                budget,
+                Some(budget),
             ) {
                 // generateRoutes returns addRoute's error immediately. A
                 // nonempty numerical path does not make failed publication a
@@ -3360,7 +2445,12 @@ fn generate_route_flavor(
         let source_cluster = graph.nodes[edge.from.0 as usize].cluster;
         let target_cluster = graph.nodes[edge.to.0 as usize].cluster;
         let Some((mut source_cluster_nodes, mut target_cluster_nodes)) =
-            super::interactions::cluster_memberships_with_budget(graph, edge.from, edge.to, budget)
+            super::interactions::cluster_memberships_with_budget(
+                graph,
+                edge.from,
+                edge.to,
+                Some(budget),
+            )
         else {
             unrouted += router_edge_count - this_edge_order_index;
             break;
@@ -3474,11 +2564,9 @@ fn generate_route_flavor(
                 ] {
                     if allowed.is_some() {
                         for _ in [PortSide::Right, PortSide::Left] {
-                            if let Some(guard) = budget {
-                                guard
-                                    .reserve_sum(graph.nodes[node.0 as usize].edges.len() as u64, 1)
-                                    .ok()?;
-                            }
+                            budget
+                                .reserve_sum(graph.nodes[node.0 as usize].edges.len() as u64, 1)
+                                .ok()?;
                         }
                     }
                 }
@@ -3516,7 +2604,7 @@ fn generate_route_flavor(
         ] {
             if enabled {
                 for other_edge in &graph.nodes[node.0 as usize].edges.read() {
-                    if !budget.is_none_or(|guard| guard.step().is_ok()) {
+                    if budget.step().is_err() {
                         neighbors_complete = false;
                         break;
                     }
@@ -3546,7 +2634,7 @@ fn generate_route_flavor(
             &source_cluster_nodes,
             &target_cluster_nodes,
             undesirable_cluster_arrangement,
-            budget,
+            Some(budget),
         ) else {
             unrouted += router_edge_count - this_edge_order_index;
             break;
@@ -3652,7 +2740,7 @@ fn generate_route_flavor(
             },
         ];
         let Some(symmetrical_nodes) =
-            center_symmetrical_ports(&visibility, &symmetry_endpoints, budget)
+            center_symmetrical_ports(&visibility, &symmetry_endpoints, Some(budget))
         else {
             unrouted += router_edge_count - this_edge_order_index;
             break;
@@ -3840,7 +2928,7 @@ fn generate_route_flavor(
         // Go's routeLineChecked propagates the failed work guard before
         // constructing a fallback. An absent search result must not turn
         // resource exhaustion or cancellation into a publishable line.
-        if budget.is_some_and(|guard| guard.exhausted() || guard.check().is_err()) {
+        if budget.exhausted() || budget.check().is_err() {
             unrouted += router_edge_count - this_edge_order_index;
             break;
         }
@@ -3855,7 +2943,7 @@ fn generate_route_flavor(
                 &node_ids,
                 Some(&visibility),
                 trace_flavor,
-                budget,
+                Some(budget),
             ) {
                 // generateRoutes returns addRoute's error immediately. A
                 // nonempty numerical path does not make failed publication a
@@ -3889,7 +2977,7 @@ fn generate_route_flavor(
                 interaction_index.accepted_edge_indices(),
                 &original_points,
                 &interaction_index.routes,
-                budget,
+                Some(budget),
             )
         } {
             // Recovered generateRoutes invokes routeLine only after slingshot
@@ -3920,7 +3008,7 @@ fn generate_route_flavor(
                 &node_ids,
                 Some(&visibility),
                 trace_flavor,
-                budget,
+                Some(budget),
             ) {
                 // generateRoutes returns addRoute's error immediately. A
                 // nonempty numerical path does not make failed publication a
@@ -3935,7 +3023,7 @@ fn generate_route_flavor(
                     Vec::new(),
                 );
             }
-        } else if budget.is_some_and(|guard| guard.exhausted() || guard.check().is_err()) {
+        } else if budget.exhausted() || budget.check().is_err() {
             // A guarded routeLine failure is terminal; only an invalid
             // candidate may proceed to Go's clipped-center fallback.
             unrouted += router_edge_count - this_edge_order_index;
@@ -3960,7 +3048,7 @@ fn generate_route_flavor(
                 &node_ids,
                 Some(&visibility),
                 trace_flavor,
-                budget,
+                Some(budget),
             ) {
                 // generateRoutes returns addRoute's error immediately. A
                 // nonempty numerical path does not make failed publication a
@@ -4001,8 +3089,8 @@ fn generate_route_flavor(
     // before testing the route length. An interrupted generation leaves empty
     // slots; those are not an independent route invariant. Preserve the cause
     // before the caller's deferred finish can observe a later cancellation.
-    let failure = if let Some(work) = budget.filter(|work| work.has_failed()) {
-        Some(super::finalize::failure(work, trace_flavor).into_layout_error())
+    let failure = if budget.has_failed() {
+        Some(super::finalize::failure(budget, trace_flavor).into_layout_error())
     } else if fixed_routes.is_some() {
         let failed = ordered_edges.iter().copied().find(|edge_index| {
             let edge = &graph.edge_records[*edge_index];
@@ -4077,59 +3165,6 @@ fn ovg_port_node_order(
         }
     }
     order
-}
-
-/// Reconstruct `OVG.NodesInsideBoundingBox` iteration order for route
-/// collision checks. Go starts with nearby nodes, appends non-hierarchy nodes
-/// in the routed graph's node order, then appends one hierarchy OVG per first
-/// seen hierarchy. `newOVGForHierarchy` sorts those members by source EntityID.
-fn ovg_obstacle_node_order(
-    graph: &ArenaGraph,
-    routed_graph_node_order: &[NodeId],
-    nearby_nodes: &[NodeId],
-    boxes: &BTreeMap<NodeId, Rect>,
-    budget: Option<&super::route_search_guard::OvgBuildBudget<'_>>,
-) -> Result<Vec<NodeId>, String> {
-    let mut order = nearby_nodes
-        .iter()
-        .copied()
-        .filter(|node| boxes.contains_key(node))
-        .collect::<Vec<_>>();
-
-    for node in routed_graph_node_order.iter().copied() {
-        if let Some(budget) = budget {
-            budget.reserve_work(1).map_err(|_| {
-                "OVG node classification cancelled or exceeded its work limit".to_owned()
-            })?;
-        }
-        if graph.nodes[node.0 as usize].hierarchy.is_none() && boxes.contains_key(&node) {
-            order.push(node);
-        }
-    }
-
-    let mut seen_hierarchies = BTreeSet::new();
-    for node in routed_graph_node_order.iter().copied() {
-        let Some(hierarchy) = graph.nodes[node.0 as usize].hierarchy.clone() else {
-            continue;
-        };
-        if !seen_hierarchies.insert(hierarchy.id) {
-            continue;
-        }
-        let mut members = routed_graph_node_order
-            .iter()
-            .copied()
-            .filter(|member| {
-                boxes.contains_key(member)
-                    && graph.nodes[member.0 as usize]
-                        .hierarchy
-                        .clone()
-                        .is_some_and(|membership| membership.id == hierarchy.id)
-            })
-            .collect::<Vec<_>>();
-        members.stable_sort_by_key(|member| graph.nodes[member.0 as usize].tala_id);
-        order.extend(members);
-    }
-    Ok(order)
 }
 
 #[cfg(feature = "diagnostic-traces")]
@@ -4207,7 +3242,7 @@ fn route_edge_subset(
     nearby_nodes: &[NodeId],
     declaration_order: &[usize],
     budget_limit: Option<u64>,
-    ovg_budget: Option<&super::route_search_guard::OvgBuildBudget>,
+    ovg_budget: &super::route_search_guard::OvgBuildBudget,
     aggregate: Option<&std::sync::Arc<super::route_search_guard::RouteStageWork>>,
 ) -> Result<super::finalize::Updates, crate::LayoutError> {
     let active_cancellation = crate::internal::current_cancellation();
@@ -4230,7 +3265,7 @@ fn route_edge_subset(
         location: "EdgeRouting",
         limit: super::route_search_guard::MAX_EDGE_ROUTING_STAGE_WORK_UNITS,
     };
-    if ovg_budget.is_some_and(|guard| guard.exhausted()) {
+    if ovg_budget.exhausted() {
         return Err(stage_limit());
     }
     let hierarchy = scope_nodes
@@ -4284,13 +3319,11 @@ fn route_edge_subset(
         let prepared = match prepare_route_flavor_owned(
             graph,
             scope_nodes,
-            nearby_nodes,
             &order,
             declaration_order,
             flavor,
             None,
-            flavor_context,
-            None,
+            flavor_context.expect("the coordinator builds one shared OVG context"),
             Some(&work),
         ) {
             Ok(prepared) => prepared,
@@ -4313,15 +3346,7 @@ fn route_edge_subset(
                 return Err(error);
             }
             let generated = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                generate_route_flavor(
-                    graph,
-                    scope_nodes,
-                    &order,
-                    flavor,
-                    None,
-                    Some(&work),
-                    prepared,
-                )
+                generate_route_flavor(graph, scope_nodes, &order, flavor, None, &work, prepared)
             }));
             // generateRoutes defers finish on both normal and panic exits.
             let finished = work.finish();
@@ -4439,7 +3464,7 @@ fn route_additional_edge_subset(
         &[],
         requested,
         Some(fixed_routes),
-        Some(ovg_budget),
+        ovg_budget,
     )
     .map_err(|_| crate::LayoutError::WorkLimit {
         seed,
@@ -4500,13 +3525,11 @@ fn route_additional_edge_subset(
         let prepared = match prepare_route_flavor(
             graph,
             scope_nodes,
-            &[],
             &order,
             requested,
             flavor,
             Some(fixed_routes),
-            Some(&shared_context),
-            None,
+            &shared_context,
             Some(&work),
         ) {
             Ok(prepared) => prepared,
@@ -4542,7 +3565,7 @@ fn route_additional_edge_subset(
                 order,
                 flavor,
                 Some(fixed_routes),
-                Some(work),
+                work,
                 prepared,
             )
         }));
@@ -5017,7 +4040,7 @@ fn route_edges_with_stage_budget(
             &nearby_nodes,
             &subgraph_order,
             budget_limit,
-            Some(&ovg_budget),
+            &ovg_budget,
             aggregate.as_ref(),
         )?;
         for (edge, points) in subgraph_routes {
@@ -5032,6 +4055,7 @@ fn route_edges_with_stage_budget(
 /// available to focused geometry tests and diagnostic callers; production
 /// pipeline code uses this checked entry point so a cancellation that arrives
 /// during OVG search cannot be published as a partially routed graph.
+#[cfg(test)]
 pub(in crate::internal) fn route_edges_with_cancellation(
     graph: &ArenaGraph,
     seed: i64,
@@ -5047,6 +4071,10 @@ pub(in crate::internal) fn route_edges_with_cancellation(
     })
 }
 
+/// Checked route entry point used by the pipeline so the same aggregate guard
+/// can continue through post-routing stages. The ordinary wrapper above keeps
+/// the historical API for direct callers while allocating a fresh stage
+/// envelope for each standalone invocation.
 /// Checked route entry point used by the pipeline so the same aggregate guard
 /// can continue through post-routing stages. The ordinary wrapper above keeps
 /// the historical API for direct callers while allocating a fresh stage
@@ -5103,34 +4131,6 @@ pub(in crate::internal) fn route_edges_with_cancellation_and_aggregate(
     Ok(routes)
 }
 
-pub(in crate::internal) fn route_additional_edges(
-    graph: &ArenaGraph,
-    requested: &[crate::EdgeId],
-) -> Result<Vec<Vec<Point>>, crate::LayoutError> {
-    route_additional_edges_with_budget(graph, requested, None, 0)
-}
-
-pub(in crate::internal) fn route_additional_edges_with_budget(
-    graph: &ArenaGraph,
-    requested: &[crate::EdgeId],
-    budget_limit: Option<u64>,
-    seed: i64,
-) -> Result<Vec<Vec<Point>>, crate::LayoutError> {
-    let ovg_budget = super::route_search_guard::OvgBuildBudget::new();
-    route_additional_edges_with_ovg_budget(graph, requested, budget_limit, seed, &ovg_budget, false)
-        .map(|updates| {
-            let mut routes = graph
-                .edge_records
-                .iter()
-                .map(|edge| edge.route.read().to_vec())
-                .collect::<Vec<_>>();
-            for (edge, points) in updates {
-                routes[edge] = points.read().to_vec();
-            }
-            routes
-        })
-}
-
 pub(super) fn route_additional_edges_with_context(
     graph: &mut ArenaGraph,
     requested: &[crate::EdgeId],
@@ -5165,27 +4165,6 @@ pub(super) fn route_additional_edges_with_context(
         }
         .into()
     })
-}
-
-fn route_additional_edges_with_ovg_budget(
-    graph: &ArenaGraph,
-    requested: &[crate::EdgeId],
-    budget_limit: Option<u64>,
-    seed: i64,
-    ovg_budget: &super::route_search_guard::OvgBuildBudget<'_>,
-    _use_live_owner: bool,
-) -> Result<super::finalize::Updates, crate::LayoutError> {
-    let mut working = graph.clone();
-    working.cell_size = 0.0;
-    let scope_nodes = working.graph_node_order();
-    let edges = working
-        .edge_order
-        .read()
-        .iter()
-        .map(|e| e.0 as usize)
-        .collect::<Vec<_>>();
-    initialize_scope_routing_costs(&mut working, &scope_nodes, &edges);
-    route_additional_edges_from_live_graph(&mut working, requested, budget_limit, seed, ovg_budget)
 }
 
 fn route_additional_edges_from_live_graph(
@@ -5321,9 +4300,228 @@ fn trace_ovg_import_stage(
 }
 
 #[cfg(test)]
+impl RouteInteractionIndex {
+    pub(super) fn new(visibility: &super::visibility::VisibilityGraph, graph: &ArenaGraph) -> Self {
+        Self::new_with_node_labels(visibility, graph, false)
+    }
+
+    pub(super) fn add_route(
+        &mut self,
+        graph: &ArenaGraph,
+        edge_index: usize,
+        route: &[Point],
+        _trace_flavor: &str,
+    ) {
+        let _ = self.add_route_with_budget(graph, edge_index, route, _trace_flavor, None);
+    }
+
+    pub(super) fn candidate_arrowhead_label_cost_for_end(
+        &self,
+        graph: &ArenaGraph,
+        edge_index: usize,
+        route: &[Point],
+        is_target: bool,
+    ) -> f64 {
+        let Some(candidate) = crate::internal::labels::positioned_arrowhead_label_for_route(
+            edge_index,
+            &graph.edge_records[edge_index],
+            route,
+            is_target,
+        ) else {
+            return 0.0;
+        };
+        let overlapping_edge_count = self
+            .routes
+            .iter()
+            .filter(|published| {
+                published.edge != edge_index
+                    && crate::internal::labels::positioned_arrowhead_label_overlaps_route(
+                        &candidate,
+                        &published.points(),
+                    )
+            })
+            .count();
+        crate::internal::labels::positioned_arrowhead_label_cost(
+            graph,
+            &candidate,
+            &self.positioned_arrowhead_labels,
+            overlapping_edge_count,
+        )
+    }
+
+    /// Once-per-pop work from search's occupiedEdges inventory and
+    /// edgeCanOverlapEdgesGuarded. Multiplicity in pointToRoute is meaningful.
+    pub(super) fn charge_occupied_routes(
+        &self,
+        point: Option<Point>,
+        budget: &LocalRouteSearchWork,
+    ) -> Option<()> {
+        self.charge_occupied_routes_memo(point, budget, &mut None)
+    }
+
+    pub(super) fn apply_route_interaction_cost(
+        &self,
+        graph: &ArenaGraph,
+        edge_index: usize,
+        candidate_segment: [Point; 2],
+        current_cost: f64,
+    ) -> f64 {
+        self.apply_route_interaction_cost_guarded(
+            graph,
+            edge_index,
+            candidate_segment,
+            current_cost,
+            None,
+        )
+        .expect("unbounded interaction scan")
+    }
+
+    pub(super) fn apply_route_interaction_cost_guarded(
+        &self,
+        graph: &ArenaGraph,
+        edge_index: usize,
+        candidate_segment: [Point; 2],
+        current_cost: f64,
+        budget: Option<&LocalRouteSearchWork>,
+    ) -> Option<f64> {
+        self.apply_route_interaction_cost_for_edge(
+            graph,
+            edge_index,
+            candidate_segment,
+            current_cost,
+            None,
+            budget,
+        )
+    }
+
+    pub(super) fn apply_route_interaction_cost_for_edge(
+        &self,
+        graph: &ArenaGraph,
+        edge_index: usize,
+        candidate_segment: [Point; 2],
+        current_cost: f64,
+        static_edge: Option<usize>,
+        budget: Option<&LocalRouteSearchWork>,
+    ) -> Option<f64> {
+        let occupied_edges = self.occupied_routes_memo(candidate_segment[0], &mut None);
+        self.apply_route_interaction_cost_with_occupied(
+            graph,
+            edge_index,
+            candidate_segment,
+            current_cost,
+            static_edge,
+            occupied_edges,
+            budget,
+        )
+    }
+
+    pub(super) fn apply_label_obstacle_cost(
+        &self,
+        graph: &ArenaGraph,
+        edge_index: usize,
+        candidate_segment: [Point; 2],
+        current_cost: f64,
+    ) -> f64 {
+        self.apply_label_obstacle_cost_guarded(
+            graph,
+            edge_index,
+            candidate_segment,
+            current_cost,
+            None,
+        )
+        .expect("unbounded label scan")
+    }
+
+    pub(super) fn apply_cost(
+        &self,
+        graph: &ArenaGraph,
+        edge_index: usize,
+        candidate_segment: [Point; 2],
+        current_cost: f64,
+    ) -> f64 {
+        let cost =
+            self.apply_route_interaction_cost(graph, edge_index, candidate_segment, current_cost);
+        self.apply_label_obstacle_cost(graph, edge_index, candidate_segment, cost)
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use std::cmp::Ordering;
+
+    fn build_route_ovg_context(
+        graph: &ArenaGraph,
+        scope_nodes: &[NodeId],
+        nearby_nodes: &[NodeId],
+        ordered_edges: &[usize],
+        fixed_routes: Option<&[Vec<Point>]>,
+    ) -> RouteOvgContext {
+        build_route_ovg_context_checked(
+            graph,
+            scope_nodes,
+            nearby_nodes,
+            ordered_edges,
+            fixed_routes,
+            &super::super::route_search_guard::OvgBuildBudget::new(),
+        )
+        .expect("test OVG construction stays within the default budget")
+    }
+
+    fn route_additional_edges_with_budget(
+        graph: &ArenaGraph,
+        requested: &[crate::EdgeId],
+        budget_limit: Option<u64>,
+        seed: i64,
+    ) -> Result<Vec<Vec<Point>>, crate::LayoutError> {
+        let ovg_budget = super::route_search_guard::OvgBuildBudget::new();
+        route_additional_edges_with_ovg_budget(
+            graph,
+            requested,
+            budget_limit,
+            seed,
+            &ovg_budget,
+            false,
+        )
+        .map(|updates| {
+            let mut routes = graph
+                .edge_records
+                .iter()
+                .map(|edge| edge.route.read().to_vec())
+                .collect::<Vec<_>>();
+            for (edge, points) in updates {
+                routes[edge] = points.read().to_vec();
+            }
+            routes
+        })
+    }
+
+    fn route_additional_edges_with_ovg_budget(
+        graph: &ArenaGraph,
+        requested: &[crate::EdgeId],
+        budget_limit: Option<u64>,
+        seed: i64,
+        ovg_budget: &super::route_search_guard::OvgBuildBudget<'_>,
+        _use_live_owner: bool,
+    ) -> Result<super::finalize::Updates, crate::LayoutError> {
+        let mut working = graph.clone();
+        working.cell_size = 0.0;
+        let scope_nodes = working.graph_node_order();
+        let edges = working
+            .edge_order
+            .read()
+            .iter()
+            .map(|e| e.0 as usize)
+            .collect::<Vec<_>>();
+        initialize_scope_routing_costs(&mut working, &scope_nodes, &edges);
+        route_additional_edges_from_live_graph(
+            &mut working,
+            requested,
+            budget_limit,
+            seed,
+            ovg_budget,
+        )
+    }
 
     fn label_collision_guard_observations(
         candidate_route: &[Point],
@@ -5683,7 +4881,7 @@ mod tests {
                 interactions,
                 &boxes,
                 false,
-                budget,
+                budget.unwrap_or(&LocalRouteSearchWork::new(u64::MAX)),
             )
         };
         let baseline = route(&interactions, None).unwrap();
@@ -5771,7 +4969,7 @@ mod tests {
                 interactions,
                 &boxes,
                 false,
-                budget,
+                budget.unwrap_or(&LocalRouteSearchWork::new(u64::MAX)),
             )
         };
         let baseline = route(&interactions, None).unwrap();
@@ -6134,10 +5332,22 @@ mod tests {
             let node = build.allocate_node(point.get());
             build.nodes[node].write().point_ref = Some(point.clone());
         }
-        build.connect(0, 1, None).unwrap();
+        build
+            .connect(
+                0,
+                1,
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
+            .unwrap();
         a.set(Point { x: 100.0, y: 20.0 });
         b.set(Point { x: 110.0, y: 20.0 });
-        build.connect(0, 1, None).unwrap();
+        build
+            .connect(
+                0,
+                1,
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
+            .unwrap();
         let mut index = RouteInteractionIndex::new(&visibility, &graph);
         index.static_index = super::super::static_edge_index::StaticEdgeIndex::from_build(&build);
         let accepted = [Point { x: 100.0, y: 21.0 }, Point { x: 110.0, y: 21.0 }];
@@ -6171,7 +5381,11 @@ mod tests {
         let first = graph.edge_records[0].route.slot(0).unwrap();
         let second = graph.edge_records[0].route.slot(1).unwrap();
         let route = visibility
-            .add_existing_edge_route(&graph, crate::EdgeId(0), None)
+            .add_existing_edge_route(
+                &graph,
+                crate::EdgeId(0),
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
             .unwrap()
             .unwrap();
         let mut index = RouteInteractionIndex::new(&visibility, &graph);
@@ -6196,14 +5410,22 @@ mod tests {
             .replace(RoutePoints::literal(&a));
         let shared = graph.edge_records[0].route.slot(0).unwrap();
         let first = visibility
-            .add_existing_edge_route(&graph, crate::EdgeId(0), None)
+            .add_existing_edge_route(
+                &graph,
+                crate::EdgeId(0),
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
             .unwrap()
             .unwrap();
         graph.edge_records[0]
             .route
             .replace(RoutePoints::literal(&b));
         let second = visibility
-            .add_existing_edge_route(&graph, crate::EdgeId(0), None)
+            .add_existing_edge_route(
+                &graph,
+                crate::EdgeId(0),
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
             .unwrap()
             .unwrap();
         let mut index = RouteInteractionIndex::new(&visibility, &graph);
@@ -6277,11 +5499,19 @@ mod tests {
             .route
             .replace(RoutePoints::literal(&points));
         let first = visibility
-            .add_existing_edge_route(&graph, crate::EdgeId(0), None)
+            .add_existing_edge_route(
+                &graph,
+                crate::EdgeId(0),
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
             .unwrap()
             .unwrap();
         let second = visibility
-            .add_existing_edge_route(&graph, crate::EdgeId(0), None)
+            .add_existing_edge_route(
+                &graph,
+                crate::EdgeId(0),
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
             .unwrap()
             .unwrap();
         let mut index = RouteInteractionIndex::new(&visibility, &graph);
@@ -6351,7 +5581,11 @@ mod tests {
             .route
             .replace(RoutePoints::literal(&original));
         let imported = visibility
-            .add_existing_edge_route(&graph, crate::EdgeId(0), None)
+            .add_existing_edge_route(
+                &graph,
+                crate::EdgeId(0),
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
             .unwrap()
             .unwrap();
         let first = graph.edge_records[0].route.slot(0).unwrap();
@@ -6457,24 +5691,13 @@ mod tests {
                     .collect::<Vec<_>>()
             };
             let before = original_ports();
-            let prepare = |shared| {
-                prepare_route_flavor(
-                    &graph,
-                    &nodes,
-                    &[],
-                    &[0],
-                    &[0],
-                    "Default",
-                    None,
-                    shared,
-                    None,
-                    None,
-                )
-                .unwrap_or_else(|response| panic!("router construction: {:?}", response.4))
+            let prepare = |shared: &RouteOvgContext| {
+                prepare_route_flavor(&graph, &nodes, &[0], &[0], "Default", None, shared, None)
+                    .unwrap_or_else(|response| panic!("router construction: {:?}", response.4))
             };
             // coordinator.go creates every router before generating any route.
-            let first = prepare(Some(&context));
-            let second = prepare(Some(&context));
+            let first = prepare(&context);
+            let second = prepare(&context);
             assert!(std::sync::Arc::ptr_eq(&first.boxes, &second.boxes));
             assert!(std::sync::Arc::ptr_eq(
                 &first.obstacle_node_order,
@@ -6484,13 +5707,27 @@ mod tests {
                 &first.node_ports,
                 &second.node_ports
             ));
-            let independent =
-                generate_route_flavor(&graph, &nodes, &[0], "Default", None, None, prepare(None));
+            let independent = generate_route_flavor(
+                &graph,
+                &nodes,
+                &[0],
+                "Default",
+                None,
+                &LocalRouteSearchWork::new(u64::MAX),
+                prepare(&build_route_ovg_context(&graph, &nodes, &[], &[0], None)),
+            );
             assert!(independent.4.is_none(), "{:?}", independent.4);
             assert!(!independent.0[0].is_empty());
             for prepared in [first, second] {
-                let response =
-                    generate_route_flavor(&graph, &nodes, &[0], "Default", None, None, prepared);
+                let response = generate_route_flavor(
+                    &graph,
+                    &nodes,
+                    &[0],
+                    "Default",
+                    None,
+                    &LocalRouteSearchWork::new(u64::MAX),
+                    prepared,
+                );
                 assert!(response.4.is_none(), "{:?}", response.4);
                 assert_eq!(response.0, independent.0);
                 assert_eq!(response.1, independent.1);
@@ -6605,53 +5842,6 @@ mod tests {
             Some(&[vec![Point { x: 9.0, y: 9.0 }]]),
         );
         assert!(context.existing_routes.is_empty());
-    }
-
-    #[test]
-    fn route_publication_checks_ovg_identity_not_coordinate_equality() {
-        let (graph, mut visibility, source, target) = route_interaction_fixture();
-        let first = Point { x: 300.0, y: 400.0 };
-        let second = Point { x: 500.0, y: 400.0 };
-
-        // Import uses AddNode's coordinate interning, so the repeated point
-        // carries the same OVG identity even though the route stores only
-        // coordinates.
-        let repeated_route = [first, second, first];
-        let repeated_ids = visibility.add_existing_route(source, target, &repeated_route);
-        assert_eq!(repeated_ids.len(), 5);
-        assert_eq!(repeated_ids[1], repeated_ids[3]);
-        let mut interactions = RouteInteractionIndex::new(&visibility, &graph);
-        assert_eq!(
-            interactions.add_route_with_node_ids(
-                &graph,
-                0,
-                &repeated_route,
-                Some(&repeated_ids),
-                "test",
-                None,
-            ),
-            Err(RoutePublicationError::DuplicateOvgNode {
-                index: 3,
-                point: first
-            })
-        );
-        assert!(interactions.routes.is_empty());
-
-        // Pointer-distinct OVG nodes may occupy the same coordinate, so the
-        // corresponding IDs must remain legal even with repeated points.
-        let coincident_route = [first, first, first];
-        let distinct_ids = [20, 21, 22, 23, 24];
-        assert_eq!(
-            interactions.add_route_with_node_ids(
-                &graph,
-                0,
-                &coincident_route,
-                Some(&distinct_ids),
-                "test",
-                None,
-            ),
-            Ok(())
-        );
     }
 
     #[test]
@@ -6911,13 +6101,11 @@ mod tests {
         let prepared = prepare_route_flavor(
             &graph,
             &nodes,
-            &[],
             &[0],
             &[0],
             "ShortestToLongest",
             Some(&fixed_routes),
-            None,
-            None,
+            &build_route_ovg_context(&graph, &nodes, &[], &[0], Some(&fixed_routes)),
             None,
         )
         .unwrap_or_else(|_| panic!("prepare an unlimited router"));
@@ -6929,7 +6117,7 @@ mod tests {
             &[0],
             "ShortestToLongest",
             Some(&fixed_routes),
-            Some(&work),
+            &work,
             prepared,
         );
         assert!(matches!(response.4, Some(crate::LayoutError::Cancelled)));
@@ -7057,7 +6245,7 @@ mod tests {
             &[],
             &[0],
             Some(0),
-            None,
+            &super::super::route_search_guard::OvgBuildBudget::new(),
             Some(&aggregate),
         )
         .unwrap_err();
@@ -7073,7 +6261,15 @@ mod tests {
                 token.cancel();
             }
             let result = crate::internal::with_cancellation(Some(&token), || {
-                route_edge_subset(&mut graph, &[source, target], &[], &[0], None, None, None)
+                route_edge_subset(
+                    &mut graph,
+                    &[source, target],
+                    &[],
+                    &[0],
+                    None,
+                    &super::super::route_search_guard::OvgBuildBudget::new(),
+                    None,
+                )
             });
             if deadline {
                 assert!(matches!(result, Err(crate::LayoutError::DeadlineExceeded)));
@@ -7589,85 +6785,6 @@ mod tests {
     }
 
     #[test]
-    fn imported_center_endpoint_labels_use_retained_ovg_occurrences() {
-        use crate::Size;
-        for is_target in [false, true] {
-            let (mut graph, mut visibility, source, target) = route_interaction_fixture();
-            let label = crate::ArrowheadLabel {
-                text: "endpoint".into(),
-                size: Size {
-                    width: 20.0,
-                    height: 10.0,
-                },
-                color: None,
-            };
-            if is_target {
-                graph.edge_records[0].target_arrowhead_label = Some(label);
-            } else {
-                graph.edge_records[0].source_arrowhead_label = Some(label);
-            }
-            graph.edge_records[0].source_arrow = false;
-            graph.edge_records[0].target_arrow = false;
-            let a = Point { x: 20.0, y: 10.0 };
-            let b = Point { x: 100.0, y: 10.0 };
-            let route = if is_target {
-                vec![a, b, Point { x: 110.0, y: 10.0 }]
-            } else {
-                vec![Point { x: 10.0, y: 10.0 }, a, b]
-            };
-            let identities = visibility.add_existing_route(source, target, &route);
-            assert_eq!(identities.len(), 4);
-            assert_eq!(identities.iter().copied().collect::<BTreeSet<_>>().len(), 4);
-            let mut interactions = RouteInteractionIndex::new(&visibility, &graph);
-            let work = LocalRouteSearchWork::new(100_000);
-            interactions
-                .add_route_with_node_ids(&graph, 0, &route, Some(&identities), "test", Some(&work))
-                .unwrap();
-            let label = &interactions.positioned_arrowhead_labels[0];
-            assert_eq!(label.is_target, is_target);
-            assert_eq!(
-                label.rect,
-                Rect {
-                    origin: Point {
-                        x: if is_target { 75.0 } else { 25.0 },
-                        y: -6.0
-                    },
-                    size: Size {
-                        width: 20.0,
-                        height: 10.0
-                    }
-                }
-            );
-            assert_eq!(
-                interactions.materialize_quick_route_records(None).unwrap(),
-                vec![(0, vec![a, b])]
-            );
-            let exact = LocalRouteSearchWork::new(work.used());
-            let mut repeated = RouteInteractionIndex::new(&visibility, &graph);
-            repeated
-                .add_route_with_node_ids(&graph, 0, &route, Some(&identities), "test", Some(&exact))
-                .unwrap();
-            for limit in 0..work.used() {
-                let limited = LocalRouteSearchWork::new(limit);
-                let mut rejected = RouteInteractionIndex::new(&visibility, &graph);
-                assert!(
-                    rejected
-                        .add_route_with_node_ids(
-                            &graph,
-                            0,
-                            &route,
-                            Some(&identities),
-                            "test",
-                            Some(&limited)
-                        )
-                        .is_err()
-                );
-                assert!(limited.exhausted());
-            }
-        }
-    }
-
-    #[test]
     fn publication_retains_synthetic_node_identity_at_existing_coordinates() {
         let (graph, visibility, _, _) = route_interaction_fixture();
         let mut index = RouteInteractionIndex::new(&visibility, &graph);
@@ -7986,54 +7103,6 @@ mod tests {
                 [first, second, nearby],
             ),
             vec![nearby, second, first],
-        );
-    }
-
-    #[test]
-    fn slingshot_obstacles_follow_merged_ovg_node_order() {
-        let mut input = crate::Graph::default();
-        let h1_late = input.add_node(routing_test_node("h1-late", 20.0, 20.0));
-        let ordinary_first = input.add_node(routing_test_node("ordinary-first", 20.0, 20.0));
-        let h2_first = input.add_node(routing_test_node("h2-first", 20.0, 20.0));
-        let ordinary_second = input.add_node(routing_test_node("ordinary-second", 20.0, 20.0));
-        let h1_early = input.add_node(routing_test_node("h1-early", 20.0, 20.0));
-        let nearby = input.add_node(routing_test_node("nearby", 20.0, 20.0));
-        let mut graph = ArenaGraph::from_input(&input);
-        graph.assign_hierarchy_member(h1_late, 1, None, 0, 1);
-        graph.assign_hierarchy_member(h2_first, 2, None, 0, 1);
-        graph.assign_hierarchy_member(h1_early, 1, None, 0, 1);
-        graph.nodes[h1_late.0 as usize].tala_id = 40;
-        graph.nodes[h2_first.0 as usize].tala_id = 30;
-        graph.nodes[h1_early.0 as usize].tala_id = 20;
-        let boxes = [
-            h1_late,
-            ordinary_first,
-            h2_first,
-            ordinary_second,
-            h1_early,
-            nearby,
-        ]
-        .into_iter()
-        .map(|node| (node, Rect::default()))
-        .collect();
-
-        assert_eq!(
-            ovg_obstacle_node_order(
-                &graph,
-                &[h1_late, ordinary_first, h2_first, ordinary_second, h1_early],
-                &[nearby],
-                &boxes,
-                None,
-            )
-            .unwrap(),
-            vec![
-                nearby,
-                ordinary_first,
-                ordinary_second,
-                h1_early,
-                h1_late,
-                h2_first,
-            ]
         );
     }
 }

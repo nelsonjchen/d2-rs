@@ -15,10 +15,10 @@ pub(super) struct HierarchyOvg {
     pub(super) ports: PortBuild,
 }
 fn work(budget: Budget<'_, '_>, count: usize) -> Result<(), ()> {
-    budget.map_or(Ok(()), |b| b.reserve_work(count as u64))
+    budget.reserve_work(count as u64)
 }
 fn sort_work(budget: Budget<'_, '_>, count: usize) -> Result<(), ()> {
-    budget.map_or(Ok(()), |b| b.reserve_sort_work(count))
+    budget.reserve_sort_work(count)
 }
 fn levels(graph: &ArenaGraph, hierarchy: &OwnerHierarchy) -> Vec<(Option<NodeId>, i64)> {
     graph
@@ -497,7 +497,7 @@ pub(in crate::internal) fn diagnostic(
                 .expect("runtime error: invalid memory address or nil pointer dereference")
                 .record
                 .clone();
-            build(&mut graph, &hierarchy, Some(&budget))
+            build(&mut graph, &hierarchy, &budget)
         }));
         let mut error = None;
         let mut panic = None;
@@ -588,7 +588,7 @@ mod tests {
             let budget = OvgBuildBudget::with_context(&context);
             let hierarchy = graph.nodes[0].hierarchy.as_ref().unwrap().record.clone();
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                build(&mut graph, &hierarchy, Some(&budget))
+                build(&mut graph, &hierarchy, &budget)
             }));
             assert!(context.fired.get());
             if panic {

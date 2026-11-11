@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 //! Pinned coordinator.go1822–2062: actual cluster abductions and atomic routes.
 use super::channel_solver::minimum;
-use super::route_search_guard::{MAX_ROUTE_STAGE_WORK_UNITS, RouteStageWork};
+use super::route_search_guard::RouteStageWork;
 use super::route_stage_guard::{self, RouteAtomicGuard, RouteStageError, RuntimeRouteContext};
 use crate::internal::owner_groups::OwnerGroupKind;
 use crate::internal::{ArenaGraph, OwnerGraphId, RoutePoints, limits};
@@ -222,9 +222,6 @@ pub(in crate::internal) fn crosshatch_with_budget(
     budget: &RouteStageWork,
 ) -> Result<()> {
     crosshatch_with_context(g, Some(&RuntimeRouteContext), budget)
-}
-pub(in crate::internal) fn crosshatch(g: &mut ArenaGraph) {
-    let _ = crosshatch_with_budget(g, &RouteStageWork::new(MAX_ROUTE_STAGE_WORK_UNITS));
 }
 
 #[cfg(test)]

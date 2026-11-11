@@ -146,9 +146,6 @@ impl OwnerGraphNodesField {
     pub(super) fn len(&self) -> usize {
         self.read().len()
     }
-    pub(super) fn capacity(&self) -> usize {
-        self.read().capacity()
-    }
     pub(super) fn is_nil(&self) -> bool {
         self.read().is_nil()
     }
@@ -897,9 +894,6 @@ impl OwnerContainerHeader {
     pub(super) fn iter_slots(&self) -> impl Iterator<Item = Option<NodeId>> + '_ {
         self.slice.borrowed_slots()
     }
-    pub(super) fn is_nil(&self) -> bool {
-        self.slice.is_nil()
-    }
     pub(super) fn len(&self) -> usize {
         self.slice.len()
     }
@@ -910,32 +904,8 @@ impl OwnerContainerHeader {
         self.slice.get(index)
     }
 
-    pub(super) fn offset(&self) -> usize {
-        self.slice.offset()
-    }
-
     pub(super) fn read_capacity_slot(&self, index: usize) -> Option<Option<NodeId>> {
         self.slice.read_capacity_slot(index)
-    }
-
-    #[cfg(any(test, feature = "diagnostic-traces"))]
-    pub(super) fn data_address(&self) -> Option<usize> {
-        self.slice.data_address()
-    }
-
-    #[cfg(any(test, feature = "diagnostic-traces"))]
-    pub(super) fn slot_address(&self, index: usize) -> Option<usize> {
-        self.slice.slot_address(index)
-    }
-
-    #[cfg(any(test, feature = "diagnostic-traces"))]
-    pub(super) fn backing_address(&self) -> Option<usize> {
-        self.slice.backing_address()
-    }
-
-    #[cfg(any(test, feature = "diagnostic-traces"))]
-    pub(super) fn capacity_slots(&self) -> Vec<Option<NodeId>> {
-        self.slice.capacity_slots()
     }
 
     /// Reslicing retains this trusted header's arena and actual map binding.
@@ -1050,9 +1020,7 @@ pub(super) enum OwnerTopologyError {
     ForeignGroupScope,
     NilGroupMapAssignment,
     UnboundIncidentHeader(NodeId),
-    UnboundRouteHeader(EdgeId),
     ForeignRouteScope,
-    UnboundGraphEdgeHeader(OwnerGraphId),
     ForeignEdgeScope,
     ForeignAbductionScope,
     UnboundNodePoint(NodeId),
@@ -1060,7 +1028,6 @@ pub(super) enum OwnerTopologyError {
     ForeignHerdScope,
     UnboundHerdAssignment(NodeId),
     ForeignHierarchyScope,
-    UnboundHierarchy(NodeId),
     UnknownGraph(OwnerGraphId),
     MissingSourceLineage {
         edge: EdgeId,
@@ -1613,7 +1580,6 @@ impl ArenaGraph {
         self.placement_component.resize(live_node_count, None);
         self.long_distance_neighbor_data
             .resize(live_node_count, None);
-        self.descendant_cache.clear();
     }
 
     pub(super) fn topology_vessel_node(&self, vessel: TopologyVessel) -> Option<NodeId> {
@@ -1744,20 +1710,6 @@ impl ArenaGraph {
             view.common_uncle_siblings
                 .replace_header(map.unwrap_or_else(SharedSliceMap::nil)),
         ))
-    }
-
-    pub(super) fn share_owner_common_uncle_map(
-        &mut self,
-        source: OwnerGraphId,
-        destination: OwnerGraphId,
-    ) -> Result<(), OwnerTopologyError> {
-        let map = self
-            .owner_graph_view(source)
-            .ok_or(OwnerTopologyError::UnknownGraph(source))?
-            .common_uncle_siblings
-            .header();
-        self.replace_owner_common_uncle_map(destination, Some(map))?;
-        Ok(())
     }
 
     pub(super) fn share_owner_proximity_maps(
@@ -2006,7 +1958,6 @@ impl ArenaGraph {
         if let Some(parent) = parent {
             self.nodes[parent.0 as usize].is_container = true;
         }
-        self.descendant_cache.clear();
         Ok(OwnerContainerHeader {
             arena: self.topology_arena_id().expect("initialized owning arena"),
             map: self.containers.share_map(),
@@ -2039,7 +1990,6 @@ impl ArenaGraph {
         self.placement_component.resize(self.nodes.len(), None);
         self.long_distance_neighbor_data
             .resize(self.nodes.len(), None);
-        self.descendant_cache.clear();
         id
     }
 

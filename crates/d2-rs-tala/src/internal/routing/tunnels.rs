@@ -192,7 +192,7 @@ mod tests {
             NodeId(0),
             NodeId(1),
             true,
-            Some(&budget),
+            &budget,
         )
         .unwrap();
         assert_eq!(ranges, Some((vec![(0.0, 100.0)], true)));
@@ -219,7 +219,7 @@ mod tests {
             NodeId(0),
             NodeId(1),
             true,
-            Some(&budget),
+            &budget,
         )
         .unwrap();
         assert_eq!(ranges, Some((vec![(0.0, 100.0)], true)));
@@ -235,7 +235,7 @@ mod tests {
             NodeId(0),
             NodeId(1),
             true,
-            None,
+            &super::super::route_search_guard::OvgBuildBudget::new(),
         )
         .unwrap()
         .unwrap();

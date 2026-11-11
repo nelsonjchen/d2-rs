@@ -10,13 +10,6 @@
 use super::*;
 use d2_rs_core::stable_sort::StableSort;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(in crate::internal) struct ProjectedScopeEdge {
-    pub edge_index: usize,
-    pub source: NodeId,
-    pub target: NodeId,
-}
-
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(in crate::internal) struct RoutingSubgraph {
     pub(in crate::internal) nodes: Vec<NodeId>,
@@ -174,6 +167,15 @@ pub(in crate::internal) fn routing_subgraphs(graph: &ArenaGraph) -> Vec<RoutingS
     result
 }
 
+#[cfg(test)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(in crate::internal) struct ProjectedScopeEdge {
+    pub edge_index: usize,
+    pub source: NodeId,
+    pub target: NodeId,
+}
+
+#[cfg(test)]
 fn direct_child_in_scope(
     graph: &ArenaGraph,
     mut node: NodeId,
@@ -200,6 +202,7 @@ fn direct_child_in_scope(
 ///
 /// Descendant endpoints are abducted onto their direct child in that scope.
 /// Projections which collapse to one child belong to a deeper scope.
+#[cfg(test)]
 pub(in crate::internal) fn projected_scope_edges(
     graph: &ArenaGraph,
     scope: Option<NodeId>,

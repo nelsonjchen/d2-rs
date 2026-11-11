@@ -66,6 +66,17 @@ fn intersection_step(origin: f64, scale: f64, delta: f64) -> f64 {
 /// displacement along the first segment before adding its origin. Parallel
 /// segments return `None`; the argument order affects fractional results.
 pub fn line_intersection_point(a: Point, b: Point, c: Point, d: Point) -> Option<Point> {
+    intersection_with(a, b, c, d, intersection_difference)
+}
+
+#[inline(always)]
+fn intersection_with(
+    a: Point,
+    b: Point,
+    c: Point,
+    d: Point,
+    intersection_difference: impl Fn(f64, f64, f64, f64) -> f64,
+) -> Option<Point> {
     // Direct translation of D2 geo.IntersectionPoint, which TALA calls while
     // tracing every shape perimeter. It rounds the displacement along the
     // first segment before adding its origin; rounding only the final point is
@@ -118,14 +129,58 @@ pub fn box_intersections(rect: Rect, start: Point, end: Point) -> Vec<Point> {
     .collect()
 }
 
-fn extended_shape_ray(previous: Point, border: Point, rect: Rect) -> (Point, Point) {
+/// One build of D2's `lib/geo` arithmetic.
+///
+/// `GO` selects the Go-exact control flow of `shape.TraceToShapeBorder`;
+/// `false` keeps the older approximation that [`trace_shape_border`] still
+/// gives its dagre, ELK and render callers. `fma` is how that build evaluates
+/// `x*y + z` (and `z - x*y` as `fma(-x, y, z)`): the pinned Go compiler fuses
+/// these on arm64 and never on amd64 (lib/geo has no FMA instruction in an
+/// amd64 build), so the operand chosen for fusion follows the arm64 assembly.
+trait GeoArith {
+    const GO: bool;
+    fn fma(x: f64, y: f64, z: f64) -> f64;
+    fn intersection(a: Point, b: Point, c: Point, d: Point) -> Option<Point> {
+        line_intersection_point(a, b, c, d)
+    }
+}
+
+/// The approximation behind [`trace_shape_border`].
+struct Legacy;
+impl GeoArith for Legacy {
+    const GO: bool = false;
+    #[inline(always)]
+    fn fma(x: f64, y: f64, z: f64) -> f64 {
+        x * y + z
+    }
+}
+
+/// Go `lib/geo` as compiled for this host's architecture.
+struct GoNative;
+impl GeoArith for GoNative {
+    const GO: bool = true;
+    #[inline(always)]
+    fn fma(x: f64, y: f64, z: f64) -> f64 {
+        #[cfg(target_arch = "aarch64")]
+        {
+            x.mul_add(y, z)
+        }
+        #[cfg(not(target_arch = "aarch64"))]
+        {
+            x * y + z
+        }
+    }
+}
+
+fn extended_shape_ray<A: GeoArith>(previous: Point, border: Point, rect: Rect) -> (Point, Point) {
     let dx = border.x - previous.x;
     let dy = border.y - previous.y;
-    let length = (dx * dx + dy * dy).sqrt();
-    if length <= 1e-9 {
+    // geo.Vector.Length sums `comp*comp` from zero.
+    let length = A::fma(dy, dy, A::fma(dx, dx, 0.0)).sqrt();
+    if !A::GO && length <= 1e-9 {
         return (previous, border);
     }
-    let extension = if dx.abs() <= 1e-9 {
+    let extension = if (A::GO && previous.x == border.x) || (!A::GO && dx.abs() <= 1e-9) {
         rect.size.height
     } else {
         rect.size.width
@@ -146,72 +201,74 @@ fn extended_shape_ray(previous: Point, border: Point, rect: Rect) -> (Point, Poi
     )
 }
 
-fn trace_polygon(rect: Rect, border: Point, previous: Point, normalized: &[(f64, f64)]) -> Point {
-    let (ray_start, ray_end) = extended_shape_ray(previous, border, rect);
-    let path_coordinate = |value: f64| ((value * 10_000.0) as f32 as f64 / 10_000.0).round();
-    let points: Vec<_> = normalized
-        .iter()
-        .map(|(x, y)| Point {
-            x: path_coordinate(rect.origin.x + x * rect.size.width),
-            y: path_coordinate(rect.origin.y + y * rect.size.height),
-        })
-        .collect();
-    let mut closest = border;
-    let mut closest_distance = f64::INFINITY;
-    for index in 0..points.len() {
-        let first = points[index];
-        let second = points[(index + 1) % points.len()];
-        if let Some(intersection) = line_intersection_point(first, second, ray_start, ray_end) {
-            let distance =
-                ((intersection.x - border.x).powi(2) + (intersection.y - border.y).powi(2)).sqrt();
-            if distance < closest_distance {
-                closest = intersection;
-                closest_distance = distance;
-            }
-        }
+/// geo.EuclideanDistance (Go) or the plain squared-distance root (legacy).
+#[inline(always)]
+fn border_distance<A: GeoArith>(border: Point, point: Point) -> f64 {
+    if !A::GO {
+        return ((point.x - border.x).powi(2) + (point.y - border.y).powi(2)).sqrt();
     }
-    Point {
-        x: (closest.x as f32 as f64).round(),
-        y: (closest.y as f32 as f64).round(),
+    if border.x == point.x {
+        (border.y - point.y).abs()
+    } else if border.y == point.y {
+        (border.x - point.x).abs()
+    } else {
+        let dx = border.x - point.x;
+        let dy = border.y - point.y;
+        A::fma(dy, dy, dx * dx).sqrt()
     }
 }
 
-fn trace_pixel_polygon(
+/// The closest intersection, truncated to float32 and rounded as in
+/// shape.TraceToShapeBorder, and whether any intersection was found.
+fn rounded_closest<A: GeoArith>(
+    border: Point,
+    intersections: impl IntoIterator<Item = Point>,
+) -> (Point, bool) {
+    let mut closest = border;
+    let mut closest_distance = f64::INFINITY;
+    for point in intersections {
+        let distance = border_distance::<A>(border, point);
+        if distance < closest_distance {
+            closest = point;
+            closest_distance = distance;
+        }
+    }
+    (
+        Point {
+            x: (closest.x as f32 as f64).round(),
+            y: (closest.y as f32 as f64).round(),
+        },
+        closest_distance != f64::INFINITY,
+    )
+}
+
+/// Trace a closed polygon whose vertices are `origin + scale * local`.
+fn trace_polygon<A: GeoArith>(
     rect: Rect,
     border: Point,
     previous: Point,
     local_points: &[(f64, f64)],
-) -> Point {
-    let (ray_start, ray_end) = extended_shape_ray(previous, border, rect);
+    scale: (f64, f64),
+) -> (Point, bool) {
+    let (ray_start, ray_end) = extended_shape_ray::<A>(previous, border, rect);
     let path_coordinate = |value: f64| ((value * 10_000.0) as f32 as f64 / 10_000.0).round();
     let points: Vec<_> = local_points
         .iter()
         .map(|(x, y)| Point {
-            x: path_coordinate(rect.origin.x + x),
-            y: path_coordinate(rect.origin.y + y),
+            x: path_coordinate(rect.origin.x + x * scale.0),
+            y: path_coordinate(rect.origin.y + y * scale.1),
         })
         .collect();
-    let mut closest = border;
-    let mut closest_distance = f64::INFINITY;
-    for index in 0..points.len() {
-        let first = points[index];
-        let second = points[(index + 1) % points.len()];
-        if let Some(intersection) = line_intersection_point(first, second, ray_start, ray_end) {
-            let distance =
-                ((intersection.x - border.x).powi(2) + (intersection.y - border.y).powi(2)).sqrt();
-            if distance < closest_distance {
-                closest = intersection;
-                closest_distance = distance;
-            }
-        }
-    }
-    Point {
-        x: (closest.x as f32 as f64).round(),
-        y: (closest.y as f32 as f64).round(),
-    }
+    rounded_closest::<A>(
+        border,
+        (0..points.len()).filter_map(|index| {
+            let second = points[(index + 1) % points.len()];
+            A::intersection(points[index], second, ray_start, ray_end)
+        }),
+    )
 }
 
-fn distance_to_segment(point: Point, start: Point, end: Point) -> f64 {
+fn distance_to_segment<A: GeoArith>(point: Point, start: Point, end: Point) -> f64 {
     // Direct translation of geo.Point.DistanceToLine.  D2 calls the helper
     // with a finite ray segment even though the ellipse roots came from the
     // infinite line equation.
@@ -219,22 +276,22 @@ fn distance_to_segment(point: Point, start: Point, end: Point) -> f64 {
     let b = point.y - start.y;
     let c = end.x - start.x;
     let d = end.y - start.y;
-    let dot = a * c + b * d;
-    let len_sq = c * c + d * d;
+    let dot = A::fma(b, d, a * c);
+    let len_sq = A::fma(d, d, c * c);
     let param = if len_sq != 0.0 { dot / len_sq } else { -1.0 };
     let (closest_x, closest_y) = if param < 0.0 {
         (start.x, start.y)
     } else if param > 1.0 {
         (end.x, end.y)
     } else {
-        (start.x + param * c, start.y + param * d)
+        (A::fma(param, c, start.x), A::fma(param, d, start.y))
     };
     let dx = point.x - closest_x;
     let dy = point.y - closest_y;
-    (dx * dx + dy * dy).sqrt()
+    A::fma(dy, dy, dx * dx).sqrt()
 }
 
-fn ellipse_intersections(
+fn ellipse_intersections<A: GeoArith>(
     center: Point,
     radius_x: f64,
     radius_y: f64,
@@ -255,82 +312,70 @@ fn ellipse_intersections(
     let x2 = ray.1.x - center.x;
     let y2 = ray.1.y - center.y;
     let on_segment = |point: Point| {
-        distance_to_segment(point, Point { x: x1, y: y1 }, Point { x: x2, y: y2 }) < 0.0001
+        distance_to_segment::<A>(point, Point { x: x1, y: y1 }, Point { x: x2, y: y2 }) < 0.0001
+    };
+    let mut intersections = Vec::new();
+    let mut push = |point: Point| {
+        intersections.push(Point {
+            x: point.x + center.x,
+            y: point.y + center.y,
+        })
     };
 
     if x1 == x2 {
-        let y = b * (a2 - x1 * x1).sqrt() / a;
-        let first = Point { x: x1, y };
-        let second = Point { x: x1, y: -y };
-        let mut intersections = Vec::new();
-        if on_segment(first) {
-            intersections.push(Point {
-                x: first.x + center.x,
-                y: first.y + center.y,
-            });
-        }
-        if second.y != 0.0 && on_segment(second) {
-            intersections.push(Point {
-                x: second.x + center.x,
-                y: second.y + center.y,
-            });
+        let y = b * A::fma(-x1, x1, a2).sqrt() / a;
+        // Go keeps a vertical root when it is the median of {y, y1, y2}.
+        let on_vertical = |point: Point| {
+            if !A::GO {
+                on_segment(point)
+            } else if y1 <= y2 {
+                y1 <= point.y && point.y <= y2
+            } else {
+                y2 <= point.y && point.y <= y1
+            }
+        };
+        for (index, point) in [Point { x: x1, y }, Point { x: x1, y: -y }]
+            .into_iter()
+            .enumerate()
+        {
+            // When y = 0 the second root duplicates the first.
+            if (index == 0 || point.y != 0.0) && on_vertical(point) {
+                push(point);
+            }
         }
         return intersections;
     }
 
     let slope = (y2 - y1) / (x2 - x1);
-    let intercept = y1 - slope * x1;
-    let denominator = a2 * slope * slope + b2;
-    let root = (a2 * b2 * (denominator - intercept * intercept)).sqrt();
+    let intercept = A::fma(-slope, x1, y1);
+    let denominator = A::fma(b, b, a2 * slope * slope);
+    let root = (a2 * b2 * A::fma(-intercept, intercept, denominator)).sqrt();
     let first = Point {
-        x: (-slope * intercept * a2 + root) / denominator,
-        y: (intercept * b2 + slope * root) / denominator,
+        x: A::fma(-slope * intercept, a2, root) / denominator,
+        y: A::fma(slope, root, intercept * b2) / denominator,
     };
     let second = Point {
-        x: (-slope * intercept * a2 - root) / denominator,
-        y: (intercept * b2 - slope * root) / denominator,
+        x: A::fma(-slope * intercept, a2, -root) / denominator,
+        y: A::fma(-slope, root, intercept * b2) / denominator,
     };
-    let mut intersections = Vec::new();
     if on_segment(first) {
-        intersections.push(Point {
-            x: first.x + center.x,
-            y: first.y + center.y,
-        });
+        push(first);
     }
     if first != second && on_segment(second) {
-        intersections.push(Point {
-            x: second.x + center.x,
-            y: second.y + center.y,
-        });
+        push(second);
     }
     intersections
 }
 
-fn rounded_closest(border: Point, intersections: impl IntoIterator<Item = Point>) -> Point {
-    let mut closest = border;
-    let mut closest_distance = f64::INFINITY;
-    for point in intersections {
-        let distance = ((point.x - border.x).powi(2) + (point.y - border.y).powi(2)).sqrt();
-        if distance < closest_distance {
-            closest = point;
-            closest_distance = distance;
-        }
-    }
-    Point {
-        x: (closest.x as f32 as f64).round(),
-        y: (closest.y as f32 as f64).round(),
-    }
-}
-
-fn trace_ellipse(rect: Rect, border: Point, previous: Point) -> Point {
-    let ray = extended_shape_ray(previous, border, rect);
+fn trace_ellipse<A: GeoArith>(rect: Rect, border: Point, previous: Point) -> (Point, bool) {
+    let ray = extended_shape_ray::<A>(previous, border, rect);
     let center = Point {
         x: rect.origin.x + rect.size.width * 0.5,
         y: rect.origin.y + rect.size.height * 0.5,
     };
-    rounded_closest(
+    rounded_closest::<A>(
         border,
-        ellipse_intersections(center, rect.size.width * 0.5, rect.size.height * 0.5, ray),
+        ellipse_intersections::<A>(center, rect.size.width * 0.5, rect.size.height * 0.5, ray),
     )
 }
 
@@ -447,11 +492,11 @@ impl ShapePath {
     }
 }
 
-fn bezier_coefficients(p0: f64, p1: f64, p2: f64, p3: f64) -> [f64; 4] {
+fn bezier_coefficients<A: GeoArith>(p0: f64, p1: f64, p2: f64, p3: f64) -> [f64; 4] {
     [
-        -p0 + 3.0 * p1 - 3.0 * p2 + p3,
-        3.0 * p0 - 6.0 * p1 + 3.0 * p2,
-        -3.0 * p0 + 3.0 * p1,
+        A::fma(-3.0, p2, A::fma(3.0, p1, -p0)) + p3,
+        A::fma(3.0, p2, A::fma(-6.0, p1, 3.0 * p0)),
+        A::fma(3.0, p1, -3.0 * p0),
         p0,
     ]
 }
@@ -484,13 +529,13 @@ fn sort_special_roots(mut roots: [f64; 3]) -> [f64; 3] {
     }
 }
 
-/// Direct port of the cubic root ordering and precision behavior used by the
-/// D2 geometry dependency bundled with TALA.
-fn cubic_roots(polynomial: [f64; 4]) -> [f64; 3] {
+/// Direct port of lib/geo/bezier.go cubicRoots, including its ordering and
+/// precision behavior.
+fn cubic_roots<A: GeoArith>(polynomial: [f64; 4]) -> [f64; 3] {
     const PRECISION: f64 = 0.0001;
     if precision_compare(polynomial[0], 0.0, PRECISION).is_eq() {
         if precision_compare(polynomial[1], 0.0, PRECISION).is_eq() {
-            let mut roots = [-polynomial[3] / polynomial[2], -1.0, -1.0];
+            let mut roots = [-(polynomial[3] / polynomial[2]), -1.0, -1.0];
             if precision_compare(roots[0], 0.0, PRECISION).is_lt()
                 || precision_compare(roots[0], 1.0, PRECISION).is_gt()
             {
@@ -499,7 +544,7 @@ fn cubic_roots(polynomial: [f64; 4]) -> [f64; 3] {
             return sort_special_roots(roots);
         }
 
-        let mut discriminant = polynomial[2].powi(2) - 4.0 * polynomial[1] * polynomial[3];
+        let mut discriminant = A::fma(-4.0 * polynomial[1], polynomial[3], polynomial[2].powi(2));
         if precision_compare(discriminant, 0.0, PRECISION).is_ge() {
             discriminant = discriminant.sqrt();
             let mut roots = [
@@ -507,7 +552,8 @@ fn cubic_roots(polynomial: [f64; 4]) -> [f64; 3] {
                 (discriminant - polynomial[2]) / (2.0 * polynomial[1]),
                 -1.0,
             ];
-            for root in roots.iter_mut().take(2) {
+            // Go returns from inside this loop after validating only root zero.
+            for root in roots.iter_mut().take(if A::GO { 1 } else { 2 }) {
                 if precision_compare(*root, 0.0, PRECISION).is_lt()
                     || precision_compare(*root, 1.0, PRECISION).is_gt()
                 {
@@ -521,18 +567,32 @@ fn cubic_roots(polynomial: [f64; 4]) -> [f64; 3] {
     let a = polynomial[1] / polynomial[0];
     let b = polynomial[2] / polynomial[0];
     let c = polynomial[3] / polynomial[0];
-    let q = (3.0 * b - a.powi(2)) / 9.0;
-    let r = (9.0 * a * b - 27.0 * c - 2.0 * a.powi(3)) / 54.0;
+    let q = A::fma(3.0, b, -a.powi(2)) / 9.0;
+    let r = (A::fma(-27.0, c, 9.0 * a * b) - 2.0 * a.powi(3)) / 54.0;
     let discriminant = q.powi(3) + r.powi(2);
     let mut roots;
     if precision_compare(discriminant, 0.0, PRECISION).is_ge() {
-        let signed_cube_root = |value: f64| value.signum() * value.abs().powf(1.0 / 3.0);
+        let signed_cube_root = |value: f64| {
+            let sign = if !A::GO {
+                value.signum()
+            } else if value < 0.0 {
+                -1.0
+            } else {
+                1.0
+            };
+            sign * value.abs().powf(1.0 / 3.0)
+        };
         let s = signed_cube_root(r + discriminant.sqrt());
         let t = signed_cube_root(r - discriminant.sqrt());
+        let other = A::fma(-0.5, s + t, -a / 3.0);
         roots = [
-            -a / 3.0 + s + t,
-            -a / 3.0 - (s + t) / 2.0,
-            -a / 3.0 - (s + t) / 2.0,
+            if A::GO {
+                -a / 3.0 + (s + t)
+            } else {
+                -a / 3.0 + s + t
+            },
+            other,
+            other,
         ];
         let imaginary = (3.0_f64).sqrt() * (s - t).abs() / 2.0;
         if !precision_compare(imaginary, 0.0, PRECISION).is_eq() {
@@ -541,11 +601,14 @@ fn cubic_roots(polynomial: [f64; 4]) -> [f64; 3] {
         }
     } else {
         let theta = (r / (-q.powi(3)).sqrt()).acos();
-        roots = [
-            2.0 * (-q).sqrt() * (theta / 3.0).cos() - a / 3.0,
-            2.0 * (-q).sqrt() * ((theta + 2.0 * std::f64::consts::PI) / 3.0).cos() - a / 3.0,
-            2.0 * (-q).sqrt() * ((theta + 4.0 * std::f64::consts::PI) / 3.0).cos() - a / 3.0,
-        ];
+        let scale = 2.0 * (-q).sqrt();
+        roots = [0.0, 2.0, 4.0].map(|turns: f64| {
+            A::fma(
+                scale,
+                ((theta + turns * std::f64::consts::PI) / 3.0).cos(),
+                -(a / 3.0),
+            )
+        });
     }
     for root in &mut roots {
         if precision_compare(*root, 0.0, PRECISION).is_lt()
@@ -557,24 +620,36 @@ fn cubic_roots(polynomial: [f64; 4]) -> [f64; 3] {
     sort_special_roots(roots)
 }
 
-fn cubic_line_intersections(curve: [Point; 4], line: (Point, Point)) -> Vec<Point> {
+/// lib/geo/bezier.go ComputeIntersections.
+fn cubic_line_intersections<A: GeoArith>(curve: [Point; 4], line: (Point, Point)) -> Vec<Point> {
     const PRECISION: f64 = 0.0001;
     let line_a = line.1.y - line.0.y;
     let line_b = line.0.x - line.1.x;
-    let line_c = line.0.x * (line.0.y - line.1.y) + line.0.y * (line.1.x - line.0.x);
-    let x = bezier_coefficients(curve[0].x, curve[1].x, curve[2].x, curve[3].x);
-    let y = bezier_coefficients(curve[0].y, curve[1].y, curve[2].y, curve[3].y);
-    let roots = cubic_roots([
-        line_a * x[0] + line_b * y[0],
-        line_a * x[1] + line_b * y[1],
-        line_a * x[2] + line_b * y[2],
-        line_a * x[3] + line_b * y[3] + line_c,
+    let line_c = A::fma(
+        line.0.y,
+        line.1.x - line.0.x,
+        line.0.x * (line.0.y - line.1.y),
+    );
+    let x = bezier_coefficients::<A>(curve[0].x, curve[1].x, curve[2].x, curve[3].x);
+    let y = bezier_coefficients::<A>(curve[0].y, curve[1].y, curve[2].y, curve[3].y);
+    let roots = cubic_roots::<A>([
+        A::fma(line_a, x[0], line_b * y[0]),
+        A::fma(line_a, x[1], line_b * y[1]),
+        A::fma(line_a, x[2], line_b * y[2]),
+        A::fma(line_a, x[3], line_b * y[3]) + line_c,
     ]);
+    let evaluate = |c: [f64; 4], t: f64| {
+        if A::GO {
+            A::fma(c[2], t, A::fma(c[0] * t * t, t, c[1] * t * t)) + c[3]
+        } else {
+            c[0] * t.powi(3) + c[1] * t.powi(2) + c[2] * t + c[3]
+        }
+    };
     let mut intersections = Vec::new();
     for parameter in roots {
         let point = Point {
-            x: x[0] * parameter.powi(3) + x[1] * parameter.powi(2) + x[2] * parameter + x[3],
-            y: y[0] * parameter.powi(3) + y[1] * parameter.powi(2) + y[2] * parameter + y[3],
+            x: evaluate(x, parameter),
+            y: evaluate(y, parameter),
         };
         let line_parameter = if line.1.x != line.0.x {
             (point.x - line.0.x) / (line.1.x - line.0.x)
@@ -592,22 +667,29 @@ fn cubic_line_intersections(curve: [Point; 4], line: (Point, Point)) -> Vec<Poin
     intersections
 }
 
-fn shape_path_intersections(path: ShapePath, ray: (Point, Point)) -> Vec<Point> {
+fn shape_path_intersections<A: GeoArith>(path: ShapePath, ray: (Point, Point)) -> Vec<Point> {
     let mut intersections = Vec::new();
     for segment in path.segments {
-        intersections.extend(match segment {
-            ShapePathSegment::Line(start, end) => line_intersection_point(start, end, ray.0, ray.1)
-                .into_iter()
-                .collect(),
-            ShapePathSegment::Cubic(curve) => cubic_line_intersections(curve, ray),
-        });
+        match segment {
+            ShapePathSegment::Line(start, end) => {
+                intersections.extend(A::intersection(start, end, ray.0, ray.1))
+            }
+            ShapePathSegment::Cubic(curve) => {
+                intersections.extend(cubic_line_intersections::<A>(curve, ray))
+            }
+        }
     }
     intersections
 }
 
-fn trace_shape_path(rect: Rect, border: Point, previous: Point, path: ShapePath) -> Point {
-    let ray = extended_shape_ray(previous, border, rect);
-    rounded_closest(border, shape_path_intersections(path, ray))
+fn trace_shape_path<A: GeoArith>(
+    rect: Rect,
+    border: Point,
+    previous: Point,
+    path: ShapePath,
+) -> (Point, bool) {
+    let ray = extended_shape_ray::<A>(previous, border, rect);
+    rounded_closest::<A>(border, shape_path_intersections::<A>(path, ray))
 }
 
 /// Direct port of D2's `shapeDiamond.diamondPath`.
@@ -988,23 +1070,23 @@ fn c4_person_body_path(rect: Rect) -> ShapePath {
     path
 }
 
-fn trace_c4_person(rect: Rect, border: Point, previous: Point) -> Point {
+fn trace_c4_person<A: GeoArith>(rect: Rect, border: Point, previous: Point) -> (Point, bool) {
     const HEAD_RADIUS_FACTOR: f64 = 0.22;
 
-    let ray = extended_shape_ray(previous, border, rect);
+    let ray = extended_shape_ray::<A>(previous, border, rect);
     let head_radius = rect.size.width * HEAD_RADIUS_FACTOR;
     let head_center = Point {
         x: rect.origin.x + rect.size.width * 0.5,
         y: rect.origin.y + head_radius,
     };
-    let mut intersections = shape_path_intersections(c4_person_body_path(rect), ray);
-    intersections.extend(ellipse_intersections(
+    let mut intersections = shape_path_intersections::<A>(c4_person_body_path(rect), ray);
+    intersections.extend(ellipse_intersections::<A>(
         head_center,
         head_radius,
         head_radius,
         ray,
     ));
-    rounded_closest(border, intersections)
+    rounded_closest::<A>(border, intersections)
 }
 
 fn cloud_path(rect: Rect) -> ShapePath {
@@ -1071,8 +1153,18 @@ fn person_path(rect: Rect) -> ShapePath {
     path
 }
 
-pub fn trace_shape_border(shape: ShapeKind, rect: Rect, border: Point, previous: Point) -> Point {
-    match shape {
+/// `None` for rectangular shapes, which D2 never traces.
+fn trace_shape<A: GeoArith>(
+    shape: ShapeKind,
+    rect: Rect,
+    border: Point,
+    previous: Point,
+) -> Option<(Point, bool)> {
+    let path =
+        |path: fn(Rect) -> ShapePath| trace_shape_path::<A>(rect, border, previous, path(rect));
+    let pixels =
+        |points: &[(f64, f64)]| trace_polygon::<A>(rect, border, previous, points, (1.0, 1.0));
+    Some(match shape {
         ShapeKind::Rectangle
         | ShapeKind::Square
         | ShapeKind::RealSquare
@@ -1080,11 +1172,11 @@ pub fn trace_shape_border(shape: ShapeKind, rect: Rect, border: Point, previous:
         | ShapeKind::Class
         | ShapeKind::Text
         | ShapeKind::Code
-        | ShapeKind::Image => border,
-        ShapeKind::Circle | ShapeKind::Oval => trace_ellipse(rect, border, previous),
-        ShapeKind::Cloud => trace_shape_path(rect, border, previous, cloud_path(rect)),
-        ShapeKind::Diamond => trace_shape_path(rect, border, previous, diamond_path(rect)),
-        ShapeKind::Hexagon => trace_shape_path(rect, border, previous, hexagon_path(rect)),
+        | ShapeKind::Image => return None,
+        ShapeKind::Circle | ShapeKind::Oval => trace_ellipse::<A>(rect, border, previous),
+        ShapeKind::Cloud => path(cloud_path),
+        ShapeKind::Diamond => path(diamond_path),
+        ShapeKind::Hexagon => path(hexagon_path),
         ShapeKind::Parallelogram => {
             // D2 keeps the 26px wedge for every box wider than the wedge;
             // only collapsed boxes use half their width.
@@ -1093,13 +1185,26 @@ pub fn trace_shape_border(shape: ShapeKind, rect: Rect, border: Point, previous:
             } else {
                 26.0
             };
-            let wedge = wedge_width / rect.size.width.max(1.0);
-            trace_polygon(
-                rect,
-                border,
-                previous,
-                &[(wedge, 0.0), (1.0, 0.0), (1.0 - wedge, 1.0), (0.0, 1.0)],
-            )
+            if A::GO {
+                // shape_parallelogram.go parallelogramPath, whose final
+                // L(0, height) repeats the previous vertex before closing.
+                pixels(&[
+                    (wedge_width, 0.0),
+                    (rect.size.width, 0.0),
+                    (rect.size.width - wedge_width, rect.size.height),
+                    (0.0, rect.size.height),
+                    (0.0, rect.size.height),
+                ])
+            } else {
+                let wedge = wedge_width / rect.size.width.max(1.0);
+                trace_polygon::<A>(
+                    rect,
+                    border,
+                    previous,
+                    &[(wedge, 0.0), (1.0, 0.0), (1.0 - wedge, 1.0), (0.0, 1.0)],
+                    (rect.size.width, rect.size.height),
+                )
+            }
         }
         ShapeKind::Step => {
             let wedge_width = if rect.size.width <= 35.0 {
@@ -1107,30 +1212,59 @@ pub fn trace_shape_border(shape: ShapeKind, rect: Rect, border: Point, previous:
             } else {
                 35.0
             };
-            trace_pixel_polygon(
-                rect,
-                border,
-                previous,
-                &[
-                    (0.0, 0.0),
-                    (rect.size.width - wedge_width, 0.0),
-                    (rect.size.width, rect.size.height / 2.0),
-                    (rect.size.width - wedge_width, rect.size.height),
-                    (0.0, rect.size.height),
-                    (wedge_width, rect.size.height / 2.0),
-                ],
-            )
+            pixels(&[
+                (0.0, 0.0),
+                (rect.size.width - wedge_width, 0.0),
+                (rect.size.width, rect.size.height / 2.0),
+                (rect.size.width - wedge_width, rect.size.height),
+                (0.0, rect.size.height),
+                (wedge_width, rect.size.height / 2.0),
+            ])
         }
-        ShapeKind::Callout => trace_shape_path(rect, border, previous, callout_path(rect)),
-        ShapeKind::Cylinder => trace_shape_path(rect, border, previous, cylinder_path(rect)),
-        ShapeKind::Queue => trace_shape_path(rect, border, previous, queue_path(rect)),
-        ShapeKind::Person => trace_shape_path(rect, border, previous, person_path(rect)),
-        ShapeKind::StoredData => trace_shape_path(rect, border, previous, stored_data_path(rect)),
-        ShapeKind::Page => trace_shape_path(rect, border, previous, page_outer_path(rect)),
-        ShapeKind::Document => trace_shape_path(rect, border, previous, document_path(rect)),
-        ShapeKind::Package => trace_shape_path(rect, border, previous, package_path(rect)),
-        ShapeKind::C4Person => trace_c4_person(rect, border, previous),
-    }
+        ShapeKind::Callout => path(callout_path),
+        ShapeKind::Cylinder => path(cylinder_path),
+        ShapeKind::Queue => path(queue_path),
+        ShapeKind::Person => path(person_path),
+        ShapeKind::StoredData => path(stored_data_path),
+        ShapeKind::Page => path(page_outer_path),
+        ShapeKind::Document => path(document_path),
+        ShapeKind::Package => path(package_path),
+        ShapeKind::C4Person => trace_c4_person::<A>(rect, border, previous),
+    })
+}
+
+/// Shape-border tracing used by the dagre, ELK and render callers. It
+/// predates [`trace_to_shape_border`] and deviates from Go in edge cases
+/// (degenerate rays, vertical ellipse rays, parallelogram vertices, quadratic
+/// cubic roots and arm64 multiply-add fusion).
+pub fn trace_shape_border(shape: ShapeKind, rect: Rect, border: Point, previous: Point) -> Point {
+    trace_shape::<Legacy>(shape, rect, border, previous).map_or(border, |(point, _)| point)
+}
+
+/// Result of [`trace_to_shape_border`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ShapeBorderTrace {
+    /// Rectangular shapes return the border point itself (Go returns the
+    /// same pointer).
+    Unchanged,
+    /// A new rounded point. `intersected` is false when the ray missed the
+    /// perimeter; Go then rounds the border point after truncating it to
+    /// float32 in place.
+    Traced { point: Point, intersected: bool },
+}
+
+/// Go-exact lib/shape.TraceToShapeBorder for this host's architecture.
+#[inline]
+pub fn trace_to_shape_border(
+    shape: ShapeKind,
+    rect: Rect,
+    border: Point,
+    previous: Point,
+) -> ShapeBorderTrace {
+    trace_shape::<GoNative>(shape, rect, border, previous)
+        .map_or(ShapeBorderTrace::Unchanged, |(point, intersected)| {
+            ShapeBorderTrace::Traced { point, intersected }
+        })
 }
 
 #[cfg(test)]
@@ -1217,6 +1351,329 @@ mod tests {
     }
 }
 
+/// Pins Go lib/shape.TraceToShapeBorder on both architectures. Expected
+/// points come from the pinned Go source run on arm64 twice: as compiled, and
+/// with `-gcflags=all=-d=fmahash=n`, which disables multiply-add fusion and so
+/// reproduces amd64 (the amd64 build of lib/geo has no FMA instruction).
+#[cfg(test)]
+mod go_architecture_contract {
+    use super::*;
+    use crate::Size;
+
+    struct GoArm64;
+    impl GeoArith for GoArm64 {
+        const GO: bool = true;
+        fn fma(x: f64, y: f64, z: f64) -> f64 {
+            x.mul_add(y, z)
+        }
+        fn intersection(a: Point, b: Point, c: Point, d: Point) -> Option<Point> {
+            // FMUL then FMSUB: the second product is fused into the difference.
+            intersection_with(a, b, c, d, |p, q, r, s| (-r).mul_add(s, p * q))
+        }
+    }
+    struct GoAmd64;
+    impl GeoArith for GoAmd64 {
+        const GO: bool = true;
+        fn fma(x: f64, y: f64, z: f64) -> f64 {
+            x * y + z
+        }
+        fn intersection(a: Point, b: Point, c: Point, d: Point) -> Option<Point> {
+            intersection_with(a, b, c, d, |p, q, r, s| p * q - r * s)
+        }
+    }
+
+    fn rect(x: f64, y: f64, width: f64, height: f64) -> Rect {
+        Rect {
+            origin: Point { x, y },
+            size: Size { width, height },
+        }
+    }
+    fn traced<A: GeoArith>(shape: ShapeKind, rect: Rect, border: Point, previous: Point) -> Point {
+        trace_shape::<A>(shape, rect, border, previous).unwrap().0
+    }
+
+    /// (shape, [x, y, width, height, border x, border y, previous x,
+    /// previous y], arm64 result, amd64 result)
+    const CASES: [(ShapeKind, [f64; 8], (f64, f64), (f64, f64)); 13] = [
+        (
+            ShapeKind::Cloud,
+            [207.0, 368.5, 229.0, 209.0, 214.5, 577.0, 256.5, 577.0],
+            (246.0, 577.0),
+            (215.0, 577.0),
+        ),
+        (
+            ShapeKind::Callout,
+            [184.0, 996.5, 208.0, 250.0, 320.0, 1076.5, 284.5, 1041.0],
+            (392.0, 1148.0),
+            (392.0, 1149.0),
+        ),
+        (
+            ShapeKind::Page,
+            [157.5, 163.5, 208.0, 239.0, 161.0, 214.5, 209.0, 390.5],
+            (158.0, 204.0),
+            (158.0, 203.0),
+        ),
+        (
+            ShapeKind::Diamond,
+            [614.0, 291.0, 21.0, 62.0, 634.0, 321.0, 526.5, 170.0],
+            (620.0, 302.0),
+            (634.0, 321.0),
+        ),
+        (
+            ShapeKind::C4Person,
+            [166.0, 393.5, 219.0, 317.0, 384.0, 627.5, 210.0, 208.0],
+            (384.0, 627.0),
+            (384.0, 628.0),
+        ),
+        (
+            ShapeKind::Cylinder,
+            [108.0, 357.5, 83.0, 308.0, 108.0, 426.5, 108.0, 350.5],
+            (108.0, 642.0),
+            (108.0, 427.0),
+        ),
+        (
+            ShapeKind::StoredData,
+            [200.0, 609.0, 211.0, 50.0, 296.0, 659.0, 233.5, 659.0],
+            (411.0, 659.0),
+            (296.0, 659.0),
+        ),
+        (
+            ShapeKind::Hexagon,
+            [905.5, 589.0, 171.0, 163.0, 916.5, 690.5, 1093.5, 817.0],
+            (916.0, 690.0),
+            (917.0, 691.0),
+        ),
+        (
+            ShapeKind::Person,
+            [159.5, 221.0, 182.0, 271.0, 315.5, 492.0, 312.5, 341.0],
+            (316.0, 492.0),
+            (315.0, 492.0),
+        ),
+        (
+            ShapeKind::Document,
+            [909.0, 581.5, 258.0, 60.0, 991.0, 584.0, 1167.0, 520.0],
+            (997.0, 582.0),
+            (996.0, 582.0),
+        ),
+        (
+            ShapeKind::Parallelogram,
+            [844.5, 144.5, 185.0, 44.0, 974.5, 179.0, 824.5, 229.0],
+            (945.0, 189.0),
+            (944.0, 189.0),
+        ),
+        (
+            ShapeKind::Step,
+            [342.5, 535.0, 272.0, 45.0, 511.5, 580.0, 410.0, 531.5],
+            (512.0, 580.0),
+            (511.0, 580.0),
+        ),
+        (
+            ShapeKind::Queue,
+            [378.0, 709.5, 320.0, 105.0, 601.5, 813.5, 692.5, 768.0],
+            (599.0, 815.0),
+            (598.0, 815.0),
+        ),
+    ];
+
+    #[test]
+    fn traces_follow_go_multiply_add_fusion_per_architecture() {
+        for (shape, [x, y, w, h, bx, by, px, py], arm64, amd64) in CASES {
+            let (rect, border, previous) = (
+                rect(x, y, w, h),
+                Point { x: bx, y: by },
+                Point { x: px, y: py },
+            );
+            let arm64 = Point {
+                x: arm64.0,
+                y: arm64.1,
+            };
+            let amd64 = Point {
+                x: amd64.0,
+                y: amd64.1,
+            };
+            assert_eq!(
+                traced::<GoArm64>(shape, rect, border, previous),
+                arm64,
+                "{shape:?} arm64"
+            );
+            assert_eq!(
+                traced::<GoAmd64>(shape, rect, border, previous),
+                amd64,
+                "{shape:?} amd64"
+            );
+            // On amd64 some rays miss without fused multiply-add (Cloud
+            // returns the rounded border point), so the native trace must
+            // match the emulated architecture's intersection flag too.
+            let (native, intersected) = if cfg!(target_arch = "aarch64") {
+                (
+                    arm64,
+                    trace_shape::<GoArm64>(shape, rect, border, previous)
+                        .unwrap()
+                        .1,
+                )
+            } else {
+                (
+                    amd64,
+                    trace_shape::<GoAmd64>(shape, rect, border, previous)
+                        .unwrap()
+                        .1,
+                )
+            };
+            assert_eq!(
+                trace_to_shape_border(shape, rect, border, previous),
+                ShapeBorderTrace::Traced {
+                    point: native,
+                    intersected
+                },
+                "{shape:?} native"
+            );
+        }
+    }
+
+    #[test]
+    fn huge_circle_ellipse_roots_follow_go_fusion_per_architecture() {
+        let source = rect(0.0, 0.0, 1e20, 1e20);
+        let target = rect(300.0, 0.0, 1e20, 1e20);
+        let start = traced::<GoAmd64>(
+            ShapeKind::Circle,
+            source,
+            Point { x: 100.0, y: 0.0 },
+            Point { x: 300.0, y: 100.0 },
+        );
+        assert_eq!(start, Point { x: 100.0, y: 0.0 });
+        assert_eq!(
+            traced::<GoArm64>(
+                ShapeKind::Circle,
+                source,
+                Point { x: 100.0, y: 0.0 },
+                Point { x: 300.0, y: 100.0 }
+            ),
+            start
+        );
+        let end = |point: Point| (point.x.to_bits(), point.y.to_bits());
+        assert_eq!(
+            end(traced::<GoArm64>(
+                ShapeKind::Circle,
+                target,
+                Point { x: 300.0, y: 100.0 },
+                start
+            )),
+            (0x43f1_58e4_6000_0000, 0x43e1_58e4_6000_0000)
+        );
+        assert_eq!(
+            end(traced::<GoAmd64>(
+                ShapeKind::Circle,
+                target,
+                Point { x: 300.0, y: 100.0 },
+                start
+            )),
+            (300.0f64.to_bits(), 100.0f64.to_bits())
+        );
+    }
+
+    #[test]
+    fn go_trace_keeps_rectangles_and_reports_missed_rays() {
+        let square = rect(0.0, 0.0, 10.0, 10.0);
+        let border = Point { x: 10.0, y: 5.0 };
+        assert_eq!(
+            trace_to_shape_border(ShapeKind::Square, square, border, Point { x: 20.0, y: 5.0 }),
+            ShapeBorderTrace::Unchanged
+        );
+        assert_eq!(
+            trace_to_shape_border(
+                ShapeKind::Circle,
+                rect(0.0, 0.0, 100.0, 100.0),
+                Point {
+                    x: 20.123456789,
+                    y: 10.987654321
+                },
+                Point {
+                    x: 20.123456789,
+                    y: 10.987654321
+                },
+            ),
+            ShapeBorderTrace::Traced {
+                point: Point { x: 20.0, y: 11.0 },
+                intersected: false
+            }
+        );
+    }
+
+    #[test]
+    fn step_quantizes_svg_path_vertices_before_intersection() {
+        assert_eq!(
+            trace_to_shape_border(
+                ShapeKind::Step,
+                rect(2021.0, 2446.0, 116.0, 101.0),
+                Point {
+                    x: 2038.0,
+                    y: 2496.0
+                },
+                Point {
+                    x: 598.0,
+                    y: 2496.0
+                },
+            ),
+            ShapeBorderTrace::Traced {
+                point: Point {
+                    x: 2055.0,
+                    y: 2496.0
+                },
+                intersected: true
+            }
+        );
+    }
+
+    #[test]
+    fn short_nonzero_ray_is_extended_with_exact_axis_selection() {
+        assert_eq!(
+            trace_to_shape_border(
+                ShapeKind::Diamond,
+                rect(0.0, 0.0, 100.0, 10.0),
+                Point { x: 0.0, y: 0.0 },
+                Point {
+                    x: -5.0e-10,
+                    y: -1.0e-10
+                },
+            ),
+            ShapeBorderTrace::Traced {
+                point: Point { x: 17.0, y: 3.0 },
+                intersected: true
+            }
+        );
+    }
+
+    #[test]
+    fn vertical_ellipse_intersections_use_exact_segment_bounds() {
+        let center = Point { x: 0.0, y: 0.0 };
+        let beyond_endpoint = ellipse_intersections::<GoNative>(
+            center,
+            1.0,
+            1.0,
+            (Point { x: 0.0, y: 1.00005 }, Point { x: 0.0, y: 2.0 }),
+        );
+        let on_endpoint = ellipse_intersections::<GoNative>(
+            center,
+            1.0,
+            1.0,
+            (Point { x: 0.0, y: 1.0 }, Point { x: 0.0, y: 2.0 }),
+        );
+        assert!(beyond_endpoint.is_empty());
+        assert_eq!(on_endpoint, vec![Point { x: 0.0, y: 1.0 }]);
+    }
+
+    #[test]
+    fn border_selection_uses_go_axis_distance_when_squares_overflow() {
+        let (closest, intersected) = rounded_closest::<GoNative>(
+            Point { x: 0.0, y: 0.0 },
+            [Point { x: 0.0, y: 9.0e199 }, Point { x: 1.0e200, y: 0.0 }],
+        );
+        assert!(intersected);
+        assert_eq!(closest.x, 0.0);
+        assert!(closest.y.is_infinite());
+    }
+}
+
 #[cfg(all(test, target_arch = "aarch64", feature = "oracle-fixtures"))]
 mod badge_ray_source_contract {
     use super::*;
@@ -1235,7 +1692,7 @@ mod badge_ray_source_contract {
         };
         let corner = Point { x: 10.0, y: 0.0 };
         let previous = Point { x: 15.0, y: -5.0 };
-        let ray = extended_shape_ray(previous, corner, rect);
+        let ray = extended_shape_ray::<Legacy>(previous, corner, rect);
         let source_end: Point = serde_json::from_value(source["ray"]["End"].clone()).unwrap();
         assert_eq!(ray.1, source_end);
         let row = source["segments"]

@@ -471,8 +471,20 @@ mod tests {
         }
         build.nodes[0].write().point_ref = Some(a.clone());
         build.nodes[1].write().point_ref = Some(b.clone());
-        build.connect(0, 1, None).unwrap();
-        build.connect(2, 3, None).unwrap();
+        build
+            .connect(
+                0,
+                1,
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
+            .unwrap();
+        build
+            .connect(
+                2,
+                3,
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
+            .unwrap();
         a.set(Point { x: 0.0, y: 20.0 });
         b.set(Point { x: 10.0, y: 20.0 });
         let mut index = StaticEdgeIndex::from_build(&build);
@@ -522,7 +534,13 @@ mod tests {
         let mut build = super::super::ovg_ports::PortBuild::default();
         let a = build.allocate_node(Point { x: 0.0, y: 1.0 });
         let b = build.allocate_node(Point { x: 10.0, y: 1.0 });
-        build.connect(a, b, None).unwrap();
+        build
+            .connect(
+                a,
+                b,
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
+            .unwrap();
         let live = build.nodes[a].read().point_ref.clone().unwrap();
         let other = build.nodes[b].read().point_ref.clone().unwrap();
         // Canonical order may differ from build-slot order and repeat a node.
@@ -569,7 +587,13 @@ mod tests {
         sparse.allocate_node(Point { x: 20.0, y: 1.0 });
         let c = sparse.allocate_node(Point { x: 30.0, y: 1.0 });
         let d = sparse.allocate_node(Point { x: 40.0, y: 1.0 });
-        sparse.connect(c, d, None).unwrap();
+        sparse
+            .connect(
+                c,
+                d,
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
+            .unwrap();
         let mut sparse = StaticEdgeIndex::from_build(&sparse);
         assert!(sparse.points[0].is_none());
         assert_eq!(sparse.append_value(values), 1);

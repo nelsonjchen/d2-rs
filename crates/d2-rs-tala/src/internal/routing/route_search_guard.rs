@@ -316,12 +316,6 @@ impl<'a> OvgBuildBudget<'a> {
         self.context
     }
 
-    pub(super) fn with_aggregate(aggregate: Arc<RouteStageWork>) -> Self {
-        let mut budget = Self::new();
-        budget.aggregate = Some(aggregate);
-        budget
-    }
-
     fn reserve(
         &self,
         used: &Cell<u64>,
@@ -465,42 +459,6 @@ impl<'a> OvgBuildBudget<'a> {
 
     pub(super) fn exhausted(&self) -> bool {
         self.exhausted.get()
-    }
-}
-
-/// Atomic reservation model used by focused concurrency/overflow tests.
-#[derive(Debug)]
-pub struct RouteSearchWork {
-    used: AtomicU64,
-    limit: u64,
-    exhausted: AtomicBool,
-}
-
-impl RouteSearchWork {
-    pub fn new(limit: u64) -> Self {
-        Self {
-            used: AtomicU64::new(0),
-            limit,
-            exhausted: AtomicBool::new(false),
-        }
-    }
-
-    /// Reserve work before mutating any queue or route state.
-    pub fn reserve(&self, units: u64) -> Result<(), ()> {
-        let result = self
-            .used
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |used| {
-                used.checked_add(units).filter(|next| *next <= self.limit)
-            });
-        if result.is_err() {
-            self.exhausted.store(true, Ordering::Release);
-            return Err(());
-        }
-        Ok(())
-    }
-
-    pub fn exhausted(&self) -> bool {
-        self.exhausted.load(Ordering::Acquire)
     }
 }
 
@@ -670,15 +628,6 @@ impl<'a> LocalRouteSearchWork<'a> {
             }
             None => crate::LayoutError::BadRouteState("route-search work limit exceeded".into()),
         }
-    }
-
-    pub(super) fn with_aggregate(limit: u64, aggregate: Arc<RouteStageWork>) -> Self {
-        // newRouteSearchWorkGuard switches the shared aggregate to its
-        // parallel path before any flavor worker can charge it.
-        aggregate.enable_parallel();
-        let mut budget = Self::new(limit);
-        budget.aggregate = Some(aggregate);
-        budget
     }
 
     /// Construct the production flavor guard. Go's route-search workers keep
@@ -949,10 +898,31 @@ impl<'a> LocalRouteSearchWork<'a> {
 }
 
 #[cfg(test)]
+impl<'a> OvgBuildBudget<'a> {
+    pub(super) fn with_aggregate(aggregate: Arc<RouteStageWork>) -> Self {
+        let mut budget = Self::new();
+        budget.aggregate = Some(aggregate);
+        budget
+    }
+}
+
+#[cfg(test)]
+impl<'a> LocalRouteSearchWork<'a> {
+    pub(super) fn with_aggregate(limit: u64, aggregate: Arc<RouteStageWork>) -> Self {
+        // newRouteSearchWorkGuard switches the shared aggregate to its
+        // parallel path before any flavor worker can charge it.
+        aggregate.enable_parallel();
+        let mut budget = Self::new(limit);
+        budget.aggregate = Some(aggregate);
+        budget
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::{
         LocalRouteSearchWork, MAX_OVG_EDGES, MAX_OVG_INTERSECTION_CANDIDATES, MAX_OVG_NODES,
-        MAX_OVG_WORK_UNITS, OvgBuildBudget, RouteSearchWork, RouteStageWork,
+        MAX_OVG_WORK_UNITS, OvgBuildBudget, RouteStageWork,
     };
     use std::sync::atomic::Ordering;
 
@@ -1075,25 +1045,6 @@ mod tests {
         assert_eq!(budget.work.get(), 15);
         assert_eq!(context.polls.get(), 0);
         assert!(budget.take_context_error().is_none());
-    }
-
-    #[test]
-    fn reservation_is_pre_mutation_and_limit_is_sticky() {
-        let budget = RouteSearchWork::new(3);
-        assert!(budget.reserve(2).is_ok());
-        assert!(budget.reserve(2).is_err());
-        assert!(budget.exhausted());
-        // A rejected reservation does not consume the remaining unit.
-        assert!(budget.reserve(1).is_ok());
-        assert!(budget.reserve(1).is_err());
-    }
-
-    #[test]
-    fn arithmetic_overflow_is_classified_as_exhaustion() {
-        let budget = RouteSearchWork::new(u64::MAX);
-        assert!(budget.reserve(u64::MAX).is_ok());
-        assert!(budget.reserve(1).is_err());
-        assert!(budget.exhausted());
     }
 
     #[test]

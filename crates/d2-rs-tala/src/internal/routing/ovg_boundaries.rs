@@ -395,7 +395,13 @@ mod tests {
     fn fallback_visits_every_coincident_port_direction_once() {
         let graph = graph();
         let mut build = PortBuild::default();
-        build.add_ports(&graph, &[NodeId(0)], None).unwrap();
+        build
+            .add_ports(
+                &graph,
+                &[NodeId(0)],
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
+            .unwrap();
         let ports = build.ports[&NodeId(0)]
             .iter()
             .map(|&(index, _)| index)
@@ -407,7 +413,7 @@ mod tests {
                 NodeId(0),
                 &ports,
                 Some((Point { x: 0.0, y: 0.0 }, Point { x: 0.0, y: 0.0 })),
-                None,
+                &super::super::route_search_guard::OvgBuildBudget::new(),
             )
             .unwrap();
         assert_eq!(build.nodes.len(), 25);
@@ -426,8 +432,20 @@ mod tests {
     fn nil_bounds_are_read_after_the_guarded_layer_and_node_steps() {
         let graph = graph();
         let mut build = PortBuild::default();
-        build.add_boundary_layers(&graph, &[], None, None).unwrap();
-        build.add_point(Point { x: 0.0, y: 0.0 }, None).unwrap();
+        build
+            .add_boundary_layers(
+                &graph,
+                &[],
+                None,
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
+            .unwrap();
+        build
+            .add_point(
+                Point { x: 0.0, y: 0.0 },
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
+            .unwrap();
         let context = Caller {
             polls: Cell::new(0),
             cancel_at: 3,
@@ -435,12 +453,17 @@ mod tests {
         let budget = OvgBuildBudget::with_context(&context);
         assert!(
             build
-                .add_boundary_layers(&graph, &[], None, Some(&budget))
+                .add_boundary_layers(&graph, &[], None, &budget)
                 .is_err()
         );
         assert_eq!(context.polls.get(), 3);
         let panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            build.add_boundary_layers(&graph, &[], None, None)
+            build.add_boundary_layers(
+                &graph,
+                &[],
+                None,
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
         }));
         assert!(panic.is_err());
     }
@@ -485,7 +508,7 @@ mod tests {
                     Point { x: 0.0, y: 0.0 },
                     Point { x: 100.0, y: 0.0 },
                     8,
-                    Some(&budget)
+                    &budget
                 )
                 .is_err()
         );
@@ -498,7 +521,7 @@ mod tests {
                     Point { x: 0.0, y: 0.0 },
                     Point { x: 100.0, y: 0.0 },
                     8,
-                    None
+                    &super::super::route_search_guard::OvgBuildBudget::new()
                 )
                 .unwrap()
         );

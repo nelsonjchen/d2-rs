@@ -17,6 +17,8 @@ use crate::Edge;
 use crate::{Graph, Node};
 use serde_json::{Value, json};
 use std::cell::{Cell, RefCell};
+#[cfg(feature = "diagnostic-traces")]
+use std::panic::{AssertUnwindSafe, catch_unwind};
 struct Quiet;
 impl Context for Quiet {
     fn done(&self) -> Option<bool> {
@@ -267,7 +269,9 @@ fn full_optimizer_source_controls() {
             .zip(&retained)
             .map(|(&n, p)| owner.owner_node_point(n).unwrap().same_allocation(p))
             .collect::<Vec<_>>();
-        if (!error.is_null() || !panic_value.is_null()) && name != "capture-mutate-cancel" {
+        // Only an error return restores; an unwound pass is discarded by the
+        // seed recovery, so its allocations are left unspecified.
+        if !error.is_null() && name != "capture-mutate-cancel" {
             assert!(
                 same.iter().all(|&s| s),
                 "{name}: original point allocation must be restored"

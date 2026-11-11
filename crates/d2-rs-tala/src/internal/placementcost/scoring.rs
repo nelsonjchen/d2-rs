@@ -1444,7 +1444,6 @@ impl SizedEdgeLengthScorer {
             false,
             false,
             workspace.materialized_ordinary_container_scoring(),
-            false,
             None,
             Some((owner, canonical)),
             frame,
@@ -1714,13 +1713,6 @@ impl ArenaGraph {
                     .find(|node| node.tala_id == tala_id)
                     .and_then(|node| node.position)
             })
-    }
-
-    fn projected_snapshot_position(&self, tala_id: i64) -> Option<Point> {
-        self.projected_transaction_nodes
-            .iter()
-            .find(|entry| entry.node.tala_id == tala_id)
-            .and_then(|entry| entry.node.position)
     }
 
     /// Resolve a retained child box in the coordinate frame used by the
@@ -2099,14 +2091,6 @@ impl ArenaGraph {
             }))
     }
 
-    fn projected_adjacent_center(&self, adjacent: ProjectedAdjacent) -> Option<Point> {
-        let child_position = self.projected_absolute_position(adjacent)?;
-        Some(Point {
-            x: child_position.x + adjacent.size.width * 0.5,
-            y: child_position.y + adjacent.size.height * 0.5,
-        })
-    }
-
     /// Resolve the box of a retained cluster vessel in the current graph.
     /// The cached offset is only relative to the carrier frame where the
     /// abduction was captured; an enclosing container can subsequently move
@@ -2239,18 +2223,6 @@ impl ArenaGraph {
                     .position
                     .is_some_and(|position| position == point)
         })
-    }
-
-    pub(super) fn occupied_nodes(&self) -> BTreeMap<(i64, i64), NodeId> {
-        self.node_order
-            .iter()
-            .copied()
-            .filter_map(|node| {
-                self.nodes[node.0 as usize]
-                    .position
-                    .map(|position| ((position.x.round() as i64, position.y.round() as i64), node))
-            })
-            .collect()
     }
 
     pub(super) fn adjacents(&self, node: NodeId) -> Vec<NodeId> {
@@ -2958,18 +2930,6 @@ impl ArenaGraph {
         if has_length { max_length } else { 0.0 }
     }
 
-    fn active_graph_edge_count(&self) -> usize {
-        self.member_edges()
-            .filter(|edge| {
-                !self.sequences.iter().any(|sequence| {
-                    self.sequence_is_active(sequence)
-                        && sequence.members.contains(&edge.from)
-                        && sequence.members.contains(&edge.to)
-                })
-            })
-            .count()
-    }
-
     pub(super) fn non_center_port_cost_for_max_length(&self, max_length: f64) -> f64 {
         if self.edge_order.is_empty() {
             return 0.0;
@@ -3209,16 +3169,6 @@ impl ArenaGraph {
         Orientation::None
     }
 
-    pub(super) fn sized_distance_to_point(&self, node: NodeId, point: Point) -> f64 {
-        self.sized_box_distance_to_point(
-            (
-                self.position(node).unwrap(),
-                self.nodes[node.0 as usize].rect.size,
-            ),
-            point,
-        )
-    }
-
     pub(super) fn sized_box_distance_to_point(
         &self,
         (position, size): (Point, Size),
@@ -3245,33 +3195,6 @@ impl ArenaGraph {
         } else {
             dx + dy
         }
-    }
-
-    pub(super) fn sized_edge_base_distance(&self, node: NodeId, adjacent: NodeId) -> f64 {
-        self.sized_edge_base_distance_between(
-            (
-                self.position(node).unwrap(),
-                self.nodes[node.0 as usize].rect.size,
-            ),
-            (
-                self.position(adjacent).unwrap(),
-                self.nodes[adjacent.0 as usize].rect.size,
-            ),
-        )
-    }
-
-    pub(super) fn sized_edge_base_distance_between(
-        &self,
-        node_box: (Point, Size),
-        adjacent_box: (Point, Size),
-    ) -> f64 {
-        self.sized_edge_base_distance_between_with_owner_frame_checked(
-            node_box,
-            adjacent_box,
-            NodeId(0),
-            None,
-        )
-        .expect("legacy distance has no owner binding to fail")
     }
 
     fn scoring_turn_cost_with_owner_frame_checked(
@@ -4259,12 +4182,6 @@ impl ArenaGraph {
             adjacent_box = self.sized_projected_box(*projected_adjacent)?;
         }
         Some((node_box, adjacent_box))
-    }
-
-    pub(super) fn segment_intersects_node(&self, start: Point, end: Point, node: NodeId) -> bool {
-        let position = self.position(node).unwrap();
-        let size = self.nodes[node.0 as usize].rect.size;
-        Self::segment_intersects_box(start, end, position, size)
     }
 
     fn symmetry_segment_intersects_node(&self, start: Point, end: Point, node: NodeId) -> bool {
@@ -6007,14 +5924,6 @@ impl ArenaGraph {
         )
     }
 
-    pub(super) fn sized_edge_length_with_sequence_abductions(
-        &self,
-        node: NodeId,
-        direction_penalty: bool,
-    ) -> f64 {
-        self.sized_edge_length_with_cache_mode(node, direction_penalty, None, true, false, false)
-    }
-
     /// Replays the first phase of recovered `Node.edgeLength`.
     ///
     /// TALA walks `node.Edges` and, for each edge, consumes the first unused
@@ -6891,7 +6800,6 @@ impl ArenaGraph {
             alignment_cluster_distance_full,
             tree_children_restored,
             materialized_containers,
-            false,
             None,
             None,
             None,
@@ -7166,7 +7074,6 @@ impl ArenaGraph {
             alignment_cluster_distance_full,
             tree_children_restored,
             materialized_containers,
-            false,
             Some(frame),
             None,
             None,
@@ -7175,11 +7082,8 @@ impl ArenaGraph {
         )
     }
 
-    /// Scores an alignment baseline with the same retained replacement
-    /// pointers as OSS TALA.  The temporary Go graph can leave an abducted
-    /// cluster member one rounded step behind the live cluster member used by
-    /// the post-transaction candidate score; that pointer identity is part of
-    /// the baseline observable and is kept separate from ordinary scoring.
+    /// Scores an alignment baseline. This now computes exactly what
+    /// `sized_edge_length_with_cache_mode_materialized` computes.
     pub(super) fn sized_edge_length_with_cache_mode_materialized_alignment_baseline(
         &self,
         node: NodeId,
@@ -7198,7 +7102,6 @@ impl ArenaGraph {
             alignment_cluster_distance_full,
             tree_children_restored,
             materialized_containers,
-            true,
             None,
             None,
             None,
@@ -7268,7 +7171,6 @@ impl ArenaGraph {
             false,
             false,
             self.materialized_ordinary_container_scoring(),
-            false,
             None,
             Some((owner, canonical)),
             route_owner_frame,
@@ -7286,7 +7188,6 @@ impl ArenaGraph {
         alignment_cluster_distance_full: bool,
         tree_children_restored: bool,
         materialized_containers: bool,
-        _alignment_baseline_flow: bool,
         owner_frame: Option<&OwnerScoreFrame<'_>>,
         near_owner: Option<(&ArenaGraph, NodeId)>,
         route_owner_frame: Option<&OwnerScoreFrame<'_>>,
@@ -8871,7 +8772,6 @@ impl ArenaGraph {
                 node,
                 &active_edges,
                 restored_endpoints.as_deref(),
-                _alignment_baseline_flow,
                 route_owner_frame.filter(|_| owner_carrier_positions),
                 route_restored_endpoints
                     .as_ref()
@@ -9098,7 +8998,6 @@ impl ArenaGraph {
         node: NodeId,
         active_edges: &[EdgeId],
         restored_endpoints: Option<&[SizedRestoredEndpoints]>,
-        _alignment_baseline_flow: bool,
         carrier_frame: Option<&OwnerScoreFrame<'_>>,
         owner_replacements: Option<&[SizedRestoredEndpoints]>,
     ) -> Result<f64, limits::Error> {
@@ -9425,76 +9324,6 @@ impl ArenaGraph {
         Ok(total)
     }
 
-    pub(super) fn sized_is_mirrored(
-        &self,
-        a: NodeId,
-        b: NodeId,
-        horizontal_axis: bool,
-        axis: f64,
-    ) -> bool {
-        let a_position = self.position(a).unwrap();
-        let b_position = self.position(b).unwrap();
-        let a_size = self.active_node_size(a);
-        let b_size = self.active_node_size(b);
-        if horizontal_axis {
-            if a_position.x == b_position.x {
-                return false;
-            }
-            let residual = if a_position.x > b_position.x {
-                if !(b_position.x + b_size.width < axis && axis < a_position.x) {
-                    return false;
-                }
-                ((a_position.x - axis) - (axis - (b_position.x + b_size.width))).abs()
-            } else {
-                if !(a_position.x + a_size.width < axis && axis < b_position.x) {
-                    return false;
-                }
-                ((b_position.x - axis) - (axis - (a_position.x + a_size.width))).abs()
-            };
-            residual <= self.cell_size
-                && ((a_position.y + a_size.height * 0.5) - (b_position.y + b_size.height * 0.5))
-                    .abs()
-                    <= self.cell_size
-        } else {
-            if a_position.y == b_position.y {
-                return false;
-            }
-            let residual = if a_position.y > b_position.y {
-                if !(b_position.y + b_size.height < axis && axis < a_position.y) {
-                    return false;
-                }
-                ((a_position.y - axis) - (axis - (b_position.y + b_size.height))).abs()
-            } else {
-                if !(a_position.y + a_size.height < axis && axis < b_position.y) {
-                    return false;
-                }
-                ((b_position.y - axis) - (axis - (a_position.y + a_size.height))).abs()
-            };
-            residual <= self.cell_size
-                && ((a_position.x + a_size.width * 0.5) - (b_position.x + b_size.width * 0.5)).abs()
-                    <= self.cell_size
-        }
-    }
-
-    pub(super) fn overlaps_along_perpendicular(
-        &self,
-        center: NodeId,
-        other: NodeId,
-        x_axis: bool,
-    ) -> bool {
-        let center_position = self.position(center).unwrap();
-        let other_position = self.position(other).unwrap();
-        let center_size = self.active_node_size(center);
-        let other_size = self.active_node_size(other);
-        if x_axis {
-            center_position.y <= other_position.y + other_size.height
-                && other_position.y <= center_position.y + center_size.height
-        } else {
-            center_position.x <= other_position.x + other_size.width
-                && other_position.x <= center_position.x + center_size.width
-        }
-    }
-
     // Recovered `obstructed` guard used by computeSymmetryScore. A mirrored
     // pair does not earn symmetry credit when another sibling lies on either
     // ray from the center, except across ancestor/descendant boundaries.
@@ -9655,16 +9484,6 @@ impl ArenaGraph {
                     || sibling
                         .scoring_container_ancestors
                         .contains(&neighbor.identity)))
-    }
-
-    fn symmetry_pair_obstructed_neighbors(
-        &self,
-        center: SymmetryNeighbor,
-        a: SymmetryNeighbor,
-        b: SymmetryNeighbor,
-    ) -> bool {
-        self.symmetry_pair_obstructed_neighbors_checked(center, a, b, ScoreContext::none())
-            .expect("unchecked scoring context cannot cancel")
     }
 
     fn symmetry_pair_obstructed_neighbors_checked(
@@ -10677,14 +10496,6 @@ impl ArenaGraph {
             None
         )?;
         Ok((score, matched))
-    }
-
-    fn symmetry_pair_score_projected(
-        &self,
-        center: NodeId,
-        neighbors: &[SymmetryNeighbor],
-    ) -> (f64, Vec<i64>) {
-        self.symmetry_pair_score_from_center(self.direct_symmetry_neighbor(center), neighbors)
     }
 
     pub(super) fn sized_symmetry(&self, node: NodeId, check_neighbors: bool) -> f64 {

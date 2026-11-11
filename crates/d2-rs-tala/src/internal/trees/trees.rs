@@ -250,10 +250,6 @@ impl ArenaGraph {
         self.extracted_tree_edge_direction(root, extracted[&root].sentinel_edge)
     }
 
-    pub(super) fn initialize_tree_routing_state(&mut self) {
-        self.rebuild_tree_routing_state(false);
-    }
-
     pub(super) fn preprocess_trees(&mut self) {
         // ExtractTrees disconnects shared Node.Edges, not just Graph.Edges.
         // Keep the stable topology for numerical tree reconstruction while
@@ -262,7 +258,7 @@ impl ArenaGraph {
             self.materialize_owner_node_incident_header(NodeId(index as u32))
                 .expect("preprocessing owner incident field");
         }
-        self.rebuild_tree_routing_state(true);
+        self.rebuild_tree_routing_state();
     }
 
     fn disconnect_owner_tree_edge(&mut self, edge: EdgeId) {
@@ -298,7 +294,7 @@ impl ArenaGraph {
     /// container. Each peeled node owns the edge to the still-active parent as
     /// its sentinel edge. Containers, fixed/near nodes, and SQL-table scopes
     /// remain ordinary graph nodes.
-    fn rebuild_tree_routing_state(&mut self, publish_node_order: bool) {
+    fn rebuild_tree_routing_state(&mut self) {
         if crate::internal::trace_env_enabled("TALA_TRACE_TREE_STATE") {
             eprint!("TREE_INITIAL_ORDER_RUST ");
             for node in &self.node_order {
@@ -605,16 +601,14 @@ impl ArenaGraph {
                     }
                     active.remove(&node);
                     extraction_order.entry(*scope).or_default().push(node);
-                    if publish_node_order {
-                        self.disconnect_owner_tree_edge(extracted[&node].sentinel_edge);
-                        // This is a native projection precondition; the Go
-                        // helper's context polls/error propagation remain a
-                        // separate preprocessing contract.
-                        assert!(
-                            self.remove_tree_container_node(*scope, node),
-                            "peeled tree node requires container membership"
-                        );
-                    }
+                    self.disconnect_owner_tree_edge(extracted[&node].sentinel_edge);
+                    // This is a native projection precondition; the Go
+                    // helper's context polls/error propagation remain a
+                    // separate preprocessing contract.
+                    assert!(
+                        self.remove_tree_container_node(*scope, node),
+                        "peeled tree node requires container membership"
+                    );
                     removed_any = true;
                 }
                 if !removed_any {
@@ -869,9 +863,7 @@ impl ArenaGraph {
                 survivors.retain(|node| *node != sentinel);
                 survivors.push(new_sentinel);
             }
-            if publish_node_order {
-                self.promote_tree_container_sentinel(scope, sentinel, new_sentinel);
-            }
+            self.promote_tree_container_sentinel(scope, sentinel, new_sentinel);
         }
 
         // `putBackNonBranchingTrees` reconnects every simple chain before
@@ -1019,12 +1011,7 @@ impl ArenaGraph {
         // Pipeline.PreprocessTrees physically removes every peeled node from
         // Graph.Nodes. putBackNonBranchingTrees then walks containers
         // deepest/rightmost first and appends only the restored (non-routing)
-        // tree nodes. Arena construction also initializes this structural
-        // state for temporary SplitSubgraphs, but those graphs do not execute
-        // the physical pipeline stage again.
-        if !publish_node_order {
-            return;
-        }
+        // tree nodes.
         let extracted_nodes = extracted.keys().copied().collect::<BTreeSet<_>>();
         let ever_extracted = extraction_order
             .values()
@@ -1136,9 +1123,7 @@ impl ArenaGraph {
                 self.reconnect_owner_tree_edge(edge);
             }
         }
-        if publish_node_order {
-            self.publish_preprocessed_owner_trees();
-        }
+        self.publish_preprocessed_owner_trees();
         // Placement diagnostics follow Go's shared `Containers` slices. The
         // stable arena keeps cloned trace carriers so an induced graph can
         // still expose descendants after its local container map is reduced;
@@ -1254,29 +1239,6 @@ impl ArenaGraph {
                 .map(|child| self.placement_tree_from_node(child, children))
                 .collect(),
             orientation: Orientation::None,
-        }
-    }
-
-    fn tree_edge_direction(&self, tree: &PlacementTree) -> TreeEdgeDirection {
-        let edge =
-            &self.edge_records[tree.sentinel_edge.expect("non-sentinel tree node").0 as usize];
-        if edge.source_arrow && edge.target_arrow {
-            return TreeEdgeDirection::Bidirectional;
-        }
-        if !edge.source_arrow && !edge.target_arrow {
-            return tree
-                .children
-                .iter()
-                .map(|child| self.tree_edge_direction(child))
-                .find(|direction| *direction != TreeEdgeDirection::Undirected)
-                .unwrap_or(TreeEdgeDirection::Undirected);
-        }
-        let arrow_points_to_node = (edge.to == tree.node && edge.target_arrow)
-            || (edge.from == tree.node && edge.source_arrow);
-        if arrow_points_to_node {
-            TreeEdgeDirection::Inwards
-        } else {
-            TreeEdgeDirection::Outwards
         }
     }
 

@@ -93,9 +93,6 @@ impl GraphNodeMap {
             })
             .into_iter()
     }
-    pub(super) fn values(&self) -> std::vec::IntoIter<Vec<NodeId>> {
-        self.iter().map(|(_, v)| v).collect::<Vec<_>>().into_iter()
-    }
     pub(super) fn read(&self) -> BTreeMap<NodeId, Vec<NodeId>> {
         self.iter().collect()
     }

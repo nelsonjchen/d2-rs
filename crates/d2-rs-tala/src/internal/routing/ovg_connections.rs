@@ -12,7 +12,7 @@ use d2_rs_core::stable_sort::StableSort;
 use std::collections::BTreeSet;
 
 fn sort_work(budget: Budget<'_, '_>, n: usize) -> Result<(), ()> {
-    budget.map_or(Ok(()), |b| b.reserve_sort_work(n))
+    budget.reserve_sort_work(n)
 }
 pub(super) fn edge_capacity(
     existing: u64,
@@ -248,12 +248,11 @@ impl PortBuild {
         // Preserve the original context error for the public routing caller.
         let failure = || "TALA OVG resource limit exceeded".to_owned();
         check(budget).map_err(|_| failure())?;
-        if let Some(b) = budget {
-            let used = b.reserved_edge_count();
-            if self.edges.len() as u64 > used {
-                b.reserve_edges(self.edges.len() as u64 - used)
-                    .map_err(|_| failure())?;
-            }
+        let used = budget.reserved_edge_count();
+        if self.edges.len() as u64 > used {
+            budget
+                .reserve_edges(self.edges.len() as u64 - used)
+                .map_err(|_| failure())?;
         }
         let mut horizontal = AxisMap::<Vec<usize>>::default();
         let mut vertical = AxisMap::<Vec<usize>>::default();
@@ -331,7 +330,7 @@ mod tests {
         let graph = graph(false);
         let budget = OvgBuildBudget::with_context(&Cancelled);
         let mut ports = PortBuild::default();
-        assert!(ports.connect_nodes(&graph, &[], Some(&budget)).is_err());
+        assert!(ports.connect_nodes(&graph, &[], &budget).is_err());
         assert_eq!(
             budget.take_context_error().unwrap().to_string(),
             "EdgeRouting: context canceled"
@@ -372,7 +371,7 @@ mod tests {
                     x: f64::NAN,
                     y: f64::NAN,
                 },
-                None,
+                &super::super::route_search_guard::OvgBuildBudget::new(),
             )
             .unwrap();
         ports
@@ -381,10 +380,16 @@ mod tests {
                     x: f64::NAN,
                     y: f64::NAN,
                 },
-                None,
+                &super::super::route_search_guard::OvgBuildBudget::new(),
             )
             .unwrap();
-        ports.connect_nodes(&graph, &[], None).unwrap();
+        ports
+            .connect_nodes(
+                &graph,
+                &[],
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
+            .unwrap();
         assert!(ports.edges.is_empty());
         assert_eq!(ports.edges.capacity(), 0);
         assert!(ports.edges_allocated);
@@ -394,8 +399,18 @@ mod tests {
         for container in [false, true] {
             let graph = graph(container);
             let mut ports = PortBuild::default();
-            ports.add_point(Point { x: 20.0, y: 50.0 }, None).unwrap();
-            ports.add_point(Point { x: 40.0, y: 50.0 }, None).unwrap();
+            ports
+                .add_point(
+                    Point { x: 20.0, y: 50.0 },
+                    &super::super::route_search_guard::OvgBuildBudget::new(),
+                )
+                .unwrap();
+            ports
+                .add_point(
+                    Point { x: 40.0, y: 50.0 },
+                    &super::super::route_search_guard::OvgBuildBudget::new(),
+                )
+                .unwrap();
             let budget = OvgBuildBudget::new();
             ports
                 .connect_line(
@@ -405,7 +420,7 @@ mod tests {
                     50.0,
                     true,
                     &BTreeSet::new(),
-                    Some(&budget),
+                    &budget,
                 )
                 .unwrap();
             assert_eq!(ports.edges.len(), usize::from(container));

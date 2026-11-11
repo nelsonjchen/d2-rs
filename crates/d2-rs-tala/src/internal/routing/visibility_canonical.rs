@@ -372,7 +372,7 @@ impl VisibilityGraph {
         &mut self,
         graph: &ArenaGraph,
         edge: crate::EdgeId,
-        budget: Option<&OvgBuildBudget<'_>>,
+        budget: &OvgBuildBudget<'_>,
     ) -> Result<Option<super::ovg_import::ExistingRoute>, ()> {
         let route = self.import_existing_edge_route(graph, edge, budget);
         Ok(self
@@ -389,7 +389,7 @@ impl VisibilityGraph {
         &mut self,
         graph: &ArenaGraph,
         edge: crate::EdgeId,
-        budget: Option<&OvgBuildBudget<'_>>,
+        budget: &OvgBuildBudget<'_>,
     ) -> Result<super::ovg_import::ImportedRoute, ()> {
         let mut route = super::ovg_import::ImportedRoute::default();
         self.canonical
@@ -432,9 +432,9 @@ mod canonical_tests {
     #[test]
     fn foreign_incident_edges_retain_neighbors_and_distinct_search_identities() {
         let mut source = super::super::ovg_ports::PortBuild::default();
-        let from = source.add_point(Point { x: 1.0, y: 2.0 }, None).unwrap();
+        let from = source.add_point(Point { x: 1.0, y: 2.0 }, &super::super::route_search_guard::OvgBuildBudget::new()).unwrap();
         let foreign = source.allocate_node(Point { x: 11.0, y: 2.0 });
-        source.connect(from, foreign, None).unwrap();
+        source.connect(from, foreign, &super::super::route_search_guard::OvgBuildBudget::new()).unwrap();
         source.edges[0].write().distance = 123.5;
         {
             let mut node = source.nodes[from].write();
@@ -447,16 +447,16 @@ mod canonical_tests {
         }
         let mut receiver = super::super::ovg_ports::PortBuild::default();
         let a = receiver
-            .add_point(Point { x: 101.0, y: 102.0 }, None)
+            .add_point(Point { x: 101.0, y: 102.0 }, &super::super::route_search_guard::OvgBuildBudget::new())
             .unwrap();
         let b = receiver
-            .add_point(Point { x: 111.0, y: 102.0 }, None)
+            .add_point(Point { x: 111.0, y: 102.0 }, &super::super::route_search_guard::OvgBuildBudget::new())
             .unwrap();
-        receiver.connect(a, b, None).unwrap();
+        receiver.connect(a, b, &super::super::route_search_guard::OvgBuildBudget::new()).unwrap();
         let local = receiver.import_object(source.nodes[from].clone());
-        receiver.add_existing_node(local, None).unwrap();
-        let end = receiver.add_point(Point { x: 1.0, y: 12.0 }, None).unwrap();
-        receiver.connect(local, end, None).unwrap();
+        receiver.add_existing_node(local, &super::super::route_search_guard::OvgBuildBudget::new()).unwrap();
+        let end = receiver.add_point(Point { x: 1.0, y: 12.0 }, &super::super::route_search_guard::OvgBuildBudget::new()).unwrap();
+        receiver.connect(local, end, &super::super::route_search_guard::OvgBuildBudget::new()).unwrap();
         receiver.nodes[local].write().set_node_center(true);
         drop(source);
         let mut view = VisibilityGraph::default();
@@ -529,7 +529,7 @@ mod canonical_tests {
             .iter()
             .position(|node| node.point() == Point { x: 1.0, y: 12.0 })
             .unwrap();
-        build.connect(foreign_slot, end_slot, None).unwrap();
+        build.connect(foreign_slot, end_slot, &super::super::route_search_guard::OvgBuildBudget::new()).unwrap();
         view.refresh_canonical();
         assert_eq!(
             view.port_owners[local_index]
@@ -568,10 +568,10 @@ mod canonical_tests {
     #[test]
     fn search_adjacencies_preserve_distinct_static_edge_objects() {
         let mut build = super::super::ovg_ports::PortBuild::default();
-        build.add_point(Point { x: 0.0, y: 0.0 }, None).unwrap();
-        build.add_point(Point { x: 10.0, y: 0.0 }, None).unwrap();
-        build.connect(0, 1, None).unwrap();
-        build.connect(0, 1, None).unwrap();
+        build.add_point(Point { x: 0.0, y: 0.0 }, &super::super::route_search_guard::OvgBuildBudget::new()).unwrap();
+        build.add_point(Point { x: 10.0, y: 0.0 }, &super::super::route_search_guard::OvgBuildBudget::new()).unwrap();
+        build.connect(0, 1, &super::super::route_search_guard::OvgBuildBudget::new()).unwrap();
+        build.connect(0, 1, &super::super::route_search_guard::OvgBuildBudget::new()).unwrap();
         let original_node = std::sync::Arc::downgrade(&build.nodes[0].0);
         let point = build.nodes[0].read().point_ref.clone().unwrap();
         let mut view = VisibilityGraph::default();
@@ -603,8 +603,8 @@ mod canonical_tests {
             routed_edge_set::{Edge, EdgeSet},
         };
         let mut build = super::super::ovg_ports::PortBuild::default();
-        let first = build.add_point(Point { x: 1.0, y: 2.0 }, None).unwrap();
-        let second = build.add_point(Point { x: 3.0, y: 2.0 }, None).unwrap();
+        let first = build.add_point(Point { x: 1.0, y: 2.0 }, &super::super::route_search_guard::OvgBuildBudget::new()).unwrap();
+        let second = build.add_point(Point { x: 3.0, y: 2.0 }, &super::super::route_search_guard::OvgBuildBudget::new()).unwrap();
         build.members = vec![first, first, second];
         let mut view = VisibilityGraph::default();
         view.retain_canonical(build);
@@ -631,15 +631,15 @@ mod canonical_tests {
     #[test]
     fn retained_route_identities_keep_membership_across_import_and_freeze() {
         let mut build = super::super::ovg_ports::PortBuild::default();
-        let first = build.add_point(Point { x: 1.0, y: 2.0 }, None).unwrap();
-        let second = build.add_point(Point { x: 3.0, y: 2.0 }, None).unwrap();
+        let first = build.add_point(Point { x: 1.0, y: 2.0 }, &super::super::route_search_guard::OvgBuildBudget::new()).unwrap();
+        let second = build.add_point(Point { x: 3.0, y: 2.0 }, &super::super::route_search_guard::OvgBuildBudget::new()).unwrap();
         // Go's OccupiedPoints and Ports keep the same node pointers when
         // Nodes repeats an object (ovg.go:18-42). Canonical lookups use its
         // last occurrence, even when that differs from its allocation slot.
         let owner = NodeId(10);
         build.add_tree_port_owner(first, owner, 4, PortSide::Top);
         build.add_tree_port_owner(second, owner, 4, PortSide::Top);
-        build.connect(first, second, None).unwrap();
+        build.connect(first, second, &super::super::route_search_guard::OvgBuildBudget::new()).unwrap();
         let point = build.nodes[first].read().point_ref.clone().unwrap();
         build.members = vec![first, first, second];
         let mut view = VisibilityGraph::default();
@@ -650,7 +650,7 @@ mod canonical_tests {
             .as_mut()
             .unwrap()
             .build
-            .add_point(Point { x: 5.0, y: 2.0 }, None)
+            .add_point(Point { x: 5.0, y: 2.0 }, &super::super::route_search_guard::OvgBuildBudget::new())
             .unwrap();
         view.refresh_canonical();
         // Like a captured Go slice header, an existing router retains its
@@ -705,12 +705,12 @@ mod canonical_tests {
     #[test]
     fn search_projection_keeps_ghost_identity_live_points_and_source_array_length() {
         let mut build = super::super::ovg_ports::PortBuild::default();
-        let ghost = build.add_point(Point { x: 1.0, y: 2.0 }, None).unwrap();
-        build.remove_isolated(None).unwrap();
+        let ghost = build.add_point(Point { x: 1.0, y: 2.0 }, &super::super::route_search_guard::OvgBuildBudget::new()).unwrap();
+        build.remove_isolated(&super::super::route_search_guard::OvgBuildBudget::new()).unwrap();
         let point = SharedOwnerPoint::new(Point { x: 3.0, y: 4.0 });
         let mut route = super::super::ovg_import::ImportedRoute::default();
         build
-            .import_route_point(Some(point.clone()), &mut route, None)
+            .import_route_point(Some(point.clone()), &mut route, &super::super::route_search_guard::OvgBuildBudget::new())
             .unwrap();
         let mut view = VisibilityGraph::default();
         view.retain_canonical(build);
@@ -722,7 +722,7 @@ mod canonical_tests {
         assert_eq!(view.point(live_view), Point { x: 7.0, y: 8.0 });
         assert_eq!(view.index_of(Point { x: 3.0, y: 4.0 }), Some(live_view));
         assert!(view.index_of(Point { x: 7.0, y: 8.0 }).is_none());
-        let prepared = view.prepare_route_search(None).unwrap();
+        let prepared = view.prepare_route_search(&LocalRouteSearchWork::new(u64::MAX)).unwrap();
         assert_eq!(prepared.slots.len(), 1);
         let view = view.into_shared();
         assert_eq!(view.member_count(), 1);
@@ -734,6 +734,6 @@ mod canonical_tests {
         assert_eq!(view.index_of(Point { x: 3.0, y: 4.0 }), Some(live_view));
         assert_eq!(view.index_of(Point { x: 1.0, y: 2.0 }), Some(ghost_view));
         assert!(view.index_of(Point { x: 9.0, y: 10.0 }).is_none());
-        assert_eq!(view.prepare_route_search(None).unwrap().slots.len(), 1);
+        assert_eq!(view.prepare_route_search(&LocalRouteSearchWork::new(u64::MAX)).unwrap().slots.len(), 1);
     }
 }

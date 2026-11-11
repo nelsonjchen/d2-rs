@@ -427,26 +427,20 @@ impl PackingTrial<'_> {
         guard: &mut limits::WorkGuard<'_>,
         operation: impl FnOnce(&mut ArenaGraph, &mut limits::WorkGuard<'_>) -> Result<(), limits::Error>,
     ) -> Result<(), limits::Error> {
-        use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
-        let result = catch_unwind(AssertUnwindSafe(|| {
+        // A panic needs no restore: Drop restores an unaccepted trial, and the
+        // seed's recovery discards the whole graph.
+        let result = (|| {
             guard.finish()?;
             guard.check_context()?;
             guard.step()?;
             guard.check_context()?;
             operation(self.graph, guard)?;
             guard.check_context()
-        }));
-        match result {
-            Ok(Ok(())) => Ok(()),
-            Ok(Err(error)) => {
-                self.state.restore(self.graph);
-                Err(error)
-            }
-            Err(payload) => {
-                self.state.restore(self.graph);
-                resume_unwind(payload)
-            }
+        })();
+        if result.is_err() {
+            self.state.restore(self.graph);
         }
+        result
     }
     /// The BinPack transaction uses IgnoreContainerEscape=true and leaves
     /// AffectContainers=false. Validate the actual post-sync receiver; a rejected
@@ -512,8 +506,7 @@ impl PackingTrial<'_> {
         I: IntoIterator<Item = F>,
         F: FnOnce(&mut ArenaGraph, &mut limits::WorkGuard<'_>) -> Result<(), limits::Error>,
     {
-        use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
-        let result = catch_unwind(AssertUnwindSafe(|| {
+        let result = (|| {
             guard.finish()?;
             guard.check_context()?;
             for operation in operations() {
@@ -545,22 +538,11 @@ impl PackingTrial<'_> {
                 options.ignore_container_escape,
                 guard,
             )
-        }));
-        match result {
-            Ok(Ok(true)) => Ok(true),
-            Ok(Ok(false)) => {
-                self.state.restore(self.graph);
-                Ok(false)
-            }
-            Ok(Err(error)) => {
-                self.state.restore(self.graph);
-                Err(error)
-            }
-            Err(payload) => {
-                self.state.restore(self.graph);
-                resume_unwind(payload)
-            }
+        })();
+        if !matches!(result, Ok(true)) {
+            self.state.restore(self.graph);
         }
+        result
     }
     pub(super) fn accept(mut self) {
         self.accepted = true;

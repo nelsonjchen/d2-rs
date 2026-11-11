@@ -11,15 +11,13 @@ use super::*;
 use d2_rs_core::stable_sort::StableSort;
 
 impl ArenaGraph {
-    pub(super) fn from_input(input: &Graph) -> Self {
-        let mut graph = Self::from_input_without_tree_routing(input);
-        graph.initialize_tree_routing_state();
-        graph
+    /// Go's NodeToTree stays empty until Pipeline.PreprocessTrees, so
+    /// construction leaves the tree routing state empty too.
+    pub(super) fn from_input_without_tree_routing(input: &Graph) -> Self {
+        Self::from_input(input)
     }
 
-    /// Construct a fresh graph for callers that do not run tree preprocessing,
-    /// such as hierarchy.PlaceCompound's isolated placement proxy.
-    pub(super) fn from_input_without_tree_routing(input: &Graph) -> Self {
+    pub(super) fn from_input(input: &Graph) -> Self {
         if crate::internal::trace_env_enabled("TALA_TRACE_SOURCE_EDGES") {
             eprintln!(
                 "SOURCE_EDGES_ARENA input_edges={} vec={} map={} first={:?}",
@@ -684,7 +682,6 @@ impl ArenaGraph {
             placement_scope_owned: flat_root_scope,
             root_hierarchy: input.root_hierarchy,
             containers,
-            descendant_cache: Vec::new(),
             directions,
             scoring_directions,
             directions_by_tala,
@@ -766,7 +763,6 @@ impl ArenaGraph {
             }
         }
         graph.external_edge_counts.resize(graph.nodes.len(), 0);
-        graph.rebuild_descendant_cache();
         // Serialized graphjson carries the owning Go graph's `Nodes` slice
         // separately from its map-backed container member order. Preserve
         // that explicit order when supplied.  For ordinary input, `Graph.Nodes`
@@ -1080,12 +1076,6 @@ impl ArenaGraph {
         self.nodes[node.0 as usize].position = None;
     }
 
-    pub(super) fn rebuild_descendant_cache(&mut self) {
-        // Shared header/backing writes cannot be invalidated by a local graph
-        // cache. Keep no authoritative descendant image.
-        self.descendant_cache.clear();
-    }
-
     pub(super) fn descendants(&self, root: NodeId) -> Vec<NodeId> {
         let mut result = Vec::new();
         let mut pending = self.containers.get(&Some(root)).unwrap_or_default();
@@ -1096,55 +1086,6 @@ impl ArenaGraph {
             }
         }
         result
-    }
-
-    /// Whether a subtree carries one of TALA's aggregate placement states.
-    ///
-    /// The cloned Rust scope needs frame replay for ordinary shared-pointer
-    /// children, but aggregate vessels already publish their projected
-    /// coordinates through their own materialization lifecycle.
-    pub(super) fn subtree_has_special_placement_state(&self, root: NodeId) -> bool {
-        std::iter::once(root)
-            .chain(self.descendants(root))
-            .any(|node| {
-                let node_ref = &self.nodes[node.0 as usize];
-                self.active_node_is_aggregate(node)
-                    || node_ref.sequence.is_some()
-                    || node_ref.cluster.is_some()
-                    || node_ref.scoring_is_aggregate_vessel
-                    || node_ref.grid_rows.is_some()
-                    || node_ref.grid_columns.is_some()
-                    || node_ref.label_aware_grid
-                    || node_ref.packed_grid
-            })
-    }
-
-    pub(super) fn subtree_has_sequence_or_grid_state(&self, root: NodeId) -> bool {
-        std::iter::once(root)
-            .chain(self.descendants(root))
-            .any(|node| {
-                let node_ref = &self.nodes[node.0 as usize];
-                node_ref.sequence.is_some()
-                    || node_ref.grid_rows.is_some()
-                    || node_ref.grid_columns.is_some()
-                    || node_ref.label_aware_grid
-                    || node_ref.packed_grid
-            })
-    }
-
-    /// The shared-pointer frame is also observable for TALA's queue fan-out
-    /// composition, whose branching graph is not a simple path.
-    pub(super) fn has_queue_shape(&self) -> bool {
-        self.nodes.iter().any(|node| node.shape == ShapeKind::Queue)
-    }
-
-    pub(super) fn graph_is_path_like(&self) -> bool {
-        let mut degrees = vec![0usize; self.nodes.len()];
-        for edge in self.member_edges() {
-            degrees[edge.from.0 as usize] += 1;
-            degrees[edge.to.0 as usize] += 1;
-        }
-        degrees.into_iter().max().unwrap_or(0) <= 2
     }
 
     pub(super) fn is_descendant_of_scope(&self, node: NodeId, scope: Option<NodeId>) -> bool {
@@ -1736,12 +1677,9 @@ impl ArenaGraph {
         &self,
         members: &[NodeId],
     ) -> (Vec<NodeId>, Vec<EdgeId>, Vec<NodeId>) {
-        // Aggregate materialization may change which dense nodes are live.
-        // Keep that path until its membership can be derived independently.
-        if !self.clusters.is_empty() || !self.sequences.is_empty() {
-            let (graph, nodes, edges) = self.induced_placement_subgraph_with_edge_mapping(members);
-            return (nodes, edges, graph.graph_node_order());
-        }
+        // The materialized graph has node_order 0..n, no sequences or
+        // clusters and an invalid membership index, so its graph_node_order
+        // is every dense node even when this graph has aggregates.
         let old_to_new = members
             .iter()
             .enumerate()
@@ -2585,7 +2523,6 @@ impl ArenaGraph {
             placement_scope_owned: true,
             root_hierarchy: self.root_hierarchy,
             containers: ContainerMap::from([(None, induced_root_children)]),
-            descendant_cache: Vec::new(),
             directions: BTreeMap::from([(None, direction)]),
             scoring_directions: scoring_direction
                 .map(|direction| BTreeMap::from([(None, direction)]))
@@ -2719,7 +2656,6 @@ impl ArenaGraph {
                 );
             }
         }
-        graph.rebuild_descendant_cache();
         graph.compute_cell_size();
         graph.refresh_placement_components();
         if crate::internal::trace_env_enabled("TALA_TRACE_INDUCED_ORDER") {

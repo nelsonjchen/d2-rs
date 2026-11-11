@@ -1293,31 +1293,6 @@ fn trace_candidate_point(point: Point) -> PlacementCandidatePoint {
     }
 }
 
-pub(crate) fn trace_placement_candidates(
-    phase: &'static str,
-    node: &ArenaNode,
-    median: Point,
-    distance: f64,
-    minimizing_self: bool,
-    points: &[Point],
-) {
-    if !crate::internal::trace_env_enabled("TALA_TRACE_PLACEMENT") {
-        return;
-    }
-    let event = PlacementCandidatesEvent {
-        event: "placement-candidates",
-        phase,
-        node: node.external_id.clone(),
-        median: trace_candidate_point(median),
-        distance_bits: trace_float_bits(distance),
-        minimizing_self,
-        points: points.iter().copied().map(trace_candidate_point).collect(),
-    };
-    if let Ok(encoded) = serde_json::to_string(&event) {
-        eprintln!("{encoded}");
-    }
-}
-
 pub(crate) fn trace_placement_candidates_graph(
     phase: &'static str,
     graph: &ArenaGraph,
@@ -1338,30 +1313,6 @@ pub(crate) fn trace_placement_candidates_graph(
         distance_bits: trace_float_bits(distance),
         minimizing_self,
         points: points.iter().copied().map(trace_candidate_point).collect(),
-    };
-    if let Ok(encoded) = serde_json::to_string(&event) {
-        eprintln!("{encoded}");
-    }
-}
-
-pub(crate) fn trace_placement_score(
-    phase: &'static str,
-    node: &ArenaNode,
-    position: Point,
-    score: f64,
-    least: f64,
-) {
-    if !crate::internal::trace_env_enabled("TALA_TRACE_PLACEMENT") {
-        return;
-    }
-    let event = PlacementScoreEvent {
-        event: "placement-score",
-        phase,
-        node: node.external_id.clone(),
-        x_bits: trace_float_bits(position.x),
-        y_bits: trace_float_bits(position.y),
-        score_bits: trace_float_bits(score),
-        least_bits: trace_float_bits(least),
     };
     if let Ok(encoded) = serde_json::to_string(&event) {
         eprintln!("{encoded}");
@@ -10490,11 +10441,6 @@ impl Pipeline {
         })
     }
 
-    pub(super) fn run_nudge_edge_channels(&mut self) {
-        routing::nudge_edge_channels(&mut self.graph);
-        self.trace_route_stage("NudgeEdgeChannels");
-    }
-
     pub(super) fn run_nudge_edge_channels_checked(&mut self) -> Result<(), crate::LayoutError> {
         self.route_stage_work = routing::RouteStageWork::new(routing::MAX_ROUTE_STAGE_WORK_UNITS);
         match routing::nudge_edge_channels_with_budget(&mut self.graph, &self.route_stage_work) {
@@ -10504,11 +10450,6 @@ impl Pipeline {
         }
         self.trace_route_stage("NudgeEdgeChannels");
         Ok(())
-    }
-
-    pub(super) fn run_shortcut_edge_routes(&mut self) {
-        routing::shortcut_edge_routes(&mut self.graph);
-        self.trace_route_stage("ShortcutEdgeRoutes");
     }
 
     pub(super) fn run_shortcut_edge_routes_checked(&mut self) -> Result<(), crate::LayoutError> {

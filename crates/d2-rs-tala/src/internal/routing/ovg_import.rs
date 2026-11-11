@@ -62,10 +62,8 @@ impl PortBuild {
             push_pointer(&mut route.nodes, node);
             // The local route sees the object before either fallible reservation.
             step(budget)?;
-            if let Some(b) = budget {
-                b.reserve_nodes(1)?;
-            }
-            self.publish_member(node, budget.is_some());
+            budget.reserve_nodes(1)?;
+            self.publish_member(node, true);
             node
         };
         if route.nodes.len() > 1 {
@@ -150,7 +148,7 @@ mod tests {
                 mutate: &mutate,
             };
             let budget = OvgBuildBudget::with_context(&context);
-            let result = build.import_route_point(Some(point.clone()), &mut route, Some(&budget));
+            let result = build.import_route_point(Some(point.clone()), &mut route, &budget);
             assert_eq!(result.is_err(), cancel != 0);
             assert_eq!(route.nodes.len(), 1);
             assert_eq!(
@@ -171,7 +169,11 @@ mod tests {
         let mut route = ImportedRoute::default();
         let point = SharedOwnerPoint::new(Point { x: 1.0, y: 2.0 });
         build
-            .import_route_point(Some(point.clone()), &mut route, None)
+            .import_route_point(
+                Some(point.clone()),
+                &mut route,
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
             .unwrap();
         let mutate = |_| point.set(Point { x: 7.0, y: 8.0 });
         let context = Caller {
@@ -181,7 +183,7 @@ mod tests {
         };
         let budget = OvgBuildBudget::with_context(&context);
         build
-            .import_route_point(Some(point.clone()), &mut route, Some(&budget))
+            .import_route_point(Some(point.clone()), &mut route, &budget)
             .unwrap();
         assert_eq!(route.nodes.len(), 1);
         assert!(build.edges.is_empty());
@@ -192,11 +194,22 @@ mod tests {
     fn retained_occupant_does_not_rejoin_membership() {
         let mut build = PortBuild::default();
         let point = Point { x: 1.0, y: 2.0 };
-        let original = build.add_point(point, None).unwrap();
-        build.remove_isolated(None).unwrap();
+        let original = build
+            .add_point(
+                point,
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
+            .unwrap();
+        build
+            .remove_isolated(&super::super::route_search_guard::OvgBuildBudget::new())
+            .unwrap();
         let mut route = ImportedRoute::default();
         build
-            .import_route_point(Some(SharedOwnerPoint::new(point)), &mut route, None)
+            .import_route_point(
+                Some(SharedOwnerPoint::new(point)),
+                &mut route,
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
             .unwrap();
         assert_eq!(route.nodes, [original]);
         assert!(build.members.is_empty());
@@ -211,10 +224,18 @@ mod tests {
             y: 2.0,
         });
         build
-            .import_route_point(Some(point.clone()), &mut route, None)
+            .import_route_point(
+                Some(point.clone()),
+                &mut route,
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
             .unwrap();
         build
-            .import_route_point(Some(point.clone()), &mut route, None)
+            .import_route_point(
+                Some(point.clone()),
+                &mut route,
+                &super::super::route_search_guard::OvgBuildBudget::new(),
+            )
             .unwrap();
         assert_eq!(route.nodes, [0, 1]);
         assert_eq!(build.members, [0, 1]);

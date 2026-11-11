@@ -28,9 +28,6 @@ impl OwnerIncidentHeader {
     pub(super) fn iter_slots(&self) -> impl Iterator<Item = Option<EdgeId>> + use<> {
         self.slice.iter_slots()
     }
-    pub(super) fn for_each_visible(&self, visit: impl FnMut(&Option<EdgeId>)) {
-        self.slice.for_each_visible(visit)
-    }
     pub(super) fn reslice_with_capacity(
         &self,
         low: usize,

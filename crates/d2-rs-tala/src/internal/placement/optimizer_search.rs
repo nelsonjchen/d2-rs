@@ -17,9 +17,9 @@ impl OptimizerSpatialIndex {
         // Queries change its local candidate header, while writes to an
         // existing backing remain visible through the original header.
         let original=self.candidates.clone();
-        let result=std::panic::catch_unwind(std::panic::AssertUnwindSafe(||self.closest_distance_value(owner,receiver,node,point,cell,origin,minimize,checked,guard)));
+        let result=self.closest_distance_value(owner,receiver,node,point,cell,origin,minimize,checked,guard);
         self.candidates=original;
-        match result{Ok(result)=>result,Err(payload)=>std::panic::resume_unwind(payload)}
+        result
     }
     fn closest_distance_value(&mut self,owner:&mut ArenaGraph,receiver:OwnerGraphId,node:Option<NodeId>,point:Option<&dyn SpatialPoint>,cell:f64,origin:Option<Point>,minimize:bool,checked:&mut Option<CheckedOffsets>,guard:&mut OptimizationWorkGuard<'_>)->Result<f64,OptimizationError>{
         let (Some(node),Some(point))=(node,point)else{return Err(invalid(guard,"placement search requires a positioned node, graph, and point"));};

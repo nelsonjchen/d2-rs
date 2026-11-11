@@ -154,11 +154,11 @@ pub(super) fn move_to_best(
     let mut index = OptimizerSpatialIndex::default();
     // moves.go scores the owner directly. A stable scorer needs no numerical
     // publication until a sized candidate reaches crossing/symmetry. Refresh
-    // on every exit, including cancellation and unwinding, so the transport
-    // still exposes the last completed owner move at the original boundary.
+    // on every exit, including cancellation, so the transport still exposes
+    // the last completed owner move at the original boundary.
     let defer_publication = scorer.is_some() || sizeless_scorer.is_some();
     let mut pending_publication = false;
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+    let result = (|| {
         for handle in points {
             step(session.owner_mut(), guard)?;
             let handle = handle.ok_or_else(|| {
@@ -315,19 +315,11 @@ pub(super) fn move_to_best(
         refresh(workspace, session)?;
         finish(session.owner_mut(), guard)?;
         Ok(session.owner().position(canonical) != Some(current))
-    }));
-    let publication = if pending_publication {
-        refresh(workspace, session)
-    } else {
-        Ok(())
-    };
-    match result {
-        Ok(result) => {
-            publication?;
-            result
-        }
-        Err(payload) => std::panic::resume_unwind(payload),
+    })();
+    if pending_publication {
+        refresh(workspace, session)?;
     }
+    result
 }
 
 impl ArenaGraph {
@@ -574,7 +566,13 @@ mod tests {
                         }))
                         .unwrap_or_else(|_| Err("compaction poll panic".into()));
                         drop(session);
+                        // An unwind leaves the workspace unspecified: the seed
+                        // recovery discards it without reading it.
+                        let unwound = result
+                            .as_ref()
+                            .is_err_and(|error| error == "compaction poll panic");
                         let workspace_positions = (0..5)
+                            .filter(|_| !unwound)
                             .map(|index| {
                                 workspace
                                     .position(NodeId(index))

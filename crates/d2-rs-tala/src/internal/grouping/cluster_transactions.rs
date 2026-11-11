@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0
 //! placement/cluster_optimization.go request transactions and atomic stage journal.
 use super::*;
-use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
 
 struct Request {
     geometry: GeometryCheckpoint,
@@ -31,7 +30,7 @@ impl Request {
     {
         let mut work = gap_guard::GapWork::new(guard, context, false);
         work.anchor_canonical_overlaps(self.overlaps.clone(), self.exact.clone());
-        let result = catch_unwind(AssertUnwindSafe(|| {
+        let result = (|| {
             work.before_operation(graph)?;
             operation(graph, &mut work)?;
             work.check_context(graph)?;
@@ -42,18 +41,11 @@ impl Request {
             graph.sync_sequences();
             work.check_context(graph)?;
             work.validate_commit(graph, &self.geometry)
-        }));
-        match result {
-            Ok(Ok(true)) => Ok(true),
-            Ok(value) => {
-                self.geometry.rollback(graph);
-                value
-            }
-            Err(payload) => {
-                self.geometry.rollback(graph);
-                resume_unwind(payload)
-            }
+        })();
+        if !matches!(result, Ok(true)) {
+            self.geometry.rollback(graph);
         }
+        result
     }
 }
 struct Journal {
@@ -100,25 +92,18 @@ impl ArenaGraph {
             cell: self.cell_size,
             costs: None,
         };
-        let result = catch_unwind(AssertUnwindSafe(|| {
+        let result = (|| {
             let mut changed = false;
             for index in order {
                 changed |=
                     self.optimize_one_cluster_transactional(index, context, guard, &mut journal)?;
             }
             Ok(changed)
-        }));
-        match result {
-            Ok(Ok(changed)) => Ok(changed),
-            Ok(Err(error)) => {
-                journal.restore(self);
-                Err(error)
-            }
-            Err(payload) => {
-                journal.restore(self);
-                resume_unwind(payload)
-            }
+        })();
+        if result.is_err() {
+            journal.restore(self);
         }
+        result
     }
     fn optimize_one_cluster_transactional(
         &mut self,
