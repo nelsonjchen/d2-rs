@@ -10,6 +10,11 @@ Each release names the upstream Go D2 commit it matches, from
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-11-11
+
+Matches Go D2 `master` at 6a7b48378, as 0.1.0 does. Crates, the npm
+package and prebuilt binaries.
+
 ### Added
 
 - Prebuilt `d2-rs` binaries on GitHub releases, for the platforms Go D2
@@ -198,6 +203,7 @@ Matches Go D2 `master` at 6a7b48378, as 0.1.0 does.
   path separators in diagnostics and one TALA layout differ in tests.
 
 [Unreleased]: https://github.com/nelsonjchen/d2-rs/commits/main
+[0.1.5]: https://crates.io/crates/d2-rs/0.1.5
 [0.1.4]: https://crates.io/crates/d2-rs/0.1.4
 [0.1.3]: https://crates.io/crates/d2-rs/0.1.3
 [0.1.2]: https://www.npmjs.com/package/@d2-rs/wasm/v/0.1.2
