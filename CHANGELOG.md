@@ -23,11 +23,24 @@ Each release names the upstream Go D2 commit it matches, from
 
 ### Changed
 
-- The native CLI is 13% smaller: 42.8 MB stripped on Linux arm64, down
-  from 49.2 MB (Go's `d2` is 40.8 MB), and 49.5 MB on x86-64, down from
-  56.6 MB. Release builds use fat LTO, and stable sorts share one copy per
-  element type instead of one per comparator. Output and speed are
-  unchanged.
+- The native CLI is 24% smaller: 37.4 MB stripped on Linux arm64, down
+  from 49.2 MB (Go's `d2` is 40.8 MB), and 43.1 MB on x86-64, down from
+  56.6 MB. Release builds use fat LTO, stable sorts and graph lowering
+  share code instead of copying it per comparator or text measurer, and
+  PNG, PDF and PPTX are rendered from Go's scene path, which drops the
+  earlier SVG renderer and the usvg/resvg stack from the binary. Output
+  is unchanged; PNG, PDF and PPTX export is up to 25% faster.
+- `D2_RS_SVG_RENDERER=legacy` no longer selects the earlier native SVG
+  renderer; SVG output always uses the d2svg port, as it has by default.
+
+### Fixed
+
+- TALA on x86-64: edges ending on non-rectangular shapes (cloud,
+  cylinder, person and others) traced the shape border with fused
+  multiply-add, as on arm64; they now follow Go's unfused amd64
+  arithmetic.
+- TALA: a panic while routing edges returns Go's "TALA edge routing
+  failed due to an internal invariant" error instead of unwinding.
 
 ### Changed
 
