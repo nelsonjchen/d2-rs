@@ -2090,13 +2090,23 @@ fn collapse_nested_grid_scopes(
             // with DefaultRouter: centers first, then D2's ordered shape and
             // label intersections. The rectangle-only approximation loses
             // those exact endpoints on non-rectangular and half-pixel boxes.
-            let route = d2_rs_dagre::route_straight_edge(graph, edge_id, *source, *target)
-                .unwrap_or_else(|| {
-                    vec![
-                        layout_boundary_intersection(*source, target.center()),
-                        layout_boundary_intersection(*target, source.center()),
-                    ]
-                });
+            // TraceToShape reads each object's committed LabelPosition: the
+            // parent engine's for visible objects and d2grid's for injected
+            // cells (InsideMiddleCenter even when the label overflows), not
+            // the parent engine's defaults recomputed for the cell.
+            let route = d2_rs_dagre::route_straight_edge_with_labels(
+                graph,
+                edge_id,
+                *source,
+                *target,
+                Some(&result.node_labels),
+            )
+            .unwrap_or_else(|| {
+                vec![
+                    layout_boundary_intersection(*source, target.center()),
+                    layout_boundary_intersection(*target, source.center()),
+                ]
+            });
             #[cfg(feature = "diagnostic-traces")]
             if diagnostic_env_enabled("DAGRE_DEBUG_NESTED")
                 && graph

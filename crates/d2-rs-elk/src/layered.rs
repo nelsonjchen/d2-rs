@@ -291,6 +291,12 @@ pub struct LGraph {
     pub edge_node_vertical_spacing: f64,
     /// Vertical spacing between hierarchical external-port dummies.
     pub port_port_spacing: f64,
+    /// `spacing.labelNode`: in-layer spacing between label and
+    /// north/south-port dummies.
+    pub label_node_spacing: f64,
+    /// `spacing.labelPortVertical`: in-layer spacing between label and
+    /// external-port dummies.
+    pub label_port_vertical_spacing: f64,
     /// Spacing between a self-loop route and its label.
     pub edge_label_spacing: f64,
     /// Spacing between labels belonging to one self-loop edge.
@@ -1017,6 +1023,8 @@ impl LayeredArena {
             parse_edge_node_spacing(&graph.layout_options),
             parse_edge_node_vertical_spacing(&graph.layout_options),
             parse_port_port_spacing(&graph.layout_options),
+            parse_label_node_spacing(&graph.layout_options),
+            parse_label_port_vertical_spacing(&graph.layout_options),
             parse_edge_edge_spacing(&graph.layout_options),
             parse_edge_edge_spacing_between_layers(&graph.layout_options),
             parse_edge_label_spacing(&graph.layout_options),
@@ -1627,6 +1635,8 @@ impl LayeredArena {
         edge_node_spacing: f64,
         edge_node_vertical_spacing: f64,
         port_port_spacing: f64,
+        label_node_spacing: f64,
+        label_port_vertical_spacing: f64,
         edge_edge_spacing: f64,
         edge_edge_spacing_between_layers: f64,
         edge_label_spacing: f64,
@@ -1653,6 +1663,8 @@ impl LayeredArena {
             edge_node_spacing,
             edge_node_vertical_spacing,
             port_port_spacing,
+            label_node_spacing,
+            label_port_vertical_spacing,
             edge_edge_spacing,
             edge_edge_spacing_between_layers,
             edge_label_spacing,
@@ -1871,6 +1883,8 @@ impl LayeredArena {
                 parse_edge_node_spacing(nested_options),
                 parse_edge_node_vertical_spacing(nested_options),
                 parse_port_port_spacing(nested_options),
+                parse_label_node_spacing(nested_options),
+                parse_label_port_vertical_spacing(nested_options),
                 parse_edge_edge_spacing(nested_options),
                 parse_edge_edge_spacing_between_layers(nested_options),
                 parse_edge_label_spacing(nested_options),
@@ -4360,6 +4374,24 @@ fn parse_port_port_spacing(options: &Value) -> f64 {
         .or_else(|| options.get("spacing.portPort"))
         .and_then(parse_option_double)
         .unwrap_or(10.0)
+}
+
+fn parse_label_node_spacing(options: &Value) -> f64 {
+    options
+        .get("org.eclipse.elk.spacing.labelNode")
+        .or_else(|| options.get("elk.spacing.labelNode"))
+        .or_else(|| options.get("spacing.labelNode"))
+        .and_then(parse_option_double)
+        .unwrap_or(5.0)
+}
+
+fn parse_label_port_vertical_spacing(options: &Value) -> f64 {
+    options
+        .get("org.eclipse.elk.spacing.labelPortVertical")
+        .or_else(|| options.get("elk.spacing.labelPortVertical"))
+        .or_else(|| options.get("spacing.labelPortVertical"))
+        .and_then(parse_option_double)
+        .unwrap_or(1.0)
 }
 
 fn parse_edge_edge_spacing(options: &serde_json::Value) -> f64 {
@@ -15729,12 +15761,30 @@ fn bk_vertical_spacing(
         | (LayeredNodeType::NorthSouthPort, LayeredNodeType::NorthSouthPort)
         | (LayeredNodeType::LongEdge, LayeredNodeType::NorthSouthPort)
         | (LayeredNodeType::NorthSouthPort, LayeredNodeType::LongEdge)
+        | (LayeredNodeType::LongEdge, LayeredNodeType::ExternalPort)
+        | (LayeredNodeType::ExternalPort, LayeredNodeType::LongEdge)
         | (LayeredNodeType::NorthSouthPort, LayeredNodeType::ExternalPort)
         | (LayeredNodeType::ExternalPort, LayeredNodeType::NorthSouthPort)
-        | (LayeredNodeType::Label, LayeredNodeType::Label) => arena
+        | (LayeredNodeType::Label, LayeredNodeType::Label)
+        | (LayeredNodeType::BreakingPoint, LayeredNodeType::BreakingPoint) => arena
             .graphs
             .get(arena.nodes[first as usize].graph as usize)
             .map(|graph| graph.edge_edge_spacing)
+            .unwrap_or(fallback),
+        // layered/spacings.go: vertical(NorthSouthPortNode, LabelNode,
+        // SpacingLabelNode) and both(ExternalPortNode, LabelNode,
+        // SpacingLabelPortVertical, ...).
+        (LayeredNodeType::NorthSouthPort, LayeredNodeType::Label)
+        | (LayeredNodeType::Label, LayeredNodeType::NorthSouthPort) => arena
+            .graphs
+            .get(arena.nodes[first as usize].graph as usize)
+            .map(|graph| graph.label_node_spacing)
+            .unwrap_or(fallback),
+        (LayeredNodeType::ExternalPort, LayeredNodeType::Label)
+        | (LayeredNodeType::Label, LayeredNodeType::ExternalPort) => arena
+            .graphs
+            .get(arena.nodes[first as usize].graph as usize)
+            .map(|graph| graph.label_port_vertical_spacing)
             .unwrap_or(fallback),
         (LayeredNodeType::Normal, LayeredNodeType::Normal) => arena
             .graphs
