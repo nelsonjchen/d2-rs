@@ -12,7 +12,7 @@
 [package]
 edition = "2021"
 name = "d2-rs-rustybuzz"
-version = "0.20.1"
+version = "0.20.2"
 authors = [
     "Caleb Maclennan <caleb@alerque.com>",
     "Laurenz Stampfl <laurenz.stampfl@gmail.com>",
