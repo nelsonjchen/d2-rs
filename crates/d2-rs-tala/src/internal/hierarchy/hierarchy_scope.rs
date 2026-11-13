@@ -2785,15 +2785,28 @@ impl Pipeline {
         mut node: NodeId,
         scope: Option<NodeId>,
     ) -> Option<NodeId> {
+        // Node.isDescendantOf (layoutgraph/layout.go:318-334) continues from
+        // a sequence step through Sequence.Vessel. addSequence clears the
+        // step's Container and adds the vessel to the step's former
+        // container, so a step inside a container still descends from it.
+        let parent_of = |node: NodeId| {
+            let value = &self.graph.nodes[node.0 as usize];
+            value.container.or_else(|| {
+                value
+                    .sequence
+                    .and_then(|index| self.graph.sequences.get(index))
+                    .and_then(|sequence| sequence.container)
+            })
+        };
         match scope {
             None => {
-                while let Some(parent) = self.graph.nodes[node.0 as usize].container {
+                while let Some(parent) = parent_of(node) {
                     node = parent;
                 }
                 Some(node)
             }
             Some(scope) => loop {
-                let parent = self.graph.nodes[node.0 as usize].container?;
+                let parent = parent_of(node)?;
                 if parent == scope {
                     return Some(node);
                 }
@@ -9382,59 +9395,14 @@ impl Pipeline {
                 .first()
                 .is_some_and(|node| scope.graph.nodes[node.0 as usize].hierarchy.is_some())
             {
-                let hierarchy_node = members[0];
-                // Graph.placeNodes still runs syncNested for a hierarchy-owned
-                // child graph before it skips recursive ordinary placement.
-                // Keep the shared container pointers aligned at this boundary
-                // even though the hierarchy's own coordinates are already
-                // arranged by PlaceHierarchies.
+                // Go placeNodes (node_placement.go, the `subgraph.Nodes[0].Hierarchy
+                // == nil` guard) skips placeNodesOrthogonally, and with it the
+                // only SyncNestedGeometry on this path, for a hierarchy
+                // component. Container children therefore keep the offsets
+                // PlaceHierarchies gave them; re-running positionContainerChildren
+                // here would re-centre them inside their container.
                 #[cfg(feature = "diagnostic-traces")]
                 let trace_before_hierarchy_sync = scope.graph.clone();
-                if crate::internal::trace_env_value("TALA_TRACE_HIERARCHY_SYNC").is_some_and(
-                    |target| {
-                        target == "all"
-                            || target
-                                == scope.graph.nodes[hierarchy_node.0 as usize]
-                                    .tala_id
-                                    .to_string()
-                    },
-                ) {
-                    eprintln!(
-                        "HIERARCHY_SYNC_RUST before node={} children={:?}",
-                        scope.graph.nodes[hierarchy_node.0 as usize].tala_id,
-                        scope
-                            .graph
-                            .transaction_external_container_children
-                            .get(&scope.graph.nodes[hierarchy_node.0 as usize].tala_id)
-                            .map(|children| children
-                                .iter()
-                                .map(|child| (child.tala_id, child.position))
-                                .collect::<Vec<_>>())
-                    );
-                }
-                scope.graph.sync_nested_projected_container_children();
-                if crate::internal::trace_env_value("TALA_TRACE_HIERARCHY_SYNC").is_some_and(
-                    |target| {
-                        target == "all"
-                            || target
-                                == scope.graph.nodes[hierarchy_node.0 as usize]
-                                    .tala_id
-                                    .to_string()
-                    },
-                ) {
-                    eprintln!(
-                        "HIERARCHY_SYNC_RUST after node={} children={:?}",
-                        scope.graph.nodes[hierarchy_node.0 as usize].tala_id,
-                        scope
-                            .graph
-                            .transaction_external_container_children
-                            .get(&scope.graph.nodes[hierarchy_node.0 as usize].tala_id)
-                            .map(|children| children
-                                .iter()
-                                .map(|child| (child.tala_id, child.position))
-                                .collect::<Vec<_>>())
-                    );
-                }
                 // Go skips orthogonal placement and cluster optimization when
                 // the first component node has a Hierarchy, but still emits
                 // the post-optimization snapshot and runs PlaceTrees before

@@ -1,0 +1,51 @@
+--- a/src/runtime/rand.go
++++ b/src/runtime/rand.go
+@@ -8,6 +8,7 @@
+ 
+ import (
+ 	"internal/byteorder"
++	"internal/runtime/atomic"
+ 	"internal/chacha8rand"
+ 	"internal/goarch"
+ 	"math/bits"
+@@ -184,9 +185,40 @@
+ 
+ //go:linkname maps_rand internal/runtime/maps.rand
+ func maps_rand() uint64 {
++	if mapSeed.on {
++		// d2-rs test oracle: map hash seeds and iteration start offsets
++		// come from a counter mixed with D2RS_GO_MAPSEED (splitmix64), so a
++		// single-goroutine program iterates maps in a reproducible order.
++		x := mapSeed.seed + atomic.Xadd64(&mapSeed.counter, 1)*0x9e3779b97f4a7c15
++		x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9
++		x = (x ^ (x >> 27)) * 0x94d049bb133111eb
++		return x ^ (x >> 31)
++	}
+ 	return rand()
+ }
+ 
++// mapSeed is set from D2RS_GO_MAPSEED once the environment is parsed; maps
++// made by the runtime before that keep random seeds.
++var mapSeed struct {
++	on      bool
++	seed    uint64
++	counter uint64
++}
++
++func init() {
++	if s := gogetenv("D2RS_GO_MAPSEED"); s != "" {
++		var v uint64
++		for i := 0; i < len(s); i++ {
++			if s[i] < '0' || s[i] > '9' {
++				return
++			}
++			v = v*10 + uint64(s[i]-'0')
++		}
++		mapSeed.seed = v
++		mapSeed.on = true
++	}
++}
++
+ // mrandinit initializes the random state of an m.
+ func mrandinit(mp *m) {
+ 	var seed [4]uint64

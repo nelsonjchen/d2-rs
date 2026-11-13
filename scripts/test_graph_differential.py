@@ -2,6 +2,7 @@
 import importlib.util
 import random
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -52,6 +53,43 @@ class GraphDifferentialTests(unittest.TestCase):
         finally:
             sweep.diverges = original
         self.assertEqual(small, "a: {\n}\nx -> y\n")
+
+    def diverges_with(self, go_digests, rust_digest, seeded=None, calls=None):
+        """Runs diverges() against a fake Go that returns go_digests in turn."""
+        go_runs = iter(go_digests)
+
+        def fake(binary, source, layout, flags, root, tag, extra_env=None):
+            if calls is not None:
+                calls.append((str(binary), extra_env))
+            return (0, None, rust_digest) if binary == "rust" else (0, None, next(go_runs))
+
+        original, original_seeded = sweep.outcome, sweep.MAPSEED_ORACLE
+        sweep.outcome = fake
+        sweep.MAPSEED_ORACLE = Path(seeded) if seeded else Path("/nonexistent/mapseed")
+        try:
+            return sweep.diverges("a -> b\n", "dagre", (), "rust", "go")
+        finally:
+            sweep.outcome, sweep.MAPSEED_ORACLE = original, original_seeded
+
+    def test_go_resamples_before_an_output_difference_counts(self):
+        stable_other = ["go-a"] * (1 + sweep.GO_RESAMPLES)
+        self.assertEqual(self.diverges_with(stable_other, "rust-a"), "output-diff")
+        self.assertIsNone(self.diverges_with(["same"], "same"))
+        flips = ["go-b", "go-b", "go-a"] + ["go-b"] * sweep.GO_RESAMPLES
+        self.assertEqual(self.diverges_with(flips, "go-a"), sweep.NONDETERMINISTIC)
+        # Go varying among outputs none of which is d2-rs's is still a mismatch.
+        varied = ["go-a", "go-b"] * sweep.GO_RESAMPLES
+        self.assertEqual(self.diverges_with(varied, "rust-a"), "output-diff")
+
+    def test_seedable_oracle_resamples_with_map_seeds(self):
+        with tempfile.NamedTemporaryFile() as seeded:
+            calls = []
+            stable_other = ["go-a"] * (1 + sweep.GO_RESAMPLES)
+            kind = self.diverges_with(stable_other, "rust-a", seeded.name, calls)
+        self.assertEqual(kind, "output-diff")
+        resamples = [env for binary, env in calls if binary == seeded.name]
+        self.assertEqual(resamples, [{"D2RS_GO_MAPSEED": str(seed)}
+                                     for seed in range(1, sweep.GO_RESAMPLES + 1)])
 
 
 if __name__ == "__main__":

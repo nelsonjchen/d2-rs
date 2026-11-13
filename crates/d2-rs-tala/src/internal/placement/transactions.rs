@@ -7814,7 +7814,35 @@ impl ArenaGraph {
             score_poll!(context, self, "graph-crossings.empty-final", None, None)?;
             return Ok(0);
         }
-        let center = |node: NodeId| self.active_node_center(node);
+        // An endpoint is either an active aggregate owner or, for an edge
+        // between two steps of one active sequence, that step itself.
+        // Go's GraphEdgeCrossings (placementcost/graph.go:301) keeps such an
+        // edge: abductSequenceEdges leaves it on the step pointers, which are
+        // distinct from the vessel, and Node.Center reads the step box that
+        // Sequence.SyncGeometry keeps inside the vessel.
+        let step_box = |step: NodeId| {
+            let index = self.active_sequence_index(step)?;
+            let vessel = self.active_node_position(self.sequences[index].members[0])?;
+            let (offset, size) = self.sequence_member_geometry(index, step)?;
+            Some((
+                Point {
+                    x: vessel.x + offset.x,
+                    y: vessel.y + offset.y,
+                },
+                size,
+            ))
+        };
+        let center = |(node, step): (NodeId, bool)| {
+            if step {
+                let (position, size) = step_box(node).expect("positioned sequence step");
+                Point {
+                    x: position.x + size.width * 0.5,
+                    y: position.y + size.height * 0.5,
+                }
+            } else {
+                self.active_node_center(node)
+            }
+        };
         // Direct translation of recovered `doesCross`. Unlike the usual
         // proper-intersection predicate, TALA includes endpoint contact
         // between distinct nodes.
@@ -7840,24 +7868,34 @@ impl ArenaGraph {
                 .len()
                 + 1
         };
-        let mut edges_by_level = BTreeMap::<usize, Vec<(&ArenaEdge, NodeId, NodeId)>>::new();
+        type Endpoint = (NodeId, bool);
+        let mut edges_by_level = BTreeMap::<usize, Vec<(&ArenaEdge, Endpoint, Endpoint)>>::new();
         for (edge_index, edge) in self.member_edge_entries() {
             score_interval!(context, self, "graph-crossings.edges", None, edge_index)?;
-            if self.sequences.iter().any(|sequence| {
+            let sequence_internal = self.sequences.iter().any(|sequence| {
                 self.sequence_is_active(sequence)
                     && sequence.members.contains(&edge.from)
                     && sequence.members.contains(&edge.to)
-            }) {
-                continue;
-            }
+            });
             let from = self.active_aggregate_owner(edge.from);
             let to = self.active_aggregate_owner(edge.to);
-            if self.position(from).is_none() || self.position(to).is_none() {
+            if sequence_internal {
+                if step_box(edge.from).is_none() || step_box(edge.to).is_none() {
+                    continue;
+                }
+            } else if self.position(from).is_none() || self.position(to).is_none() {
                 continue;
             }
+            // Node.container returns Sequence.Vessel.Container for a step,
+            // so both steps share their vessel's level.
             let from_level = container_level(from);
             let to_level = container_level(to);
             if from_level == to_level {
+                let (from, to) = if sequence_internal {
+                    ((edge.from, true), (edge.to, true))
+                } else {
+                    ((from, false), (to, false))
+                };
                 edges_by_level
                     .entry(from_level)
                     .or_default()
@@ -7887,10 +7925,10 @@ impl ArenaGraph {
                         if crate::internal::trace_env_enabled("TALA_TRACE_EDGE_CROSSINGS") {
                             eprintln!(
                                 "EDGE_CROSSING_RUST edge={}>{} edge2={}>{} level={}",
-                                self.nodes[left.1.0 as usize].tala_id,
-                                self.nodes[left.2.0 as usize].tala_id,
-                                self.nodes[right.1.0 as usize].tala_id,
-                                self.nodes[right.2.0 as usize].tala_id,
+                                self.nodes[left.1.0.0 as usize].tala_id,
+                                self.nodes[left.2.0.0 as usize].tala_id,
+                                self.nodes[right.1.0.0 as usize].tala_id,
+                                self.nodes[right.2.0.0 as usize].tala_id,
                                 edges_by_level
                                     .iter()
                                     .find_map(|(level, candidate)| (std::ptr::eq(candidate, edges))

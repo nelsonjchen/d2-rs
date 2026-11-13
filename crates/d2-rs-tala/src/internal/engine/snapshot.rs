@@ -1272,6 +1272,41 @@ fn refinement_preserves_authored_positions(input: &Graph, graph: &ArenaGraph) ->
     })
 }
 
+/// The authored-position part of `validateLayoutResultMetadata`
+/// (result_validate.go:202-210), which `evaluateSeedResult` (result.go:88)
+/// runs on every completed seed. It walks the result's Graph.Nodes and
+/// checks a node's label before its icon. A sequence step's explicit
+/// position is never fixed (labeling.Initialize skips it), so label placement
+/// can move it and Go rejects that seed.
+fn authored_position_metadata_error(input: &Graph, graph: &ArenaGraph) -> Option<LayoutError> {
+    for node_id in graph.graph_node_order_cow().iter().copied() {
+        let actual = &graph.nodes[node_id.0 as usize];
+        let Some(node) = input.node(actual.input_id) else {
+            continue;
+        };
+        let fixed_label = actual.label_text_present
+            && node.label_position != LabelPosition::Unset
+            && !node.external_label.is_some_and(|label| label.automatic);
+        if fixed_label && actual.label_position != node.label_position {
+            return Some(LayoutError::EngineValidation(format!(
+                "validate TALA seed result metadata: node {} fixed label position changed",
+                actual.tala_id
+            )));
+        }
+        let fixed_icon = node.has_icon
+            && node
+                .icon_position
+                .is_some_and(|position| position != LabelPosition::Unset);
+        if fixed_icon && actual.icon_position != node.icon_position {
+            return Some(LayoutError::EngineValidation(format!(
+                "validate TALA seed result metadata: node {} fixed icon position changed",
+                actual.tala_id
+            )));
+        }
+    }
+    None
+}
+
 /// Apply D2 v0.9.0's one post-selection rigid-container proposal. The
 /// proposal is fully isolated, rerouted, and scored before it can replace the
 /// ordinary winning seed. Every `Compound/...` event is diagnostic-only.
@@ -1589,6 +1624,9 @@ fn layout_result_for_seed(
         .graph
         .take()
         .ok_or(LayoutError::TimedOut("missing completed TALA graph"))?;
+    if let Some(error) = authored_position_metadata_error(input, &graph) {
+        return Err(error);
+    }
     let race_breakdown = graph_race_score(&graph)?;
     let selection_score = evaluation::RaceSelectionScore {
         penalty: race_breakdown.selection_penalty(),

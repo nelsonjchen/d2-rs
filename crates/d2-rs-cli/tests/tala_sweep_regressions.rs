@@ -204,3 +204,160 @@ fn root_grid_crossings_route_in_extraction_order() {
         ]
     );
 }
+
+#[test]
+fn consumed_step_sequence_edges_stay_out_of_root_cross_graph_routing() {
+    // TALA's buildLayoutPatch drops the step-sequence edge `a.c1 -> a.c2`
+    // from g.Edges, so LayoutNested's RouteEdges for the extracted grid
+    // crossing never sees it (sweep seed 9 case 6).
+    let svg = render_tala(
+        "a: {\n  c1: { shape: step }\n  c2: { shape: step }\n}\n\
+         b: {\n  grid-columns: 1\n  c0\n}\na.c1 -> a.c2\na.c2 -> b.c0\n",
+        "1",
+    );
+    let actual = geometry(&svg);
+    assert_eq!(actual.view_box, "0 0 489 629");
+    assert_eq!(
+        actual.routes,
+        ["M 171 163 L 171 324 S 171 334 161 334 L 125 334"]
+    );
+}
+
+#[test]
+fn hierarchy_container_child_keeps_its_hierarchy_offset() {
+    // n1 is placed by PlaceHierarchies, so placeNodes skips
+    // placeNodesOrthogonally and its SyncNestedGeometry: n1.c0 keeps the
+    // centred 61px offset and lines up with n4 instead of sitting at the
+    // 60px container padding.
+    let svg = render_tala(
+        "direction: right\nn0: {\n  c0: {\n  }\n}\nn1: {\n  c0: { label: \"mail auth\"; \
+         style.italic: true }\n}\nn4 -> n2\nn4 <-> n1.c0\nn0.c0 -> n2\n",
+        "1",
+    );
+    let actual = geometry(&svg);
+    assert_eq!(actual.view_box, "0 0 857 695");
+    assert_rectangles(
+        &actual.rectangles,
+        &[
+            ["322", "307", "181", "186"],
+            ["0", "0", "232", "188"],
+            ["382", "61", "63", "66"],
+            ["593", "61", "62", "66"],
+            ["382", "367", "61", "66"],
+            ["60", "61", "112", "66"],
+        ],
+    );
+    assert_eq!(
+        actual.routes,
+        [
+            "M 447 94 L 589 94",
+            "M 378 94 L 176 94",
+            "M 445 400 L 614 400 S 624 400 624 390 L 624 131",
+        ]
+    );
+}
+
+#[test]
+fn consumed_step_sequence_edges_stay_out_of_grid_scope_routing() {
+    // The same removal holds when the step sequence lies in a cell of a
+    // nested grid whose crossings are routed in the grid's own scope.
+    let svg = render_tala(
+        "g: {\n  grid-rows: 1\n  a: {\n    c1: { shape: step }\n    c2: { shape: step }\n    \
+         c1 -> c2\n  }\n  b: {\n    c0\n  }\n  a.c2 -> b.c0\n}\n",
+        "1",
+    );
+    let actual = geometry(&svg);
+    assert_eq!(actual.view_box, "0 0 830 543");
+    assert_eq!(actual.routes, ["M 277 153 L 443 153"]);
+}
+
+#[test]
+fn hierarchy_container_child_keeps_its_offset_for_multiple_shapes() {
+    // The multiple n1.c0 is 10px taller than its drawn box; re-centring it
+    // in n1 would move it, and through packing n0 and n2, by 10px.
+    let svg = render_tala(
+        "direction: up\nn0: {\n  c1: {\n    c0: {\n    }\n    c1: {\n    }\n  }\n}\nn1: {\n  \
+         c0: { style.multiple: true }\n}\nn0.c0 -> n2: search { target-arrowhead.shape: cf-one }\n\
+         n0.c0 -> n1.c0\nn2 -> n1.c0: queue\n",
+        "1",
+    );
+    let actual = geometry(&svg);
+    assert_eq!(actual.view_box, "0 0 944 971");
+    assert_rectangles(
+        &actual.rectangles,
+        &[
+            ["80", "463", "663", "306"],
+            ["80", "0", "191", "196"],
+            ["23", "307", "62", "66"],
+            ["381", "523", "262", "186"],
+            ["150", "60", "61", "66"],
+            ["140", "70", "61", "66"],
+            ["140", "643", "61", "66"],
+            ["441", "583", "61", "66"],
+            ["522", "583", "61", "66"],
+        ],
+    );
+    assert_eq!(
+        actual.routes,
+        [
+            "M 138 676 L 61 676 S 51 676 51 666 L 51 377",
+            "M 170 641 L 170 140",
+            "M 51 305 L 51 113 S 51 103 61 103 L 136 103",
+        ]
+    );
+}
+
+#[test]
+fn root_grid_cell_keeps_tala_routes_around_its_nested_grid() {
+    // n4 is a root-grid cell container. Its own LayoutNested call lays out
+    // the nested grid n4.c1 and routes the crossing n4.c1.c0 -> n4.c0.c2 with
+    // TALA's RouteEdges; the root grid then only moves the cell graph, so
+    // the route keeps TALA's integral shape borders.
+    let svg = render_tala(
+        "grid-rows: 2\nn0\nn1\nn4: {\n  c0\n  c1: {\n    grid-columns: 3\n    c0\n  }\n}\n\
+         n4.c1.c0 -> n4.c0.c2\n",
+        "1",
+    );
+    let actual = geometry(&svg);
+    assert_eq!(actual.view_box, "0 0 704 614");
+    assert_rectangles(
+        &actual.rectangles,
+        &[
+            ["0", "0", "231", "66"],
+            ["271", "0", "231", "66"],
+            ["0", "106", "502", "306"],
+            ["60", "166", "181", "186"],
+            ["261", "166", "181", "186"],
+            ["321", "226", "61", "66"],
+            ["120", "226", "61", "66"],
+        ],
+    );
+    assert_eq!(actual.routes, ["M 319 259 L 185 259"]);
+}
+
+#[test]
+fn object_grid_cell_keeps_tala_routes_around_its_nested_grid() {
+    // The same cell below an object grid: the enclosing TALA pass must not
+    // re-apply n4.c1 after n4's own layout has routed the crossing.
+    let svg = render_tala(
+        "g: {\n  grid-rows: 2\n  n0\n  n1\n  n4: {\n    c0\n    c1: {\n      grid-columns: 3\n      \
+         c0\n    }\n  }\n}\ng.n4.c1.c0 -> g.n4.c0.c2\n",
+        "1",
+    );
+    let actual = geometry(&svg);
+    assert_eq!(actual.view_box, "0 0 824 734");
+    assert_rectangles(
+        &actual.rectangles,
+        &[
+            ["0", "0", "622", "532"],
+            ["60", "60", "231", "66"],
+            ["331", "60", "231", "66"],
+            ["60", "166", "502", "306"],
+            ["120", "226", "181", "186"],
+            ["321", "226", "181", "186"],
+            ["381", "286", "61", "66"],
+            ["180", "286", "61", "66"],
+        ],
+    );
+    assert_eq!(actual.routes, ["M 379 319 L 245 319"]);
+}

@@ -10,6 +10,17 @@ Each release names the upstream Go D2 commit it matches, from
 
 ## [Unreleased]
 
+### Fixed
+
+- TALA: a diagram with connected `shape: step` nodes and any grid, sequence
+  diagram or `near` object no longer fails with "has no complete route".
+- TALA: repeated edges between step shapes inside a container no longer fail
+  with an internal invariant error.
+- TALA: placement of container children, nested grids inside grid cells, and
+  step sequences (position, labels, crossing counts) now matches Go.
+- TALA: a step with an outside label or an icon position is rejected with
+  Go's error instead of rendering.
+
 ### Changed
 
 - Builds and CI use Rust 1.100.0. The minimum supported Rust version stays

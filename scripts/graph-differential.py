@@ -14,8 +14,13 @@ style keywords, Markdown and code labels, SQL tables and classes, sequence
 diagrams, and the --sketch and --theme render flags. Every case renders with
 both binaries for each layout; complete output inventories are compared byte
 for byte. With --minimize, each mismatch is also reduced line by line to a
-smaller input with the same kind of divergence. The exit status is 1 when
-any case differs.
+smaller input with the same kind of divergence. Before an output difference
+counts, Go renders the case again up to GO_RESAMPLES times; when one of those
+outputs equals d2-rs's, the case is reported as `oracle-nondeterministic`
+instead (Go's random map order reaches a few layouts). When
+scripts/build-mapseed-oracle.py has built the seedable oracle, the resamples
+are its map seeds 1..GO_RESAMPLES, so the classification is reproducible. The exit status is 1
+when any case differs otherwise.
 """
 import argparse
 import concurrent.futures
@@ -197,24 +202,49 @@ def flags_for(rng):
     return tuple(flags)
 
 
-def outcome(binary, source, layout, flags, root, tag):
+def outcome(binary, source, layout, flags, root, tag, extra_env=None):
     directory = root / tag
     directory.mkdir()
     (directory / "input.d2").write_text(source)
-    return run(binary, directory, layout, "out", "svg", flags)
+    return run(binary, directory, layout, "out", "svg", flags, extra_env)
+
+
+# Go resamples before an output difference counts: Go's map iteration order is
+# random (dagre's shiftReachableDown ranges over a map), so a few inputs have
+# more than one Go output. With the seedable oracle (build-mapseed-oracle.py)
+# the resamples are map seeds 1..GO_RESAMPLES, reproducible; otherwise they
+# are reruns of the stock oracle.
+GO_RESAMPLES = 16
+MAPSEED_ORACLE = references.GO_MAPSEED_ORACLE
+NONDETERMINISTIC = "oracle-nondeterministic"
 
 
 def diverges(source, layout, flags, rust, go):
-    """None (match or no oracle) or the kind of divergence."""
+    """None (match or no oracle) or the kind of divergence.
+
+    `oracle-nondeterministic` means the pinned Go produced several outputs and
+    d2-rs matches one of them; it is reported but is not a d2-rs mismatch.
+    """
     with tempfile.TemporaryDirectory(prefix="graph-diff-") as tmp:
         root = Path(tmp)
         go_code, _, go_digest = outcome(go, source, layout, flags, root, "go")
         rust_code, _, rust_digest = outcome(rust, source, layout, flags, root, "rust")
-    if go_code != 0:
-        return None
-    if rust_code != 0:
-        return f"rust-exit-{rust_code}"
-    return "output-diff" if go_digest != rust_digest else None
+        if go_code != 0:
+            return None
+        if rust_code != 0:
+            return f"rust-exit-{rust_code}"
+        if go_digest == rust_digest:
+            return None
+        seeded = MAPSEED_ORACLE.is_file()
+        for attempt in range(GO_RESAMPLES):
+            if seeded:
+                code, _, digest = outcome(MAPSEED_ORACLE, source, layout, flags, root, f"go-{attempt}",
+                                          {"D2RS_GO_MAPSEED": str(attempt + 1)})
+            else:
+                code, _, digest = outcome(go, source, layout, flags, root, f"go-{attempt}")
+            if code == 0 and digest == rust_digest:
+                return "oracle-nondeterministic"
+    return "output-diff"
 
 
 def minimize(source, layout, flags, rust, go, want):
@@ -240,7 +270,9 @@ def compare(case, rust, go, layouts, do_minimize):
     for layout in layouts:
         kind = diverges(source, layout, flags, rust, go)
         if kind:
-            small = minimize(source, layout, flags, rust, go, kind) if do_minimize else None
+            small = None
+            if do_minimize and kind != NONDETERMINISTIC:
+                small = minimize(source, layout, flags, rust, go, kind)
             findings.append({"case": index, "layout": layout, "flags": list(flags), "kind": kind,
                              "minimized": small})
     return index, source, findings
@@ -280,10 +312,13 @@ def main(argv=None):
     with open(out / "findings.jsonl", "w") as index_file:
         for finding in sorted(findings, key=lambda f: (f["case"], f["layout"])):
             index_file.write(json.dumps(finding) + "\n")
+    mismatches = [f for f in findings if f["kind"] != NONDETERMINISTIC]
     for layout in layouts:
-        bad = sum(1 for f in findings if f["layout"] == layout)
-        print(f"{layout}: {args.cases - bad}/{args.cases} cases match Go")
-    return 1 if findings else 0
+        bad = sum(1 for f in mismatches if f["layout"] == layout)
+        unstable = sum(1 for f in findings if f["layout"] == layout and f["kind"] == NONDETERMINISTIC)
+        note = f" ({unstable} more where Go itself is nondeterministic)" if unstable else ""
+        print(f"{layout}: {args.cases - bad - unstable}/{args.cases} cases match Go{note}")
+    return 1 if mismatches else 0
 
 
 if __name__ == "__main__":

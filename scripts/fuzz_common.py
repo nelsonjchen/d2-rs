@@ -72,7 +72,7 @@ def _validate_output(path, data):
         data.decode("utf-8")
 
 
-def run(binary, directory, layout, name, output_format="svg", render_flags=()):
+def run(binary, directory, layout, name, output_format="svg", render_flags=(), extra_env=None):
     # Both implementations use the same output stem in separate directories.
     # Board manifests contain relative paths, so their bytes compare directly.
     directory = Path(directory)
@@ -84,7 +84,7 @@ def run(binary, directory, layout, name, output_format="svg", render_flags=()):
             [str(Path(binary).resolve()), f"--layout={layout}", *render_flags,
              "input.d2", f"output.{output_format}"],
             cwd=output, capture_output=True, timeout=20,
-            env={**os.environ, "SOURCE_DATE_EPOCH": "946782245"},
+            env={**os.environ, "SOURCE_DATE_EPOCH": "946782245", **(extra_env or {})},
         )
     except subprocess.TimeoutExpired:
         return "timeout", "", None

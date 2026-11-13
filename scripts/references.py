@@ -20,6 +20,8 @@ REFERENCE = ROOT / ".reference"
 SOURCE_COMMIT = MANIFEST["d2"]["commit"]
 TRACE_CHECKOUT = (ROOT / MANIFEST["d2"]["trace_checkout"]).resolve()
 GO_ORACLE = ROOT / MANIFEST["d2"]["oracle"]
+# The same CLI with seedable map order (scripts/build-mapseed-oracle.py).
+GO_MAPSEED_ORACLE = GO_ORACLE.with_name(GO_ORACLE.name + "-mapseed")
 E2E_CASES = ROOT / MANIFEST["d2"]["e2e_cases"]
 # Regenerated Go-vs-Rust reports and inventories: gitignored, never committed
 # (docs/FIXTURES.md). Checkers write their default reports here.

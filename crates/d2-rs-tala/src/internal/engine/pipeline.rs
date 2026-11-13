@@ -9521,6 +9521,22 @@ impl Pipeline {
     /// Keep the same phase ownership: candidate overlap checks consume the
     /// cached values rather than rescanning incident edges for every point.
     pub(super) fn run_preprocess(&mut self) {
+        // placement.Prepare (Go stages.go:110-114) runs labeling.Initialize
+        // and Graph.ComputeNodeSpacing over graph.Nodes only. AddSequences
+        // already removed every sequence step from graph.Nodes
+        // (grouping/sequences.go addSequence), so a step's explicit label or
+        // icon position is never FixPosition'ed (labeling/model.go:84-101)
+        // and Node.UpdateSpacing (layoutgraph/node.go:927) never reserves its
+        // label, icon or modifier spacing. The arena reserved those for every
+        // node at construction; retract them for steps.
+        for node in &mut self.graph.nodes {
+            if node.sequence.is_some() {
+                node.label_position_fixed = false;
+                node.icon_position_fixed = false;
+                node.layout_margins = crate::Insets::uniform(0.0);
+                node.node_padding = crate::Insets::uniform(0.0);
+            }
+        }
         // D2 v0.9.0's placement.Prepare initializes automatic node-label
         // positions after Prescale and sequence preprocessing. Keep unset
         // labels unset through those earlier trace boundaries, then assign

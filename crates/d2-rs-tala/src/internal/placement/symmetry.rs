@@ -23,6 +23,9 @@ impl ArenaGraph {
         let nodes: Vec<_> = self.nodes.iter().map(|node| node.input_id).collect();
         for node in nodes {
             let node_ref = &self.nodes[node.0 as usize];
+            // Go placement/symmetry.go isSimple: a published sequence vessel
+            // (`graph.IsSequenceVessel`) is never balanced; its steps carry
+            // `sequence`, but the vessel itself does not.
             if node_ref.is_container
                 || self.is_tree_sentinel(node)
                 || node_ref.scoring_cluster_arrangement.is_some()
@@ -30,6 +33,10 @@ impl ArenaGraph {
                 || node_ref.sequence.is_some()
                 || node_ref.hierarchy.is_some()
                 || node_ref.edges.len() < 2
+                || matches!(
+                    self.topology_node_vessel(node),
+                    Some(TopologyVessel::Sequence(_))
+                )
             {
                 continue;
             }

@@ -1305,7 +1305,8 @@ fn layout_root_grid_with_nested_cells(
     }
 
     result = layout_nested_grid_cells(graph, result, options, None, engine.clone(), cancellation)?;
-    result = grid::apply_scopes(graph, result, options).map_err(LayoutDispatchError::Tala)?;
+    result = grid::apply_scopes_except(graph, result, options, inside_grid_cell(graph))
+        .map_err(LayoutDispatchError::Tala)?;
 
     // Grid child diagrams restore their crossings before the enclosing root
     // restores its own. This callback also commits DefaultRouter label state
@@ -1731,6 +1732,28 @@ fn ordered_hierarchy_breadth_first(graph: &Graph) -> Vec<NodeId> {
 /// Special grid scopes are traversed before the next sibling cell, while an
 /// ordinary container cell owns its descendants and is laid out recursively
 /// as one extracted graph.
+/// Whether a grid scope lies inside a grid-cell container that
+/// [`layout_nested_grid_cells`] has laid out. That cell's LayoutNested call
+/// placed the inner grid and routed the cell's edges around it
+/// (d2layouts.go:119-207); the enclosing grid moves the cell graph as one
+/// unit. Re-applying the inner scope would replace those routes with
+/// d2grid's straight ones.
+fn inside_grid_cell(graph: &Graph) -> impl Fn(NodeId) -> bool + '_ {
+    let cells = ordered_nested_grid_cells(graph)
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+    move |scope| {
+        let mut current = graph.node(scope).and_then(|node| node.parent);
+        while let Some(id) = current {
+            if cells.contains(&id) {
+                return true;
+            }
+            current = graph.node(id).and_then(|node| node.parent);
+        }
+        false
+    }
+}
+
 fn ordered_nested_grid_cells(graph: &Graph) -> Vec<NodeId> {
     fn visit(graph: &Graph, id: NodeId, cells: &mut Vec<NodeId>) {
         if is_grid_cell_container(graph, id) {
@@ -2363,8 +2386,8 @@ fn layout_tala_with_nested_grids(
     )?;
     #[cfg(feature = "diagnostic-traces")]
     grid::trace_grid_snapshot(graph, &initial, None, "layout-final-pre-grid");
-    let mut nested =
-        grid::apply_scopes(graph, initial, options).map_err(LayoutDispatchError::Tala)?;
+    let mut nested = grid::apply_scopes_except(graph, initial, options, inside_grid_cell(graph))
+        .map_err(LayoutDispatchError::Tala)?;
     reroute_nested_grid_external_edges(graph, &mut nested, options, cancellation)?;
 
     let visible_ids = graph
@@ -3097,8 +3120,15 @@ fn reroute_selected_grid_edges(
         route_graph.set_node_order_override(routing_node_order(&route_graph));
         let order = root_grid_routing_edge_order(&route_graph, selected);
         let nodes = route_graph.nodes().map(|(id, _)| id).collect::<Vec<_>>();
-        let (route_graph, _, old_edges) =
-            project_graph_in_edge_order(&route_graph, &nodes, false, Some(&order));
+        // TALA's buildLayoutPatch drops consumed step-sequence edges from
+        // g.Edges (patch.go `finalEdges`), so RouteEdges never sees them.
+        let (route_graph, _, old_edges) = project_graph_in_edge_order(
+            &route_graph,
+            &nodes,
+            false,
+            Some(&order),
+            &result.removed_edges,
+        );
         let permutation = old_edges
             .iter()
             .enumerate()
@@ -3481,8 +3511,14 @@ fn reroute_grid_scope_external_edges(
         let order = grid_routing_edge_order(&route_graph, &selected);
         let nodes = route_graph.nodes().map(|(id, _)| id).collect::<Vec<_>>();
         route_graph.set_node_order_override(routing_node_order(&route_graph));
+        // Consumed step-sequence edges never return through InjectNested.
+        let removed = result
+            .removed_edges
+            .iter()
+            .filter_map(|id| edge_map.get(id).copied())
+            .collect::<BTreeSet<_>>();
         let (route_graph, _, old_edges) =
-            project_graph_in_edge_order(&route_graph, &nodes, false, Some(&order));
+            project_graph_in_edge_order(&route_graph, &nodes, false, Some(&order), &removed);
         let permutation = old_edges
             .iter()
             .enumerate()
@@ -3635,14 +3671,17 @@ fn project_graph(
     node_ids: &[NodeId],
     constant_scope: bool,
 ) -> (Graph, Vec<NodeId>, Vec<EdgeId>) {
-    project_graph_in_edge_order(source, node_ids, constant_scope, None)
+    project_graph_in_edge_order(source, node_ids, constant_scope, None, &BTreeSet::new())
 }
 
+/// `excluded` edges are dropped from the projection, like edges a layout
+/// engine removed from `g.Edges`.
 fn project_graph_in_edge_order(
     source: &Graph,
     node_ids: &[NodeId],
     constant_scope: bool,
     order: Option<&[EdgeId]>,
+    excluded: &BTreeSet<EdgeId>,
 ) -> (Graph, Vec<NodeId>, Vec<EdgeId>) {
     let node_map = node_ids
         .iter()
@@ -3790,8 +3829,10 @@ fn project_graph_in_edge_order(
     let mut edge_ids = source
         .edges()
         .filter_map(|(id, edge)| {
-            (node_map.contains_key(&edge.source) && node_map.contains_key(&edge.target))
-                .then_some(id)
+            (node_map.contains_key(&edge.source)
+                && node_map.contains_key(&edge.target)
+                && !excluded.contains(&id))
+            .then_some(id)
         })
         .collect::<Vec<_>>();
     if let Some(order) = order {
@@ -4941,8 +4982,13 @@ mod tests {
         graph.set_d2_edge_validation(second, validation.clone());
         graph.set_edge_index(first, 2);
         graph.set_edge_index(second, 7);
-        let (mut projected, _, old_ids) =
-            super::project_graph_in_edge_order(&graph, &[a, b], false, Some(&[second, first]));
+        let (mut projected, _, old_ids) = super::project_graph_in_edge_order(
+            &graph,
+            &[a, b],
+            false,
+            Some(&[second, first]),
+            &std::collections::BTreeSet::new(),
+        );
         assert_eq!(old_ids, vec![second, first]);
         assert_eq!(projected.edge_index(d2_rs_core::EdgeId(0)), Some(7));
         assert_eq!(projected.edge_index(d2_rs_core::EdgeId(1)), Some(2));

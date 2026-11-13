@@ -283,6 +283,28 @@ An oracle-tier failure that appears on only one architecture is a real
 parity gap on that architecture. Don't hide it by using the other
 architecture's captures.
 
+## Map order
+
+Go randomizes every map's hash seed and every `range` start offset. A few
+D2 layouts iterate a map in an order-sensitive way (dagre's
+`shiftReachableDownIndexed` ranges over `seen`), so the same input can give
+more than one Go output, on either architecture. d2-rs models one fixed
+order and matches one of them. Before treating a one-off mismatch as a
+port bug, check that Go agrees with itself:
+
+- `scripts/build-mapseed-oracle.py` builds the pinned CLI next to the stock
+  oracle (`<oracle>-mapseed`) with `tools/patches/go1.27-runtime-mapseed.patch`
+  applied to the runtime through `go build -overlay`; the toolchain on disk
+  is not edited. With `D2RS_GO_MAPSEED=<n>`, map randomness comes from a
+  counter mixed with `n`, so single-goroutine layouts are reproducible per
+  seed; unset, it behaves like the stock oracle.
+- `scripts/graph-differential.py` renders a differing case again under map
+  seeds 1-16 (or reruns the stock oracle when the seeded build is absent)
+  and reports `oracle-nondeterministic`, not a mismatch, when one of those
+  outputs equals d2-rs's.
+
+Like every oracle binary, the seeded build is regenerated, never committed.
+
 ## What may be committed
 
 - Recipes, hooks, harnesses, generators, patches, small `go.mod`/`go.sum`.

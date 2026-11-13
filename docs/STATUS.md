@@ -550,9 +550,21 @@ d2-rs and the pinned Go CLI on generated inputs (outputs and witnesses go to
   cross-axis side spacing, ELK label spacings and grid-cell edge label
   state, the 3D hexagon grid margin, and five TALA/near causes): on 12 seeds
   x 300 cases, dagre and ELK match Go on every case on arm64 and x86-64, and
-  TALA on 3,595 of 3,600. Open: a TALA sized-optimizer placement candidate
-  (seed 1 case 289, minimized), four more TALA cases, and one x86-64-only
-  dagre case (seed 7 case 136) that predates these fixes.
+  TALA on 3,595 of 3,600. A second round (2026-11-13, at Rust 1.100) fixed
+  the remaining TALA causes: consumed step-sequence edges left in the
+  nested-routing projection (Rust exited with "no complete route"), a
+  container-children sync Go's placeNodes skips for hierarchy-placed
+  components, a nested grid scope re-applied inside a grid cell (replacing
+  TALA's route with a straight one), sequence vessels moved by
+  BalanceSymmetry, step labels treated as fixed and spaced, steps inside a
+  container projected as separate scope nodes (internal-invariant error),
+  step-to-step edges left out of crossing counts, and the missing
+  result_validate fixed label/icon check. Seed 1 case 289 no longer
+  reproduces. On 12 seeds x 300 cases all three engines now match Go on
+  every case on both architectures, except dagre seed 7 case 136: Go itself
+  has two outputs for it (map order in `shiftReachableDownIndexed`) and
+  d2-rs gives one of them, so the sweep reports it as
+  `oracle-nondeterministic` (see docs/FIXTURES.md, "Map order").
 - `scripts/fuzz-differential.py` and `scripts/fuzz-minimize.py`: random
   structural mutations of corpus inputs, flagging Rust panics, hangs and
   exit, error-text or output divergence, then line/character minimization.

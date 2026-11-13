@@ -86,8 +86,22 @@ enum DynamicAxis {
 /// the cheaper path for a graph that consists of one grid scope only.
 pub fn apply_scopes(
     graph: &Graph,
+    result: LayoutResult,
+    options: &LayoutOptions,
+) -> Result<LayoutResult, LayoutError> {
+    apply_scopes_except(graph, result, options, |_| false)
+}
+
+/// [`apply_scopes`] without the grid scopes for which `settled` holds.
+///
+/// A grid nested inside an extracted grid-cell container is laid out by that
+/// cell's own `LayoutNested` call, together with the cell's edges; the
+/// enclosing grid only moves the cell's graph as one unit (`PositionNested`).
+pub(crate) fn apply_scopes_except(
+    graph: &Graph,
     mut result: LayoutResult,
     _options: &LayoutOptions,
+    settled: impl Fn(NodeId) -> bool,
 ) -> Result<LayoutResult, LayoutError> {
     validate(graph)?;
     let mut scopes = graph
@@ -95,7 +109,7 @@ pub fn apply_scopes(
         .filter_map(|(id, node)| {
             (node.grid_rows.is_some() || node.grid_columns.is_some())
                 .then_some(id)
-                .filter(|_| !belongs_to_sequence_diagram(graph, id))
+                .filter(|_| !belongs_to_sequence_diagram(graph, id) && !settled(id))
         })
         .collect::<Vec<_>>();
     scopes.stable_sort_by_key(|id| std::cmp::Reverse(depth(graph, *id)));
