@@ -251,19 +251,24 @@ but a handful of jobs. Open clusters, with witnesses in
   Sources and comparisons are under `oracle-cache/reports/T48/`, `T49/`
   and `T410/`. Fresh seed 20261109410 also matches all 2,048 four/five-leaf
   cases, with no findings or lost match (`T410/final/fresh/summary.json`).
-- **TALA NaN-height error:** D43's complex nested board reports a NaN
-  object height in Go and a route-search work-limit error in Rust (the
-  guard error previously became an empty-route invariant). A 77-byte nested
-  sequence/grid reduction still fails Go's `RouteEdges` input validation,
-  while Rust renders it. Go has nonfinite sequence span bounds before routing;
-  compare nested extraction/reinjection and span sizing in `d2-rs-layout`
-  before changing TALA. D4 handoff and complete outcomes:
-  `oracle-cache/reports/T34/{nan-exit-minimized.d2,nan-height.json}`.
-- **Repeated TALA seed flags:** Go appends repeated `--tala-seeds` values;
-  Rust replaces the earlier list, which can select a different layout.
-  This CLI issue predates the nested-placement fix. Witness and comparison:
-  `oracle-cache/reports/T32/nested-minimized.d2` and
-  `repeated-seed-flag-candidate.json` (flags `--tala-seeds=1 --tala-seeds=2`).
+- **Witness replay (2026-11-13, resolved):** every retained witness under
+  `oracle-cache/reports/` (1,339 unique inputs, 3,146 engine runs at 0.1.8)
+  was replayed against pinned Go with default options. All runs match except
+  remote-image fetch noise, and four clusters that are now fixed:
+  - TALA NaN height: Go's `math.Max` keeps the NaN height of an empty nested
+    span (`d2sequence/sequence_diagram.go` `placeSpans`), so TALA input
+    validation reports the height before the infinite top-left. Span
+    placement now uses Go `math.Min`/`math.Max` semantics. Sequence actors
+    laid out as nested grids also keep their curve flags.
+  - Repeated `--tala-seeds` flags append, as pflag's `Int64Slice` does, and
+    accept base prefixes. Go ignores the `D2_TALA_SEEDS` variable.
+  - Deep nesting: TALA runs Go's `collectD2ObjectVisits` depth and object
+    limits (`adapter_validate.go`), and seed workers reserve a 1 GiB stack, as
+    Go's goroutines grow; depth 256 no longer overflows. Depth 256 itself
+    still takes about 18 s against Go's 2.6 s.
+  - Dagre grids reserve label margin from `HasLabel`, not measured size.
+  The old TALA nested-placement, D43-D49 handoff and D47 sequence/grid
+  witnesses below all match now.
 - **Raster pixels:** the recorded simulator PNG, color-emoji GIF, arrowhead
   PNG and markdown cylinder PNG witnesses now match on amd64 and arm64.
 - **Go panics:** five inputs per seed crash the pinned Go itself (no oracle
@@ -293,7 +298,7 @@ but a handful of jobs. Open clusters, with witnesses in
   the header adjustment. The Dagre compound-spacing cluster is fixed (D45); the new
   TALA-only nested-grid branch witness is
   `witness-D4-tala-nested-grid-branches.d2` in the lane reports directory.
-- **TALA nested placement:** expanded seed 2026110745 differs on
+- **TALA nested placement (resolved; matches in the 2026-11-13 replay):** expanded seed 2026110745 differs on
   `fixed:tala-nested-sequence-placement` (theme 102, dark theme 200,
   pad 20, scale 1, center). Witness and exact options are retained in the
   same D41 directory for Lane T3; D419 reconfirmed it unchanged and retained
@@ -322,7 +327,7 @@ but a handful of jobs. Open clusters, with witnesses in
   differences in 3,000 jobs, plus one pinned-Go panic. Two shared-code
   reductions: the multiboard recursive hash is fixed (D48), retaining mapless
   sibling boards in traversal and target selection; sequence/grid sizing
-  beside a disconnected container remains open. Reductions and
+  beside a disconnected container now matches (2026-11-13 replay). Reductions and
   cross-engine replays are in `oracle-cache/reports/d47/`. Two TALA-only
   container-edge witnesses are handed to T3 as
   `witness-D4-tala-D47-{372,891}.d2` in the lane reports directory.

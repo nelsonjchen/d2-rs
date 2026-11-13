@@ -1726,7 +1726,13 @@ fn prepare_grid_objects(
         let Some(rect) = result.boxes.get_mut(&child) else {
             continue;
         };
-        let margin = grid_object_margin(node, label_position, icon_position, rect.size);
+        let margin = grid_object_margin(
+            node,
+            has_label(graph, child),
+            label_position,
+            icon_position,
+            rect.size,
+        );
         rect.size.width += margin.left + margin.right;
         rect.size.height += margin.top + margin.bottom;
         margins.insert(child, margin);
@@ -1770,7 +1776,13 @@ fn finish_grid_objects(
         let old_height = rect.size.height;
         rect.size.width = (old_width - old_margin.left - old_margin.right).max(0.0);
         rect.size.height = (old_height - old_margin.top - old_margin.bottom).max(0.0);
-        let margin = grid_object_margin(node, label_position, icon_position, rect.size);
+        let margin = grid_object_margin(
+            node,
+            has_label(graph, child),
+            label_position,
+            icon_position,
+            rect.size,
+        );
         let old_margin_x = old_margin.left + old_margin.right;
         let old_margin_y = old_margin.top + old_margin.bottom;
         let margin_x = margin.left + margin.right;
@@ -1959,15 +1971,19 @@ fn has_label(graph: &Graph, id: NodeId) -> bool {
             .is_some_and(|size| size.width > 0.0 || size.height > 0.0)
 }
 
+/// d2graph `Object.GetMargin`. The label branch is gated on `HasLabel` (a
+/// non-empty label value), not on measured dimensions: a whitespace label such
+/// as `" "` measures 0x0 yet still reserves `label.PADDING` of clearance.
 fn grid_object_margin(
     node: &d2_rs_core::Node,
+    has_label: bool,
     label_position: LabelPosition,
     icon_position: Option<LabelPosition>,
     object_size: Size,
 ) -> Insets {
     let mut margin = Insets::uniform(0.0);
-    if has_label_size(node) {
-        let label = node.label_size.expect("checked by has_label_size");
+    if has_label {
+        let label = node.label_size.unwrap_or_default();
         let label_width = label.width + LABEL_PADDING;
         let label_height = label.height + LABEL_PADDING;
         match label_position {
@@ -2055,11 +2071,6 @@ fn grid_object_margin(
         margin.top += 10.0;
     }
     margin
-}
-
-fn has_label_size(node: &d2_rs_core::Node) -> bool {
-    node.label_size
-        .is_some_and(|size| size.width > 0.0 || size.height > 0.0)
 }
 
 /// Returns the complete D2 `Object.Spacing` padding for a grid root. Grid

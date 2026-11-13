@@ -10,6 +10,21 @@ Each release names the upstream Go D2 commit it matches, from
 
 ## [Unreleased]
 
+### Fixed
+
+- TALA: deeply nested diagrams no longer crash with a stack overflow. More
+  than 256 levels of nesting, or more than 10,000 objects, now fail at once
+  with Go's error instead of running for minutes.
+- Windows: the CLI reserves an 8 MiB main-thread stack, so deeply nested
+  diagrams no longer overflow Windows' 1 MiB default.
+- Dagre: a grid cell whose label is blank (`" "`) keeps Go's label spacing;
+  it was drawn 5 px too high.
+- Sequence diagrams whose actors contain grids keep curved edges inside the
+  grid, and TALA reports Go's error for their empty spans.
+- `--tala-seeds` given more than once now adds to the list, as Go does, and
+  accepts `0x`/`0o`/`0b` values. The `D2_TALA_SEEDS` environment variable,
+  which Go ignores, no longer affects TALA.
+
 ## [0.1.8] - 2026-11-13
 
 Matches Go D2 `master` at 6a7b48378, as 0.1.0 does. Crates, the npm

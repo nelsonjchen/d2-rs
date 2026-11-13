@@ -197,6 +197,9 @@ fn validate_inner(graph: &Graph, require_position: bool) -> Result<(), LayoutErr
     if let Some(message) = &graph.d2_boundary_errors.topology {
         return Err(LayoutError::D2GraphValidation(message.clone()));
     }
+    // translateGraph runs collectD2ObjectVisits, with its tree depth and
+    // object count limits, before any other object or edge validation.
+    let visits = d2_object_visits(graph)?;
     if graph.nodes.len() > u32::MAX as usize || graph.edges.len() > u32::MAX as usize {
         return Err(LayoutError::IdOverflow);
     }
@@ -208,7 +211,6 @@ fn validate_inner(graph: &Graph, require_position: bool) -> Result<(), LayoutErr
             .nodes()
             .any(|(_, node)| node.d2_authored_geometry.is_some())
     {
-        let visits = d2_object_visits(graph);
         let visited: BTreeSet<_> = visits.iter().copied().collect();
         node_order.retain(|id| !visited.contains(id));
         node_order.splice(..0, visits);
@@ -546,7 +548,15 @@ fn validate_inner(graph: &Graph, require_position: bool) -> Result<(), LayoutErr
     Ok(())
 }
 
-fn d2_object_visits(graph: &Graph) -> Vec<NodeId> {
+/// limits.MaxEngineTreeDepth: the deepest ChildrenArray level, root = 0.
+const MAX_D2_TREE_DEPTH: usize = 256;
+/// limits.MaxEngineNodes: the non-root object count.
+const MAX_D2_OBJECTS: usize = 10_000;
+
+/// collectD2ObjectVisits (adapter_validate.go): iterative pre-order over the
+/// object tree that rejects excessive nesting or object counts before any
+/// recursive layout stage runs.
+fn d2_object_visits(graph: &Graph) -> Result<Vec<NodeId>, LayoutError> {
     let mut fallback_children: BTreeMap<Option<NodeId>, Vec<NodeId>> = BTreeMap::new();
     for (id, node) in graph.nodes() {
         fallback_children.entry(node.parent).or_default().push(id);
@@ -561,19 +571,39 @@ fn d2_object_visits(graph: &Graph) -> Vec<NodeId> {
     };
     // translateGraph visits ChildrenArray depth-first, independently of the
     // sorted graph.Objects list. Its toNode map contains exactly those visits.
-    let mut stack = children(None);
-    stack.reverse();
+    let count_error = || {
+        LayoutError::D2GraphValidation(format!("D2 object count exceeds limit {MAX_D2_OBJECTS}"))
+    };
+    let roots = children(None);
+    if roots.len() > MAX_D2_OBJECTS {
+        return Err(count_error());
+    }
+    let mut scheduled = roots.len();
+    let mut stack: Vec<_> = roots.into_iter().rev().map(|id| (id, 1usize)).collect();
     let mut seen = BTreeSet::new();
     let mut visits = Vec::new();
-    while let Some(id) = stack.pop() {
+    while let Some((id, depth)) = stack.pop() {
         if !seen.insert(id) || graph.node(id).is_none() {
             continue;
         }
+        if depth > MAX_D2_TREE_DEPTH {
+            return Err(LayoutError::D2GraphValidation(format!(
+                "D2 object nesting depth exceeds limit {MAX_D2_TREE_DEPTH}"
+            )));
+        }
+        if visits.len() == MAX_D2_OBJECTS {
+            return Err(count_error());
+        }
         visits.push(id);
-        stack.extend(children(Some(id)).into_iter().rev());
+        let children = children(Some(id));
+        if children.len() > MAX_D2_OBJECTS - scheduled {
+            return Err(count_error());
+        }
+        scheduled += children.len();
+        stack.extend(children.into_iter().rev().map(|child| (child, depth + 1)));
     }
 
-    visits
+    Ok(visits)
 }
 
 /// Resolve the original D2 keys at the current adapter boundary. Extraction
@@ -605,7 +635,7 @@ pub(super) fn resolve_d2_near_keys(graph: &Graph) -> Result<Vec<(NodeId, NodeId)
             });
         named_children.insert((node.parent, go_lowercase(local_id)), id);
     }
-    let visits = d2_object_visits(graph);
+    let visits = d2_object_visits(graph)?;
     let seen: BTreeSet<_> = visits.iter().copied().collect();
 
     let mut resolved = Vec::new();

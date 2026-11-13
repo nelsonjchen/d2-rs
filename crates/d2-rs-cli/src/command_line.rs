@@ -624,6 +624,13 @@ pub fn version_boundary(args: &[String]) -> Result<Boundary, String> {
                         .unwrap()
                         .to_string(),
                     "Bool" => boolean(&value).unwrap().to_string(),
+                    // pflag int64SliceValue.Set: strings.Split on "," and
+                    // strconv.ParseInt(item, 0, 64) for each item.
+                    "Int64Slice" => value
+                        .split(',')
+                        .map(|item| integer(item, true).unwrap().to_string())
+                        .collect::<Vec<_>>()
+                        .join(","),
                     _ => value,
                 };
                 remaining.push(format!("--{}={forwarded}", flag.name));

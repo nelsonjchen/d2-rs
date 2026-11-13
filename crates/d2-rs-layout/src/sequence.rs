@@ -1061,47 +1061,51 @@ fn layout_inner(
             continue;
         };
         let center_x = actor_centers.get(&actor).map_or(0.0, |center| center.x);
-        let mut min_y = f64::INFINITY;
-        let mut max_y = f64::NEG_INFINITY;
-        if let Some(edge_id) = first_messages.get(&span)
-            && let Some(route) = routes.get(edge_id)
-        {
-            let edge = &graph.edges[edge_id.0 as usize];
-            min_y = if edge.source == edge.target || edge.source == span {
-                route.first().map_or(f64::INFINITY, |p| p.y)
-            } else {
-                route.last().map_or(f64::INFINITY, |p| p.y)
-            };
-        }
-        if let Some(edge_id) = last_messages.get(&span)
-            && let Some(route) = routes.get(edge_id)
-        {
-            let edge = &graph.edges[edge_id.0 as usize];
-            max_y = if edge.source == edge.target || edge.target == span {
-                route.last().map_or(f64::NEG_INFINITY, |p| p.y)
-            } else {
-                route.first().map_or(f64::NEG_INFINITY, |p| p.y)
-            };
-        }
+        // d2sequence.placeSpans, with Go math.Min/Max semantics: a span with
+        // neither messages nor children stays at +Inf, and its parent span's
+        // height becomes Max(Inf-Inf, MIN_SPAN_HEIGHT) = NaN.
+        let mut min_child_y = f64::INFINITY;
+        let mut max_child_y = f64::NEG_INFINITY;
         for (id, rect) in boxes.iter() {
             if graph
                 .node(*id)
                 .is_some_and(|node| node.parent == Some(span))
             {
-                min_y = if min_y.is_nan() || rect.origin.y.is_nan() {
-                    f64::NAN
-                } else {
-                    min_y.min(rect.origin.y)
-                };
-                max_y = if max_y.is_nan() || rect.bottom().is_nan() {
-                    f64::NAN
-                } else {
-                    max_y.max(rect.bottom())
-                };
+                min_child_y = go_min(min_child_y, rect.origin.y);
+                max_child_y = go_max(max_child_y, rect.origin.y + rect.size.height);
             }
         }
-        let top = min_y - SPAN_MESSAGE_PAD;
-        let height = (max_y - top + SPAN_MESSAGE_PAD).max(MIN_SPAN_HEIGHT);
+        let mut min_message_y = f64::INFINITY;
+        if let Some(edge_id) = first_messages.get(&span)
+            && let Some(route) = routes.get(edge_id)
+        {
+            let edge = &graph.edges[edge_id.0 as usize];
+            min_message_y = if edge.source == edge.target || edge.source == span {
+                route.first().map_or(f64::INFINITY, |p| p.y)
+            } else {
+                route.last().map_or(f64::INFINITY, |p| p.y)
+            };
+        }
+        let mut max_message_y = f64::NEG_INFINITY;
+        if let Some(edge_id) = last_messages.get(&span)
+            && let Some(route) = routes.get(edge_id)
+        {
+            let edge = &graph.edges[edge_id.0 as usize];
+            max_message_y = if edge.source == edge.target || edge.target == span {
+                route.last().map_or(f64::NEG_INFINITY, |p| p.y)
+            } else {
+                route.first().map_or(f64::NEG_INFINITY, |p| p.y)
+            };
+        }
+        let mut top = go_min(min_message_y, min_child_y);
+        if top == min_child_y || top == min_message_y {
+            top -= SPAN_MESSAGE_PAD;
+        }
+        let mut max_y = go_max(max_message_y, max_child_y);
+        if max_y == max_child_y || max_y == max_message_y {
+            max_y += SPAN_MESSAGE_PAD;
+        }
+        let height = go_max(max_y - top, MIN_SPAN_HEIGHT);
         // Source span.Level()-sd.root.Level()-2 counts the document root.
         // Graph omits that root, so a top-level actor has depth zero.
         let first_span_depth = root_node.map_or(1, |root| depth(graph, root) + 2);
@@ -1203,21 +1207,6 @@ fn layout_inner(
                 .is_some_and(|node| node.parent == Some(group))
                 && let Some(rect) = boxes.get(child)
             {
-                // Go math.Min/Max propagate NaN (Rust f64::min/max do not).
-                let go_min = |a: f64, b: f64| {
-                    if a.is_nan() || b.is_nan() {
-                        f64::NAN
-                    } else {
-                        a.min(b)
-                    }
-                };
-                let go_max = |a: f64, b: f64| {
-                    if a.is_nan() || b.is_nan() {
-                        f64::NAN
-                    } else {
-                        a.max(b)
-                    }
-                };
                 min_x = go_min(min_x, rect.origin.x - GROUP_CONTAINER_PADDING);
                 min_y = go_min(min_y, rect.origin.y - GROUP_CONTAINER_PADDING);
                 max_x = go_max(max_x, rect.right() + GROUP_CONTAINER_PADDING);
@@ -1443,7 +1432,17 @@ fn layout_inner(
             .collect(),
         source_edge_storage: Default::default(),
         synthetic_root: None,
-        route_curves: Default::default(),
+        // InjectNested appends an extracted actor's edges unchanged, so the
+        // nested engine's Edge.IsCurve (dagre's cubic routes) survives.
+        route_curves: actor_layouts
+            .values()
+            .flat_map(|local| {
+                local
+                    .routes
+                    .keys()
+                    .filter_map(|id| local.route_curves.get(id).map(|curve| (*id, *curve)))
+            })
+            .collect(),
         sequence_lifelines: Vec::new(),
         edge_label_percentage_commits: Default::default(),
         boxes,
@@ -1955,6 +1954,35 @@ fn edge_line(graph: &Graph, id: EdgeId) -> i64 {
 
 fn message_step() -> f64 {
     MIN_MESSAGE_DISTANCE + VERTICAL_PADDING
+}
+
+/// Go `math.Min`: -Inf wins, then NaN propagates; -0 is less than +0.
+/// Rust `f64::min` instead drops a NaN operand.
+fn go_min(x: f64, y: f64) -> f64 {
+    if x == f64::NEG_INFINITY || y == f64::NEG_INFINITY {
+        return f64::NEG_INFINITY;
+    }
+    if x.is_nan() || y.is_nan() {
+        return f64::NAN;
+    }
+    if x == 0.0 && x == y {
+        return if x.is_sign_negative() { x } else { y };
+    }
+    if x < y { x } else { y }
+}
+
+/// Go `math.Max`: +Inf wins, then NaN propagates; +0 is greater than -0.
+fn go_max(x: f64, y: f64) -> f64 {
+    if x == f64::INFINITY || y == f64::INFINITY {
+        return f64::INFINITY;
+    }
+    if x.is_nan() || y.is_nan() {
+        return f64::NAN;
+    }
+    if x == 0.0 && x == y {
+        return if x.is_sign_negative() { y } else { x };
+    }
+    if x > y { x } else { y }
 }
 
 fn depth(graph: &Graph, id: NodeId) -> usize {

@@ -1780,6 +1780,28 @@ fn race_seed_layouts(
     Ok(winner.value.result)
 }
 
+/// Go runs each seed attempt on a goroutine whose stack grows to 1 GB, so
+/// recursive stages survive the deepest tree the adapter admits
+/// (limits.MaxEngineTreeDepth); a default 2 MiB Rust thread stack does not.
+/// Reserve Go's ceiling instead. The reservation is virtual and costs nothing
+/// until touched; hosts that refuse it step down before the default stack.
+#[cfg(not(target_arch = "wasm32"))]
+const SEED_WORKER_STACK_SIZES: [usize; 3] = [1 << 30, 256 << 20, 64 << 20];
+
+#[cfg(not(target_arch = "wasm32"))]
+fn spawn_seed_worker(work: impl FnOnce() + Send + Clone + 'static) {
+    for size in SEED_WORKER_STACK_SIZES {
+        if thread::Builder::new()
+            .stack_size(size)
+            .spawn(work.clone())
+            .is_ok()
+        {
+            return;
+        }
+    }
+    thread::spawn(work);
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 fn race_seed_candidates_with_cancellation<T, F>(
     seeds: &[i64],
@@ -1809,7 +1831,7 @@ where
         let sender = sender.clone();
         let run_candidate = std::sync::Arc::clone(&run_candidate);
         let jobs = std::sync::Arc::clone(&jobs);
-        thread::spawn(move || {
+        spawn_seed_worker(move || {
             loop {
                 let job = jobs.lock().ok().and_then(|mut jobs| jobs.pop_front());
                 let Some((index, seed)) = job else {
@@ -3712,6 +3734,34 @@ mod race_seed_tests {
         );
         assert!(
             matches!(error, LayoutError::AllSeedAttemptsFailed { attempts } if attempts.iter().map(|(seed, _)| *seed).collect::<Vec<_>>() == vec![17, -17, 0])
+        );
+    }
+
+    #[test]
+    #[cfg(not(target_arch = "wasm32"))]
+    fn seed_workers_survive_recursion_beyond_a_default_thread_stack() {
+        // Go seed goroutines grow their stacks; depth-256 D2 trees recurse
+        // past a default 2 MiB Rust thread stack. 32 MiB of live frames must
+        // reach the ordinary failure instead of a stack-overflow abort.
+        fn recurse(levels: usize) -> usize {
+            let frame = std::hint::black_box([levels as u8; 64 << 10]);
+            if levels == 0 {
+                frame[0] as usize
+            } else {
+                recurse(levels - 1) + frame[levels % frame.len()] as usize
+            }
+        }
+        let result = race_seed_candidates::<(), _>(&[1], 1, |_, _| {
+            std::hint::black_box(recurse(512));
+            Err(LayoutError::StageDimensions {
+                stage: "NodePlacement",
+                width: 30_653.0,
+                height: 30_666.0,
+            })
+        });
+        assert_eq!(
+            result.err().expect("the attempt failed").to_string(),
+            "all TALA seed attempts failed: seed 1: layout invariant violated: Dimensions w:30653, h:30666 reached after stage NodePlacement"
         );
     }
 

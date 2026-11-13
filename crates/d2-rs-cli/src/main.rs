@@ -4709,6 +4709,19 @@ fn run_multiboard_document(
     Ok(preview)
 }
 
+/// pflag int64SliceValue.Set: the first explicit occurrence replaces the
+/// default, later occurrences append. The flag boundary has already parsed
+/// and normalized each value to decimal seeds.
+fn append_tala_seeds(seeds: &mut Option<String>, value: &str) {
+    match seeds {
+        Some(seeds) => {
+            seeds.push(',');
+            seeds.push_str(value);
+        }
+        None => *seeds = Some(value.to_owned()),
+    }
+}
+
 fn run_document(args: &[String]) -> Result<Vec<u8>, String> {
     run_document_with_stdout(args, None)
 }
@@ -4835,9 +4848,10 @@ fn run_document_with_stdout(
     );
     let mut target = None;
     let mut watch_preview = false;
-    let mut seeds = std::env::var("D2_TALA_SEEDS")
-        .ok()
-        .or_else(|| std::env::var("D2_TALA_RS_SEEDS").ok());
+    // d2cli/layout_tala.go registers tala-seeds with an empty environment key,
+    // so only the flag sets it. pflag's int64SliceValue.Set replaces the
+    // default on the first occurrence and appends on every later one.
+    let mut seeds: Option<String> = None;
     let mut source_adapter_args = Vec::new();
     let mut index = 0;
     while index < args.len() {
@@ -5108,7 +5122,7 @@ fn run_document_with_stdout(
             if value.is_empty() {
                 return Err("tala-seeds must contain at least one seed".into());
             }
-            seeds = Some(value.to_owned());
+            append_tala_seeds(&mut seeds, value);
         } else if matches!(argument.as_str(), "--tala-seeds" | "--tala-rs-seeds") {
             index += 1;
             let value = args
@@ -5117,7 +5131,7 @@ fn run_document_with_stdout(
             if value.is_empty() {
                 return Err("tala-seeds must contain at least one seed".into());
             }
-            seeds = Some(value.clone());
+            append_tala_seeds(&mut seeds, value);
         } else if argument == "--font"
             || matches!(
                 argument.as_str(),
