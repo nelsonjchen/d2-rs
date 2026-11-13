@@ -10,6 +10,12 @@ Each release names the upstream Go D2 commit it matches, from
 
 ## [Unreleased]
 
+### Changed
+
+- Builds and CI use Rust 1.100.0. The minimum supported Rust version stays
+  1.98.1. Dropped unused dependencies (`zune-jpeg`, `unicode-bidi-mirroring`)
+  and the redundant `homepage` manifest field.
+
 ## [0.1.7] - 2026-11-11
 
 Matches Go D2 `master` at 6a7b48378, as 0.1.0 does. Crates, the npm

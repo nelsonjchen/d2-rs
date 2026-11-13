@@ -227,7 +227,7 @@ impl hb_glyph_info_t {
         if u as u32 >= 0x80 {
             *scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_NON_ASCII;
 
-            if u.is_default_ignorable() {
+            if CharExt::is_default_ignorable(u) {
                 props |= UnicodeProps::IGNORABLE.bits();
                 *scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_DEFAULT_IGNORABLES;
 

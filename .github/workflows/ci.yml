@@ -42,7 +42,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.98.1
+      - uses: dtolnay/rust-toolchain@1.100.0
         with:
           components: clippy,rustfmt
       - run: cargo fmt --all --check
@@ -61,7 +61,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.98.1
+      - uses: dtolnay/rust-toolchain@1.100.0
       - run: cargo test --locked --release -p d2-rs-tala --features checked-cells
   wasm:
     strategy:
@@ -79,7 +79,7 @@ jobs:
         working-directory: crates/d2-rs-wasm
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.98.1
+      - uses: dtolnay/rust-toolchain@1.100.0
         with:
           targets: wasm32-unknown-unknown
           components: clippy

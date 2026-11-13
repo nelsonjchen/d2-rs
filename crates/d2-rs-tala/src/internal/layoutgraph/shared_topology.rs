@@ -38,7 +38,7 @@ static NEXT_OWNER_ARENA: std::sync::atomic::AtomicU64 = std::sync::atomic::Atomi
 fn allocate_owner_arena() -> OwnerArenaId {
     OwnerArenaId(
         NEXT_OWNER_ARENA
-            .fetch_update(
+            .try_update(
                 std::sync::atomic::Ordering::Relaxed,
                 std::sync::atomic::Ordering::Relaxed,
                 |next| next.checked_add(1),
@@ -59,7 +59,7 @@ impl Default for MemberScopeId {
     fn default() -> Self {
         Self(
             NEXT_MEMBER_SCOPE
-                .fetch_update(
+                .try_update(
                     std::sync::atomic::Ordering::Relaxed,
                     std::sync::atomic::Ordering::Relaxed,
                     |next| next.checked_add(1),

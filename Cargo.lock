@@ -404,7 +404,6 @@ dependencies = [
  "brotli-decompressor",
  "d2-rs-render",
  "d2-rs-rustybuzz",
- "d2-rs-scene",
  "d2-rs-testdata",
  "d2-rs-text",
  "flate2",
@@ -529,7 +528,6 @@ dependencies = [
  "png",
  "serde",
  "serde_json",
- "zune-jpeg",
 ]
 
 [[package]]
@@ -565,7 +563,6 @@ dependencies = [
  "serde_json",
  "smallvec",
  "ttf-parser",
- "unicode-bidi-mirroring",
  "unicode-ccc",
  "unicode-properties",
  "unicode-script",
@@ -2035,12 +2032,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20"
 
 [[package]]
-name = "unicode-bidi-mirroring"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5dfa6e8c60bb66d49db113e0125ee8711b7647b5579dc7f5f19c42357ed039fe"
-
-[[package]]
 name = "unicode-ccc"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2530,19 +2521,4 @@ dependencies = [
  "crc32fast",
  "log",
  "simd-adler32",
-]
-
-[[package]]
-name = "zune-core"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cb8a0807f7c01457d0379ba880ba6322660448ddebc890ce29bb64da71fb40f9"
-
-[[package]]
-name = "zune-jpeg"
-version = "0.5.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "27bc9d5b815bc103f142aa054f561d9187d191692ec7c2d1e2b4737f8dbd7296"
-dependencies = [
- "zune-core",
 ]

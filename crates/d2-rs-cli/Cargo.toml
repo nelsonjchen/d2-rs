@@ -7,7 +7,6 @@ rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
-homepage.workspace = true
 keywords.workspace = true
 categories = ["command-line-utilities", "visualization", "graphics"]
 readme = "../../README.md"
@@ -32,7 +31,6 @@ d2-rs-export.workspace = true
 d2-rs-core.workspace = true
 d2-rs-language.workspace = true
 d2-rs-layout.workspace = true
-d2-rs-lib.workspace = true
 d2-rs-text.workspace = true
 d2-rs-math.workspace = true
 d2-rs-isometric.workspace = true
@@ -59,6 +57,7 @@ libmimalloc-sys = { version = "=0.1.49", default-features = false }
 unicode-normalization = "=0.1.25"
 
 [dev-dependencies]
+d2-rs-lib.workspace = true
 d2-rs-testdata.workspace = true
 zip.workspace = true
 d2-rs-elk.workspace = true

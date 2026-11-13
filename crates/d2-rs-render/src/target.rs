@@ -526,10 +526,7 @@ fn url_should_escape(c: u8, mode: UrlEncoding) -> bool {
         },
         _ => {}
     }
-    if mode == UrlEncoding::Fragment && matches!(c, b'!' | b'(' | b')' | b'*') {
-        return false;
-    }
-    true
+    !(mode == UrlEncoding::Fragment && matches!(c, b'!' | b'(' | b')' | b'*'))
 }
 
 /// net/url escape (no query-component mode is needed here).

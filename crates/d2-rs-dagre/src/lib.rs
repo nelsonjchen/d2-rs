@@ -3323,13 +3323,10 @@ fn has_single_source_compound(graph: &Graph) -> bool {
         return false;
     }
     let root = roots[0];
-    if graph.nodes().any(|(id, _)| {
+    !graph.nodes().any(|(id, _)| {
         graph.node(id).and_then(|node| node.parent) == Some(root)
             && has_rankable_children(graph, id)
-    }) {
-        return false;
-    }
-    true
+    })
 }
 
 /// Whether the sole source compound has an authored edge that connects the

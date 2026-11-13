@@ -160,14 +160,10 @@ impl Key {
             }
         }
         // Upstream only checks Primary when the left operand has one.
-        if !oracle
-            && self.primary.unbox().is_some()
-            && (other.primary.unbox().is_none()
-                || self.primary.scalar_bytes() != other.primary.scalar_bytes())
-        {
-            return false;
-        }
-        true
+        oracle
+            || self.primary.unbox().is_none()
+            || (other.primary.unbox().is_some()
+                && self.primary.scalar_bytes() == other.primary.scalar_bytes())
     }
 }
 /// Nil-receiver semantics of upstream Key.Equals.

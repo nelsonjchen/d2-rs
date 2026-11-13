@@ -9,7 +9,6 @@ rust-version = "1.98.1"
 license = "MPL-2.0"
 authors = ["Nelson Chen"]
 repository = "https://github.com/nelsonjchen/d2-rs"
-homepage = "https://github.com/nelsonjchen/d2-rs"
 keywords = ["d2", "diagram", "diagrams-as-code", "svg", "graph-layout"]
 categories = ["visualization", "graphics"]
 
@@ -82,7 +81,6 @@ brotli-decompressor = "5.0.3"
 reqwest = { version = "0.12.28", default-features = false, features = ["rustls-tls"] }
 hyper = { version = "1.12.0", default-features = false, features = ["client", "http1"] }
 tokio = { version = "1", features = ["rt", "time", "net", "macros"] }
-zune-jpeg = "0.5.9"
 image-webp = "0.2.4"
 imagesize = "0.15.0"
 ring = "0.17.14"

@@ -53,7 +53,7 @@ impl<T: ?Sized> GoCell<T> {
         #[cfg(any(test, debug_assertions, feature = "checked-cells"))]
         if self
             .borrows
-            .fetch_update(Ordering::Acquire, Ordering::Relaxed, |count| {
+            .try_update(Ordering::Acquire, Ordering::Relaxed, |count| {
                 // A failed read must leave the writer sentinel intact. Refuse
                 // overflow as well, so the reader count can never wrap to zero.
                 if count < 0 {

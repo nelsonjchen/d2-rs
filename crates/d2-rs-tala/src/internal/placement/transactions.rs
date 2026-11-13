@@ -6421,7 +6421,7 @@ impl ArenaGraph {
     }
 
     pub(super) fn transaction_containment_is_valid(&self) -> bool {
-        let local_valid = self.containers.iter().all(|(container, _children)| {
+        self.containers.iter().all(|(container, _children)| {
             let Some(raw_container) = container else {
                 return true;
             };
@@ -6471,12 +6471,7 @@ impl ArenaGraph {
                     }
                     valid
                 })
-        });
-        if !local_valid {
-            return false;
-        }
-
-        true
+        })
     }
 
     /// Match Go's transaction `collectFixedOrigins` plus `IsBadState` fixed

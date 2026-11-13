@@ -480,7 +480,7 @@ fn decode_gif(data: &[u8]) -> Result<Decoded, String> {
     })
 }
 
-/// JPEG via zune-jpeg. Go's image/jpeg integer IDCT and YCbCr conversion are
+/// JPEG via `d2_rs_core::jpeg_first`. Go's image/jpeg integer IDCT and YCbCr conversion are
 /// not yet reproduced bit-for-bit (no corpus board embeds a JPEG).
 fn decode_jpeg(data: &[u8]) -> Result<Decoded, String> {
     let mut input = d2_rs_core::jpeg_first::Bytes { data, offset: 0 };

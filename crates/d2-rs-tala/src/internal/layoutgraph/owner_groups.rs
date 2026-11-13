@@ -80,7 +80,7 @@ impl OwnerGroupId {
             index,
             kind,
             allocation: NEXT_GROUP_ALLOCATION
-                .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |next| {
+                .try_update(Ordering::Relaxed, Ordering::Relaxed, |next| {
                     next.checked_add(1)
                 })
                 .expect("canonical group identity overflow"),

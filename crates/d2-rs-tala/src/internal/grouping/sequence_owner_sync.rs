@@ -34,16 +34,12 @@ impl ArenaGraph {
         let Ok(header) = self.owner_graph_member_header(root) else {
             return false;
         };
-        if header.len() != self.node_order.len()
-            || self
+        header.len() == self.node_order.len()
+            && !self
                 .node_order
                 .iter()
                 .enumerate()
                 .any(|(i, &node)| header.get(i) != Some(Some(node)))
-        {
-            return false;
-        }
-        true
     }
 
     pub(super) fn sync_owner_graph_sequences(&mut self, receiver: OwnerGraphId) {

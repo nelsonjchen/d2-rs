@@ -33,7 +33,7 @@ impl OwnerTreeId {
             arena,
             index,
             allocation: NEXT_TREE_ALLOCATION
-                .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |next| {
+                .try_update(Ordering::Relaxed, Ordering::Relaxed, |next| {
                     next.checked_add(1)
                 })
                 .expect("canonical owner Tree allocation identity overflow"),
