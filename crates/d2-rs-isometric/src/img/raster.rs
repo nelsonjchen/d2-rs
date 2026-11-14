@@ -237,14 +237,7 @@ pub(crate) fn render_frame(
     dynamic: &[Triangle],
     context: &super::context::RenderContext,
 ) -> Result<d2_rs_raster::NrgbaImage, String> {
-    let texture = scene
-        .background_paint
-        .as_ref()
-        .map(|s| {
-            s.with_document(|doc| super::backends::raster_surface(doc, 256, 256))
-                .map(|p| Texture::new(256, 256, p))
-        })
-        .transpose()?;
+    let texture = background_texture(scene)?;
     let shadow = animated.map(|_| {
         raster_fit(
             &scene.triangles,
@@ -295,86 +288,18 @@ fn render_mesh_frame(
         context: context.clone(),
         ..Work::new()
     };
-    work.charge(0)?;
-    if width < 1 || height < 1 || width > 4096 || height > 4096 || width * height > 12_000_000 {
-        return Err("native isometric raster dimensions exceed limits".into());
-    }
-    validate(ts, &work)?;
-    validate(dynamic, &work)?;
-    if camera.is_some_and(|c| c.width < 1 || c.height < 1) {
-        return Err("native raster camera requires positive dimensions".into());
-    }
-    let camera = camera
-        .map(|c| camera_at_resolution(*c, width * AA, height * AA))
-        .unwrap_or_else(|| raster_fit(ts, native_view_direction(), width * AA, height * AA, 1.08));
-    if camera.width < 1 || camera.height < 1 {
-        return Err("native raster camera requires positive dimensions".into());
-    }
-    let shadow = build_shadow_at(ts, &mut work, shadow_camera)?;
-    let ground = raster_shadow_ground(ts);
-    let ground_triangles = raster_ground_triangles(ts, ground, camera.direction);
-    // Ground remapping returns a copy only when a receiver differs. Reusing a
-    // map with identical caster positions is exact and avoids a second buffer.
-    let ground_shadow = if matches!(ground_triangles, Cow::Owned(_)) {
-        work.charge(ts.len() as i64)?;
-        Some(build_shadow_at(
-            &ground_triangles,
-            &mut work,
-            ground_camera,
-        )?)
-    } else {
-        None
-    };
-    let ground_shadow = ground_shadow.as_ref().unwrap_or(&shadow);
-    let mut ground_bounds = Bounds::default();
-    if !ground_shadow.depth.is_empty() {
-        let mut e = ProjectedExtent::default();
-        e.prepared_ground_shadows(
-            &ground_triangles,
-            &[],
-            0.0,
-            ground,
-            Some(&ground_shadow.camera),
-        );
-        if e.valid {
-            let x0 = go_fmadd(
-                e.min_x - camera.center_x,
-                camera.scale,
-                camera.width as f64 / 2.0,
-            );
-            let x1 = go_fmadd(
-                e.max_x - camera.center_x,
-                camera.scale,
-                camera.width as f64 / 2.0,
-            );
-            let y0 = go_fmsub(
-                e.max_y - camera.center_y,
-                camera.scale,
-                camera.height as f64 / 2.0,
-            );
-            let y1 = go_fmsub(
-                e.min_y - camera.center_y,
-                camera.scale,
-                camera.height as f64 / 2.0,
-            );
-            ground_bounds = Bounds {
-                x0: clamp_int(x0.floor(), camera.width),
-                x1: clamp_int(x1.ceil(), camera.width),
-                y0: clamp_int(y0.floor(), camera.height),
-                y1: clamp_int(y1.ceil(), camera.height),
-            };
-        }
-    }
-    drop(ground_triangles);
-    let raster = Raster {
+    let prepared = Prepared::new(
+        width,
+        height,
+        ts,
+        dynamic,
         camera,
-        shadow: &shadow,
-        ground_shadow,
-        ground,
-        ground_bounds,
-        background,
-        background_texture,
-    };
+        shadow_camera,
+        ground_camera,
+        &mut work,
+    )?;
+    let raster = prepared.raster(background, background_texture);
+    let camera = raster.camera;
     let static_plan = raster.prepare(ts);
     let dynamic_plan = raster.prepare(dynamic);
     let combined =
@@ -420,31 +345,329 @@ fn render_mesh_frame(
             raster.draw(&mut work, &mut pixels, &mut depth, bounds, &dynamic_plan)?;
         }
         work.charge(bounds.width() * bounds.height())?;
-        for y in y0..y1 {
-            for x in 0..width {
-                let mut sums = [0u32; 3];
-                for dy in 0..AA {
-                    for dx in 0..AA {
-                        let at = bounds.at(x * AA + dx, y * AA + dy) * 4;
-                        for c in 0..3 {
-                            sums[c] += pixels[at + c] as u32;
-                        }
-                    }
-                }
-                let at = ((y * width + x) * 4) as usize;
-                for c in 0..3 {
-                    output[at + c] = ((sums[c] + 2) / 4) as u8;
-                }
-                output[at + 3] = 255;
-            }
-        }
+        downsample(&mut output, width, &pixels, bounds, 0, width, y0, y1);
     }
     work.check()?;
-    Ok(d2_rs_raster::NrgbaImage {
-        pix: output,
+    Ok(image(output, width, height))
+}
+
+fn image(pix: Pixels, width: i64, height: i64) -> d2_rs_raster::NrgbaImage {
+    d2_rs_raster::NrgbaImage {
+        pix,
         stride: width as usize * 4,
         rect: d2_rs_raster::Rect::new(0, 0, width, height),
-    })
+    }
+}
+
+/// downsamplePixel over output pixels [x0,x1)x[y0,y1), whose AA samples all
+/// lie in `bounds`.
+#[allow(clippy::too_many_arguments)]
+fn downsample(
+    output: &mut [u8],
+    width: i64,
+    pixels: &[u8],
+    bounds: Bounds,
+    x0: i64,
+    x1: i64,
+    y0: i64,
+    y1: i64,
+) {
+    for y in y0..y1 {
+        for x in x0..x1 {
+            let mut sums = [0u32; 3];
+            for dy in 0..AA {
+                for dx in 0..AA {
+                    let at = bounds.at(x * AA + dx, y * AA + dy) * 4;
+                    for c in 0..3 {
+                        sums[c] += pixels[at + c] as u32;
+                    }
+                }
+            }
+            let at = ((y * width + x) * 4) as usize;
+            for c in 0..3 {
+                output[at + c] = ((sums[c] + 2) / 4) as u8;
+            }
+            output[at + 3] = 255;
+        }
+    }
+}
+
+/// newRaster's camera, shadow maps and projected ground-shadow bounds.
+struct Prepared {
+    camera: Camera,
+    shadow: Shadow,
+    ground_shadow: Option<Shadow>,
+    ground: f64,
+    ground_bounds: Bounds,
+}
+
+impl Prepared {
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        width: i64,
+        height: i64,
+        ts: &[Triangle],
+        dynamic: &[Triangle],
+        camera: Option<&Camera>,
+        shadow_camera: Option<&Camera>,
+        ground_camera: Option<&Camera>,
+        work: &mut Work,
+    ) -> Result<Self, String> {
+        work.charge(0)?;
+        if width < 1 || height < 1 || width > 4096 || height > 4096 || width * height > 12_000_000 {
+            return Err("native isometric raster dimensions exceed limits".into());
+        }
+        validate(ts, work)?;
+        validate(dynamic, work)?;
+        if camera.is_some_and(|c| c.width < 1 || c.height < 1) {
+            return Err("native raster camera requires positive dimensions".into());
+        }
+        let camera = camera
+            .map(|c| camera_at_resolution(*c, width * AA, height * AA))
+            .unwrap_or_else(|| {
+                raster_fit(ts, native_view_direction(), width * AA, height * AA, 1.08)
+            });
+        if camera.width < 1 || camera.height < 1 {
+            return Err("native raster camera requires positive dimensions".into());
+        }
+        let shadow = build_shadow_at(ts, work, shadow_camera)?;
+        let ground = raster_shadow_ground(ts);
+        let ground_triangles = raster_ground_triangles(ts, ground, camera.direction);
+        // Ground remapping returns a copy only when a receiver differs. Reusing a
+        // map with identical caster positions is exact and avoids a second buffer.
+        let ground_shadow = if matches!(ground_triangles, Cow::Owned(_)) {
+            work.charge(ts.len() as i64)?;
+            Some(build_shadow_at(&ground_triangles, work, ground_camera)?)
+        } else {
+            None
+        };
+        let mut ground_bounds = Bounds::default();
+        let gs = ground_shadow.as_ref().unwrap_or(&shadow);
+        if !gs.depth.is_empty() {
+            let mut e = ProjectedExtent::default();
+            e.prepared_ground_shadows(&ground_triangles, &[], 0.0, ground, Some(&gs.camera));
+            if e.valid {
+                let x0 = go_fmadd(
+                    e.min_x - camera.center_x,
+                    camera.scale,
+                    camera.width as f64 / 2.0,
+                );
+                let x1 = go_fmadd(
+                    e.max_x - camera.center_x,
+                    camera.scale,
+                    camera.width as f64 / 2.0,
+                );
+                let y0 = go_fmsub(
+                    e.max_y - camera.center_y,
+                    camera.scale,
+                    camera.height as f64 / 2.0,
+                );
+                let y1 = go_fmsub(
+                    e.min_y - camera.center_y,
+                    camera.scale,
+                    camera.height as f64 / 2.0,
+                );
+                ground_bounds = Bounds {
+                    x0: clamp_int(x0.floor(), camera.width),
+                    x1: clamp_int(x1.ceil(), camera.width),
+                    y0: clamp_int(y0.floor(), camera.height),
+                    y1: clamp_int(y1.ceil(), camera.height),
+                };
+            }
+        }
+        Ok(Self {
+            camera,
+            shadow,
+            ground_shadow,
+            ground,
+            ground_bounds,
+        })
+    }
+
+    fn raster<'a>(
+        &'a self,
+        background: Nrgba,
+        background_texture: Option<&'a Texture>,
+    ) -> Raster<'a> {
+        Raster {
+            camera: self.camera,
+            shadow: &self.shadow,
+            ground_shadow: self.ground_shadow.as_ref().unwrap_or(&self.shadow),
+            ground: self.ground,
+            ground_bounds: self.ground_bounds,
+            background,
+            background_texture,
+        }
+    }
+}
+
+/// The static raster a non-animated scene retains (geometry.go newRaster,
+/// raster.go Frame): shadow maps, background texture, output pixels and, for
+/// images within rasterMaxSamples without opacity groups, the AA samples and
+/// depth. Each traffic frame copies it and draws only the packets.
+pub(crate) struct StaticFrame {
+    prepared: Prepared,
+    background_texture: Option<Texture>,
+    output: Pixels,
+    samples: Option<(Pixels, std::vec::Vec<f32>)>,
+    /// A working copy of `samples`, restored to them after each frame.
+    scratch: std::cell::RefCell<Option<(Pixels, std::vec::Vec<f32>)>>,
+}
+
+fn background_texture(scene: &super::svg::NativeScene) -> Result<Option<Texture>, String> {
+    scene
+        .background_paint
+        .as_ref()
+        .map(|s| {
+            s.with_document(|doc| super::backends::raster_surface(doc, 256, 256))
+                .map(|p| Texture::new(256, 256, p))
+        })
+        .transpose()
+}
+
+impl StaticFrame {
+    pub(crate) fn new(
+        scene: &super::svg::NativeScene,
+        context: &super::context::RenderContext,
+    ) -> Result<Self, String> {
+        let (width, height) = (scene.width, scene.height);
+        let background_texture = background_texture(scene)?;
+        let mut work = Work {
+            context: context.clone(),
+            ..Work::new()
+        };
+        let prepared = Prepared::new(
+            width,
+            height,
+            &scene.triangles,
+            &[],
+            Some(&scene.camera),
+            None,
+            None,
+            &mut work,
+        )?;
+        let raster = prepared.raster(scene.background, background_texture.as_ref());
+        let camera = raster.camera;
+        let plan = raster.prepare(&scene.triangles);
+        let mut output = vec![0u8; (width * height * 4) as usize];
+        let samples = if camera.width * camera.height <= 16_000_000 && plan.groups.is_empty() {
+            let bounds = Bounds {
+                x0: 0,
+                y0: 0,
+                x1: width * AA,
+                y1: height * AA,
+            };
+            let mut pixels = vec![0; (bounds.width() * bounds.height() * 4) as usize];
+            let mut depth = vec![f32::NEG_INFINITY; (bounds.width() * bounds.height()) as usize];
+            raster.paint_ground(&mut work, &mut pixels, bounds)?;
+            raster.draw(&mut work, &mut pixels, &mut depth, bounds, &plan)?;
+            work.charge(bounds.width() * bounds.height())?;
+            downsample(&mut output, width, &pixels, bounds, 0, width, 0, height);
+            Some((pixels, depth))
+        } else {
+            raster.render_strips(
+                &mut work,
+                &mut output,
+                width,
+                height,
+                &scene.triangles,
+                &plan,
+                None,
+            )?;
+            None
+        };
+        work.check()?;
+        Ok(Self {
+            prepared,
+            background_texture,
+            output,
+            samples,
+            scratch: Default::default(),
+        })
+    }
+
+    /// Raster.Frame: unchanged pixels stay identical; only samples the dynamic
+    /// triangles can reach are redrawn and downsampled again.
+    pub(crate) fn frame(
+        &self,
+        scene: &super::svg::NativeScene,
+        dynamic: &[Triangle],
+        context: &super::context::RenderContext,
+    ) -> Result<d2_rs_raster::NrgbaImage, String> {
+        let (width, height) = (scene.width, scene.height);
+        let mut work = Work {
+            context: context.clone(),
+            ..Work::new()
+        };
+        work.charge(0)?;
+        validate(dynamic, &work)?;
+        let mut output = self.output.clone();
+        if dynamic.is_empty() {
+            work.check()?;
+            return Ok(image(output, width, height));
+        }
+        let raster = self
+            .prepared
+            .raster(scene.background, self.background_texture.as_ref());
+        let camera = raster.camera;
+        let dynamic_plan = raster.prepare(dynamic);
+        match &self.samples {
+            None => {
+                let static_plan = raster.prepare(&scene.triangles);
+                raster.render_strips(
+                    &mut work,
+                    &mut output,
+                    width,
+                    height,
+                    &scene.triangles,
+                    &static_plan,
+                    Some((dynamic, &dynamic_plan)),
+                )?;
+            }
+            Some((static_pixels, static_depth)) => {
+                let full = Bounds {
+                    x0: 0,
+                    y0: 0,
+                    x1: width * AA,
+                    y1: height * AA,
+                };
+                // A failed draw drops the taken copy instead of keeping it dirty.
+                let taken = self.scratch.borrow_mut().take();
+                let (mut pixels, mut depth) =
+                    taken.unwrap_or_else(|| (static_pixels.clone(), static_depth.clone()));
+                raster.draw(&mut work, &mut pixels, &mut depth, full, &dynamic_plan)?;
+                // Every sample draw can touch lies in a dynamic triangle's
+                // (or its opacity group's) projected bounds; downsampling any
+                // other pixel again would reproduce its static value.
+                let mut dirty = Bounds::default();
+                for t in dynamic {
+                    let p = t.v.map(|v| camera.project(v.position));
+                    dirty = dirty.union(bounds(p, camera.width, camera.height));
+                }
+                let dirty = dirty.intersect(full);
+                if !dirty.empty() {
+                    downsample(
+                        &mut output,
+                        width,
+                        &pixels,
+                        full,
+                        dirty.x0 / AA,
+                        (dirty.x1 + AA - 1) / AA,
+                        dirty.y0 / AA,
+                        (dirty.y1 + AA - 1) / AA,
+                    );
+                    for y in dirty.y0..dirty.y1 {
+                        let (from, to) = (full.at(dirty.x0, y), full.at(dirty.x1, y));
+                        pixels[from * 4..to * 4].copy_from_slice(&static_pixels[from * 4..to * 4]);
+                        depth[from..to].copy_from_slice(&static_depth[from..to]);
+                    }
+                }
+                *self.scratch.borrow_mut() = Some((pixels, depth));
+            }
+        }
+        work.check()?;
+        Ok(image(output, width, height))
+    }
 }
 
 /// rasterSnapshot owns deferred geometry and raster bytes while preserving
@@ -873,6 +1096,80 @@ impl Raster<'_> {
             }
         }
         Ok(())
+    }
+    /// renderStrips: replays the static plan strip by strip into `output`.
+    /// With moving geometry only the strips it touches are redrawn; cached
+    /// translucent groups are replayed together with it in those strips.
+    #[allow(clippy::too_many_arguments)]
+    fn render_strips(
+        &self,
+        w: &mut Work,
+        output: &mut [u8],
+        width: i64,
+        height: i64,
+        static_ts: &[Triangle],
+        static_plan: &Plan<'_>,
+        dynamic: Option<(&[Triangle], &Plan<'_>)>,
+    ) -> Result<(), String> {
+        w.charge(0)?;
+        let rows = STRIP_ROWS.min(height);
+        let sample_rows = rows * AA;
+        let mut active = vec![false; ((height + rows - 1) / rows) as usize];
+        let combined =
+            dynamic.is_some_and(|(_, d)| !static_plan.groups.is_empty() || !d.groups.is_empty());
+        let mut combined_triangles = vec![];
+        if let Some((dts, _)) = dynamic.filter(|_| combined) {
+            if static_ts.len() + dts.len() > RASTER_MAX_TRIANGLES {
+                return Err(format!(
+                    "combined native isometric triangles exceed {RASTER_MAX_TRIANGLES}"
+                ));
+            }
+            w.charge((static_ts.len() + dts.len()) as i64)?;
+            combined_triangles.extend_from_slice(static_ts);
+            combined_triangles.extend_from_slice(dts);
+        }
+        let combined_plan = combined.then(|| self.prepare(&combined_triangles));
+        let plan = combined_plan.as_ref().unwrap_or(static_plan);
+        if let Some((dts, _)) = dynamic {
+            for t in dts {
+                w.charge(1)?;
+                let p = t.v.map(|v| self.camera.project(v.position));
+                let b = bounds(p, self.camera.width, self.camera.height);
+                if b.empty() {
+                    continue;
+                }
+                for strip in b.y0 / sample_rows..=(b.y1 - 1) / sample_rows {
+                    active[strip as usize] = true;
+                }
+            }
+        }
+        let mut pixel_buffer = vec![0u8; (self.camera.width * sample_rows * 4) as usize];
+        let mut depth_buffer = vec![0f32; (self.camera.width * sample_rows) as usize];
+        for y0 in (0..height).step_by(rows as usize) {
+            w.charge(0)?;
+            if dynamic.is_some() && !active[(y0 / rows) as usize] {
+                continue;
+            }
+            let y1 = height.min(y0 + rows);
+            let bounds = Bounds {
+                x0: 0,
+                y0: y0 * AA,
+                x1: self.camera.width,
+                y1: y1 * AA,
+            };
+            let samples = (bounds.width() * bounds.height()) as usize;
+            let pixels = &mut pixel_buffer[..samples * 4];
+            let depth = &mut depth_buffer[..samples];
+            depth.fill(f32::NEG_INFINITY);
+            self.paint_ground(w, pixels, bounds)?;
+            self.draw(w, pixels, depth, bounds, plan)?;
+            if let Some((_, dynamic_plan)) = dynamic.filter(|_| !combined) {
+                self.draw(w, pixels, depth, bounds, dynamic_plan)?;
+            }
+            w.charge(samples as i64)?;
+            downsample(output, width, pixels, bounds, 0, width, y0, y1);
+        }
+        w.check()
     }
     fn prepare<'a>(&self, ts: &'a [Triangle]) -> Plan<'a> {
         self.prepare_triangles(Cow::Borrowed(ts))

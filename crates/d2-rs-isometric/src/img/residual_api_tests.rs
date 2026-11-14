@@ -51,6 +51,7 @@ fn native(v: &Value, images: &Path) -> Value {
                 let capture = super::super::gif_capture::Capture {
                     context: Default::default(),
                     scene: n,
+                    static_frame: Default::default(),
                 };
                 let at = v["at"].as_f64().unwrap();
                 match capture.frame_image_at(

@@ -12,6 +12,9 @@ Each release names the upstream Go D2 commit it matches, from
 
 ### Fixed
 
+- `--isometric` GIF export renders the static scene once and redraws only
+  moving packets per frame, as Go does: a small board drops from 54 s to
+  about 1 s (Go: 2.4 s), with byte-identical output.
 - `--isometric` GIFs are now byte-identical to Go's: they are encoded as Go's
   `image/gif` does (header, color table, frame blocks and LZW data), and a
   long GIF render no longer prints repeated `compiling & running layout

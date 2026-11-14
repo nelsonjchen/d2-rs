@@ -33,6 +33,7 @@ pub fn render_gif_with_context(
         capture.scene =
             super::gif_loop::loop_scene(&capture.context, &capture.scene, (cycle * 1e9) as i64)
                 .map_err(|e| capture.context.error(e))?;
+        capture.static_frame = Default::default();
     }
     let frame_at =
         |seconds: f64| capture.frame_image_at(seconds, seconds * CYCLE_SECONDS / cycle, true);

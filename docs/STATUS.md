@@ -258,9 +258,12 @@ but a handful of jobs. Open clusters, with witnesses in
   spore, rectpacking and component packing are unreachable). Probes aimed at
   reachable gaps (block comments, raster legends and tooltips, `&` filters,
   substitutions, isometric output) found one cluster: isometric GIF bytes
-  and stderr, now fixed. Open: `--isometric` GIF export is about 22x slower
-  than Go (54 s vs 2.4 s on a small board) and perf-bench has no isometric
-  case; embedded WebP/JPEG/GIF images remain unprobed.
+  and stderr, now fixed. Isometric GIF export was also 22x slower than Go
+  (54 s vs 2.4 s) because every frame re-rendered the static scene; it now
+  keeps Go's retained raster (`newRaster`/`Raster.Frame`) and takes 1.0 s.
+  Open: perf-bench has no isometric case; `--isometric` PDF of a multi-step
+  board (`iso_steps` probe) differs from Go in image-object layout;
+  embedded WebP/JPEG/GIF images remain unprobed.
 - **Witness replay (2026-11-13, resolved):** every retained witness under
   `oracle-cache/reports/` (1,339 unique inputs, 3,146 engine runs at 0.1.8)
   was replayed against pinned Go with default options. All runs match except

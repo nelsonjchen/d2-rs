@@ -6,12 +6,13 @@ use super::{
     geometry_core::MeshGeometry,
     geometry_routes::path_point,
     mesh::{Texture, nv},
+    raster::StaticFrame,
     render::{Options, normalize},
     svg::NativeScene,
 };
 use crate::{scene::build_scene, target::Diagram};
 use d2_rs_core::CancellationToken;
-use std::rc::Rc;
+use std::{cell::OnceCell, rc::Rc};
 
 pub const FRAME_COUNT: usize = 100;
 pub const CYCLE_SECONDS: f64 = 25.0 / 3.0;
@@ -54,6 +55,9 @@ impl From<String> for CaptureError {
 pub struct Capture {
     pub(crate) context: RenderContext,
     pub(crate) scene: NativeScene,
+    /// The non-animated scene's static raster (nativeScene.raster), built on
+    /// first use and shared by every traffic frame. Reset with the scene.
+    pub(crate) static_frame: OnceCell<StaticFrame>,
 }
 
 impl Capture {
@@ -94,7 +98,11 @@ impl Capture {
         )
         .map_err(|e| context.error(format!("initialize native isometric renderer: {e}")))?;
         context.check()?;
-        Ok(Self { context, scene })
+        Ok(Self {
+            context,
+            scene,
+            static_frame: OnceCell::new(),
+        })
     }
 
     pub fn frame(&self, seconds: f64, traffic: bool) -> Result<Vec<u8>, RenderError> {
@@ -117,7 +125,13 @@ impl Capture {
         self.context.check()?;
         let frame = self
             .scene
-            .frame_at(&self.context, seconds, packet_seconds, traffic)
+            .frame_at(
+                &self.context,
+                &self.static_frame,
+                seconds,
+                packet_seconds,
+                traffic,
+            )
             .map_err(|e| {
                 self.context
                     .error(format!("render isometric frame at {seconds:.4}s: {e}"))
@@ -171,6 +185,7 @@ impl NativeScene {
     fn frame_at(
         &self,
         context: &RenderContext,
+        static_frame: &OnceCell<StaticFrame>,
         seconds: f64,
         packet_seconds: f64,
         traffic: bool,
@@ -262,6 +277,23 @@ impl NativeScene {
                 }
             }
         }
-        super::raster::render_frame(self, triangles.as_deref(), &dynamic.triangles, context)
+        if triangles.is_some() {
+            return super::raster::render_frame(
+                self,
+                triangles.as_deref(),
+                &dynamic.triangles,
+                context,
+            );
+        }
+        // frameRaster returns the scene's retained raster; Raster.Frame draws
+        // only the packets over a copy of its samples (geometry.go:720).
+        let cached = match static_frame.get() {
+            Some(cached) => cached,
+            None => {
+                let built = StaticFrame::new(self, context)?;
+                static_frame.get_or_init(|| built)
+            }
+        };
+        cached.frame(self, &dynamic.triangles, context)
     }
 }
