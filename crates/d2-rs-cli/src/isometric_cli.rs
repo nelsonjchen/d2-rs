@@ -596,6 +596,9 @@ pub(super) fn run(
             assets: Some(assets),
             ..Default::default()
         };
+        // Every board is compiled and laid out: Go's ticker stops here
+        // (d2cli/main.go:548), before the long frame rendering and encoding.
+        super::begin_render();
         let token = watch::active_cancellation_token();
         let data = if has_children || boards.len() > 1 || interval_ms > 0 {
             img::timeline::render_timeline(
@@ -989,6 +992,34 @@ mod tests {
         for scale in [0.001, 10.0] {
             assert_eq!(dimensions(ExportFormat::Svg, scale).unwrap(), (1600, 1000));
         }
+    }
+    #[test]
+    fn isometric_gif_renders_after_the_compile_ticker_stops() {
+        // d2cli/main.go:548 cancels "compiling & running layout algorithms..."
+        // before renderIsometricImages, so a long GIF encode never reports it.
+        let directory =
+            std::env::temp_dir().join(format!("d2-rs-isometric-gif-ticker-{}", std::process::id()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let input = directory.join("input.d2");
+        std::fs::write(&input, b"a -> b").unwrap();
+        let output = directory.join("output.gif");
+        // The cycle and timeline encoders both run after one call site; the
+        // timeline branch keeps the debug-build test short.
+        super::RENDER_STARTED_WITH_PROGRESS.with(|started| started.set(None));
+        run_document(&[
+            "--isometric".to_owned(),
+            "--scale=0.12".to_owned(),
+            "--animate-interval=400".to_owned(),
+            input.to_string_lossy().into_owned(),
+            output.to_string_lossy().into_owned(),
+        ])
+        .unwrap();
+        assert_eq!(
+            super::RENDER_STARTED_WITH_PROGRESS.with(|started| started.get()),
+            Some(false)
+        );
+        assert_eq!(&std::fs::read(&output).unwrap()[..6], b"GIF89a");
+        std::fs::remove_dir_all(directory).unwrap();
     }
     #[test]
     fn failed_image_keeps_existing_output() {

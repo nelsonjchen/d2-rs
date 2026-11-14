@@ -1496,9 +1496,11 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 ```
 
 Native `crates/d2-rs-export/src/gif_encode.rs` translates Go 1.27
-`compress/lzw/writer.go`. Copyright 2011 The Go Authors. The Go BSD-3-Clause
-conditions and disclaimer above apply. GIF assembly follows D2 `lib/xgif/encode.go`
-under its retained MPL-2.0 terms.
+`compress/lzw/writer.go` (Copyright 2011 The Go Authors) and the `EncodeAll`
+path of Go 1.27 `image/gif/writer.go` (Copyright 2013 The Go Authors), used by
+the isometric GIF encoders. The Go BSD-3-Clause conditions and disclaimer above
+apply. GIF assembly follows D2 `lib/xgif/encode.go` under its retained MPL-2.0
+terms.
 
 ## DejaVu Sans test fonts
 

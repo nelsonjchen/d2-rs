@@ -158,3 +158,61 @@ fn timeline_preserves_typed_cancellation_and_checks_admission_first() {
         "isometric timeline requires GIF, 1..128 boards, and an interval in (0,10m]"
     );
 }
+
+/// gif.go and timeline.go encode with image/gif EncodeAll: the palette is the
+/// global table (`0x80 | log2(len)`), NETSCAPE2.0 with LoopCount 0 follows it
+/// for animations, and every frame has a DisposalNone graphic control
+/// extension and uses the global table.
+fn assert_image_gif_layout(bytes: &[u8], frames: usize) {
+    assert_eq!(&bytes[..6], b"GIF89a");
+    let packed = bytes[10];
+    assert_eq!(packed & 0xf8, 0x80, "{packed:#x}");
+    assert_eq!(bytes[11..13], [0, 0]);
+    let mut at = 13 + (3 << ((packed & 7) + 1));
+    if frames > 1 {
+        assert_eq!(
+            &bytes[at..at + 19],
+            b"\x21\xff\x0bNETSCAPE2.0\x03\x01\x00\x00\x00"
+        );
+        at += 19;
+    }
+    let literal_width = ((packed & 7) + 1).max(2);
+    for _ in 0..frames {
+        assert_eq!(bytes[at..at + 4], [0x21, 0xf9, 0x04, 0x04]);
+        assert_eq!(bytes[at + 6..at + 9], [0, 0, 0x2c]);
+        at += 8 + 9;
+        assert_eq!(bytes[at..at + 2], [0, literal_width]);
+        at += 2;
+        while bytes[at] != 0 {
+            at += 1 + bytes[at] as usize;
+        }
+        at += 1;
+    }
+    assert_eq!(&bytes[at..], [0x3b]);
+}
+
+#[test]
+fn timeline_and_cycle_gifs_follow_image_gif_encode_all() {
+    let options = Options {
+        format: "gif".into(),
+        width: 64,
+        height: 64,
+        ..Default::default()
+    };
+    let boards = [Some(Diagram::default()), Some(Diagram::default())];
+    assert_image_gif_layout(
+        &render_timeline(None, &boards, Some(&options), 370_000_000).unwrap(),
+        2,
+    );
+    assert_image_gif_layout(
+        &render_timeline(None, &boards[..1], Some(&options), 370_000_000).unwrap(),
+        1,
+    );
+    let cycle = d2_rs_isometric::img::render::render_with_context(
+        None,
+        Some(&Diagram::default()),
+        Some(&options),
+    )
+    .unwrap();
+    assert_image_gif_layout(&cycle, 100);
+}

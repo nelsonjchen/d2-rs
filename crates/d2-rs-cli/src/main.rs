@@ -5270,8 +5270,9 @@ fn run_document_with_stdout(
     let _source_config = SourceConfigScope::enter(&input);
     // Go starts this ticker after reading the source and constructing its
     // compile options, immediately before d2lib.Compile. Keep it live across
-    // every Rust compile/layout return path, including limit errors.
-    let compile_progress = CompileProgress::start();
+    // every Rust compile/layout return path, including limit errors, until a
+    // path that has finished its layouts calls finish_compile_progress.
+    let compile_progress = ActiveCompileProgress::start(CompileProgress::start());
     let display_input_path = PathBuf::from(&input_path);
     let mut partial_written = false;
     let result = (|| -> Result<Vec<u8>, String> {
@@ -5842,6 +5843,54 @@ impl Drop for CompileProgress {
             let _ = worker.join();
         }
     }
+}
+
+thread_local! {
+    /// The running document's compile ticker: d2cli.compile's `cancel`.
+    static ACTIVE_COMPILE_PROGRESS: std::cell::RefCell<Option<CompileProgress>> =
+        const { std::cell::RefCell::new(None) };
+    /// Whether the ticker was still running when a path began rendering.
+    #[cfg(test)]
+    static RENDER_STARTED_WITH_PROGRESS: std::cell::Cell<Option<bool>> =
+        const { std::cell::Cell::new(None) };
+}
+
+/// Owns the document's ticker for the thread compiling it and stops it on
+/// every return path.
+struct ActiveCompileProgress;
+
+impl ActiveCompileProgress {
+    fn start(progress: CompileProgress) -> Self {
+        let previous = ACTIVE_COMPILE_PROGRESS.with(|active| active.replace(Some(progress)));
+        drop(previous);
+        Self
+    }
+}
+
+impl Drop for ActiveCompileProgress {
+    fn drop(&mut self) {
+        finish_compile_progress();
+    }
+}
+
+/// d2cli/main.go:548 calls `cancel()` once d2lib.Compile and the option checks
+/// return, so rendering and encoding never report "compiling & running layout
+/// algorithms". Stops and joins the ticker; later calls do nothing.
+fn finish_compile_progress() {
+    let progress = ACTIVE_COMPILE_PROGRESS.with(|active| active.borrow_mut().take());
+    drop(progress);
+}
+
+/// A path whose boards are all laid out starts rendering: the compile phase
+/// and its ticker end here.
+fn begin_render() {
+    finish_compile_progress();
+    #[cfg(test)]
+    RENDER_STARTED_WITH_PROGRESS.with(|started| {
+        started.set(Some(
+            ACTIVE_COMPILE_PROGRESS.with(|active| active.borrow().is_some()),
+        ))
+    });
 }
 
 /// imgbundler.BundleWithResolver's returned error: the worker context's
@@ -6533,6 +6582,31 @@ mod tests {
                 .recv_timeout(std::time::Duration::from_millis(20))
                 .is_err()
         );
+    }
+
+    #[test]
+    fn finishing_the_compile_phase_stops_the_progress_ticker() {
+        let (send, receive) = std::sync::mpsc::channel();
+        let guard = ActiveCompileProgress::start(CompileProgress::start_with(
+            std::time::Duration::from_millis(1),
+            move || {
+                let _ = send.send(COMPILE_PROGRESS_MESSAGE);
+            },
+        ));
+        assert!(
+            receive
+                .recv_timeout(std::time::Duration::from_secs(1))
+                .is_ok()
+        );
+        begin_render();
+        while receive.try_recv().is_ok() {}
+        assert!(
+            receive
+                .recv_timeout(std::time::Duration::from_millis(20))
+                .is_err()
+        );
+        assert_eq!(RENDER_STARTED_WITH_PROGRESS.with(|s| s.get()), Some(false));
+        drop(guard);
     }
 
     fn source_test_path(path: &Path) -> String {

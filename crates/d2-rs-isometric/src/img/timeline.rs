@@ -3,7 +3,9 @@
 use super::{
     context::{RenderContext, RenderError},
     framing::ProjectedExtent,
-    gif::{BoundedWriter, cycle_frame_delay, frame_delta, index_frame, palette_lookup},
+    gif::{
+        BoundedWriter, DISPOSAL_NONE, cycle_frame_delay, frame_delta, index_frame, palette_lookup,
+    },
     gif_capture::{Capture, MAX_ANIMATION_PIXELS},
     render::{Options, build_native_scene_mode, normalize},
     svg::MAX_OUTPUT_BYTES,
@@ -13,7 +15,7 @@ use crate::{
     target::Diagram,
 };
 use d2_rs_core::CancellationToken;
-use std::borrow::Cow;
+use d2_rs_export::ImageGifEncoder;
 
 pub const MAX_TIMELINE_BOARDS: usize = 128;
 const MAX_TIMELINE_FRAMES: usize = 1000;
@@ -93,26 +95,25 @@ pub fn render_timeline(
     }
     let palette = d2_rs_export::gif_median_cut_palette(&samples);
     let lookup = palette_lookup(&context, &palette)?;
-    let channels: Vec<_> = palette
-        .iter()
-        .flat_map(|c| c[..3].iter().copied())
-        .collect();
     let mut writer = BoundedWriter {
         context: &context,
         bytes: Vec::new(),
         remaining: MAX_OUTPUT_BYTES,
     };
     {
-        let mut encoder =
-            gif::Encoder::new(&mut writer, o.width as u16, o.height as u16, &channels)
-                .map_err(|e| context.error(e.to_string()))?;
-        // image/gif writer.go writeHeader emits NETSCAPE2.0 only for
-        // multiple frames. A single held board has no loop extension.
-        if total > 1 {
-            encoder
-                .set_repeat(gif::Repeat::Infinite)
-                .map_err(|e| context.error(e.to_string()))?;
-        }
+        // timeline.go RenderTimeline: gif.EncodeAll with LoopCount 0. Its
+        // writeHeader emits NETSCAPE2.0 only for multiple frames, so a single
+        // held board has no loop extension.
+        let error = |e: std::io::Error| context.error(e.to_string());
+        let mut encoder = ImageGifEncoder::new(
+            &mut writer,
+            o.width as usize,
+            o.height as usize,
+            &palette,
+            total,
+            0,
+        )
+        .map_err(error)?;
         let delay = (interval_ns as f64 / 10_000_000.0).round().max(1.0) as usize;
         let mut previous: Option<Vec<u8>> = None;
         for (board, &count) in boards.iter().zip(&counts) {
@@ -127,23 +128,20 @@ pub fn render_timeline(
                     None => (0, 0, frame.width(), frame.height(), indexed.clone()),
                 };
                 encoder
-                    .write_frame(&gif::Frame {
-                        left: left as u16,
-                        top: top as u16,
-                        width: width as u16,
-                        height: height as u16,
-                        delay: cycle_frame_delay(i, count, delay),
-                        dispose: gif::DisposalMethod::Keep,
-                        buffer: Cow::Owned(pixels),
-                        ..Default::default()
-                    })
-                    .map_err(|e| context.error(e.to_string()))?;
+                    .write_frame(
+                        left,
+                        top,
+                        width,
+                        height,
+                        cycle_frame_delay(i, count, delay),
+                        DISPOSAL_NONE,
+                        &pixels,
+                    )
+                    .map_err(error)?;
                 previous = Some(indexed);
             }
         }
-        encoder
-            .into_inner()
-            .map_err(|e| context.error(e.to_string()))?;
+        encoder.finish().map_err(error)?;
     }
     context.check()?;
     Ok(writer.bytes)

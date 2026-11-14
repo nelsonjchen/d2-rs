@@ -11,8 +11,12 @@ use super::{
 };
 use crate::target::Diagram;
 use d2_rs_core::CancellationToken;
+use d2_rs_export::ImageGifEncoder;
 use d2_rs_raster::NrgbaImage;
-use std::{borrow::Cow, io::Write};
+use std::io::Write;
+
+/// image/gif DisposalNone: each frame stays as the next frame's canvas.
+pub(crate) const DISPOSAL_NONE: u8 = 0x01;
 
 /// Render an infinitely looping GIF. The caller retains the diagram and all
 /// authored animation durations, including source-panel and mask tracks.
@@ -52,26 +56,24 @@ pub fn render_gif_with_context(
     capture.context.check()?;
     let palette = d2_rs_export::gif_median_cut_palette(&samples);
     let lookup = palette_lookup(&capture.context, &palette)?;
-    let channels: Vec<_> = palette
-        .iter()
-        .flat_map(|c| c[..3].iter().copied())
-        .collect();
     let mut writer = BoundedWriter {
         context: &capture.context,
         bytes: Vec::new(),
         remaining: MAX_OUTPUT_BYTES,
     };
     {
-        let mut encoder = gif::Encoder::new(
+        // gif.go renderGIF: gif.EncodeAll with LoopCount 0, the palette as
+        // Config.ColorModel and gif.DisposalNone for every frame.
+        let error = |e: std::io::Error| capture.context.error(e.to_string());
+        let mut encoder = ImageGifEncoder::new(
             &mut writer,
-            capture.scene.width as u16,
-            capture.scene.height as u16,
-            &channels,
+            capture.scene.width as usize,
+            capture.scene.height as usize,
+            &palette,
+            frames,
+            0,
         )
-        .map_err(|e| capture.context.error(e.to_string()))?;
-        encoder
-            .set_repeat(gif::Repeat::Infinite)
-            .map_err(|e| capture.context.error(e.to_string()))?;
+        .map_err(error)?;
         let mut previous: Option<Vec<u8>> = None;
         for i in 0..frames {
             let frame = frame_at(i as f64 * cycle / frames as f64)?;
@@ -81,24 +83,20 @@ pub fn render_gif_with_context(
             } else {
                 (0, 0, frame.width(), frame.height(), indexed.clone())
             };
-            let frame = gif::Frame {
-                left: left as u16,
-                top: top as u16,
-                width: width as u16,
-                height: height as u16,
-                delay: cycle_frame_delay(i, frames, (cycle * 100.0).round() as usize),
-                dispose: gif::DisposalMethod::Keep,
-                buffer: Cow::Owned(pixels),
-                ..Default::default()
-            };
             encoder
-                .write_frame(&frame)
-                .map_err(|e| capture.context.error(e.to_string()))?;
+                .write_frame(
+                    left,
+                    top,
+                    width,
+                    height,
+                    cycle_frame_delay(i, frames, (cycle * 100.0).round() as usize),
+                    DISPOSAL_NONE,
+                    &pixels,
+                )
+                .map_err(error)?;
             previous = Some(indexed);
         }
-        encoder
-            .into_inner()
-            .map_err(|e| capture.context.error(e.to_string()))?;
+        encoder.finish().map_err(error)?;
     }
     capture.context.check()?;
     Ok(writer.bytes)

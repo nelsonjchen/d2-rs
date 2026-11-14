@@ -12,6 +12,10 @@ Each release names the upstream Go D2 commit it matches, from
 
 ### Fixed
 
+- `--isometric` GIFs are now byte-identical to Go's: they are encoded as Go's
+  `image/gif` does (header, color table, frame blocks and LZW data), and a
+  long GIF render no longer prints repeated `compiling & running layout
+  algorithms...` lines after layout has finished.
 - TALA: deeply nested diagrams no longer crash with a stack overflow. More
   than 256 levels of nesting, or more than 10,000 objects, now fail at once
   with Go's error instead of running for minutes.

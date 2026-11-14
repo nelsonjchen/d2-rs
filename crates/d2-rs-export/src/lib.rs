@@ -30,6 +30,7 @@ use thiserror::Error;
 pub mod ascii_target;
 mod document_links;
 mod gif_encode;
+pub use gif_encode::ImageGifEncoder;
 mod gif_quantize;
 pub use gif_quantize::palette as gif_median_cut_palette;
 mod go_png;

@@ -251,6 +251,16 @@ but a handful of jobs. Open clusters, with witnesses in
   Sources and comparisons are under `oracle-cache/reports/T48/`, `T49/`
   and `T410/`. Fresh seed 20261109410 also matches all 2,048 four/five-leaf
   cases, with no findings or lost match (`T410/final/fresh/summary.json`).
+- **Go coverage (2026-11-13):** a `-cover` build of the pinned Go CLI (with
+  `dagro` and `elk-go` in `-coverpkg`) run under every harness corpus
+  reaches 66.3% of Go statements: d2 73.4%, dagro 78.5%, elk-go 35.5% (D2
+  only selects ELK's `layered` algorithm, so mrtree, radial, force, stress,
+  spore, rectpacking and component packing are unreachable). Probes aimed at
+  reachable gaps (block comments, raster legends and tooltips, `&` filters,
+  substitutions, isometric output) found one cluster: isometric GIF bytes
+  and stderr, now fixed. Open: `--isometric` GIF export is about 22x slower
+  than Go (54 s vs 2.4 s on a small board) and perf-bench has no isometric
+  case; embedded WebP/JPEG/GIF images remain unprobed.
 - **Witness replay (2026-11-13, resolved):** every retained witness under
   `oracle-cache/reports/` (1,339 unique inputs, 3,146 engine runs at 0.1.8)
   was replayed against pinned Go with default options. All runs match except
