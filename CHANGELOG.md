@@ -10,6 +10,11 @@ Each release names the upstream Go D2 commit it matches, from
 
 ## [Unreleased]
 
+## [0.1.9] - 2026-11-14
+
+Matches Go D2 `master` at 6a7b48378, as 0.1.0 does. Crates, the npm
+package, prebuilt binaries and Windows installers.
+
 ### Fixed
 
 - `--isometric` GIF export renders the static scene once and redraws only
@@ -302,6 +307,7 @@ Matches Go D2 `master` at 6a7b48378, as 0.1.0 does.
   path separators in diagnostics and one TALA layout differ in tests.
 
 [Unreleased]: https://github.com/nelsonjchen/d2-rs/commits/main
+[0.1.9]: https://crates.io/crates/d2-rs/0.1.9
 [0.1.8]: https://crates.io/crates/d2-rs/0.1.8
 [0.1.7]: https://crates.io/crates/d2-rs/0.1.7
 [0.1.6]: https://github.com/nelsonjchen/d2-rs/releases/tag/v0.1.6

@@ -1,6 +1,6 @@
 {
   "name": "@d2-rs/wasm",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Browser and Node bindings for d2-rs",
   "keywords": [
     "d2",
