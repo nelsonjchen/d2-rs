@@ -261,9 +261,20 @@ but a handful of jobs. Open clusters, with witnesses in
   and stderr, now fixed. Isometric GIF export was also 22x slower than Go
   (54 s vs 2.4 s) because every frame re-rendered the static scene; it now
   keeps Go's retained raster (`newRaster`/`Raster.Frame`) and takes 1.0 s.
-  Open: perf-bench has no isometric case; `--isometric` PDF of a multi-step
-  board (`iso_steps` probe) differs from Go in image-object layout;
-  embedded WebP/JPEG/GIF images remain unprobed.
+  Multi-board PDFs (the `iso_steps` probe and others) are not a d2-rs
+  bug: pinned Go writes them nondeterministically, since fpdf's catalogSort
+  is off and putimages, putxobjectdict and putfonts iterate Go maps; six
+  identical Go runs gave six different files. The PDF object graphs, streams
+  and resource sharing match d2-rs in all 138 rendered rows of a 288-row
+  multi-board sweep (all engines, normal and isometric); all 132 PPTX match.
+  The embedded-image sweep (2026-11-15, `scripts/embedded-images-sweep.py`)
+  covers 18 generated local assets, local paths/data URIs, icons/image shapes,
+  all engines and normal/isometric SVG, PNG, PDF, PPTX and animated GIF.
+  Inline raster preflight now uses the scene resolver's MIME sniffing and
+  probe errors; lossy alpha WebP retains Go's 16-bit premultiplied samples.
+  All 1,728 SVG/PNG/PPTX/GIF cases match, up from 1,620. The 99 PDF byte
+  differences are the same Go map-order variation; their object graphs match.
+  Open: perf-bench has no isometric GIF, PDF or PPTX case (in progress).
 - **Witness replay (2026-11-13, resolved):** every retained witness under
   `oracle-cache/reports/` (1,339 unique inputs, 3,146 engine runs at 0.1.8)
   was replayed against pinned Go with default options. All runs match except

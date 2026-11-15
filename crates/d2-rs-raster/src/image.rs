@@ -501,24 +501,20 @@ fn decode_jpeg(data: &[u8]) -> Result<Decoded, String> {
     })
 }
 
-/// WebP via image-webp; lossy NYCbCrA conversion is not yet bit-exact.
+/// x/image/webp concrete color models and their image.Color.RGBA samples.
 fn decode_webp(data: &[u8]) -> Result<Decoded, String> {
     let mut decoder =
         image_webp::WebPDecoder::new(std::io::Cursor::new(data)).map_err(|e| e.to_string())?;
-    // x/image/webp exposes opaque VP8 as image.YCbCr. Its RGBA samples
+    // x/image/webp exposes VP8 as image.YCbCr or image.NYCbCrA. Their RGBA samples
     // retain sixteen-bit conversion precision, which is needed before the
     // rasterizer interpolates scaled images.
-    if !decoder.is_animated() && !decoder.has_alpha() && decoder.is_lossy() {
-        let (pixels, width, height, _) = crate::first_frame::webp_rgba(data)?;
-        let mut rgba64 = Samples::with_capacity(pixels.len());
-        for pixel in pixels {
-            rgba64.push(pixel.map(u32::from));
-        }
+    if !decoder.is_animated() && decoder.is_lossy() {
+        let (pixels, width, height, _) = crate::first_frame::webp_premultiplied_rgba(data)?;
         return Ok(Decoded {
             asset: PreparedRasterAsset {
                 bounds: Rect::new(0, 0, i64::from(width), i64::from(height)),
                 width: i64::from(width),
-                rgba64: rgba64.0,
+                rgba64: pixels,
                 nrgba: None,
             },
             sixteen_bit: false,
@@ -972,4 +968,39 @@ pub fn composite_premultiplied_rgba64(destination: &mut [u8], source: [u32; 4]) 
             (source_channel + mul255(destination[channel] as u32, inverse_alpha)).min(255) as u8;
     }
     destination[3] = (source_alpha + mul255(destination[3] as u32, inverse_alpha)).min(255) as u8;
+}
+
+#[cfg(test)]
+mod webp_color_tests {
+    use super::*;
+    use base64::Engine as _;
+
+    #[test]
+    fn lossy_alpha_webp_retains_go_nycbcra_samples() {
+        // Existing authored SVG input; Go 1.27 x/image/webp.Decode returns
+        // *image.NYCbCrA. image/color/ycbcr.go NYCbCrA.RGBA keeps the low
+        // eight color bits before premultiplying, unlike an NRGBA conversion.
+        let svg = include_str!("../../../tests/d2/svg-embedded-webp-lossy-use.svg");
+        let encoded = svg
+            .split_once("base64,")
+            .unwrap()
+            .1
+            .split('\'')
+            .next()
+            .unwrap();
+        let data = base64::engine::general_purpose::STANDARD
+            .decode(encoded)
+            .unwrap();
+        let decoded = decode_webp(&data).unwrap();
+        assert!(decoded.asset.nrgba.is_none());
+        for (x, y, expected) in [
+            (0, 0, [0, 0, 0, 0]),
+            (1, 0, [818, 939, 961, 7967]),
+            (2, 1, [7317, 2903, 5662, 20303]),
+            (4, 2, [18655, 13910, 17731, 40606]),
+            (7, 5, [9401, 9079, 9926, 11822]),
+        ] {
+            assert_eq!(decoded.asset.at(x, y), expected, "at ({x}, {y})");
+        }
+    }
 }

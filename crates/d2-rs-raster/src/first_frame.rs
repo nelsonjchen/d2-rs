@@ -735,9 +735,27 @@ fn decode_webp(data: &[u8]) -> Result<PngImage, String> {
 }
 
 pub(crate) fn webp_rgba(data: &[u8]) -> Result<(Vec<[u16; 4]>, u32, u32, bool), String> {
+    webp_pixels(data, false)
+}
+
+/// Go image.Color.RGBA samples, before PNG's NRGBA64Model conversion.
+pub(crate) fn webp_premultiplied_rgba(
+    data: &[u8],
+) -> Result<(Vec<[u16; 4]>, u32, u32, bool), String> {
+    webp_pixels(data, true)
+}
+
+fn webp_pixels(
+    data: &[u8],
+    premultiplied: bool,
+) -> Result<(Vec<[u16; 4]>, u32, u32, bool), String> {
     let mut decoder = image_webp::WebPDecoder::new(Cursor::new(data)).map_err(|e| e.to_string())?;
     let (width, height) = decoder.dimensions();
-    dimensions(width, height)?;
+    // The straight-alpha adapter has the isometric texture ceiling. Native
+    // raster assets use their scene's decoded-pixel and storage budgets.
+    if !premultiplied {
+        dimensions(width, height)?;
+    }
     let mut out = Vec::with_capacity(width as usize * height as usize);
     if !decoder.is_lossy() {
         let alpha = decoder.has_alpha();
@@ -750,12 +768,23 @@ pub(crate) fn webp_rgba(data: &[u8]) -> Result<(Vec<[u16; 4]>, u32, u32, bool), 
         ];
         decoder.read_image(&mut bytes).map_err(|e| e.to_string())?;
         for p in bytes.chunks_exact(channels) {
-            out.push([
+            let pixel = [
                 p[0] as u16 * 257,
                 p[1] as u16 * 257,
                 p[2] as u16 * 257,
                 if alpha { p[3] as u16 * 257 } else { 65535 },
-            ]);
+            ];
+            out.push(if premultiplied {
+                let a = u32::from(pixel[3]);
+                [
+                    (u32::from(pixel[0]) * a / 65535) as u16,
+                    (u32::from(pixel[1]) * a / 65535) as u16,
+                    (u32::from(pixel[2]) * a / 65535) as u16,
+                    pixel[3],
+                ]
+            } else {
+                pixel
+            });
         }
         return Ok((out, width, height, false));
     }
@@ -802,7 +831,12 @@ pub(crate) fn webp_rgba(data: &[u8]) -> Result<(Vec<[u16; 4]>, u32, u32, bool), 
                 if a == 0 {
                     0
                 } else {
-                    ((v as u32 * a as u32 / 65535) * 65535 / a as u32) as u16
+                    let value = v as u32 * a as u32 / 65535;
+                    if premultiplied {
+                        value as u16
+                    } else {
+                        (value * 65535 / a as u32) as u16
+                    }
                 }
             };
             out.push([channel(c[0]), channel(c[1]), channel(c[2]), a]);

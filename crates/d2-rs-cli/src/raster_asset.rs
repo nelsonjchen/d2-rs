@@ -381,6 +381,33 @@ fn validate_session_decoded_pixels(
     ))
 }
 
+/// d2cli.newSceneAssetOptions/gifSceneAssetOptions. Inline preflight uses
+/// imageasset's actual load/probe boundary, just like the retained scene.
+fn inline_image_resolver(
+    base: &Path,
+    max_decoded_pixels: Option<u64>,
+) -> Result<d2_rs_scenebuild::RasterImageResolver, String> {
+    let gif = max_decoded_pixels.is_some();
+    d2_rs_scenebuild::RasterImageResolver::new(
+        base,
+        d2_rs_scenebuild::ImageAssetLimits {
+            max_fetched_bytes: MAX_ASSET_BYTES as i64,
+            max_encoded_bytes: MAX_ASSET_BYTES as i64,
+            max_decompressed_bytes: MAX_ASSET_BYTES as i64,
+            max_svg_bytes: 64 << 10,
+            max_decoded_width: MAX_DECODED_ASSET_DIMENSION as i64,
+            max_decoded_height: MAX_DECODED_ASSET_DIMENSION as i64,
+            max_decoded_pixels: max_decoded_pixels.unwrap_or(MAX_DECODED_ASSET_PIXELS as u64)
+                as i64,
+            max_assets: if gif { 960 } else { 4032 },
+            max_cumulative_encoded_bytes: if gif { 64 << 20 } else { 448 << 20 },
+            max_cumulative_decoded_bytes: if gif { 128 << 20 } else { 512 << 20 },
+        },
+        std::sync::Arc::new(d2_rs_scenebuild::UnrestrictedImageFiles::new()),
+    )
+    .map_err(|e| e.to_string())
+}
+
 pub(super) fn load_into_options(
     source_args: &[String],
     graph: &Graph,
@@ -447,14 +474,21 @@ pub(super) fn load_into_options(
         }
     }
     let mut seen = BTreeSet::new();
+    let mut inline_resolver = None;
     for (object, icon) in inputs {
         context()?;
         if !seen.insert(icon) {
             continue;
         }
         if icon.starts_with("data:") {
-            validate_data_uri_asset(icon)
-                .map_err(|e| format!("scene: {object} image asset: {e}"))?;
+            if inline_resolver.is_none() {
+                inline_resolver = Some(inline_image_resolver(base, max_decoded_pixels)?);
+            }
+            if let Some(resolver) = &inline_resolver {
+                resolver
+                    .resolve_with_context(icon, watch::active_cancellation_token().as_ref())
+                    .map_err(|e| format!("scene: {object} image asset: {e}"))?;
+            }
             continue;
         }
         match acquire(icon, base).map_err(|e| format!("scene: {object} image asset: {e}"))? {
@@ -474,6 +508,56 @@ pub(super) fn load_into_options(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn inline_raster_sources_use_scene_sniffing_and_probe_errors() {
+        // d2cli.newSceneAssetOptions -> imageasset.Resolve/probeRaster,
+        // including MIME-independent signature sniffing and redacted labels.
+        let mut png = Vec::new();
+        {
+            let mut encoder = png::Encoder::new(&mut png, 1, 1);
+            encoder.set_color(png::ColorType::Rgba);
+            encoder.set_depth(png::BitDepth::Eight);
+            encoder
+                .write_header()
+                .unwrap()
+                .write_image_data(&[30, 90, 180, 255])
+                .unwrap();
+        }
+        let encoded = base64::engine::general_purpose::STANDARD.encode(&png);
+        let render = |mime: &str| {
+            let source = format!("a: {{shape: image; icon: \"data:{mime};base64,{encoded}\"}}");
+            render_source_format(
+                source.as_bytes(),
+                &["--engine=dagre".into()],
+                ExportFormat::Png,
+            )
+            .unwrap()
+        };
+        let expected = render("image/png");
+        for mime in ["application/octet-stream", "image/x-png", "text/plain"] {
+            assert_eq!(render(mime), expected, "{mime}");
+        }
+        let encoded = base64::engine::general_purpose::STANDARD
+            .encode(b"\x89PNG\r\n\x1a\nnot a complete image");
+        for shape in ["", "shape: image;"] {
+            // A later invalid source must not mask the first inline error.
+            let source = format!(
+                "a: {{{shape} icon: \"data:image/png;base64,{encoded}\"}}\nb.icon: ftp://example.invalid/image.png"
+            );
+            let error = render_source_format(
+                source.as_bytes(),
+                &["--engine=dagre".into()],
+                ExportFormat::Png,
+            )
+            .unwrap_err();
+            assert_eq!(
+                error,
+                "scene: shape \"a\" image asset: imageasset: probe \"data:image/png\": malformed PNG image: truncated PNG chunk data"
+            );
+        }
+    }
+
     #[test]
     fn empty_icons_keep_source_target_presence_and_exact_raster_errors() {
         for (source, expected) in [

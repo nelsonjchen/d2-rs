@@ -10,6 +10,14 @@ Each release names the upstream Go D2 commit it matches, from
 
 ## [Unreleased]
 
+### Fixed
+
+- Inline (`data:`) raster images in PNG, PDF, PPTX and GIF export are
+  checked as Go checks them: a PNG with a generic MIME type is accepted, and
+  a corrupt image reports Go's error.
+- Lossy WebP images with transparency keep Go's 16-bit color precision in
+  raster output, so their pixels match Go.
+
 ## [0.1.9] - 2026-11-14
 
 Matches Go D2 `master` at 6a7b48378, as 0.1.0 does. Crates, the npm
