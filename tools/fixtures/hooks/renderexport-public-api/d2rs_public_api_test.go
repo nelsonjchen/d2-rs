@@ -7,8 +7,8 @@
 // run{30,31,32,34,36,40}*.go and tools/pdf-master-probe/{png,documents}.
 //
 // $D2RS_PUBLIC_MODE selects the mode; files are written under $D2RS_PUBLIC_OUT
-// (the recipe's stage or an intermediate directory). FPDF's supported fixed clock / catalog-sort
-// controls are selected only where the original witness selected them.
+// (the recipe's stage or an intermediate directory). D2 PDF fixtures fix only the clock;
+// resource ordering follows lib/pdf.Init, which leaves catalog sorting off.
 package pdf
 
 import (
@@ -176,7 +176,6 @@ func d2rsZipEncoding(out, template string) {
 
 func d2rsDeterministic(document *GoFPDF) {
 	inner := document.pdf
-	inner.SetCatalogSort(true)
 	fixed := time.Date(2000, 1, 2, 3, 4, 5, 0, time.UTC)
 	inner.SetCreationDate(fixed)
 	inner.SetModificationDate(fixed)
@@ -302,11 +301,10 @@ func d2rsExportBytes(document *GoFPDF, scratch string) []byte {
 }
 
 // d2rsStableExports returns every distinct PDF that build produces, sorted.
-// fpdf's putimages numbers image objects in Go map order, and catalog sort
-// orders them only by width, so documents with several same-width images
-// vary from run to run in Go itself. Exporting until no new variant appears
-// for 256 runs records the whole set, which keeps the fixture deterministic
-// and lets readers accept any output Go can produce.
+// D2 leaves catalogSort off: putimages, putxobjectdict and putfonts each
+// iterate Go maps independently. Exporting until no new variant appears for
+// 256 runs records the observed byte orders without normalizing PDF content.
+// Readers accept only complete documents emitted by the pinned Go API.
 func d2rsStableExports(build func() *GoFPDF, scratch string) [][]byte {
 	seen := map[string]bool{}
 	for run, last := 0, 0; run < 8192 && (run < 512 || run-last < 256); run++ {
@@ -384,54 +382,59 @@ func d2rsPdfPNG(out string) {
 
 // tools/pdf-master-probe/documents: links, navigation, page fills, opaque images.
 func d2rsPdfDocuments(out string) {
-	documents := map[string]string{}
+	documents := map[string]any{}
 	for _, name := range []string{"plain", "nav", "opaque", "opaque_default"} {
-		document := Init()
-		d2rsDeterministic(document)
-		widths := []int{32, 8, 12, 8}
-		heights := []int{1200, 2, 6, 2}
-		if name == "opaque" || name == "opaque_default" {
-			widths = []int{4}
-			heights = []int{2}
-		}
-		for i, width := range widths {
-			img := image.NewNRGBA(image.Rect(0, 0, width, heights[i]))
+		variants := d2rsStableExports(func() *GoFPDF {
+			document := Init()
+			d2rsDeterministic(document)
+			widths := []int{32, 8, 12, 8}
+			heights := []int{1200, 2, 6, 2}
 			if name == "opaque" || name == "opaque_default" {
-				for y := 0; y < heights[i]; y++ {
-					for x := 0; x < width; x++ {
-						img.SetNRGBA(x, y, color.NRGBA{R: 60, G: 100, B: 180, A: 255})
+				widths = []int{4}
+				heights = []int{2}
+			}
+			for i, width := range widths {
+				img := image.NewNRGBA(image.Rect(0, 0, width, heights[i]))
+				if name == "opaque" || name == "opaque_default" {
+					for y := 0; y < heights[i]; y++ {
+						for x := 0; x < width; x++ {
+							img.SetNRGBA(x, y, color.NRGBA{R: 60, G: 100, B: 180, A: 255})
+						}
 					}
 				}
+				var encoded bytes.Buffer
+				level := png.BestSpeed
+				if name == "opaque_default" {
+					level = png.DefaultCompression
+				}
+				d2rsCheck((&png.Encoder{CompressionLevel: level}).Encode(&encoded, img))
+				titles := []BoardTitle{{Name: "Root (α) \\", BoardID: "root"}}
+				if i > 0 {
+					titles = append(titles, BoardTitle{Name: "Child café", BoardID: []string{"root", "child", "other", "same"}[i]})
+				}
+				shape := d2target.Shape{Link: "root", Width: 8, Height: 9}
+				shape.Pos.X = 4
+				shape.Pos.Y = 5
+				shape.StrokeWidth = 1
+				shapes := []d2target.Shape{shape}
+				if i == 0 {
+					shapes[0].Link = "https://example.test/(x)"
+				}
+				fill := "#ffffff"
+				if i == 1 {
+					fill = "#101020"
+				}
+				d2rsCheck(document.AddPDFPage(encoded.Bytes(), titles, 0, fill, shapes, 0, 0, 0, map[string]int{"root": 0, "child": 1, "other": 2, "same": 3}, name == "nav"))
 			}
-			var encoded bytes.Buffer
-			level := png.BestSpeed
-			if name == "opaque_default" {
-				level = png.DefaultCompression
-			}
-			d2rsCheck((&png.Encoder{CompressionLevel: level}).Encode(&encoded, img))
-			titles := []BoardTitle{{Name: "Root (α) \\", BoardID: "root"}}
-			if i > 0 {
-				titles = append(titles, BoardTitle{Name: "Child café", BoardID: []string{"root", "child", "other", "same"}[i]})
-			}
-			shape := d2target.Shape{Link: "root", Width: 8, Height: 9}
-			shape.Pos.X = 4
-			shape.Pos.Y = 5
-			shape.StrokeWidth = 1
-			shapes := []d2target.Shape{shape}
-			if i == 0 {
-				shapes[0].Link = "https://example.test/(x)"
-			}
-			fill := "#ffffff"
-			if i == 1 {
-				fill = "#101020"
-			}
-			d2rsCheck(document.AddPDFPage(encoded.Bytes(), titles, 0, fill, shapes, 0, 0, 0, map[string]int{"root": 0, "child": 1, "other": 2, "same": 3}, name == "nav"))
+			return document
+		}, filepath.Join(out, "scratch", name+".pdf"))
+		encodedVariants := []string{}
+		for _, data := range variants {
+			encodedVariants = append(encodedVariants, hex.EncodeToString(data))
 		}
-		data := d2rsExportBytes(document, filepath.Join(out, "scratch", name+".pdf"))
+		documents[name] = map[string]any{"pdf": encodedVariants[0], "pdf_variants": encodedVariants}
 		if name == "opaque_default" {
-			d2rsWrite(d2rsFixture(out, "pdf-opaque-default-fpdf-master.pdf"), data)
-		} else {
-			documents[name] = hex.EncodeToString(data)
+			d2rsWrite(d2rsFixture(out, "pdf-opaque-default-fpdf-master.pdf"), variants[0])
 		}
 	}
 	data, err := json.MarshalIndent(documents, "", "  ")

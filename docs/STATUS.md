@@ -261,19 +261,26 @@ but a handful of jobs. Open clusters, with witnesses in
   and stderr, now fixed. Isometric GIF export was also 22x slower than Go
   (54 s vs 2.4 s) because every frame re-rendered the static scene; it now
   keeps Go's retained raster (`newRaster`/`Raster.Frame`) and takes 1.0 s.
-  Multi-board PDFs (the `iso_steps` probe and others) are not a d2-rs
-  bug: pinned Go writes them nondeterministically, since fpdf's catalogSort
-  is off and putimages, putxobjectdict and putfonts iterate Go maps; six
-  identical Go runs gave six different files. The PDF object graphs, streams
-  and resource sharing match d2-rs in all 138 rendered rows of a 288-row
-  multi-board sweep (all engines, normal and isometric); all 132 PPTX match.
+  Multi-board PDFs (the `iso_steps` probe and others): pinned Go writes
+  them in map order (lib/pdf Init leaves fpdf's catalogSort off, so
+  putimages, putxobjectdict and putfonts range over Go maps). A small Go map
+  keeps insertion order and starts each range at a random slot, so every Go
+  image order is a rotation of the registration order. d2-rs wrote image
+  objects sorted by width and the XObject dictionary sorted by ID, a pairing
+  no Go run produces; checked with the seedable-map oracle
+  (`D2RS_GO_MAPSEED`), 61 of 212 retained PDF rows matched no Go seed. It
+  now writes both in registration order, and all 212 match a seeded Go run
+  byte for byte. The renderexport-public hook no longer forces catalogSort
+  and records every Go variant. Above about 9 board images Go's map switches
+  to hashed placement and every seed gives a different file, so only the
+  object graph can be compared there.
   The embedded-image sweep (2026-11-15, `scripts/embedded-images-sweep.py`)
   covers 18 generated local assets, local paths/data URIs, icons/image shapes,
   all engines and normal/isometric SVG, PNG, PDF, PPTX and animated GIF.
   Inline raster preflight now uses the scene resolver's MIME sniffing and
   probe errors; lossy alpha WebP retains Go's 16-bit premultiplied samples.
-  All 1,728 SVG/PNG/PPTX/GIF cases match, up from 1,620. The 99 PDF byte
-  differences are the same Go map-order variation; their object graphs match.
+  All 1,728 SVG/PNG/PPTX/GIF cases match, up from 1,620; the 99 PDF rows
+  that differed from stock Go all match a seeded Go run.
   perf-bench now covers isometric GIF, PDF (single-board, since Go's
   multi-board PDF bytes vary) and PPTX, and `scripts/corpus-perf-sweep.py`
   takes `--isometric`. A full isometric sweep (2,086 jobs, 298 inputs) found

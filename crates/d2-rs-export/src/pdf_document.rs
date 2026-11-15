@@ -5,7 +5,6 @@ use super::{
     pdf_font::{allocate_pdf_font_objects, build_pdf_font_data, write_pdf_font},
     pdf_text_width, push_pdf_object_at, validate_pdf_raster,
 };
-use d2_rs_core::stable_sort::StableSort;
 
 /// FPDF putinfo uses local wall time and omits the zone suffix.
 pub(super) fn timestamp() -> Result<String, ExportError> {
@@ -306,10 +305,13 @@ pub(super) fn encode(
     let regular_objects = allocate_pdf_font_objects(&mut next);
     let bold_objects = allocate_pdf_font_objects(&mut next);
     let mut images = pages.iter().map(Image::new).collect::<Vec<_>>();
-    // Go's unsorted maps permit multiple byte orders. Use the stable catalog
-    // order supported by FPDF; never randomize output or normalize the oracle.
-    let mut order = (0..images.len()).collect::<Vec<_>>();
-    order.stable_sort_by_key(|&i| images[i].width);
+    // D2 leaves FPDF's catalogSort off, so putimages ranges over its images
+    // map unsorted. A small Go map keeps entries in insertion order and starts
+    // each range at a random slot, so every Go order is a rotation of the
+    // registration order. Registration order itself is the rotation that
+    // starts at slot 0; the width sort FPDF applies only under catalogSort is
+    // not always a rotation. Never randomize output or normalize the oracle.
+    let order = (0..images.len()).collect::<Vec<_>>();
     let mut unique = std::collections::BTreeMap::new();
     for &i in &order {
         let im = &mut images[i];
@@ -459,11 +461,12 @@ pub(super) fn encode(
         "<<\n/ProcSet [/PDF /Text /ImageB /ImageC /ImageI]\n/Font <<\n/F{regular_id} {} 0 R\n/F{bold_id} {} 0 R\n>>\n/XObject <<\n",
         regular_objects.type0, bold_objects.type0
     );
-    let mut resources = images.iter().collect::<Vec<_>>();
-    resources.stable_sort_by_key(|im| &im.id);
-    // Registered image keys may share a content ID. FPDF still emits one entry
-    // per registration; its PDF dictionary resolves the duplicate to one image.
-    for im in resources {
+    // FPDF putimages and putxobjectdict each range over the same images map, so
+    // Go lists XObjects in an order its image objects can share. Sorting the
+    // dictionary by ID independently of the object order gives a pairing no Go
+    // run produces. Registered image keys may share a content ID; FPDF still
+    // emits one entry per registration, resolving the duplicate to one image.
+    for im in order.iter().map(|&i| &images[i]) {
         resource.push_str(&format!("/I{} {} 0 R\n", im.id, im.object));
     }
     resource.push_str(">>\n/ColorSpace <<\n>>\n>>");
@@ -541,6 +544,28 @@ pub(super) fn decoded_page_streams(pdf: &[u8]) -> Vec<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     #[cfg(feature = "oracle-fixtures")]
+    fn recorded_pdf_variants(fixture: &serde_json::Value) -> Vec<Vec<u8>> {
+        let decode = |value: &serde_json::Value| {
+            value
+                .as_str()
+                .unwrap()
+                .as_bytes()
+                .chunks_exact(2)
+                .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+                .collect::<Vec<_>>()
+        };
+        let variants = fixture["pdf_variants"]
+            .as_array()
+            .map(|variants| variants.iter().map(decode).collect::<Vec<_>>())
+            .unwrap_or_else(|| vec![decode(&fixture["pdf"])]);
+        assert!(
+            !variants.is_empty(),
+            "Go PDF variant inventory must not be empty"
+        );
+        variants
+    }
+
+    #[cfg(feature = "oracle-fixtures")]
     #[test]
     fn convenience_apis_match_complete_source_documents() {
         use super::super::{
@@ -583,12 +608,9 @@ mod tests {
                 .iter()
                 .map(unhex)
                 .collect::<Vec<_>>();
-            // Go numbers same-width image objects in map order, so the hook
-            // records every distinct document it produces as `pdf_variants`.
-            let expected = fixture["pdf_variants"]
-                .as_array()
-                .map(|variants| variants.iter().map(unhex).collect::<Vec<_>>())
-                .unwrap_or_else(|| vec![unhex(&fixture["pdf"])]);
+            // lib/pdf.Init leaves FPDF catalog sorting off. Accept complete
+            // recorded Go documents, including independent resource map orders.
+            let expected = recorded_pdf_variants(fixture);
             for (api, actual) in [
                 ("pages", package_pdf_pages(&pages).unwrap()),
                 (
@@ -624,14 +646,16 @@ mod tests {
             href: "https://example.test/(x)".into(),
         }]];
         let actual = package_pdf_pages_with_link_regions(&pages, &links).unwrap();
-        let expected = d2_rs_testdata::oracle_fixture_bytes!(
-            "tests/fixtures/pdf-opaque-default-fpdf-master.pdf"
-        );
-        let matches = actual == expected;
+        let documents: serde_json::Value = serde_json::from_str(d2_rs_testdata::oracle_fixture!(
+            "tests/fixtures/pdf-documents-fpdf-master.json"
+        ))
+        .unwrap();
+        let expected = recorded_pdf_variants(&documents["opaque_default"]);
+        let matches = expected.contains(&actual);
         println!(
             "links/opaque-default: complete source match={matches} ({} / {} bytes)",
             actual.len(),
-            expected.len()
+            expected[0].len()
         );
         if !matches {
             failures.push("links/opaque-default".to_owned());
@@ -796,10 +820,7 @@ mod tests {
                 "D:20000102030405",
             )
             .unwrap();
-            let expected = fixture["pdf_variants"]
-                .as_array()
-                .map(|variants| variants.iter().map(unhex).collect::<Vec<_>>())
-                .unwrap_or_else(|| vec![unhex(&fixture["pdf"])]);
+            let expected = recorded_pdf_variants(fixture);
             let matches = expected.contains(&actual);
             println!(
                 "{name}: complete PDF match={matches} ({} / {} bytes)",
@@ -982,26 +1003,14 @@ mod tests {
                 "D:20000102030405",
             )
             .unwrap();
-            let wanted = if name == "opaque_default" {
-                d2_rs_testdata::oracle_fixture_bytes!(
-                    "tests/fixtures/pdf-opaque-default-fpdf-master.pdf"
-                )
-                .to_vec()
-            } else {
-                expected[name]
-                    .as_str()
-                    .unwrap()
-                    .as_bytes()
-                    .chunks_exact(2)
-                    .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
-                    .collect::<Vec<_>>()
-            };
-            if actual != wanted {
+            let variants = recorded_pdf_variants(&expected[name]);
+            if !variants.contains(&actual) {
+                let wanted = &variants[0];
                 // A fresh path is required: never overwrite a content-store alias.
                 let path = std::env::temp_dir()
                     .join(format!("d2-rs-run37-{name}-{}.pdf", std::process::id()));
                 std::fs::write(&path, &actual).unwrap();
-                let first = actual.iter().zip(&wanted).position(|(a, b)| a != b);
+                let first = actual.iter().zip(wanted).position(|(a, b)| a != b);
                 panic!(
                     "{name}: first difference {first:?}; lengths {} / {}; native witness {}",
                     actual.len(),
