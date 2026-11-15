@@ -2,11 +2,12 @@
 """Compare d2-rs and the pinned Go D2 oracle on wall time, CPU and peak RSS.
 
 Inputs are e2e case sources from references.E2E_CASES, picked by size so the
-corpus is fixed: the largest N cases plus a spread of smaller ones, and eleven
-isometric exports covering SVG, PNG and every engine. Each
+corpus is fixed: the largest N cases plus a spread of smaller ones, and nineteen
+isometric exports covering SVG, PNG, GIF, PDF, PPTX and every engine. Each
 (case, engine, implementation) runs --repeat times; medians are reported.
-Outputs are compared byte for byte, so a speed-up can never hide a parity
-change. Writes a JSON report and prints a per-engine summary.
+Outputs are compared byte for byte (PDF dates only are normalized), so a
+speed-up can never hide a parity change. Writes a JSON report and prints a
+per-engine summary.
 
 usage: perf-bench.py --rust <d2-rs> --output <report.json> [--cases 12]
 """
@@ -41,6 +42,17 @@ ISOMETRIC_CASES = (
     ("stable/grid_animated", "elk", "svg"),
     ("stable/grid_animated", "tala", "svg"),
     ("regression/grid_oom", "dagre", "svg"),
+    ("stable/grid_animated", "dagre", "gif"),
+    ("stable/complex-layers", "elk", "gif"),
+    # Go's multi-board PDFs iterate unsorted resource maps, so their bytes
+    # vary between runs even after date masking. Keep PDF gates single-board;
+    # GIF and PPTX retain the multi-board coverage above and below.
+    ("stable/dense", "dagre", "pdf"),
+    ("real_world/fulcro_rad", "elk", "pdf"),
+    ("stable/grid_animated", "dagre", "pptx"),
+    ("stable/complex-layers", "elk", "pptx"),
+    ("unicode/emojis", "dagre", "svg"),
+    ("unicode/emojis", "dagre", "gif"),
 )
 
 
@@ -67,7 +79,8 @@ def benchmark_jobs(count):
     for name, engine, fmt in ISOMETRIC_CASES:
         path = references.E2E_CASES / (name.replace("/", "__") + ".json")
         script = json.loads(path.read_text())["script"]
-        yield len(script), name, script, engine, fmt, ("--isometric",)
+        extra = ("--isometric",) + (("--animate-interval=125",) if fmt == "gif" else ())
+        yield len(script), name, script, engine, fmt, extra
 
 
 def run(binary, engine, source, out, extra=()):
@@ -91,6 +104,19 @@ def run(binary, engine, source, out, extra=()):
     return tuple(json.loads(result.stdout))
 
 
+def output_bytes(path):
+    """Ignore only PDF clock metadata, retaining every other byte and offset.
+
+    Mirrors the date masking in the CLI's isometric PDF contract. Keep each
+    field's length so PDF cross-reference offsets remain part of the check.
+    """
+    data = path.read_bytes()
+    if path.suffix.lower() == ".pdf":
+        data = re.sub(rb"(/(?:CreationDate|ModDate) \(D:)([^)]*)(\))",
+                      lambda m: m[1] + b"0" * len(m[2]) + m[3], data)
+    return data
+
+
 def output_inventory(directory):
     """Hash every board and manifest; a successful empty output cannot pass."""
     inventory = {}
@@ -102,7 +128,7 @@ def output_inventory(directory):
         total += size
         if not size or size > 128 << 20 or total > 1 << 30:
             raise ValueError(f"empty output or capture budget exceeded: {path}")
-        inventory[path.relative_to(directory).as_posix()] = hashlib.sha256(path.read_bytes()).hexdigest()
+        inventory[path.relative_to(directory).as_posix()] = hashlib.sha256(output_bytes(path)).hexdigest()
     return inventory
 
 
@@ -167,6 +193,7 @@ def main():
                                         and all(h == hashes[impl][0] for h in hashes[impl])
                                         for impl in ("go", "rust")))
             rows.append(row)
+            print(f"completed {len(rows)}: {engine}/{fmt} {name}", flush=True)
     summary = {}
     for engine in ENGINES:
         sel = [r for r in rows if r["engine"] == engine and r["go"]["exit"] == 0]

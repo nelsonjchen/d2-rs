@@ -15,7 +15,7 @@ spec.loader.exec_module(bench)
 
 
 class PerfBenchTests(unittest.TestCase):
-    def test_isometric_gate_covers_both_formats_and_every_engine(self):
+    def test_isometric_gate_covers_every_format_and_engine(self):
         with tempfile.TemporaryDirectory() as directory:
             cases = Path(directory)
             for name, _, _ in bench.ISOMETRIC_CASES:
@@ -24,12 +24,33 @@ class PerfBenchTests(unittest.TestCase):
             with patch.object(bench.references, "E2E_CASES", cases), patch.object(bench, "pick_cases", return_value=[]):
                 jobs = list(bench.benchmark_jobs(12))
         self.assertEqual({job[3] for job in jobs}, set(bench.ENGINES))
-        self.assertEqual({job[4] for job in jobs if job[1] == "real_world/fulcro_rad"}, {"svg", "png"})
+        self.assertEqual({job[4] for job in jobs if job[1] == "real_world/fulcro_rad"}, {"svg", "png", "pdf"})
         self.assertTrue(any(job[1:5] == ("patterns/paper", "a -> b", "dagre", "svg") for job in jobs))
         self.assertTrue(any(job[1:5] == ("stable/us_map", "a -> b", "dagre", "png") for job in jobs))
         self.assertEqual({job[3] for job in jobs if job[1] == "stable/grid_animated"}, set(bench.ENGINES))
+        self.assertEqual({job[4] for job in jobs}, {"svg", "png", "gif", "pdf", "pptx"})
+        self.assertEqual({job[4] for job in jobs if job[1] == "unicode/emojis"}, {"svg", "gif"})
+        for fmt in ("gif", "pdf", "pptx"):
+            self.assertGreaterEqual(len({job[1] for job in jobs if job[4] == fmt}), 2)
         self.assertTrue(any(job[1:5] == ("regression/grid_oom", "a -> b", "dagre", "svg") for job in jobs))
-        self.assertTrue(all(job[5] == ("--isometric",) for job in jobs))
+        self.assertTrue(all("--isometric" in job[5] for job in jobs))
+        self.assertTrue(all("--animate-interval=125" in job[5] for job in jobs if job[4] == "gif"))
+
+    def test_pdf_comparison_ignores_only_dates(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "out.pdf"
+            data = b"%PDF-1.4\n/CreationDate (D:20261115000000+00'00')\n/ModDate (D:20261115000000+00'00')\nstream\nimage\nendstream\n%%EOF"
+            path.write_bytes(data)
+            expected = bench.output_inventory(Path(directory))
+            path.write_bytes(data.replace(b"20261115000000", b"20261116010203"))
+            self.assertEqual(bench.output_inventory(Path(directory)), expected)
+            self.assertEqual(len(bench.output_bytes(path)), len(data))
+            for changed in (data.replace(b"image", b"other"), data.replace(b"ModDate", b"OtherXX")):
+                path.write_bytes(changed)
+                self.assertNotEqual(bench.output_inventory(Path(directory)), expected)
+            path = path.with_suffix(".svg")
+            path.write_bytes(data)
+            self.assertEqual(bench.output_bytes(path), data)
 
     def test_failed_cli_removes_previous_output_and_keeps_exit(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -17,6 +17,8 @@ Each release names the upstream Go D2 commit it matches, from
   a corrupt image reports Go's error.
 - Lossy WebP images with transparency keep Go's 16-bit color precision in
   raster output, so their pixels match Go.
+- On arm64 Linux and macOS, boards with emoji render up to 2.6x faster:
+  font asset hashing uses the CPU's SHA-256 instructions, as Go does.
 
 ## [0.1.9] - 2026-11-14
 

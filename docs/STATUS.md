@@ -274,7 +274,13 @@ but a handful of jobs. Open clusters, with witnesses in
   probe errors; lossy alpha WebP retains Go's 16-bit premultiplied samples.
   All 1,728 SVG/PNG/PPTX/GIF cases match, up from 1,620. The 99 PDF byte
   differences are the same Go map-order variation; their object graphs match.
-  Open: perf-bench has no isometric GIF, PDF or PPTX case (in progress).
+  perf-bench now covers isometric GIF, PDF (single-board, since Go's
+  multi-board PDF bytes vary) and PPTX, and `scripts/corpus-perf-sweep.py`
+  takes `--isometric`. A full isometric sweep (2,086 jobs, 298 inputs) found
+  one row slower than Go, `unicode/emojis`: 83% of CPU was software SHA-256
+  over emoji font assets, where Go uses ARM SHA2 instructions. sha2's `asm`
+  feature on non-Windows aarch64 gives the same dispatch (Dagre SVG 276 ->
+  105 ms, Go 179 ms). Every isometric row is now faster than Go.
 - **Witness replay (2026-11-13, resolved):** every retained witness under
   `oracle-cache/reports/` (1,339 unique inputs, 3,146 engine runs at 0.1.8)
   was replayed against pinned Go with default options. All runs match except

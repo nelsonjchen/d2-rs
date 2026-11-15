@@ -40,6 +40,12 @@ d2-rs-scenebuild.workspace = true
 d2-rs-math.workspace = true
 d2-rs-export.workspace = true
 
+[target.'cfg(all(target_arch = "aarch64", not(target_os = "windows")))'.dependencies]
+# Match Go crypto/sha256's ARM SHA2 dispatch for large surface font assets.
+# sha2 0.10 gates its runtime-detected ARM backend behind this feature.
+# Its optional sha2-asm dependency does not support Windows.
+sha2 = { workspace = true, features = ["asm"] }
+
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 web-time = "1.1.0"
 
