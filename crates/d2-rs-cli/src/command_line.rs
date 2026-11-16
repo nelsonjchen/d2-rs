@@ -42,6 +42,17 @@ fn quote(value: &str) -> String {
     d2_rs_core::quote_go_bytes(value.as_bytes())
 }
 
+// pflag indexes shorthand names by byte and formats the byte as a Go rune.
+fn quote_shorthand(value: &str) -> String {
+    let quoted = quote(&char::from(value.as_bytes()[0]).to_string());
+    format!(
+        "'{}'",
+        quoted[1..quoted.len() - 1]
+            .replace("\\\"", "\"")
+            .replace('\'', "\\'")
+    )
+}
+
 fn boolean(value: &str) -> Option<bool> {
     match value {
         "1" | "true" | "TRUE" | "True" | "t" | "T" => Some(true),
@@ -414,13 +425,18 @@ pub fn expand_shorthands(args: &[String]) -> Vec<String> {
         let mut shorts = &argument[1..];
         let mut recognized = true;
         while !shorts.is_empty() {
+            // pflag parseSingleShortArg ignores the rest of a cluster that
+            // begins with "test." (isGotestShorthandFlag).
+            if shorts.starts_with("test.") {
+                break;
+            }
             let width = shorts.chars().next().map_or(1, char::len_utf8);
             let (name, rest) = shorts.split_at(width);
             let Some(flag) = flags.iter().find(|f| f.short == name) else {
                 recognized = false;
                 break;
             };
-            if let Some(value) = rest.strip_prefix('=') {
+            if let Some(value) = rest.strip_prefix('=').filter(|value| !value.is_empty()) {
                 expanded.push(format!("--{}={value}", flag.name));
                 shorts = "";
             } else if flag.kind == "Bool" {
@@ -563,15 +579,32 @@ pub fn version_boundary(args: &[String]) -> Result<Boundary, String> {
             return Ok(Boundary::Output(help_with(&flags, &defaults, &program())));
         }
         let long = argument.starts_with("--");
-        let mut shorts = argument.trim_start_matches('-');
+        // pflag.FlagSet.parseLongArg removes exactly two dashes and rejects
+        // an empty name or a name beginning with '-' or '=' before lookup.
+        let mut shorts = &argument[if long { 2 } else { 1 }..];
+        if long && (shorts.is_empty() || shorts.starts_with(['-', '='])) {
+            return Err(usage(format!(
+                "failed to parse flags: bad flag syntax: {argument}"
+            )));
+        }
         loop {
+            if !long && shorts.starts_with("test.") {
+                // pflag isGotestShorthandFlag: the remaining cluster is
+                // skipped without lookup, value parsing or an error.
+                break;
+            }
             let (name, explicit) = if long {
                 shorts
                     .split_once('=')
                     .map_or((shorts, None), |(n, v)| (n, Some(v)))
             } else {
                 let width = shorts.chars().next().unwrap().len_utf8();
-                (&shorts[..width], shorts[width..].strip_prefix('='))
+                (
+                    &shorts[..width],
+                    shorts[width..]
+                        .strip_prefix('=')
+                        .filter(|value| !value.is_empty()),
+                )
             };
             if long && name == "help" {
                 return Ok(Boundary::Output(help_with(&flags, &defaults, &program())));
@@ -587,7 +620,10 @@ pub fn version_boundary(args: &[String]) -> Result<Boundary, String> {
                 let detail = if long {
                     format!("unknown flag: --{name}")
                 } else {
-                    format!("unknown shorthand flag: '{}' in -{shorts}", name)
+                    format!(
+                        "unknown shorthand flag: {} in -{shorts}",
+                        quote_shorthand(name)
+                    )
                 };
                 return Err(usage(format!("failed to parse flags: {detail}")));
             };
@@ -778,6 +814,77 @@ mod tests {
                 Ok(Boundary::Document(_)) => panic!("unexpected document: {}", row["name"]),
             }
         }
+    }
+
+    #[test]
+    fn malformed_long_flags_fail_before_lookup_or_dispatch() {
+        for argument in ["---version", "---help", "---theme=0", "----", "--=x", "--="] {
+            let error = version_boundary(&[argument.to_owned()]).err().unwrap();
+            assert_eq!(
+                error,
+                usage(format!(
+                    "failed to parse flags: bad flag syntax: {argument}"
+                ))
+            );
+        }
+        // The terminator still admits filenames beginning with dashes.
+        let Boundary::Document(args) =
+            version_boundary(&["--".to_owned(), "---version".to_owned()]).unwrap()
+        else {
+            panic!("the flag terminator must reach document dispatch");
+        };
+        assert_eq!(args, ["--", "---version"]);
+    }
+
+    #[test]
+    fn gotest_shorthand_clusters_are_skipped_like_pflag() {
+        // pflag parseSingleShortArg returns early for isGotestShorthandFlag,
+        // dropping the rest of the cluster without lookup or error.
+        let args = |values: &[&str]| values.iter().map(|v| v.to_string()).collect::<Vec<_>>();
+        for (input, forwarded) in [
+            (&["-test.v", "in.d2"][..], &["in.d2"][..]),
+            (&["-stest.v", "in.d2"], &["--sketch=true", "in.d2"]),
+            (&["-test.", "-c", "in.d2"], &["--center=true", "in.d2"]),
+        ] {
+            let Boundary::Document(document) = version_boundary(&args(input)).unwrap() else {
+                panic!("{input:?} must reach document dispatch");
+            };
+            assert_eq!(document, forwarded, "{input:?}");
+        }
+        assert_eq!(
+            expand_shorthands(&args(&["-stest.x", "in.d2"])),
+            args(&["--sketch=true", "in.d2"])
+        );
+        // Only the literal "test." prefix is special: "-tests" is a theme.
+        assert!(version_boundary(&args(&["-tests"])).is_err());
+    }
+
+    #[test]
+    fn shorthand_empty_equals_and_unknown_bytes_match_pflag() {
+        for (argument, detail) in [
+            ("-s=", "unknown shorthand flag: '=' in -="),
+            ("-v=", "unknown shorthand flag: '=' in -="),
+            ("-é", "unknown shorthand flag: 'Ã' in -é"),
+            ("-s\u{1}", "unknown shorthand flag: '\\x01' in -\u{1}"),
+            ("-'", "unknown shorthand flag: '\\'' in -'"),
+            ("-\"", "unknown shorthand flag: '\"' in -\""),
+        ] {
+            let error = version_boundary(&[argument.to_owned()]).err().unwrap();
+            assert_eq!(error, usage(format!("failed to parse flags: {detail}")));
+        }
+        let args = ["-t=".to_owned()];
+        assert_eq!(
+            version_boundary(&args).err().unwrap(),
+            usage(
+                "failed to parse flags: invalid argument \"=\" for \"-t, --theme\" flag: strconv.ParseInt: parsing \"=\": invalid syntax"
+            )
+        );
+        let args = ["-l=".to_owned(), "input.d2".to_owned()];
+        let Boundary::Document(document) = version_boundary(&args).unwrap() else {
+            panic!("a string shorthand consumes the equals sign as its value");
+        };
+        assert_eq!(document, ["--layout==", "input.d2"]);
+        assert_eq!(expand_shorthands(&args), document);
     }
 
     #[test]

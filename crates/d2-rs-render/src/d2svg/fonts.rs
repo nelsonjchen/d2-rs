@@ -304,15 +304,21 @@ pub(crate) fn embed_fonts(
             Some(corpora) => corpora.get(class).cloned(),
         };
         if let Some(chosen) = chosen {
+            // embedFonts subsets the diagram's own families. The CLI's custom
+            // faces are those families only while d2exporter keeps them; a mono
+            // theme replaces the regular family with Source Code Pro.
+            let mono_class = class.starts_with("text-mono");
+            let custom = family == if mono_class { "customMono" } else { "custom" };
+            let subset = if custom {
+                custom_fonts.get_encoded_subset(mono_class, style, &chosen)?
+            } else {
+                None
+            };
             buf.push_str(&face_rule(
                 diagram_hash,
                 class,
                 face,
-                &match custom_fonts.get_encoded_subset(
-                    class.starts_with("text-mono"),
-                    style,
-                    &chosen,
-                )? {
+                &match subset {
                     Some(subset) => subset,
                     None => encoded_subset(family, style, &chosen)?,
                 },

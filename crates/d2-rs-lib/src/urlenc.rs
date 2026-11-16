@@ -13,8 +13,14 @@ pub const MAX_DECODED_SCRIPT_SIZE: usize = 16 << 20;
 
 /// Compress a script with Go 1.27 BestCompression and padded URL base64.
 pub fn encode(raw: &str) -> String {
+    encode_bytes(raw.as_bytes())
+}
+
+/// [`encode`] for a Go string holding arbitrary bytes (d2cli play.go reads
+/// the file with os.ReadFile and converts it without UTF-8 validation).
+pub fn encode_bytes(raw: &[u8]) -> String {
     base64::engine::general_purpose::URL_SAFE.encode(d2_rs_goflate::flate_compress(
-        raw.as_bytes(),
+        raw,
         d2_rs_goflate::flate::BEST_COMPRESSION,
     ))
 }

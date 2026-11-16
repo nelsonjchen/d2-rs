@@ -804,9 +804,9 @@ retains its Unicode delimiter table under the same Chroma MIT terms.
 ## csscolorparser v0.1.8 acceptance rules
 
 Gradient-stop syntax validation in `crates/d2-rs-language/src/compiler/style_colors.rs`
-translates reachable acceptance rules from the pinned original Go dependency
-`github.com/mazznoer/csscolorparser v0.1.8/colorparser.go`. Color conversion is
-not translated or claimed by this validator.
+calls the csscolorparser v0.1.8 `Parse` port in `crates/d2-rs-math/src/svg_color.rs`
+(`parse_result`), translated from the pinned original Go dependency
+`github.com/mazznoer/csscolorparser v0.1.8/colorparser.go` with its error values.
 
 MIT License
 

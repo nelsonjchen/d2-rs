@@ -24,7 +24,7 @@ fn sequence_advance(width: f64) -> f64 {
 }
 
 /// Sequence.resizeWithWork's numerical path, including an empty sequence.
-fn sequence_geometry(sizes: impl IntoIterator<Item = Size>) -> Size {
+pub(super) fn sequence_geometry(sizes: impl IntoIterator<Item = Size>) -> Size {
     use super::owner_median::source_math_max;
     let mut size = Size::default();
     let mut offset = 0.0;

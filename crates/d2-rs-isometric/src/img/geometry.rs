@@ -84,9 +84,14 @@ pub fn native_token(s: &str) -> bool {
 /// csscolorparser.Parse plus Color.RGBA255 (`uint8(c*255 + 0.5)`, fused on
 /// ARM64 and converted through a signed 32-bit register).
 pub fn css_color(s: &str) -> Option<Nrgba> {
-    let c = d2_rs_math::svg_color::parse(s)?;
+    css_color_result(s).ok()
+}
+
+/// [`css_color`] keeping csscolorparser.Parse's error value.
+pub fn css_color_result(s: &str) -> Result<Nrgba, String> {
+    let c = d2_rs_math::svg_color::parse_result(s)?;
     let byte = |v: f64| go_fmadd(v, 255.0, 0.5) as i32 as u8;
-    Some(Nrgba::new(byte(c[0]), byte(c[1]), byte(c[2]), byte(c[3])))
+    Ok(Nrgba::new(byte(c[0]), byte(c[1]), byte(c[2]), byte(c[3])))
 }
 
 pub fn native_paint(s: &str, fallback: &str) -> Nrgba {

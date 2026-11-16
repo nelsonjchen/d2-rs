@@ -229,6 +229,15 @@ fn template(source: &str, remap_other: bool, control: &mut Control<'_>) -> Vec<T
 pub fn tokenize(language: &str, source: &str) -> Option<Vec<Token>> {
     tokenize_inner(language, source, &mut Control::unlimited())
 }
+/// [`tokenize`], also reporting a Go lexer panic that d2scenebuild recovers.
+pub fn tokenize_checked(language: &str, source: &str) -> Result<Option<Vec<Token>>, CodeWorkError> {
+    let mut control = Control::unlimited();
+    let tokens = tokenize_inner(language, source, &mut control);
+    match control.error {
+        Some(error) => Err(error),
+        None => Ok(tokens),
+    }
+}
 /// Collects exact token streams with a shared document budget, stopping before a rejected token is retained.
 pub fn tokenize_bounded(
     language: &str,

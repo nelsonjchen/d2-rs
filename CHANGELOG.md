@@ -10,6 +10,21 @@ Each release names the upstream Go D2 commit it matches, from
 
 ## [Unreleased]
 
+### Fixed
+
+- Sequence actors declared in several maps merge classes, styles and labels
+  in Go's order, and an empty label with a zero size is sized as Go sizes it.
+- Dagre self-loops, sequence-group heights and outside-label clipping, ELK
+  nested padding, and several TALA placement causes (outside labels, step
+  and vessel directions, cluster flips, unpositioned nodes) match Go.
+- Invalid colors report the error Go's color parser returns; Raku code that
+  crashes Go's lexer gives Go's error in raster exports.
+- Custom fonts are used in `--sketch` and `--isometric` output.
+- CLI flag parsing, flag/environment/config precedence, board output paths,
+  TXT wildcard targets and `d2 play` follow Go's CLI.
+- The raw WASM exports return Go's response envelope and escaping;
+  `getBoardAtPosition` and `getRefRanges` report Go's errors and positions.
+
 ## [0.1.10] - 2026-11-15
 
 Matches Go D2 `master` at 6a7b48378, as 0.1.0 does. Crates, the npm

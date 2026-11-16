@@ -15,32 +15,10 @@ use crate::util::*;
 type SResult<T> = std::result::Result<T, String>;
 use crate::Builder;
 
-/// csscolorparser.Parse error text for an unparsable value.
-fn css_parse_error(input: &str) -> String {
-    let s = input.trim().to_lowercase();
-    if s.starts_with('#') {
-        return format!("Invalid hex color, {input}");
-    }
-    if let Some(open) = s.find('(').filter(|_| s.ends_with(')')) {
-        let name = s[..open].trim();
-        return match name {
-            "rgb" | "rgba" | "hsl" | "hsla" => format!("Wrong {name}() components, {input}"),
-            "hwb" | "hwba" => format!("Wrong hwb() components, {input}"),
-            "hsv" | "hsva" => format!("Wrong hsv() components, {input}"),
-            "oklab" => format!("Wrong oklab() components, {input}"),
-            "oklch" => format!("Wrong oklch() components, {input}"),
-            "lab" => "Invalid lab()".into(),
-            "lch" => "Invalid lch()".into(),
-            _ => "Invalid format".into(),
-        };
-    }
-    format!("Invalid color format, {input}")
-}
-
 /// csscolorparser.Parse followed by Color.RGBA255 (`uint8(c*255 + 0.5)`,
 /// fused on ARM64 and converted through a signed 32-bit register).
 pub(crate) fn parse_css_color(value: &str) -> SResult<Nrgba> {
-    let color = d2_rs_math::svg_color::parse(value).ok_or_else(|| css_parse_error(value))?;
+    let color = d2_rs_math::svg_color::parse_result(value)?;
     let byte = |v: f64| go_fmadd(v, 255.0, 0.5) as i32 as u8;
     Ok(Nrgba::new(
         byte(color[0]),

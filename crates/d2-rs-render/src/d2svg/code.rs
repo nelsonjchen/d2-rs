@@ -122,8 +122,10 @@ pub(crate) fn shape_code(
     b: &geo::Box,
     theme: Option<&Theme>,
 ) -> Result<(), String> {
-    let lines = token_lines(&s.language, &s.label)?;
     for is_light in [true, false] {
+        // d2svg.go tokenises once per theme pass: Chroma's Raku mutators
+        // rewrite the shared lexer rules, so the dark pass can differ.
+        let lines = token_lines(&s.language, &s.label)?;
         let dark = !is_light;
         let class = if is_light { "light-code" } else { "dark-code" };
         write!(
@@ -167,8 +169,9 @@ pub(crate) fn connection_label(
     label_tl: Point,
     _theme: Option<&Theme>,
 ) -> Result<(), String> {
-    let lines = token_lines(&c.language, &c.label)?;
     for is_light in [true, false] {
+        // Tokenised per theme pass, as in drawConnection.
+        let lines = token_lines(&c.language, &c.label)?;
         let class = if is_light { "light-code" } else { "dark-code" };
         write!(
             w,

@@ -2,7 +2,7 @@
 //! gradient_paints.go: bounded textures and shared geometric paint coordinates.
 use super::{
     framing::native_camera_axes,
-    geometry::{MeshBuilder, css_color},
+    geometry::{MeshBuilder, css_color_result},
     mesh::{Texture, nmul, nsub},
 };
 use d2_rs_scene::{Box as SceneBox, Document, Node, Nrgba, Paint, Primitive, Rect, go_max, go_min};
@@ -65,7 +65,8 @@ pub fn native_gradient_opacity(raw: &str, opacity: f64) -> Result<String, String
         parts.push(direction);
     }
     for (color, position) in stops {
-        let mut c = css_color(&color).ok_or_else(|| format!("invalid color {color:?}"))?;
+        // gradient_paints.go nativeGradientOpacity returns Parse's error as is.
+        let mut c = css_color_result(&color)?;
         c.a = (c.a as f64 * opacity).round() as u8;
         let mut value = super::rich_labels::rich_color(c);
         if !position.is_empty() {

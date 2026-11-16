@@ -155,6 +155,25 @@ impl Pipeline {
                 assigned_orientations.push((stable, orientation));
             }
         }
+        // A tree member mirrored only as a projection (restored below a
+        // nested container, absent from this graph's nodes) still had its
+        // shared Tree flipped by mirrorNode (placement/direct.go mirrorAxes).
+        for &(tala_id, mirror_x, mirror_y) in &placed.projected_tree_mirrors {
+            if placed_orientation_by_tala.contains_key(&tala_id) {
+                continue;
+            }
+            for (&stable, state) in self.graph.tree_routing_nodes.iter_mut() {
+                if stable_tala_ids[stable.0 as usize] != tala_id {
+                    continue;
+                }
+                if (mirror_x && state.orientation.is_horizontal())
+                    || (mirror_y && state.orientation.is_vertical())
+                {
+                    state.orientation = state.orientation.opposite();
+                    assigned_orientations.push((stable, state.orientation));
+                }
+            }
+        }
         for (node, orientation) in assigned_orientations {
             self.graph.publish_tree_orientation(node, orientation);
         }

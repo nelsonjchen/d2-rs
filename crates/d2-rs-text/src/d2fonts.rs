@@ -336,6 +336,34 @@ pub struct CustomFonts {
 }
 
 impl CustomFonts {
+    /// Register the CLI's custom and customMono families, retaining the
+    /// SourceSansPro fallback for each absent role (d2fonts.AddFontFamily).
+    /// Typed scene consumers resolve these same process-wide registrations.
+    pub fn register(&self) -> Result<(), String> {
+        static REGISTERED: std::sync::Mutex<Option<CustomFonts>> = std::sync::Mutex::new(None);
+        if self.regular.is_empty() && self.mono.is_empty() {
+            return Ok(());
+        }
+        let mut registered = REGISTERED.lock().unwrap_or_else(|error| error.into_inner());
+        if registered.as_ref() != Some(self) {
+            for (name, faces) in [("custom", &self.regular), ("customMono", &self.mono)] {
+                if faces.is_empty() {
+                    continue;
+                }
+                let face = |style| faces.get(&style).map(Vec::as_slice);
+                add_font_family(
+                    name,
+                    face(FontStyle::Regular),
+                    face(FontStyle::Italic),
+                    face(FontStyle::Bold),
+                    face(FontStyle::Semibold),
+                )?;
+            }
+            *registered = Some(self.clone());
+        }
+        Ok(())
+    }
+
     pub fn get_encoded_subset(
         &self,
         mono: bool,

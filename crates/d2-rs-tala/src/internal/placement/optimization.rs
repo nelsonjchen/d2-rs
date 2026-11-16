@@ -483,7 +483,7 @@ impl ArenaGraph {
                                             .map(|(_, size)| size.height)
                                             .fold(0.0, f64::max),
                                     },
-                                    _ => Size {
+                                    Some(ClusterArrangement::Column) => Size {
                                         width: positioned
                                             .iter()
                                             .map(|(_, size)| size.width)
@@ -494,6 +494,14 @@ impl ArenaGraph {
                                             .sum::<f64>()
                                             + padding * positioned.len().saturating_sub(1) as f64,
                                     },
+                                    // A projected aggregate without cluster
+                                    // policy is a sequence vessel. Go's direct
+                                    // reads its live box, sized by Sequence's
+                                    // overlapping horizontal steps rather
+                                    // than a column with cluster padding.
+                                    None => super::sequences::sequence_geometry(
+                                        members.iter().map(|node| node.rect.size),
+                                    ),
                                 };
                                 return Some((origin, size));
                             }
@@ -1034,6 +1042,18 @@ impl ArenaGraph {
             .sized_edge_abductions
             .iter()
             .any(|abduction| abduction.sequence_abduction)
+            // placement/direct.go also tests Graph.Sequences[node] for each
+            // node: the vessel itself is in Graph.Nodes (AddSequences adds
+            // it there), and Rust allocates it as its own node without a
+            // member backlink.
+            || self.sequences.iter().any(|sequence| {
+                sequence.has_edge_abductions
+                    && self.sequence_is_active(sequence)
+                    && self
+                        .node_order
+                        .iter()
+                        .any(|node| self.nodes[node.0 as usize].tala_id == sequence.vessel_tala_id)
+            })
         {
             return ((false, false), BTreeSet::new());
         }
@@ -1814,6 +1834,21 @@ impl ArenaGraph {
         // an unreachable container only receive PositionContainerChildren.
         if node_reachable && projected_mirrored.insert(tala_id) {
             self.mirror_projected_node_box(tala_id, mirror_x, mirror_y);
+            // Source mirrorNode also flips this pointer's NodeToTree entry.
+            // A tree member restored below a nested container is a
+            // projection here, so the stable-node branch never sees it.
+            let tree_member = self
+                .nodes
+                .iter()
+                .position(|node| node.tala_id == tala_id)
+                .map(|index| NodeId(index as u32))
+                .filter(|node| self.tree_routing_nodes.contains_key(node));
+            if let Some(node) = tree_member {
+                self.mirror_tree_routing_orientation(node, mirror_x, mirror_y);
+            } else {
+                self.projected_tree_mirrors
+                    .push((tala_id, mirror_x, mirror_y));
+            }
         }
         if is_container && self.position_projected_container_children(tala_id, true) {
             refitted.insert(tala_id);
@@ -2743,21 +2778,22 @@ impl ArenaGraph {
         &mut self,
         moved: NodeId,
         owner_session: &mut Option<&mut OwnerScoreSession>,
-    ) -> Result<(), OptimizationError> {
+    ) -> Result<Option<ArenaGraph>, OptimizationError> {
         if crate::internal::trace_env_enabled("TALA_TRACE_DISABLE_CLUSTER_FLIP") {
-            return Ok(());
+            return Ok(None);
         }
+        let mut replaced = None;
         if let Some(index) = self
             .active_cluster_index(moved)
             .filter(|index| self.clusters[*index].members.first() == Some(&moved))
         {
-            self.optimize_cluster_only_flip(index);
+            replaced = self.optimize_cluster_only_flip_replacing(index);
         } else if self.projected_node_is_cluster_vessel(self.nodes[moved.0 as usize].tala_id)
             && let Some(session) = owner_session.as_deref_mut()
         {
             let flip = |graph: &mut ArenaGraph,
                         session: &mut OwnerScoreSession|
-             -> Result<(), OwnerScoreSessionError> {
+             -> Result<Option<ArenaGraph>, OwnerScoreSessionError> {
                 session.publish_packed_scope_geometry(graph)?;
                 if let Some(projection) = session.transpose_cluster_projection(moved)? {
                     let desired = graph.projected_cluster_desired_arrangement(
@@ -2769,13 +2805,19 @@ impl ArenaGraph {
                     // optimizeCluster updates DesiredArrangement even when
                     // both geometry transactions reject the requested flip.
                     session.set_transpose_cluster_desired(moved, desired)?;
-                    graph.optimize_projected_cluster_flip(moved, &projection, Some(session))?;
+                    let (_, replaced) = graph.optimize_projected_cluster_flip_replacing(
+                        moved,
+                        &projection,
+                        Some(session),
+                    )?;
+                    return Ok(replaced);
                 }
-                Ok(())
+                Ok(None)
             };
-            flip(self, session).map_err(|error| OptimizationError::Invalid(error.to_string()))?;
+            replaced = flip(self, session)
+                .map_err(|error| OptimizationError::Invalid(error.to_string()))?;
         }
-        Ok(())
+        Ok(replaced)
     }
 
     fn transpose_node_with_mode(
@@ -3201,11 +3243,21 @@ impl ArenaGraph {
         }
         for rotations in 1..=3 {
             let mut trial_error = None;
+            // The graph that this trial's first accepted cluster flip
+            // replaced with its numerical fork (see the rollback below).
+            let mut pre_flip_graph = None;
             for moved in transpose_nodes.iter().copied() {
                 self.rotate_around(moved, center, rotations, local_edge_score);
-                if let Err(error) = self.transpose_cluster_only_flip(moved, &mut owner_session) {
-                    trial_error = Some(error);
-                    break;
+                match self.transpose_cluster_only_flip(moved, &mut owner_session) {
+                    Ok(replaced) => {
+                        if pre_flip_graph.is_none() {
+                            pre_flip_graph = replaced;
+                        }
+                    }
+                    Err(error) => {
+                        trial_error = Some(error);
+                        break;
+                    }
                 }
             }
             if trace_transpose_candidate {
@@ -3316,6 +3368,18 @@ impl ArenaGraph {
                     fixed_origin_valid,
                     external_containers_valid
                 );
+            }
+            // transpose.go runs optimizeCluster(onlyFlip) inside this trial's
+            // transaction, and Transaction.Rollback restores the original
+            // bound TopLeft pointers. An accepted flip committed a numerical
+            // fork whose member scope cannot hold those bindings, so
+            // reinstate the graph it replaced (still carrying this trial's
+            // rotation) before the ordinary rollback. Without bound pointers
+            // the fork is restored field by field as before.
+            if !original_owner_points.is_empty()
+                && let Some(graph) = pre_flip_graph.take()
+            {
+                *self = graph;
             }
             if local_edge_score {
                 // `Transaction.Rollback` restores active graph nodes in

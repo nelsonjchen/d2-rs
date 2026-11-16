@@ -8,6 +8,286 @@ use d2_rs_language::{ParseOptions, compiler, parse};
 struct ProbeMeasurer;
 
 #[test]
+fn document_ast_sort_starts_from_object_creation_order() {
+    // d2compiler.Compile calls SortObjectsByAST on newObject's global slice.
+    // Imported aliases share source offsets. Go's unstable sort must start
+    // after nested edges have allocated their endpoints, before later fields.
+    const MODEL: &str = "shape: sequence_diagram\n\
+        group 1: {\n}\ngroup 2: {\n}\ngroup 3: {\n}\n\
+        group 4: {\n}\ngroup 5: {\n}\ngroup 6: {\n}\n\
+        a -> a\ngroup 10: {\n}\nb -> c\ngroup 11: {\nc -> c\n}\n";
+    let parsed = parse(
+        "input.d2",
+        b"a: @lib/model\nb: @lib/model\na: {probe -> next}\n",
+        None,
+    );
+    assert!(parsed.error.is_none());
+    let (compiler, root) = compiler::compile_ir_with_options(
+        Shared::new(parsed.map),
+        compiler::CompileOptions {
+            import_opener: Some(Box::new(|_| {
+                Ok(Box::new(std::io::Cursor::new(MODEL.as_bytes().to_vec())))
+            })),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let graph = compiler::lower_graph(&compiler, root).unwrap();
+    let order = graph
+        .node_order_override
+        .iter()
+        .map(|id| graph.nodes[id.0 as usize].external_id.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        order,
+        [
+            "a",
+            "b",
+            "a.group 1",
+            "b.group 1",
+            "a.probe",
+            "a.group 2",
+            "b.group 2",
+            "a.next",
+            "a.group 3",
+            "b.group 3",
+            "b.group 4",
+            "a.group 4",
+            "a.group 5",
+            "b.group 5",
+            "b.group 6",
+            "a.group 6",
+            "a.a",
+            "b.a",
+            "a.group 10",
+            "b.group 10",
+            "a.b",
+            "b.b",
+            "a.c",
+            "b.c",
+            "a.group 11",
+            "b.group 11",
+        ]
+    );
+}
+
+#[test]
+fn sequence_actor_class_styles_apply_per_lexical_map() {
+    // compileMap compiles a map's class maps before its own fields. When
+    // EnsureChild redirects a later declaration to the actor, that map's
+    // classes overwrite earlier explicit values, while earlier classes keep
+    // the values that nothing later sets.
+    for (declarations, fill, font_size) in [
+        (
+            "a: {style.fill: green}\ngroup: {a.class: blue}",
+            "blue",
+            None,
+        ),
+        (
+            "a: {class: red; style.fill: green}\ngroup: {a.class: blue}",
+            "blue",
+            None,
+        ),
+        ("a.class: big\ngroup: {a: {class: blue}}", "blue", Some(30)),
+        (
+            "a: {class: red}\ngroup: {a.style.fill: green}",
+            "green",
+            None,
+        ),
+        (
+            "a: {class: red; style.fill: yellow}\ngroup: {a: {style.fill: green; class: blue}}",
+            "green",
+            None,
+        ),
+        ("a.class: blue\ngroup: {a.style.stroke: red}", "blue", None),
+    ] {
+        let source = format!(
+            "classes: {{red: {{style.fill: red}}; blue: {{style.fill: blue}}; \
+             big: {{style.font-size: 30}}}}\nshape: sequence_diagram\n{declarations}\n"
+        );
+        let parsed = parse("actor-class-styles.d2", source.as_bytes(), None);
+        assert!(parsed.error.is_none(), "{:?}", parsed.error);
+        let (compiler, root) = compiler::compile_ir(Shared::new(parsed.map)).unwrap();
+        let (graph, _, styles) =
+            compiler::lower_graph_with_measurer_and_labels(&compiler, root, &ProbeMeasurer)
+                .unwrap();
+        let (id, node) = graph.nodes().find(|(_, n)| n.external_id == "a").unwrap();
+        assert_eq!(styles[&id].fill.as_deref(), Some(fill), "{source}");
+        if font_size.is_some() {
+            assert_eq!(node.font_size, font_size, "{source}");
+        }
+    }
+}
+
+#[test]
+fn sequence_actor_later_primary_replaces_earlier_labels() {
+    // compileField calls compileLabel for each declaration's primary before
+    // that declaration's compileMap, so a redirected `a: bar` replaces an
+    // earlier explicit or class label; the later map's own label still wins.
+    for (declarations, expected) in [
+        ("a: {label: foo}\ngroup: {a: bar}", "bar"),
+        ("a.class: lb\ngroup: {a: bar}", "bar"),
+        ("a: foo\ngroup: {a.class: lb}", "fromclass"),
+        ("a: {label: foo}\ngroup: {a: bar {label: baz}}", "baz"),
+        ("a: {label: foo}\ngroup: {a: bar {class: lb}}", "fromclass"),
+    ] {
+        let source = format!(
+            "classes: {{lb: {{label: fromclass}}}}\nshape: sequence_diagram\n{declarations}\n"
+        );
+        let parsed = parse("actor-labels.d2", source.as_bytes(), None);
+        assert!(parsed.error.is_none(), "{:?}", parsed.error);
+        let (compiler, root) = compiler::compile_ir(Shared::new(parsed.map)).unwrap();
+        let (graph, labels, _) =
+            compiler::lower_graph_with_measurer_and_labels(&compiler, root, &ProbeMeasurer)
+                .unwrap();
+        let (id, _) = graph.nodes().find(|(_, n)| n.external_id == "a").unwrap();
+        assert_eq!(labels[&id], expected, "{source}");
+    }
+}
+
+#[test]
+fn document_ast_sort_input_follows_nested_edge_allocation() {
+    // `b: {t -> _.w}` is merged into b's IR field, but `w` was allocated by
+    // the first line's edge before any import. Compile's unstable AST sort
+    // over these equal imported ranges depends on newObject order, which
+    // differs from lexical field order here.
+    let parsed = parse(
+        "input.d2",
+        b"w -> d\na: @lib/model\nd: @lib/model\nb: {t -> _.w}\nb: @lib/model\na: {probe -> next}\n",
+        None,
+    );
+    assert!(parsed.error.is_none());
+    let (compiler, root) = compiler::compile_ir_with_options(
+        Shared::new(parsed.map),
+        compiler::CompileOptions {
+            import_opener: Some(Box::new(|_| {
+                Ok(Box::new(std::io::Cursor::new(
+                    b"x -> y\ny: {k}\nz\n".to_vec(),
+                )))
+            })),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let graph = compiler::lower_graph(&compiler, root).unwrap();
+    let order = graph
+        .node_order_override
+        .iter()
+        .map(|id| graph.nodes[id.0 as usize].external_id.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        order,
+        [
+            "w", "b.x", "a.x", "d.x", "d.y", "b.y", "d", "a.y", "a", "b.y.k", "a.y.k", "d.y.k",
+            "a.z", "d.z", "b.z", "b", "b.t", "a.probe", "a.next",
+        ]
+    );
+}
+
+#[test]
+fn imported_actor_references_keep_each_lexical_parent_scope() {
+    // import.go nilScopeMap clears reference ScopeMap. compileField then
+    // uses its call-local parent as ScopeObj, even when EnsureChild redirects
+    // the actor. The note is subsequently compiled under that actor itself.
+    const MODEL: &str = "shape: sequence_diagram\nd\nchoo: {d.note}\n";
+    for imported in [false, true] {
+        let source = if imported { "...@model\n" } else { MODEL };
+        let parsed = parse("input.d2", source.as_bytes(), None);
+        assert!(parsed.error.is_none(), "{:?}", parsed.error);
+        let (compiler, root) = compiler::compile_ir_with_options(
+            Shared::new(parsed.map),
+            compiler::CompileOptions {
+                import_opener: Some(Box::new(|_| {
+                    Ok(Box::new(std::io::Cursor::new(MODEL.as_bytes().to_vec())))
+                })),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let graph = compiler::lower_graph(&compiler, root).unwrap();
+        let id = |path: &str| {
+            graph
+                .nodes()
+                .find(|(_, n)| n.external_id == path)
+                .unwrap()
+                .0
+        };
+        assert_eq!(graph.sequence_object_scopes[&id("d")], [id("choo")]);
+        assert_eq!(
+            graph.sequence_note_scopes[&id("d.note")],
+            [id(if imported { "d" } else { "choo" })]
+        );
+    }
+}
+
+#[test]
+fn child_board_objects_retain_nested_edge_creation_order() {
+    // compileMap visits a's edges before b's fields. EnsureChild creates z
+    // at that point; compileBoard never runs Compile's document AST sort.
+    for collection in ["layers", "scenarios", "steps"] {
+        let source = format!(
+            "a: {{x -> _.z}}\nb: {{c}}\nz: {{child}}\n\
+             {collection}: {{review: {{a: {{x -> _.z}}; b: {{c}}; z: {{child}}; extra}}}}"
+        );
+        let parsed = parse("creation-order.d2", source.as_bytes(), None);
+        assert!(parsed.error.is_none(), "{:?}", parsed.error);
+        let (compiler, root) = compiler::compile_ir(Shared::new(parsed.map)).unwrap();
+        let board =
+            compiler::resolve_board_target(&compiler, root, &format!("{collection}.review"))
+                .unwrap();
+        let graph = compiler::lower_graph(&compiler, board).unwrap();
+        let order = graph
+            .node_order_override
+            .iter()
+            .map(|id| graph.nodes[id.0 as usize].external_id.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            order,
+            ["a", "a.x", "z", "z.child", "b", "b.c", "extra"],
+            "{collection}"
+        );
+    }
+}
+
+#[test]
+fn sequence_actor_classes_append_across_lexical_maps() {
+    // d2graph.EnsureChild redirects the nested `a` to the existing actor.
+    // d2compiler.compileReserved appends Classes on each compileMap visit,
+    // while scalar style properties keep the last declaration's value.
+    for (declarations, expected) in [
+        ("a.class: red\ngroup: {a.class: blue}", vec!["red", "blue"]),
+        (
+            "a.class: [red; blue]\ngroup: {a.class: [blue; red]}",
+            vec!["red", "blue", "blue", "red"],
+        ),
+        ("a.class: red\ngroup: {a: changed}", vec!["red"]),
+        (
+            "a\ngroup: {a.class: red; inner: {a.class: blue}}",
+            vec!["red", "blue"],
+        ),
+        // The redirected `a` inside the actor's own map is compiled while
+        // visiting `g`, before that map reaches its later `class` field.
+        ("a: {g: {a.class: blue}; class: red}", vec!["blue", "red"]),
+        ("a: {class: red; g: {a.class: blue}}", vec!["red", "blue"]),
+    ] {
+        for prefix in ["", "seq: {\n"] {
+            let source = format!(
+                "classes: {{red: {{style.fill: red}}; blue: {{style.fill: blue}}}}\n\
+                 {prefix}shape: sequence_diagram\n{declarations}\n{}",
+                if prefix.is_empty() { "" } else { "}" },
+            );
+            let parsed = parse("actor-classes.d2", source.as_bytes(), None);
+            assert!(parsed.error.is_none(), "{:?}", parsed.error);
+            let (compiler, root) = compiler::compile_ir(Shared::new(parsed.map)).unwrap();
+            let graph = compiler::lower_graph(&compiler, root).unwrap();
+            let path = if prefix.is_empty() { "a" } else { "seq.a" };
+            let (id, _) = graph.nodes().find(|(_, n)| n.external_id == path).unwrap();
+            assert_eq!(graph.target_node_classes[&id], expected, "{source}");
+        }
+    }
+}
+
+#[test]
 fn recreated_suspended_endpoints_receive_object_text_defaults() {
     struct StyleMeasurer;
     impl compiler::GraphMeasurer for StyleMeasurer {
@@ -813,6 +1093,40 @@ fn dagre_node_order_matches_go_127_mixed_variable_reference_sort() {
         blank_t < blank_ot_blank2,
         "Go 1.27 SortObjectsByAST puts blank_t first via its earlier edge reference: {order:?}"
     );
+}
+
+#[test]
+fn empty_labels_keep_default_zero_dimensions_and_skip_aspect_fitting() {
+    // d2graph.Graph.SetDimensions' empty-label branch precedes SizeToContent.
+    for (source, expected) in [
+        ("a: \"\" {width: 0; height: 0}", (100.0, 100.0)),
+        ("a: \"\" {width: 20; height: 0}", (20.0, 100.0)),
+        ("a: \"\" {width: 0; height: 20}", (100.0, 20.0)),
+        ("a: \"\" {shape: circle; width: 20}", (20.0, 20.0)),
+        (
+            "a: \"\" {shape: square; width: 0; height: 0}",
+            (100.0, 100.0),
+        ),
+        ("a: \"\" {shape: oval; width: 1000}", (1000.0, 100.0)),
+        ("a: \"\" {shape: person; height: 1000}", (100.0, 1000.0)),
+        ("*{width:0}\n*{width:0}\n*{label:\"\"}\na{}", (100.0, 100.0)),
+        (
+            "classes: {empty: {label: \"\"; width: 0}}\na.class: empty",
+            (100.0, 100.0),
+        ),
+    ] {
+        let parsed = parse("-", source.as_bytes(), None);
+        assert!(parsed.error.is_none(), "{source}: {:?}", parsed.error);
+        let (compiler, root) = compiler::compile_ir(Shared::new(parsed.map)).unwrap();
+        assert!(
+            compiler.errors.is_empty(),
+            "{source}: {:?}",
+            compiler.errors
+        );
+        let graph = compiler::lower_graph_with_measurer(&compiler, root, &ProbeMeasurer).unwrap();
+        let (_, node) = graph.nodes().find(|(_, n)| n.external_id == "a").unwrap();
+        assert_eq!((node.size.width, node.size.height), expected, "{source}");
+    }
 }
 
 #[test]

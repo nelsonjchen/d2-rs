@@ -11,6 +11,7 @@ pub mod code;
 pub mod d2fonts;
 pub mod font_subset;
 mod go_quote;
+mod go_runtime;
 mod go_xml_names;
 pub mod markdown;
 pub mod measure;

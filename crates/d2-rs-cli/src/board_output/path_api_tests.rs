@@ -58,7 +58,7 @@ fn observe(input: &Value) -> Value {
                         identity.clone(),
                         Path::new(root).join(crate::board_output_path(
                             Some(target),
-                            crate::ExportFormat::Svg,
+                            ".svg",
                             &targets,
                         )),
                     )

@@ -2327,7 +2327,16 @@ fn pad_nested_graph(arena: &mut LayeredArena, graph_id: LGraphId) {
         .map(|node_id| {
             let node = &arena.nodes[*node_id as usize];
             let loop_margin = arena.original_loop_margins.contains_key(node_id);
-            node.position_x - if loop_margin { node.margin_left } else { 0.0 }
+            // A leaf's label overhang is part of its margin box in the
+            // component hull; after UP/LEFT mirroring it can lead the box.
+            node.position_x
+                - if loop_margin {
+                    node.margin_left
+                } else if node.nested_graph.is_none() {
+                    node.label_margin_left
+                } else {
+                    0.0
+                }
         })
         .fold(f64::INFINITY, f64::min);
     let mut minimum_y = node_ids
@@ -2335,7 +2344,14 @@ fn pad_nested_graph(arena: &mut LayeredArena, graph_id: LGraphId) {
         .map(|node_id| {
             let node = &arena.nodes[*node_id as usize];
             let loop_margin = arena.original_loop_margins.contains_key(node_id);
-            node.position_y - if loop_margin { node.margin_top } else { 0.0 }
+            node.position_y
+                - if loop_margin {
+                    node.margin_top
+                } else if node.nested_graph.is_none() {
+                    node.label_margin_top
+                } else {
+                    0.0
+                }
         })
         .fold(f64::INFINITY, f64::min);
     // ComponentsCompactor computes a component hull from both node boxes and
@@ -2403,7 +2419,7 @@ fn pad_nested_graph(arena: &mut LayeredArena, graph_id: LGraphId) {
             let origin_x = if node.nested_graph.is_some() {
                 node.position_x - node.margin_left
             } else {
-                node.position_x
+                node.position_x - node.label_margin_left
             };
             origin_x + width
         })
@@ -2462,7 +2478,7 @@ fn pad_nested_graph(arena: &mut LayeredArena, graph_id: LGraphId) {
             let origin_y = if node.nested_graph.is_some() {
                 node.position_y - node.margin_top
             } else {
-                node.position_y
+                node.position_y - node.label_margin_top
             };
             origin_y + height + loop_bottom_margin
         })

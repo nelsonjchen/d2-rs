@@ -17,9 +17,9 @@ use d2_rs_core::{
 };
 use d2_rs_editor::{
     MoveOptions, PositionEncoding, SourceEdit, SourcePosition, apply_edits, board_at_position,
-    completion_items, create_root_field, delete_root_field, move_object_with_options,
-    reconnect_edge, reference_ranges, reference_ranges_with_files, rename_root_field,
-    set_root_field,
+    board_at_signed_position, completion_items, create_root_field, delete_root_field,
+    memory_import_opener, move_object_with_options, reconnect_edge, reference_ranges,
+    reference_ranges_with_files, rename_root_field, set_root_field,
 };
 use d2_rs_elk::{ElkEdge, ElkGraph, ElkLabel, ElkNode, ElkPort};
 use d2_rs_export::render_ascii_with_options;
@@ -38,9 +38,7 @@ use d2_rs_text::measure::{
     bundled_source_code_pro_semibold, bundled_source_sans_pro_bold, bundled_source_sans_pro_italic,
     bundled_source_sans_pro_regular, bundled_source_sans_pro_semibold,
 };
-use flate2::{Compression, write::DeflateEncoder};
 use std::collections::{BTreeMap, HashMap, VecDeque};
-use std::io::Write;
 use std::str::FromStr;
 use std::sync::OnceLock;
 use wasm_bindgen::prelude::*;
@@ -420,17 +418,13 @@ pub fn move_object_json(request_json: &str) -> Result<String, JsValue> {
 }
 
 /// Encodes a D2 script using the URL-safe compressed representation used by
-/// D2's v0.9.0 raw WASM API. The result is a JSON object so callers can use
-/// the same `{result: ...}` response shape as the original binding.
+/// D2's raw WASM API, wrapped in its `{data: {result: ...}}` response.
 #[wasm_bindgen]
 pub fn encode(script: Option<String>) -> String {
     let Some(script) = script else {
         return legacy_error("missing script argument", 400);
     };
-    match encode_impl(&script) {
-        Ok(encoded) => encoded,
-        Err(error) => legacy_error(error, 500),
-    }
+    legacy_ok(serde_json::json!({"result": d2_rs_lib::urlenc::encode(&script)}))
 }
 
 /// Decodes a URL-safe compressed D2 script from the original raw WASM shape.
@@ -506,11 +500,13 @@ pub fn get_completions(source: Option<String>, line: Option<u32>, column: Option
     )
     .into_iter()
     .map(|item| {
+        // d2wasm.GetCompletions converts each item to a map[string]any;
+        // encoding/json writes map keys sorted.
         serde_json::json!({
-            "label": item.label,
-            "kind": item.kind as u8,
             "detail": item.detail,
             "insertText": item.insert_text,
+            "kind": item.kind as u8,
+            "label": item.label,
         })
     })
     .collect::<Vec<_>>();
@@ -521,20 +517,17 @@ pub fn get_completions(source: Option<String>, line: Option<u32>, column: Option
 #[wasm_bindgen(js_name = getBoardAtPosition)]
 pub fn get_board_at_position(
     source: Option<String>,
-    line: Option<u32>,
-    column: Option<u32>,
+    line: Option<f64>,
+    column: Option<f64>,
 ) -> String {
     let (Some(source), Some(line), Some(column)) = (source, line, column) else {
         return legacy_error("missing required arguments", 400);
     };
-    let result = board_at_position(
-        &source,
-        SourcePosition {
-            line: line as usize,
-            column: column as usize,
-        },
-        PositionEncoding::Utf16,
-    );
+    // d2wasm/functions.go:578-596 reads js.Value.Int() (a truncated, signed
+    // float) and d2lsp.GetBoardAtPosition parses without UTF16Pos, so columns
+    // count UTF-8 bytes.
+    let result =
+        board_at_signed_position(&source, line as i64, column as i64, PositionEncoding::Utf8);
     match result {
         Ok(path) => legacy_ok(serde_json::json!({"boardPath": path, "err": ""})),
         Err(error) => legacy_ok(serde_json::json!({
@@ -557,12 +550,22 @@ pub fn get_ref_ranges(
     else {
         return legacy_error("missing required arguments", 400);
     };
-    let files = match serde_json::from_str::<HashMap<String, String>>(&files_json) {
-        Ok(files) => files,
+    // encoding/json accepts null maps/slices and null string elements as
+    // their Go zero values (d2wasm.GetRefRanges).
+    let files = match serde_json::from_str::<Option<HashMap<String, Option<String>>>>(&files_json) {
+        Ok(files) => files
+            .unwrap_or_default()
+            .into_iter()
+            .map(|(path, source)| (path, source.unwrap_or_default()))
+            .collect(),
         Err(_) => return legacy_error("invalid fs argument", 400),
     };
-    let board_path = match serde_json::from_str::<Vec<String>>(&board_path_json) {
-        Ok(path) => path,
+    let board_path = match serde_json::from_str::<Option<Vec<Option<String>>>>(&board_path_json) {
+        Ok(path) => path
+            .unwrap_or_default()
+            .into_iter()
+            .map(Option::unwrap_or_default)
+            .collect::<Vec<_>>(),
         Err(_) => return legacy_error("invalid boardPath argument", 400),
     };
     match reference_ranges_with_files(&path, &files, &board_path, &key) {
@@ -570,7 +573,7 @@ pub fn get_ref_ranges(
             "ranges": ranges.references,
             "importRanges": ranges.imports,
         })),
-        Err(error) => legacy_error(error.to_string(), 500),
+        Err(error) => legacy_error(error.upstream_message(), 500),
     }
 }
 
@@ -610,7 +613,9 @@ pub fn get_obj_order(source: Option<String>) -> String {
     };
     let graph = match compiler::lower_graph(&compiler, root) {
         Ok(graph) => graph,
-        Err(error) => return legacy_error(error.to_string(), 500),
+        // Graph lowering is part of d2compiler.Compile, whose errors are 400
+        // in d2wasm.GetObjOrder, before d2oracle.GetObjOrder is called.
+        Err(error) => return legacy_error(error.to_string(), 400),
     };
     let mut queue = graph
         .nodes()
@@ -678,7 +683,16 @@ pub fn get_elk_graph(request_json: Option<String>) -> String {
     let (graph, labels, styles) =
         match compiler::lower_graph_with_measurer_and_labels(&compiler, root, &measurer) {
             Ok(value) => value,
-            Err(error) => return legacy_error(error.to_string(), 500),
+            Err(error) => {
+                // GetELKGraph reports compiler validation as 400; failures
+                // from the later SetDimensions measurement remain 500.
+                let code = if matches!(error, compiler::GraphCompileError::InvalidAttributes(_)) {
+                    400
+                } else {
+                    500
+                };
+                return legacy_error(error.to_string(), code);
+            }
         };
     legacy_ok(legacy_elk_graph(&graph, &labels, &styles))
 }
@@ -688,11 +702,11 @@ fn legacy_elk_graph(
     labels: &BTreeMap<d2_rs_core::NodeId, String>,
     styles: &BTreeMap<d2_rs_core::NodeId, d2_rs_language::compiler::SourceNodeStyle>,
 ) -> ElkGraph {
-    // ConvertGraph applies the same graph-wide preparation as Layout before
-    // it serializes the pre-layout ELK document.  Keep those effective sizes
-    // local to this compatibility response: the source graph remains the
-    // caller's measured graph and is not mutated by the WASM boundary.
-    let effective_sizes = legacy_elk_effective_sizes(graph);
+    // d2elklayout.ConvertGraph (wasm.go) repeats Layout's node preparation:
+    // positionLabelsIcons, degree sizing, the icon label row, SpacingOpt
+    // margins and adjustPadding. Take those wire sizes and paddings from the
+    // ELK crate's port of that preparation instead of re-deriving them here.
+    let prepared = legacy_elk_prepared_nodes(graph, labels);
     let direction = match graph.direction {
         d2_rs_core::Direction::Right => "RIGHT",
         d2_rs_core::Direction::Left => "LEFT",
@@ -704,7 +718,7 @@ fn legacy_elk_graph(
     let children: Vec<ElkNode> = graph
         .nodes()
         .filter(|(_, node)| node.parent.is_none())
-        .map(|(id, _)| legacy_elk_node(graph, labels, styles, &effective_sizes, id))
+        .map(|(id, _)| legacy_elk_node(graph, labels, styles, &prepared, id))
         .collect();
     let mut edge_counts = BTreeMap::<(Option<String>, String, String), usize>::new();
     let edges = graph
@@ -747,8 +761,12 @@ fn legacy_elk_graph(
                         y: 0.0,
                         width: label.size.width,
                         height: label.size.height,
+                        // elkOpts serializes Direction and SelfLoopSpacing
+                        // without omitempty, in struct field order.
                         layout_options: Some(serde_json::json!({
+                            "elk.direction": "",
                             "elk.edgeLabels.inline": true,
+                            "elk.spacing.nodeSelfLoop": 0,
                         })),
                     }]
                 })
@@ -821,71 +839,6 @@ fn legacy_elk_graph(
     result
 }
 
-/// Reproduce d2elklayout.ConvertGraph's pre-serialization size preparation.
-///
-/// The Go adapter reserves 40px per incident port on the flow cross-axis for
-/// nodes with at least two incoming or outgoing edges.  It also adds the
-/// measured label height plus label padding when an icon shares the node.
-/// Explicit dimensions remain fixed for the degree rule, matching D2's
-/// `HeightAttr`/`WidthAttr` checks.
-fn legacy_elk_effective_sizes(graph: &Graph) -> BTreeMap<d2_rs_core::NodeId, d2_rs_core::Size> {
-    let mut degrees = BTreeMap::<d2_rs_core::NodeId, (usize, usize)>::new();
-    for (_, edge) in graph.edges() {
-        degrees.entry(edge.source).or_default().1 += 1;
-        degrees.entry(edge.target).or_default().0 += 1;
-    }
-
-    graph
-        .nodes()
-        .map(|(id, node)| {
-            let (incoming, outgoing) = degrees.get(&id).copied().unwrap_or_default();
-            let mut size = node.size;
-            if incoming >= 2 || outgoing >= 2 {
-                let port_extent = incoming.max(outgoing) as f64 * 40.0;
-                match graph.direction {
-                    d2_rs_core::Direction::Right | d2_rs_core::Direction::Left => {
-                        if !node.fixed_height {
-                            size.height = size.height.max(port_extent);
-                        }
-                    }
-                    d2_rs_core::Direction::Down | d2_rs_core::Direction::Up => {
-                        if !node.fixed_width {
-                            size.width = size.width.max(port_extent);
-                        }
-                    }
-                }
-            }
-            if node.has_icon
-                && !matches!(
-                    node.shape,
-                    d2_rs_core::ShapeKind::Text
-                        | d2_rs_core::ShapeKind::Class
-                        | d2_rs_core::ShapeKind::SqlTable
-                        | d2_rs_core::ShapeKind::Code
-                )
-                && let Some(label_size) = node
-                    .label_size
-                    .filter(|size| size.width > 0.0 || size.height > 0.0)
-            {
-                size.height += label_size.height + 5.0;
-            }
-            if let Some(external) = node.external_label.filter(|label| label.reserve_space) {
-                // d2graph.SpacingOpt uses label.PADDING (5px) on the side
-                // occupied by an outside label before serializing ELK.
-                match external.side {
-                    d2_rs_core::ExternalSide::Top | d2_rs_core::ExternalSide::Bottom => {
-                        size.height += external.size.height + 5.0;
-                    }
-                    d2_rs_core::ExternalSide::Left | d2_rs_core::ExternalSide::Right => {
-                        size.width += external.size.width + 5.0;
-                    }
-                }
-            }
-            (id, size)
-        })
-        .collect()
-}
-
 fn legacy_elk_has_label(node: &d2_rs_core::Node) -> bool {
     !matches!(
         node.shape,
@@ -898,128 +851,58 @@ fn legacy_elk_has_label(node: &d2_rs_core::Node) -> bool {
         .is_some_and(|size| size.width > 0.0 || size.height > 0.0)
 }
 
-fn legacy_elk_label_position(
-    node: &d2_rs_core::Node,
-    has_label: bool,
-    has_icon: bool,
-    has_children: bool,
-) -> d2_rs_core::LabelPosition {
-    if !has_label {
-        return d2_rs_core::LabelPosition::Unset;
-    }
-    if node.label_position != d2_rs_core::LabelPosition::Unset {
-        return node.label_position;
-    }
-    if has_children {
-        d2_rs_core::LabelPosition::InsideTopCenter
-    } else if node
-        .external_label
-        .is_some_and(|label| label.side == d2_rs_core::ExternalSide::Bottom)
-    {
-        d2_rs_core::LabelPosition::OutsideBottomCenter
-    } else if has_icon {
-        d2_rs_core::LabelPosition::InsideTopCenter
-    } else {
-        d2_rs_core::LabelPosition::InsideMiddleCenter
-    }
+/// One node's ConvertGraph wire record: margin-inclusive size and, for
+/// containers, the adjusted `elk.padding`.
+struct LegacyElkPrepared {
+    size: d2_rs_core::Size,
+    padding: Option<serde_json::Value>,
 }
 
-fn legacy_elk_icon_position(
-    node: &d2_rs_core::Node,
-    has_children: bool,
-) -> d2_rs_core::LabelPosition {
-    if let Some(position) = node.icon_position
-        && position != d2_rs_core::LabelPosition::Unset
-    {
-        return position;
-    }
-    if has_children {
-        d2_rs_core::LabelPosition::InsideTopLeft
-    } else if matches!(
-        node.shape,
-        d2_rs_core::ShapeKind::SqlTable
-            | d2_rs_core::ShapeKind::Class
-            | d2_rs_core::ShapeKind::Text
-            | d2_rs_core::ShapeKind::Code
-    ) {
-        d2_rs_core::LabelPosition::OutsideTopLeft
-    } else {
-        d2_rs_core::LabelPosition::InsideMiddleCenter
-    }
-}
-
-fn legacy_elk_container_padding(
+fn legacy_elk_prepared_nodes(
     graph: &Graph,
     labels: &BTreeMap<d2_rs_core::NodeId, String>,
-    node_id: d2_rs_core::NodeId,
-) -> String {
-    let Some(node) = graph.node(node_id) else {
-        return "[top=50,left=50,bottom=50,right=50]".to_owned();
-    };
-    let has_children = graph
-        .nodes()
-        .any(|(_, child)| child.parent == Some(node_id));
-    if !has_children {
-        return "[top=50,left=50,bottom=50,right=50]".to_owned();
-    }
-    let has_label =
-        labels.get(&node_id).is_some_and(|label| !label.is_empty()) && legacy_elk_has_label(node);
-    let has_icon = node.has_icon && node.shape != d2_rs_core::ShapeKind::Image;
-    let label_position = legacy_elk_label_position(node, has_label, has_icon, true);
-    let icon_position = legacy_elk_icon_position(node, true);
-    let label_size = node.label_size.unwrap_or_default();
-    let label_height = label_size.height + 10.0;
-    let label_width = label_size.width + 10.0;
-    let icon_size = 64.0 + 10.0;
-    let mut top: f64 = 50.0;
-    let mut left: f64 = 50.0;
-    let mut bottom: f64 = 50.0;
-    let mut right: f64 = 50.0;
-    match label_position {
-        d2_rs_core::LabelPosition::InsideTopLeft
-        | d2_rs_core::LabelPosition::InsideTopCenter
-        | d2_rs_core::LabelPosition::InsideTopRight => top = top.max(label_height),
-        d2_rs_core::LabelPosition::InsideBottomLeft
-        | d2_rs_core::LabelPosition::InsideBottomCenter
-        | d2_rs_core::LabelPosition::InsideBottomRight => bottom = bottom.max(label_height),
-        d2_rs_core::LabelPosition::InsideMiddleLeft => left = left.max(label_width),
-        d2_rs_core::LabelPosition::InsideMiddleRight => right = right.max(label_width),
-        _ => {}
-    }
-    if has_icon {
-        match icon_position {
-            d2_rs_core::LabelPosition::InsideTopLeft
-            | d2_rs_core::LabelPosition::InsideTopCenter
-            | d2_rs_core::LabelPosition::InsideTopRight => top = top.max(icon_size),
-            d2_rs_core::LabelPosition::InsideBottomLeft
-            | d2_rs_core::LabelPosition::InsideBottomCenter
-            | d2_rs_core::LabelPosition::InsideBottomRight => bottom = bottom.max(icon_size),
-            d2_rs_core::LabelPosition::InsideMiddleLeft => left = left.max(icon_size),
-            d2_rs_core::LabelPosition::InsideMiddleRight => right = right.max(icon_size),
-            _ => {}
+) -> HashMap<String, LegacyElkPrepared> {
+    fn collect(nodes: Vec<ElkNode>, output: &mut HashMap<String, LegacyElkPrepared>) {
+        for node in nodes {
+            let padding = node
+                .layout_options
+                .as_ref()
+                .and_then(|options| options.get("elk.padding"))
+                .cloned();
+            output.insert(
+                node.id,
+                LegacyElkPrepared {
+                    size: d2_rs_core::Size {
+                        width: node.width,
+                        height: node.height,
+                    },
+                    padding,
+                },
+            );
+            collect(node.children, output);
         }
     }
-    format!(
-        "[top={},left={},bottom={},right={}]",
-        top.ceil() as i64,
-        left.ceil() as i64,
-        bottom.ceil() as i64,
-        right.ceil() as i64
-    )
+    let mut output = HashMap::new();
+    collect(
+        d2_rs_elk::graph_to_elk_graph(graph, labels, d2_rs_elk::ElkOptions::default()).children,
+        &mut output,
+    );
+    output
 }
 
 fn legacy_elk_node(
     graph: &Graph,
     labels: &BTreeMap<d2_rs_core::NodeId, String>,
     styles: &BTreeMap<d2_rs_core::NodeId, d2_rs_language::compiler::SourceNodeStyle>,
-    effective_sizes: &BTreeMap<d2_rs_core::NodeId, d2_rs_core::Size>,
+    prepared: &HashMap<String, LegacyElkPrepared>,
     id: d2_rs_core::NodeId,
 ) -> ElkNode {
     let node = graph.node(id).expect("ELK node ID exists");
-    let effective_size = effective_sizes.get(&id).copied().unwrap_or(node.size);
+    let prepared_node = prepared.get(&node.external_id);
+    let effective_size = prepared_node.map_or(node.size, |prepared| prepared.size);
     let label_records = labels
         .get(&id)
-        .filter(|_| node.shape != d2_rs_core::ShapeKind::SqlTable)
+        .filter(|_| legacy_elk_has_label(node))
         .filter(|label| !label.is_empty())
         .map(|text| {
             let size = node.label_size.unwrap_or(node.size);
@@ -1037,7 +920,7 @@ fn legacy_elk_node(
     let children: Vec<ElkNode> = graph
         .nodes()
         .filter(|(_, child)| child.parent == Some(id))
-        .map(|(child_id, _)| legacy_elk_node(graph, labels, styles, effective_sizes, child_id))
+        .map(|(child_id, _)| legacy_elk_node(graph, labels, styles, prepared, child_id))
         .collect();
     let table_columns = styles
         .get(&id)
@@ -1090,7 +973,9 @@ fn legacy_elk_node(
             }
         };
         let self_loop_spacing = legacy_elk_self_loop_spacing(graph, Some(id));
-        let padding = legacy_elk_container_padding(graph, labels, id);
+        let padding = prepared_node
+            .and_then(|prepared| prepared.padding.clone())
+            .unwrap_or_else(|| "[top=50,left=50,bottom=50,right=50]".into());
         serde_json::json!({
             "elk.spacing.edgeNode": 40,
             "elk.layered.nodePlacement.bk.fixedAlignment": "BALANCED",
@@ -1313,9 +1198,94 @@ fn legacy_elk_self_loop_spacing(graph: &Graph, owner: Option<d2_rs_core::NodeId>
     50.0_f64.max(maximum / 2.0 + 5.0)
 }
 
+// d2wasm wrapWASMCall json.Marshals every response; encoding/json escapes
+// HTML characters and JavaScript line separators inside strings.
+fn legacy_json_escape(json: String) -> String {
+    if !json.contains(['<', '>', '&', '\u{2028}', '\u{2029}']) {
+        return json;
+    }
+    json.replace('<', "\\u003c")
+        .replace('>', "\\u003e")
+        .replace('&', "\\u0026")
+        .replace('\u{2028}', "\\u2028")
+        .replace('\u{2029}', "\\u2029")
+}
+
+// Go elkOpts struct field order (d2elklayout/layout.go:104-200); json.Marshal
+// writes struct fields in declaration order, embedded ConfigurableOpts last.
+const LEGACY_ELK_OPTION_ORDER: &[&str] = &[
+    "elk.spacing.edgeNode",
+    "elk.layered.nodePlacement.bk.fixedAlignment",
+    "elk.layered.thoroughness",
+    "elk.direction",
+    "elk.hierarchyHandling",
+    "elk.edgeLabels.inline",
+    "elk.layered.crossingMinimization.forceNodeModelOrder",
+    "elk.layered.considerModelOrder.strategy",
+    "elk.layered.cycleBreaking.strategy",
+    "elk.layered.edgeRouting.selfLoopDistribution",
+    "elk.nodeSize.constraints",
+    "elk.contentAlignment",
+    "elk.nodeSize.minimum",
+    "elk.port.side",
+    "elk.portConstraints",
+    "elk.algorithm",
+    "spacing.nodeNodeBetweenLayers",
+    "elk.padding",
+    "spacing.edgeNodeBetweenLayers",
+    "spacing.edgeEdgeBetweenLayers",
+    "elk.spacing.nodeSelfLoop",
+];
+
+// encoding/json for the response values d2wasm marshals: float64 numbers in
+// Go's shortest 'f'/'e' form (50, not 50.0) and elkOpts in field order.
+fn write_legacy_json(value: &serde_json::Value, layout_options: bool, out: &mut String) {
+    use serde_json::Value;
+    match value {
+        Value::Number(number) => match number.as_f64().filter(|_| number.is_f64()) {
+            Some(float) => out.push_str(&d2_rs_core::go_json_float(float)),
+            None => out.push_str(&number.to_string()),
+        },
+        Value::Array(items) => {
+            out.push('[');
+            for (index, item) in items.iter().enumerate() {
+                if index > 0 {
+                    out.push(',');
+                }
+                write_legacy_json(item, false, out);
+            }
+            out.push(']');
+        }
+        Value::Object(map) => {
+            let mut entries = map.iter().collect::<Vec<_>>();
+            if layout_options {
+                entries.sort_by_key(|(key, _)| {
+                    LEGACY_ELK_OPTION_ORDER
+                        .iter()
+                        .position(|known| known == key)
+                        .unwrap_or(LEGACY_ELK_OPTION_ORDER.len())
+                });
+            }
+            out.push('{');
+            for (index, (key, item)) in entries.into_iter().enumerate() {
+                if index > 0 {
+                    out.push(',');
+                }
+                out.push_str(&serde_json::to_string(key).expect("string key"));
+                out.push(':');
+                write_legacy_json(item, key == "layoutOptions", out);
+            }
+            out.push('}');
+        }
+        scalar => out.push_str(&serde_json::to_string(scalar).expect("JSON scalar")),
+    }
+}
+
 fn legacy_ok<T: serde::Serialize>(data: T) -> String {
-    serde_json::to_string(&serde_json::json!({"data": data}))
-        .expect("legacy WASM response is serializable")
+    let value = serde_json::json!({"data": data});
+    let mut json = String::new();
+    write_legacy_json(&value, false, &mut json);
+    legacy_json_escape(json)
 }
 
 fn legacy_error(message: impl Into<String>, code: u16) -> String {
@@ -1325,10 +1295,12 @@ fn legacy_error(message: impl Into<String>, code: u16) -> String {
     } else {
         code
     };
-    serde_json::to_string(&serde_json::json!({
-        "error": {"message": message, "code": code}
-    }))
-    .expect("legacy WASM error response is serializable")
+    legacy_json_escape(
+        serde_json::to_string(&serde_json::json!({
+            "error": {"message": message, "code": code}
+        }))
+        .expect("legacy WASM error response is serializable"),
+    )
 }
 
 #[derive(Default, serde::Deserialize)]
@@ -2493,52 +2465,9 @@ fn source_path(path: Option<&str>, has_files: bool) -> String {
     )
 }
 
-struct SourceMemoryDirectory;
-impl d2_rs_language::stream::ByteReader for SourceMemoryDirectory {
-    fn read_bytes(&mut self, _: &mut [u8]) -> (usize, Option<d2_rs_language::stream::ReadError>) {
-        (
-            0,
-            Some(d2_rs_language::stream::ReadError::Other(
-                "cannot read a directory".into(),
-            )),
-        )
-    }
-}
-
-fn clean_source_memory_path(path: &str) -> String {
-    if path.is_empty() {
-        return ".".into();
-    }
-    d2_rs_core::ast::Import {
-        path: d2_rs_core::ast::KeyPath::from_strings([path]).path,
-        ..Default::default()
-    }
-    .path_with_pre()
-}
-
 fn source_import_opener(files: &HashMap<String, String>) -> Option<compiler::ImportOpener> {
-    // d2wasm uses lib/memfs: cleaned names, immediate directory entries and
-    // bare fs.ErrNotExist. An empty virtual FS still supports failed opens.
-    let mut entries = HashMap::new();
-    for (path, source) in files {
-        let path = clean_source_memory_path(path);
-        let dir = path
-            .rfind('/')
-            .map_or(".", |index| if index == 0 { "/" } else { &path[..index] })
-            .to_owned();
-        entries.insert(dir, None);
-        entries.insert(path, Some(source.clone()));
-    }
-    Some(Box::new(move |path| {
-        match entries.get(&clean_source_memory_path(path)) {
-            Some(Some(source)) => Ok(Box::new(std::io::Cursor::new(source.as_bytes().to_vec()))
-                as Box<dyn d2_rs_language::stream::ByteReader>),
-            Some(None) => {
-                Ok(Box::new(SourceMemoryDirectory) as Box<dyn d2_rs_language::stream::ByteReader>)
-            }
-            None => Err("file does not exist".into()),
-        }
-    }))
+    // d2wasm uses lib/memfs; an empty virtual FS still supports failed opens.
+    Some(memory_import_opener(files))
 }
 
 fn parse_d2_source_impl(source: &str, options_json: &str) -> Result<String, String> {
@@ -3210,23 +3139,9 @@ fn reference_ranges_files_json_impl(request_json: &str) -> Result<String, String
 
 mod url_codec;
 
-fn encode_impl(script: &str) -> Result<String, String> {
-    let mut encoder = DeflateEncoder::new(Vec::new(), Compression::best());
-    encoder
-        .write_all(script.as_bytes())
-        .map_err(|error| format!("could not encode D2 script: {error}"))?;
-    let compressed = encoder
-        .finish()
-        .map_err(|error| format!("could not finish D2 script encoding: {error}"))?;
-    let result = base64::engine::general_purpose::URL_SAFE.encode(compressed);
-    serde_json::to_string(&serde_json::json!({"result": result}))
-        .map_err(|error| format!("could not encode URL result: {error}"))
-}
-
 fn decode_impl(encoded: &str) -> Result<String, String> {
     let script = url_codec::decode(encoded)?;
-    serde_json::to_string(&serde_json::json!({"result": script}))
-        .map_err(|error| format!("could not encode decoded URL result: {error}"))
+    Ok(legacy_ok(serde_json::json!({"result": script})))
 }
 
 fn parse_options<T>(input: &str, default: impl FnOnce() -> T) -> Result<T, String>
@@ -4041,54 +3956,33 @@ mod tests {
 
     #[test]
     fn legacy_elk_size_preparation_matches_degree_and_icon_rules() {
-        let mut graph = Graph::default();
-        let hub = graph.add_node(d2_rs_core::Node::new(
-            "hub",
-            d2_rs_core::Size {
-                width: 20.0,
-                height: 30.0,
-            },
-        ));
-        graph.node_mut(hub).unwrap().label_size = Some(d2_rs_core::Size {
-            width: 40.0,
-            height: 12.0,
-        });
-        graph.node_mut(hub).unwrap().has_icon = true;
-        graph.node_mut(hub).unwrap().external_label = Some(d2_rs_core::ExternalLabel {
-            size: d2_rs_core::Size {
-                width: 18.0,
-                height: 9.0,
-            },
-            side: d2_rs_core::ExternalSide::Bottom,
-            alignment: d2_rs_core::ExternalAlignment::Center,
-            automatic: false,
-            reserve_space: true,
-        });
-        for name in ["a", "b", "c"] {
-            let target = graph.add_node(d2_rs_core::Node::new(
-                name,
-                d2_rs_core::Size {
-                    width: 20.0,
-                    height: 20.0,
-                },
-            ));
-            graph.add_edge(d2_rs_core::Edge {
-                source: hub,
-                target,
-            });
+        // Pinned d2elklayout.ConvertGraph: 40px per port on the flow
+        // cross-axis for degree >= 2, then the icon label row and the
+        // SpacingOpt margins (values from the pinned Go getELKGraph).
+        for (source, hub) in [
+            (
+                "hub -> a; hub -> b; hub -> c; hub.icon: https://example.com/icon.svg",
+                (120.0, 118.0),
+            ),
+            (
+                "direction: right; hub -> a; hub -> b; hub -> c; hub.icon: https://example.com/icon.svg",
+                (98.0, 146.0),
+            ),
+        ] {
+            let request = serde_json::json!({"fs": {"index": source}});
+            let response: serde_json::Value =
+                serde_json::from_str(&get_elk_graph(Some(request.to_string()))).unwrap();
+            let node = &response["data"]["children"][0];
+            assert_eq!(node["id"], "hub");
+            assert_eq!(
+                (
+                    node["width"].as_f64().unwrap(),
+                    node["height"].as_f64().unwrap()
+                ),
+                hub,
+                "{source}"
+            );
         }
-
-        let effective = legacy_elk_effective_sizes(&graph);
-        let size = effective[&hub];
-        // Default DOWN flow reserves 40px per outgoing port on width, then
-        // adds the measured label plus five pixels for the icon row.
-        assert_eq!(size.width, 120.0);
-        assert_eq!(size.height, 61.0);
-
-        graph.direction = d2_rs_core::Direction::Right;
-        let horizontal = legacy_elk_effective_sizes(&graph);
-        assert_eq!(horizontal[&hub].width, 20.0);
-        assert_eq!(horizontal[&hub].height, 151.0);
     }
 
     #[test]
@@ -4102,6 +3996,23 @@ mod tests {
         let padding = container["layoutOptions"]["elk.padding"].as_str().unwrap();
         assert_ne!(padding, "[top=50,left=50,bottom=50,right=50]");
         assert!(padding.contains("top="));
+    }
+
+    #[test]
+    fn legacy_elk_container_padding_matches_go_label_lanes() {
+        let request =
+            serde_json::json!({"fs": {"index": "container: {label.near: center-left; child}"}});
+        let response: serde_json::Value =
+            serde_json::from_str(&get_elk_graph(Some(request.to_string()))).unwrap();
+        let container = &response["data"]["children"][0];
+        assert_eq!(
+            (container["width"].as_f64(), container["height"].as_f64()),
+            (Some(157.0), Some(81.0))
+        );
+        assert_eq!(
+            container["layoutOptions"]["elk.padding"],
+            "[top=50,left=122,bottom=50,right=50]"
+        );
     }
 
     #[test]
@@ -4691,12 +4602,78 @@ mod tests {
 
         let legacy: serde_json::Value = serde_json::from_str(&get_board_at_position(
             Some(source.to_owned()),
-            Some(0),
-            Some(0),
+            Some(0.0),
+            Some(0.0),
         ))
         .unwrap();
         assert!(legacy["data"]["boardPath"].is_null());
         assert_eq!(legacy["data"]["err"], "");
+    }
+
+    // Expected responses are the pinned Go d2.wasm getBoardAtPosition and
+    // getRefRanges outputs for the same calls.
+    #[test]
+    fn legacy_board_position_matches_go_positions_and_diagnostics() {
+        let call = |source: &str, line: f64, column: f64| {
+            serde_json::from_str::<serde_json::Value>(&get_board_at_position(
+                Some(source.to_owned()),
+                Some(line),
+                Some(column),
+            ))
+            .unwrap()
+        };
+        assert_eq!(
+            call("a: {", 0.0, 0.0),
+            serde_json::json!({"data": {"boardPath": null, "err": "1:4: maps must be terminated with }"}})
+        );
+        // UTF-8 byte columns: `{` follows three bytes of 雪.
+        assert_eq!(
+            call("雪: {", 0.0, 0.0)["data"]["err"],
+            "1:6: maps must be terminated with }"
+        );
+        assert_eq!(
+            call("layers: {\"雪雪\": {b}}", 0.0, 20.0)["data"]["boardPath"],
+            serde_json::json!(["layers", "雪雪"])
+        );
+        // Signed, truncated coordinates: column -1 precedes `one`'s map.
+        let source = "layers: {\n one: {\n  b\n }\n}";
+        assert!(call(source, 1.0, -1.0)["data"]["boardPath"].is_null());
+        assert_eq!(
+            call(source, 2.7, -1.0)["data"]["boardPath"],
+            serde_json::json!(["layers", "one"])
+        );
+    }
+
+    #[test]
+    fn legacy_reference_ranges_return_go_lookup_errors() {
+        let call = |files: &str, path: &str, key: &str, board: &str| {
+            serde_json::from_str::<serde_json::Value>(&get_ref_ranges(
+                Some(files.to_owned()),
+                Some(path.to_owned()),
+                Some(key.to_owned()),
+                Some(board.to_owned()),
+            ))
+            .unwrap()["error"]["message"]
+                .clone()
+        };
+        assert_eq!(call(r#"{"index":"a"}"#, "", "a", "[]"), "\"\" not found");
+        assert_eq!(
+            call(r#"{"index":"a: {"}"#, "index", "a", "[]"),
+            "index:1:4: maps must be terminated with }"
+        );
+        assert_eq!(
+            call(r#"{"index":"...@x"}"#, "index", "a", "[]"),
+            "index:1:1: failed to import \"x.d2\": file does not exist"
+        );
+        // The board is resolved before the key is parsed.
+        assert_eq!(
+            call(r#"{"index":"a"}"#, "index", "", r#"["x","y"]"#),
+            "board \"[x y]\" not found"
+        );
+        assert_eq!(
+            call(r#"{"index":"a"}"#, "index", "(a)", "[]"),
+            "empty map key: \"(a)\""
+        );
     }
 
     #[test]
@@ -4770,6 +4747,9 @@ mod root_structured_tests;
 
 #[cfg(test)]
 mod public_diagnostic_tests;
+
+#[cfg(test)]
+mod legacy_helper_tests;
 
 // Reads regenerated oracle fixtures (docs/FIXTURES.md).
 #[cfg(all(test, feature = "oracle-fixtures"))]

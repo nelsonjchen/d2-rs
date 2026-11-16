@@ -1807,6 +1807,7 @@ pub(super) struct ScopeNodeMetadata {
     pub(super) cluster_arrangement: Option<ClusterArrangement>,
     pub(super) is_aggregate_vessel: bool,
     pub(super) node_padding: Insets,
+    pub(super) layout_margins: Insets,
     pub(super) content_insets: Insets,
     pub(super) label_size: Option<Size>,
     pub(super) label_position: LabelPosition,
@@ -3328,6 +3329,11 @@ pub(super) struct ArenaGraph {
     pub(super) transaction_external_aggregate_children: BTreeMap<i64, Vec<ArenaNode>>,
     pub(super) transaction_external_cluster_layouts: BTreeMap<i64, ExternalClusterLayout>,
     pub(super) projected_transaction_nodes: Vec<ProjectedTransactionNode>,
+    /// Ordered `Graph.mirrorAxes` reflections of projected descendants that
+    /// have no local node, keyed by TALA ID. Source mirrorNode flips such a
+    /// pointer's NodeToTree orientation; publication replays these flips on
+    /// the owning tree member.
+    pub(super) projected_tree_mirrors: Vec<(i64, bool, bool)>,
     pub(super) root_grid_bin_pack_completed: bool,
     pub(super) sequences: Vec<SequenceState>,
     /// True once `assign_sequences` has populated every node backlink.

@@ -26,7 +26,7 @@ class CorpusPerfSweepTests(unittest.TestCase):
             (cases / "case.json").write_text(json.dumps({"name": "case", "script": "a"}))
             with patch.object(sweep.references, "E2E_CASES", cases):
                 normal, iso = sweep.corpus_jobs(), sweep.corpus_jobs(isometric=True)
-        self.assertEqual(len(normal), 7)
+        self.assertEqual(len(normal), 18)
         self.assertEqual(iso, [(*job[:4], (*job[4], "--isometric")) for job in normal])
 
     def test_summary_counts_rows_over_go_and_skips_go_failures(self):
@@ -75,6 +75,7 @@ class CorpusPerfSweepTests(unittest.TestCase):
                                        "rust": "err: GIF frame pixels exceed the limit"})
         self.assertTrue(result["identical"])
         self.assertTrue(result["error_match"])
+        self.assertEqual(result["outcome"], "error-match")
 
     def test_different_errors_are_not_identical(self):
         result = self.run_failing_job({"go": "err: GIF frame pixels exceed the limit",
@@ -114,6 +115,96 @@ class CorpusPerfSweepTests(unittest.TestCase):
             result = sweep.run_job(("case", "a", "dagre", "pptx", ()),
                                    (("go", Path("go")), ("rust", Path("rust"))), Path(tmp), 2)
         self.assertFalse(result["identical"])
+        self.assertEqual(result["outcome"], "mismatch")
+
+    def run_with_second_go_sample_different(self, fmt):
+        calls = 0
+
+        def fake_run(binary, engine, source, output, extra=()):
+            nonlocal calls
+            calls += 1
+            output.write_bytes(b"other Go order" if calls == 3 else b"first Go order")
+            return 0, 0.01, 0.01, 1000
+
+        with patch.object(sweep.perf_bench, "run", fake_run), tempfile.TemporaryDirectory() as tmp:
+            return sweep.run_job(("case", "a", "dagre", fmt, ()),
+                                 (("go", Path("go")), ("rust", Path("rust"))), Path(tmp), 2)
+
+    def test_pdf_rust_can_match_any_observed_go_sample(self):
+        result = self.run_with_second_go_sample_different("pdf")
+        self.assertTrue(result["identical"])
+        self.assertEqual((result["outcome"], result["go_variants"]), ("match", 2))
+
+    def test_pdf_rust_variant_unseen_in_go_is_a_mismatch(self):
+        calls = 0
+
+        def fake_run(binary, engine, source, output, extra=()):
+            nonlocal calls
+            calls += 1
+            output.write_bytes({2: b"unseen order", 3: b"other Go order"}.get(calls, b"first Go order"))
+            return 0, 0.01, 0.01, 1000
+
+        with patch.object(sweep.perf_bench, "run", fake_run), tempfile.TemporaryDirectory() as tmp:
+            result = sweep.run_job(("case", "a", "dagre", "pdf", ()),
+                                   (("go", Path("go")), ("rust", Path("rust"))), Path(tmp), 2)
+        self.assertFalse(result["identical"])
+        self.assertEqual((result["outcome"], result["go_variants"]), ("mismatch", 2))
+
+    def test_report_rows_carry_outcomes_and_pdf_go_variants(self):
+        calls = 0
+
+        def fake_run(binary, engine, source, output, extra=()):
+            nonlocal calls
+            calls += 1
+            # Pass 1 makes calls 1-4; in pass 2 the second Go repeat of each job differs.
+            output.write_bytes(b"other order" if calls in (7, 11) else b"order")
+            return 0, 0.01, 0.01, 1000
+
+        jobs = [("case", "a", "dagre", "svg", ()), ("case", "a", "dagre", "pdf", ())]
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            report = tmp / "report.json"
+            argv = ["corpus-perf-sweep.py", "--go", str(tmp / "go"), "--rust", str(tmp / "rust"),
+                    "--output", str(report), "--flag", "0", "--repeat", "2"]
+            with patch.object(sweep.perf_bench, "run", fake_run), patch.object(sweep, "corpus_jobs", return_value=jobs), \
+                    patch.object(sys, "argv", argv), patch("builtins.print") as printed:
+                sweep.main()
+            rows = json.loads(report.read_text())["rows"]
+        self.assertEqual([(r["format"], r["repeat"], r["outcome"], r["go_variants"]) for r in rows],
+                         [("svg", 2, "oracle-nondeterministic", 2), ("pdf", 2, "match", 2)])
+        lines = [call.args[0] for call in printed.call_args_list if call.args]
+        self.assertIn("outcomes {'match': 1, 'oracle-nondeterministic': 1}; max PDF Go variants 2", lines)
+
+    def test_non_pdf_go_disagreement_is_reported_not_matched(self):
+        for fmt in ("svg", "png", "pptx", "gif", "txt"):
+            with self.subTest(fmt=fmt):
+                result = self.run_with_second_go_sample_different(fmt)
+                self.assertFalse(result["identical"])
+                self.assertEqual((result["outcome"], result["go_variants"]), ("oracle-nondeterministic", 2))
+
+    def test_board_directory_inventories_must_be_complete(self):
+        calls = 0
+
+        def fake_run(binary, engine, source, output, extra=()):
+            nonlocal calls
+            calls += 1
+            boards = output.with_suffix("")
+            boards.mkdir(exist_ok=True)
+            for child in boards.iterdir():
+                child.unlink()
+            (boards / "index.svg").write_bytes(b"root")
+            if calls != 4:
+                (boards / "child.svg").write_bytes(b"child")
+            return 0, 0.01, 0.01, 1000
+
+        for fmt in ("svg", "pdf"):
+            calls = 0
+            with self.subTest(fmt=fmt), patch.object(sweep.perf_bench, "run", fake_run), \
+                    tempfile.TemporaryDirectory() as tmp:
+                result = sweep.run_job(("case", "a", "dagre", fmt, ()),
+                                       (("go", Path("go")), ("rust", Path("rust"))), Path(tmp), 2)
+                self.assertFalse(result["identical"])
+                self.assertEqual(result["outcome"], "mismatch")
 
     def test_single_and_multiboard_pdf_use_the_same_date_comparison(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -134,6 +225,8 @@ class CorpusPerfSweepTests(unittest.TestCase):
             first = sweep.output_digest(output)
             child.write_bytes(data.replace(b"20261115000000", b"20261116000000"))
             self.assertEqual(first, sweep.output_digest(output))
+            child.write_bytes(data.replace(b"(D:20261115000000)\n/Mod", b"(D:2026111500000Z)\n/Mod"))
+            self.assertNotEqual(first, sweep.output_digest(output))
 
     def test_empty_single_output_is_not_a_match(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -143,8 +236,18 @@ class CorpusPerfSweepTests(unittest.TestCase):
                 sweep.output_digest(output)
 
     def test_every_case_gets_every_engine_and_export(self):
-        formats = {fmt for fmt, _ in sweep.EXPORTS} | {"svg"}
-        self.assertEqual(formats, {"svg", "png", "pdf", "pptx", "gif"})
+        with tempfile.TemporaryDirectory() as tmp:
+            cases = Path(tmp)
+            for name in ("one", "two"):
+                (cases / f"{name}.json").write_text(json.dumps({"name": name, "script": "a -> b"}))
+            with patch.object(sweep.references, "E2E_CASES", cases):
+                jobs = sweep.corpus_jobs()
+        expected = {(name, engine, fmt)
+                    for name in ("one", "two")
+                    for engine in ("dagre", "elk", "tala")
+                    for fmt in ("svg", "png", "pdf", "pptx", "gif", "txt")}
+        self.assertEqual(len(jobs), len(expected))
+        self.assertEqual({(name, engine, fmt) for name, _, engine, fmt, _ in jobs}, expected)
 
 
 if __name__ == "__main__":

@@ -725,11 +725,19 @@ pub(crate) fn source_node_positions(
                 return (LabelPosition::InsideTopRight, icon);
             }
         } else {
-            icon = Some(if intrinsic {
-                LabelPosition::OutsideTopLeft
-            } else {
-                LabelPosition::InsideMiddleCenter
-            });
+            // positionLabelsIcons: SQLTable, Class or a non-empty Language
+            // (code shapes always carry one; plain text shapes do not).
+            icon = Some(
+                if matches!(
+                    node.shape,
+                    ShapeKind::Class | ShapeKind::SqlTable | ShapeKind::Code
+                ) || graph.node_has_language(id)
+                {
+                    LabelPosition::OutsideTopLeft
+                } else {
+                    LabelPosition::InsideMiddleCenter
+                },
+            );
         }
     }
     if has_label && position == LabelPosition::Unset {

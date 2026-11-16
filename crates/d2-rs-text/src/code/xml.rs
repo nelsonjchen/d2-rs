@@ -594,7 +594,9 @@ fn named(source: &str, name: &str, nested: bool, control: &mut Control<'_>) -> O
 // headers/body tokens are not collected by D2's final token budget.
 fn http(source: &str, nested: bool, control: &mut Control<'_>) -> Option<Vec<Token>> {
     let mut intermediate = control.unmetered();
-    let raw = run(source, lexer("HTTP")?, "root", nested, &mut intermediate)?;
+    let raw = run(source, lexer("HTTP")?, "root", nested, &mut intermediate);
+    control.inherit_panic(&intermediate);
+    let raw = raw?;
     let mut content_type = String::new();
     let mut is_content_type = false;
     let mut tokens = Vec::new();
@@ -657,13 +659,23 @@ fn delegating(
     control: &mut Control<'_>,
 ) -> Option<Vec<Token>> {
     let mut intermediate = control.unmetered();
-    let language_tokens = coalesce(run(
-        source,
-        lexer(language)?,
-        "root",
-        nested,
-        &mut intermediate,
-    )?);
+    let raw = delegating_streams(source, language, root, nested, &mut intermediate);
+    control.inherit_panic(&intermediate);
+    let mut tokens = Vec::new();
+    for token in raw? {
+        push(&mut tokens, token.kind, &token.value, control);
+    }
+    Some(tokens)
+}
+/// The intermediate language and root streams of [`delegating`], interleaved.
+fn delegating_streams(
+    source: &str,
+    language: &str,
+    root: &str,
+    nested: bool,
+    intermediate: &mut Control<'_>,
+) -> Option<Vec<Token>> {
+    let language_tokens = coalesce(run(source, lexer(language)?, "root", nested, intermediate)?);
     let mut others = String::new();
     let mut insertions: Vec<(usize, usize, Vec<Token>)> = Vec::new();
     let mut offset = 0;
@@ -684,10 +696,10 @@ fn delegating(
         }
         offset += length;
     }
-    let raw = if insertions.is_empty() {
-        delegate(source, root, nested, &mut intermediate)?
+    Some(if insertions.is_empty() {
+        delegate(source, root, nested, intermediate)?
     } else {
-        let root_tokens = coalesce(delegate(&others, root, nested, &mut intermediate)?);
+        let root_tokens = coalesce(delegate(&others, root, nested, intermediate)?);
         let mut root_tokens = root_tokens.into_iter();
         let mut token = root_tokens.next();
         let mut insertions = insertions.into_iter().peekable();
@@ -723,12 +735,7 @@ fn delegating(
             }
         }
         out
-    };
-    let mut tokens = Vec::new();
-    for token in raw {
-        push(&mut tokens, token.kind, &token.value, control);
-    }
-    Some(tokens)
+    })
 }
 fn delegate(
     source: &str,

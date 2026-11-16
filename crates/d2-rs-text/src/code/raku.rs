@@ -321,6 +321,34 @@ fn index_at(
     }
     Some(pos + index)
 }
+/// The Go runtime error for a nil pointer dereference.
+const NIL_DEREFERENCE: &str = "runtime error: invalid memory address or nil pointer dereference";
+/// Go `text[low:high]` on the lexer's `[]rune(text)`: a high bound past the
+/// length but within the allocation's capacity reads its zeroed runes; a bound
+/// past the capacity or an inverted range panics with Go's runtime error.
+fn go_slice(
+    text: &[char],
+    low: usize,
+    high: usize,
+    control: &mut Control<'_>,
+) -> Option<Vec<char>> {
+    let capacity = crate::go_runtime::rune_slice_capacity(text.len());
+    if high > capacity {
+        control.lexer_panic(format!(
+            "runtime error: slice bounds out of range [:{high}] with capacity {capacity}"
+        ));
+        return None;
+    }
+    if low > high {
+        control.lexer_panic(format!(
+            "runtime error: slice bounds out of range [{low}:{high}]"
+        ));
+        return None;
+    }
+    let mut runes = text[low.min(text.len())..high.min(text.len())].to_vec();
+    runes.resize(high - low, '\0');
+    Some(runes)
+}
 fn find_brackets(
     class: u8,
     source: &str,
@@ -417,7 +445,12 @@ fn find_brackets(
                     .iter()
                     .map(|c| c.len_utf8())
                     .sum();
-                let matched = pod.find_from_pos(source, start_byte).ok().flatten()?;
+                // raku.go: regexp2 returns a nil match with a nil error when
+                // no `=end` follows, and match.Runes() dereferences it.
+                let Some(matched) = pod.find_from_pos(source, start_byte).ok()? else {
+                    control.lexer_panic(NIL_DEREFERENCE);
+                    return None;
+                };
                 closing = matched.as_str().chars().collect();
                 Some(source[..matched.start()].chars().count())
             } else {
@@ -467,7 +500,7 @@ fn find_brackets(
             }
         }
     }
-    let between: String = text.get(pos..end)?.iter().collect();
+    let between: String = go_slice(&text, pos, end, control)?.into_iter().collect();
     match class {
         1 | 2 | 4 => {
             named.insert("value".into(), between);
@@ -480,12 +513,14 @@ fn find_brackets(
                     "opening_delimiters".into(),
                     opening
                         .iter()
-                        .chain(text.get(pos..pos + first_punctuation)?)
+                        .chain(&go_slice(&text, pos, pos + first_punctuation, control)?)
                         .collect(),
                 );
                 named.insert(
                     "value".into(),
-                    text.get(pos + first_punctuation..end)?.iter().collect(),
+                    go_slice(&text, pos + first_punctuation, end, control)?
+                        .into_iter()
+                        .collect(),
                 );
                 if found_heredoc {
                     named.insert("closing_delimiters".into(), terminator.iter().collect());
@@ -501,7 +536,9 @@ fn find_brackets(
             *groups = vec![format!(
                 "{}{}",
                 groups[0],
-                text.get(pos..end + count)?.iter().collect::<String>()
+                go_slice(&text, pos, end + count, control)?
+                    .into_iter()
+                    .collect::<String>()
             )];
         }
     }

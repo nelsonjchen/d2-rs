@@ -394,32 +394,7 @@ fn apply_custom_fonts(
     diagram: &mut d2_rs_target::Diagram,
     fonts: &d2_rs_text::d2fonts::CustomFonts,
 ) -> Result<(), ExportError> {
-    use d2_rs_text::d2fonts::{FontStyle, add_font_family};
-    static REGISTERED: std::sync::Mutex<Option<d2_rs_text::d2fonts::CustomFonts>> =
-        std::sync::Mutex::new(None);
-    if fonts.regular.is_empty() && fonts.mono.is_empty() {
-        return Ok(());
-    }
-    {
-        let mut registered = REGISTERED.lock().unwrap_or_else(|error| error.into_inner());
-        if registered.as_ref() != Some(fonts) {
-            for (name, faces) in [("custom", &fonts.regular), ("customMono", &fonts.mono)] {
-                if faces.is_empty() {
-                    continue;
-                }
-                let face = |style| faces.get(&style).map(Vec::as_slice);
-                add_font_family(
-                    name,
-                    face(FontStyle::Regular),
-                    face(FontStyle::Italic),
-                    face(FontStyle::Bold),
-                    face(FontStyle::Semibold),
-                )
-                .map_err(ExportError::Render)?;
-            }
-            *registered = Some(fonts.clone());
-        }
-    }
+    fonts.register().map_err(ExportError::Render)?;
     // from_graph names SourceCodePro only for a mono theme, which overrides
     // the custom family in d2exporter.Export.
     if !fonts.regular.is_empty() && diagram.font_family.as_deref() != Some("SourceCodePro") {

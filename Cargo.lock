@@ -682,7 +682,6 @@ dependencies = [
  "d2-rs-tala",
  "d2-rs-testdata",
  "d2-rs-text",
- "flate2",
  "roxmltree",
  "serde",
  "serde_json",

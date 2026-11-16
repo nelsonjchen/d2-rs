@@ -884,10 +884,16 @@ pub(super) fn score_existing_label_placements_checked(
             && let Some(rect) = positioned_icon_label_rect(graph, node.input_id)
         {
             placed_fake_nodes.push(rect);
-            let previous_fake_nodes = &placed_fake_nodes[..placed_fake_nodes.len() - 1];
-            let score = overlap_count(rect, &graph_node_rects_only, 0.0)
-                + edge_overlap_count(rect, graph.member_edge_indices(), graph, 0.0)
-                + overlap_count(rect, previous_fake_nodes, 0.0) * 2;
+            // quality/labels.go scoreExistingLabelPlacements counts the icon
+            // box against placedBoxes after appending it and subtracts one
+            // for itself. A box with zero width or height does not overlap
+            // itself, so the label term is -1 there; with no other overlap
+            // the total reaches -1 and 1 / (1 + total) is +Inf, which
+            // evaluateSeedResult rejects as a non-finite score.
+            let label_overlaps = overlap_count(rect, &placed_fake_nodes, 0.0) as i64 - 1;
+            let score = overlap_count(rect, &graph_node_rects_only, 0.0) as i64
+                + edge_overlap_count(rect, graph.member_edge_indices(), graph, 0.0) as i64
+                + 2 * label_overlaps;
             total_score += score as f64;
         }
 
@@ -935,8 +941,10 @@ pub(super) fn score_existing_label_placements_checked(
             return Err(crate::LayoutError::SeedInvariant);
         }
         let exact_label_overlaps = overlap_count(label_rect, &placed_fake_nodes, 0.0);
-        let almost_label_overlaps = overlap_count(label_rect, &placed_fake_nodes, 5.0)
-            + (exact_label_overlaps as f64 * 0.5).ceil() as usize;
+        // quality/labels.go counts almost-overlaps with label.PADDING only.
+        // The extra ceil(exact / 2) term belongs to labeling/placement.go's
+        // candidate scoring, not to the existing-placement evaluation.
+        let almost_label_overlaps = overlap_count(label_rect, &placed_fake_nodes, 5.0);
         let shared_segment_overlaps = overlap_count(label_rect, &shared_segments, 5.0);
         let ancestors = live_nodes
             .iter()

@@ -4462,6 +4462,32 @@ fn target_hash_bytes(
     bytes
 }
 
+/// d2exporter.Export retains configured font families on the target, with
+/// the mono theme overriding the primary family. Register custom faces before
+/// handing the target to a native scene or isometric renderer.
+fn target_font_families(
+    graph: &Graph,
+    options: &RenderOptions,
+    sketch: bool,
+) -> Result<(&'static str, &'static str), String> {
+    options.custom_fonts.register()?;
+    let primary = if target_theme_rules(graph).mono {
+        "SourceCodePro"
+    } else if !options.custom_fonts.regular.is_empty() {
+        "custom"
+    } else if sketch || options.hand_drawn_font {
+        "HandDrawn"
+    } else {
+        "SourceSansPro"
+    };
+    let mono = if options.custom_fonts.mono.is_empty() {
+        "SourceCodePro"
+    } else {
+        "customMono"
+    };
+    Ok((primary, mono))
+}
+
 /// The public d2target.Diagram JSON for one laid-out board, built from the
 /// same exporter-equivalent pieces as [`target_hash_input`] (so its
 /// Diagram.Bytes reproduces the target hash). Legends are not yet exported
@@ -4493,15 +4519,7 @@ pub fn target_diagram_json(
         .collect::<Vec<_>>();
     connections.extend(target_hash_lifelines(graph, result, styles));
     let root = target_hash_root(graph, options);
-    // d2exporter.Export: sketch compiles with HandDrawn; a mono theme
-    // replaces the family with Source Code Pro.
-    let font_family = if target_theme_rules(graph).mono {
-        "SourceCodePro"
-    } else if sketch || options.hand_drawn_font {
-        "HandDrawn"
-    } else {
-        "SourceSansPro"
-    };
+    let (font_family, mono_font_family) = target_font_families(graph, options, sketch)?;
     let mut diagram = serde_json::Map::new();
     diagram.insert("name".into(), Value::String(String::new()));
     if options.include_config_in_hash {
@@ -4525,7 +4543,7 @@ pub fn target_diagram_json(
     diagram.insert("fontFamily".into(), Value::String(font_family.into()));
     diagram.insert(
         "monoFontFamily".into(),
-        Value::String("SourceCodePro".into()),
+        Value::String(mono_font_family.into()),
     );
     diagram.insert(
         "shapes".into(),

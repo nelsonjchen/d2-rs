@@ -568,11 +568,12 @@ if (!html.includes("<strong>ok</strong>")) {
 }
 
 const encodedResponse = JSON.parse(runtime.encode(source));
-if (typeof encodedResponse.result !== "string" || !encodedResponse.result) {
+// d2wasm.Encode/Decode return result inside wrapWASMCall's data envelope.
+if (typeof encodedResponse.data?.result !== "string" || !encodedResponse.data.result) {
   throw new Error("encode did not return a compressed result");
 }
-const decodedResponse = JSON.parse(runtime.decode(encodedResponse.result));
-if (decodedResponse.result !== source) throw new Error("decode did not round-trip source");
+const decodedResponse = JSON.parse(runtime.decode(encodedResponse.data.result));
+if (decodedResponse.data?.result !== source) throw new Error("decode did not round-trip source");
 for (const [name, invoke] of [
   ["getParentID", () => runtime.getParentID()],
   ["getCompletions", () => runtime.getCompletions()],

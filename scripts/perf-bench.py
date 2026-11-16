@@ -5,9 +5,12 @@ Inputs are e2e case sources from references.E2E_CASES, picked by size so the
 corpus is fixed: the largest N cases plus a spread of smaller ones, and nineteen
 isometric exports covering SVG, PNG, GIF, PDF, PPTX and every engine. Each
 (case, engine, implementation) runs --repeat times; medians are reported.
-Outputs are compared byte for byte (PDF dates only are normalized), so a
-speed-up can never hide a parity change. Writes a JSON report and prints a
-per-engine summary.
+Outputs are compared byte for byte, so a speed-up can never hide a parity
+change: non-PDF Go repeats must agree with each other and with every Rust
+repeat (a Go disagreement is reported as oracle-nondeterministic, never a
+match); a Rust PDF must equal one observed Go PDF after masking only the
+CreationDate/ModDate digits (Go's PDF resource order follows map iteration).
+Writes a JSON report and prints a per-engine summary with outcome counts.
 
 usage: perf-bench.py --rust <d2-rs> --output <report.json> [--cases 12]
 """
@@ -44,9 +47,10 @@ ISOMETRIC_CASES = (
     ("regression/grid_oom", "dagre", "svg"),
     ("stable/grid_animated", "dagre", "gif"),
     ("stable/complex-layers", "elk", "gif"),
-    # Go's multi-board PDFs iterate unsorted resource maps, so their bytes
-    # vary between runs even after date masking. Keep PDF gates single-board;
-    # GIF and PPTX retain the multi-board coverage above and below.
+    # Go PDFs iterate unsorted resource maps, including single-board files.
+    # Compare each Rust sample with the complete captured Go variants below.
+    # Keep PDF gates single-board to bound resource counts; GIF and PPTX
+    # retain the multi-board coverage above and below.
     ("stable/dense", "dagre", "pdf"),
     ("real_world/fulcro_rad", "elk", "pdf"),
     ("stable/grid_animated", "dagre", "pptx"),
@@ -105,7 +109,7 @@ def run(binary, engine, source, out, extra=()):
 
 
 def output_bytes(path):
-    """Ignore only PDF clock metadata, retaining every other byte and offset.
+    """Ignore only PDF clock digits, retaining every other byte and offset.
 
     Mirrors the date masking in the CLI's isometric PDF contract. Keep each
     field's length so PDF cross-reference offsets remain part of the check.
@@ -113,7 +117,7 @@ def output_bytes(path):
     data = path.read_bytes()
     if path.suffix.lower() == ".pdf":
         data = re.sub(rb"(/(?:CreationDate|ModDate) \(D:)([^)]*)(\))",
-                      lambda m: m[1] + b"0" * len(m[2]) + m[3], data)
+                      lambda m: m[1] + re.sub(rb"[0-9]", b"0", m[2]) + m[3], data)
     return data
 
 
@@ -130,6 +134,48 @@ def output_inventory(directory):
             raise ValueError(f"empty output or capture budget exceeded: {path}")
         inventory[path.relative_to(directory).as_posix()] = hashlib.sha256(output_bytes(path)).hexdigest()
     return inventory
+
+
+def _variants(outputs):
+    """Distinct outputs in first-seen order (inventories are unhashable dicts)."""
+    seen = []
+    for output in outputs:
+        if output not in seen:
+            seen.append(output)
+    return seen
+
+
+def _complete(sample):
+    exits, outputs = sample["sample_exits"], sample["output_hashes"]
+    return bool(exits and len(outputs) == len(exits)
+                and all(code == 0 for code in exits) and all(outputs))
+
+
+def compare_samples(fmt, go, rust):
+    """Classify every captured Go and Rust repeat of one job.
+
+    Outcomes: "match"; "mismatch"; "oracle-nondeterministic" (Go repeats
+    disagree in a non-PDF format, which is never a match); "go-failed" and
+    "rust-failed" (a nonzero exit, missing or empty output in any repeat).
+    Multi-file outputs compare as complete inventories.
+
+    Non-PDF formats: every Go repeat must equal every other Go repeat and
+    every Rust repeat. PDF only: pinned lib/pdf leaves fpdf catalogSort
+    disabled, so resource order follows Go map iteration and varies between
+    Go runs; each Rust repeat must equal one observed Go repeat, compared
+    after output_bytes masks the CreationDate/ModDate digits.
+    """
+    go_variants = _variants(go["output_hashes"])
+    result = {"outcome": "match", "go_variants": len(go_variants)}
+    if not _complete(go):
+        result["outcome"] = "go-failed"
+    elif fmt != "pdf" and len(go_variants) != 1:
+        result["outcome"] = "oracle-nondeterministic"
+    elif not _complete(rust):
+        result["outcome"] = "rust-failed"
+    elif not all(output in go_variants for output in rust["output_hashes"]):
+        result["outcome"] = "mismatch"
+    return result
 
 
 def measure_child(command):
@@ -187,16 +233,14 @@ def main():
                     "cpu": statistics.median(s[2] for s in samples[impl]),
                     "rss": statistics.median(s[3] for s in samples[impl]),
                 }
-            row["identical"] = (bool(hashes["go"][0])
-                                and hashes["go"][0] == hashes["rust"][0]
-                                and all(row[impl]["sample_exits"] == [0] * args.repeat
-                                        and all(h == hashes[impl][0] for h in hashes[impl])
-                                        for impl in ("go", "rust")))
+            row.update(compare_samples(fmt, row["go"], row["rust"]))
+            row["identical"] = row["outcome"] == "match"
             rows.append(row)
             print(f"completed {len(rows)}: {engine}/{fmt} {name}", flush=True)
     summary = {}
     for engine in ENGINES:
-        sel = [r for r in rows if r["engine"] == engine and r["go"]["exit"] == 0]
+        engine_rows = [r for r in rows if r["engine"] == engine]
+        sel = [r for r in engine_rows if r["go"]["exit"] == 0]
         if not sel:
             continue
         ratio = lambda key, selected=sel: statistics.median(r["rust"][key] / max(r["go"][key], 1e-3) for r in selected)
@@ -214,6 +258,10 @@ def main():
             "wall_total_ratio": round(total("wall"), 2),
             "cpu_total_ratio": round(total("cpu"), 2),
             "identical": sum(r["identical"] for r in sel),
+            # Outcomes count every row of the engine, Go failures included.
+            "outcomes": {outcome: sum(r["outcome"] == outcome for r in engine_rows)
+                         for outcome in sorted({r["outcome"] for r in engine_rows})},
+            "max_pdf_go_variants": max((r["go_variants"] for r in engine_rows if r["format"] == "pdf"), default=0),
         }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps({"source_commit": references.SOURCE_COMMIT,
@@ -222,7 +270,8 @@ def main():
                                                   for impl, binary in (("go", args.go), ("rust", args.rust))},
                                      "summary": summary, "rows": rows}, indent=1) + "\n")
     for engine, s in summary.items():
-        print(f"{engine}: rust/go wall {s['wall_ratio']}x (geomean {s['wall_geomean']}x, total {s['wall_total_ratio']}x) cpu {s['cpu_ratio']}x (total {s['cpu_total_ratio']}x) rss {s['rss_ratio']}x; identical {s['identical']}/{s['cases']}")
+        print(f"{engine}: rust/go wall {s['wall_ratio']}x (geomean {s['wall_geomean']}x, total {s['wall_total_ratio']}x) cpu {s['cpu_ratio']}x (total {s['cpu_total_ratio']}x) rss {s['rss_ratio']}x; identical {s['identical']}/{s['cases']}"
+              f"; outcomes {s['outcomes']}; max PDF Go variants {s['max_pdf_go_variants']}")
 
 
 if __name__ == "__main__":

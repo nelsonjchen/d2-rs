@@ -21,7 +21,6 @@ oracle-fixtures = []
 
 [dependencies]
 base64.workspace = true
-flate2.workspace = true
 d2-rs-render.workspace = true
 d2-rs-isometric.workspace = true
 d2-rs-layout.workspace = true

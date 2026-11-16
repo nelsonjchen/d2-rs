@@ -994,6 +994,11 @@ pub(super) fn normalize_language(value: &str) -> String {
 /// Returns the effective label language using D2's explicit attribute first,
 /// then the block-string tag carried by the label or primary value.
 pub(super) fn field_language(compiler: &Compiler, field: IrNodeId) -> Option<String> {
+    declared_field_language(compiler, field)
+        .or_else(|| compiler.carried_label_languages.get(&field).cloned())
+}
+
+fn declared_field_language(compiler: &Compiler, field: IrNodeId) -> Option<String> {
     if let Some(language) = property_text_inherited(compiler, field, &["language"]) {
         return Some(normalize_language(&language));
     }
@@ -1534,6 +1539,100 @@ struct GraphField {
     path: String,
     parent_path: Option<String>,
     source_order: Option<ast::Position>,
+    // compileField can visit multiple lexical maps for one sequence actor.
+    // Scalar properties overlay, but compileReserved appends every class.
+    merged_classes: Option<Vec<String>>,
+    merged_reference_scopes: Option<Vec<(Option<String>, bool)>>,
+}
+
+fn field_reference_scopes(
+    compiler: &Compiler,
+    field: IrNodeId,
+    parent: Option<&str>,
+) -> Vec<(Option<String>, bool)> {
+    let IrNode::Field(field) = compiler.arena.node(field) else {
+        return Vec::new();
+    };
+    field
+        .references
+        .iter()
+        .flatten()
+        .map(|reference| {
+            let reference = reference.read();
+            let scope_map = reference.context.as_ref().and_then(|c| c.read().scope_map);
+            let scope = if let Some(map) = scope_map.filter(|map| !compiler.arena.is_var(*map)) {
+                crate::ir::board_ida(&compiler.arena, map).and_then(|parts| path_text(&parts))
+            } else {
+                parent.map(str::to_owned)
+            };
+            let glob = reference
+                .key_path
+                .as_ref()
+                .is_some_and(|key| key.read().has_glob());
+            (scope, glob)
+        })
+        .collect()
+}
+
+/// One lexical `class` declaration, keyed by its IR pre-order position.
+/// compileMap visits a map's fields in IR order, descending into each child
+/// map before the next sibling, so these keys order compileReserved calls.
+fn class_occurrence(compiler: &Compiler, field: IrNodeId) -> Option<(Vec<usize>, Vec<String>)> {
+    let classes = target_class_names(compiler, field);
+    if classes.is_empty() {
+        return None;
+    }
+    let map = compiler.arena.map(field)?;
+    let mut node = compiler.graph_field(map, &["class"])?;
+    let mut position = Vec::new();
+    while let Some(parent) = compiler.arena.parent(node) {
+        let IrNode::Map(parent_map) = compiler.arena.node(parent) else {
+            break;
+        };
+        let siblings = parent_map.fields.as_deref().unwrap_or_default();
+        let Some(index) = siblings.iter().position(|sibling| *sibling == node) else {
+            break;
+        };
+        position.push(index);
+        let Some(owner) = compiler.arena.parent(parent) else {
+            break;
+        };
+        node = owner;
+    }
+    position.reverse();
+    Some((position, classes))
+}
+
+/// Fill the fields of one class map that `field` does not set itself, as
+/// compileMap(obj, classMap) does before the declaration's own fields.
+fn underlay_class_map(arena: &mut d2_rs_core::ir::Arena, field: IrNodeId, class_map: IrNodeId) {
+    let Some(map) = arena.map(field) else {
+        return;
+    };
+    let IrNode::Map(class_fields) = arena.node(class_map) else {
+        return;
+    };
+    for class_field in class_fields.fields.clone().unwrap_or_default() {
+        let IrNode::Field(source) = arena.node(class_field) else {
+            continue;
+        };
+        let Some(target) = arena.get_field(map, std::slice::from_ref(&source.name)) else {
+            let copy = arena.copy(class_field, Some(map));
+            arena.append_field(map, copy);
+            continue;
+        };
+        if arena.primary(target).is_none()
+            && let Some(primary) = arena.primary(class_field)
+        {
+            let copy = arena.copy(primary, Some(target));
+            if let IrNode::Field(target) = arena.node_mut(target) {
+                target.primary = Some(copy);
+            }
+        }
+        if let Some(nested) = arena.map(class_field) {
+            underlay_class_map(arena, target, nested);
+        }
+    }
 }
 
 #[derive(Default)]
@@ -1568,6 +1667,9 @@ fn canonical_graph_fields(
     let mut scope_stack: Vec<(String, usize, Option<ast::Position>, bool)> = Vec::new();
     let mut scope_ends = BTreeMap::new();
     let mut reference_order_committed = HashSet::new();
+    let mut class_occurrences: HashMap<usize, Vec<(Vec<usize>, Vec<String>)>> = HashMap::new();
+    let mut originals: HashMap<usize, IrNodeId> = HashMap::new();
+    let mut baked = HashSet::new();
     for mut field in fields {
         // compileMap connects edges after its complete child-map traversal,
         // before compiling the following sibling's fields. Retain that
@@ -1584,6 +1686,7 @@ fn canonical_graph_fields(
         }
         let lexical_path = field.path.clone();
         let mut parent = field.parent_path.as_ref().map(|p| aliases[p].clone());
+        let reference_parent = field.parent_path.as_ref().map(|p| aliases[p].as_str());
         let scalar = field_name(compiler, field.field).expect("graph field name");
         let component = path_component(compiler, field.field).expect("graph field component");
         // With no sequence in the compiled prefix, no ancestor can redirect
@@ -1632,6 +1735,37 @@ fn canonical_graph_fields(
             .and_then(|children| children.by_name.get(&folded))
             .copied();
         let index = if let Some(index) = existing {
+            let base = canonical[index].field;
+            if canonical[index].merged_reference_scopes.is_none() {
+                canonical[index].merged_reference_scopes = Some(field_reference_scopes(
+                    compiler,
+                    base,
+                    canonical[index].parent_path.as_deref(),
+                ));
+            }
+            canonical[index]
+                .merged_reference_scopes
+                .as_mut()
+                .unwrap()
+                .extend(field_reference_scopes(
+                    compiler,
+                    field.field,
+                    reference_parent,
+                ));
+            // compileReserved appends when compileMap reaches each lexical
+            // `class` field. A redirected declaration nested in the actor's
+            // own map can precede that map's later `class` field.
+            let occurrences = class_occurrences
+                .entry(index)
+                .or_insert_with(|| class_occurrence(compiler, base).into_iter().collect());
+            occurrences.extend(class_occurrence(compiler, field.field));
+            occurrences.sort_by(|left, right| left.0.cmp(&right.0));
+            canonical[index].merged_classes = Some(
+                occurrences
+                    .iter()
+                    .flat_map(|(_, classes)| classes.iter().cloned())
+                    .collect(),
+            );
             let view = property_view.get_or_insert_with(|| Compiler {
                 arena: compiler.arena.fork_storage(),
                 graph_class_root: compiler.graph_class_root,
@@ -1639,14 +1773,65 @@ fn canonical_graph_fields(
                 graph_context: compiler.graph_context.clone(),
                 ..Default::default()
             });
-            let base = canonical[index].field;
             // Copy the first field only once; original IDs stay available for
             // subsequent lexical declarations and source scope navigation.
             if copied.insert(index) {
+                let language = field_language(view, base);
+                originals.insert(index, base);
                 canonical[index].field = view.arena.copy(base, view.arena.parent(base));
+                if let Some(language) = language {
+                    view.carried_label_languages
+                        .insert(canonical[index].field, language);
+                }
             }
+            let before = field_language(view, canonical[index].field);
+            // compileMap compiles each lexical map's class maps before that
+            // map's own fields. A later declaration's classes therefore
+            // overwrite every earlier value, while earlier classes survive
+            // where nothing later sets them. Property lookup consults only
+            // the current class field, so materialize the replaced classes.
+            let overlay_classes = class_maps(compiler, field.field);
+            // compileField's compileLabel sets the declaration's primary
+            // before its compileMap, so it replaces every earlier label,
+            // including one an earlier class supplied.
+            let overlay_primary = compiler.arena.primary(field.field);
+            if (!overlay_classes.is_empty() || overlay_primary.is_some()) && baked.insert(index) {
+                for class_map in class_maps(compiler, originals[&index]).iter().rev() {
+                    underlay_class_map(&mut view.arena, canonical[index].field, *class_map);
+                }
+            }
+            if let Some(primary) = overlay_primary
+                && let Some(map) = view.arena.map(canonical[index].field)
+                && let Some(label) = view.arena.get_field_unquoted(map, &["label"])
+            {
+                let copy = view.arena.copy(primary, Some(label));
+                if let IrNode::Field(label) = view.arena.node_mut(label) {
+                    label.primary = Some(copy);
+                }
+            }
+            let overlay = if overlay_classes.is_empty() {
+                field.field
+            } else {
+                let overlay = view.arena.copy(field.field, view.arena.parent(field.field));
+                for class_map in overlay_classes.iter().rev() {
+                    underlay_class_map(&mut view.arena, overlay, *class_map);
+                }
+                overlay
+            };
             view.arena
-                .overlay_field(canonical[index].field, field.field, false);
+                .overlay_field(canonical[index].field, overlay, false);
+            // d2compiler.compileLabel sets Language only for block strings, so
+            // the object keeps it when this later declaration is plain text.
+            let merged = canonical[index].field;
+            match (declared_field_language(view, merged), before) {
+                (None, Some(language)) => {
+                    view.carried_label_languages.insert(merged, language);
+                }
+                (Some(_), _) => {
+                    view.carried_label_languages.remove(&merged);
+                }
+                (None, None) => {}
+            }
             index
         } else {
             field.parent_path = parent.clone();
@@ -1805,6 +1990,8 @@ fn collect_fields_at(
                 path: path.clone(),
                 parent_path: prefix.clone(),
                 source_order: object_source_position(compiler, field),
+                merged_classes: None,
+                merged_reference_scopes: None,
             });
         } else {
             // Boards are alternate graph roots.  The v0.9.0 compiler does not
@@ -3786,6 +3973,10 @@ fn apply_node_properties(
     let row_directed = grid_row_directed(compiler, field);
     graph.set_grid_row_directed(graph_id, row_directed);
     let has_language = graph.node_has_language(graph_id);
+    let empty_label = graph
+        .node_label_bytes
+        .get(&graph_id)
+        .is_some_and(Vec::is_empty);
     let sequence_ancestor = graph.root_sequence_diagram || has_sequence_ancestor(compiler, field);
     let node = graph.node_mut(graph_id).expect("new graph node");
     // These attributes carry source spelling into public graph/layout APIs.
@@ -3863,6 +4054,15 @@ fn apply_node_properties(
                 .and_then(|value| ast::keywords::label_position(&value))
         });
 
+    // SetDimensions returns before SizeToContent for empty ordinary labels.
+    // Zero authored dimensions keep the default size on that path, and its
+    // boxes do not pass through the person/oval aspect constraints.
+    let empty_shape = empty_label
+        && !matches!(
+            node.shape,
+            ShapeKind::Image | ShapeKind::SqlTable | ShapeKind::Class
+        );
+
     if let Some(font_size) = property_number_inherited(compiler, field, &["style", "font-size"])
         .and_then(|value| u32::try_from(value as i64).ok())
     {
@@ -3878,6 +4078,8 @@ fn apply_node_properties(
             } else {
                 width.max(5.0)
             }
+        } else if empty_shape {
+            if width == 0.0 { node.size.width } else { width }
         } else if matches!(node.shape, ShapeKind::SqlTable | ShapeKind::Class) || has_language {
             node.size.width.max(width)
         } else {
@@ -3891,6 +4093,12 @@ fn apply_node_properties(
                 node.size.height
             } else {
                 height.max(5.0)
+            }
+        } else if empty_shape {
+            if height == 0.0 {
+                node.size.height
+            } else {
+                height
             }
         } else if matches!(node.shape, ShapeKind::SqlTable | ShapeKind::Class) || has_language {
             node.size.height.max(height)
@@ -3907,8 +4115,9 @@ fn apply_node_properties(
             width: side,
             height: side,
         };
-    } else if property_number_inherited(compiler, field, &["width"]).unwrap_or(0.0) == 0.0
-        || property_number_inherited(compiler, field, &["height"]).unwrap_or(0.0) == 0.0
+    } else if !empty_shape
+        && (property_number_inherited(compiler, field, &["width"]).unwrap_or(0.0) == 0.0
+            || property_number_inherited(compiler, field, &["height"]).unwrap_or(0.0) == 0.0)
     {
         let ratio = match node.shape {
             ShapeKind::Person => Some(1.5),
@@ -4410,6 +4619,8 @@ fn lower_graph_in_class_context(
         path,
         parent_path,
         source_order,
+        merged_classes,
+        merged_reference_scopes,
     } in fields.iter().cloned()
     {
         compiler.graph_check()?;
@@ -4456,6 +4667,8 @@ fn lower_graph_in_class_context(
                     path,
                     parent_path,
                     source_order,
+                    merged_classes: None,
+                    merged_reference_scopes: None,
                 },
                 graph_id,
             ));
@@ -4736,7 +4949,7 @@ fn lower_graph_in_class_context(
         });
         let graph_id = graph.add_node(node);
         if retain_source_projection {
-            let classes = target_class_names(compiler, field);
+            let classes = merged_classes.unwrap_or_else(|| target_class_names(compiler, field));
             if !classes.is_empty() {
                 graph.target_node_classes.insert(graph_id, classes);
             }
@@ -5020,7 +5233,16 @@ fn lower_graph_in_class_context(
         }
         let scopes = object_reference_scopes.entry(graph_id).or_default();
         let note_scopes = note_reference_scopes.entry(graph_id).or_default();
-        if let IrNode::Field(source_field) = compiler.arena.node(field) {
+        if let Some(reference_scopes) = merged_reference_scopes {
+            for (scope, glob) in reference_scopes {
+                if let Some(scope) = scope {
+                    if !glob {
+                        note_scopes.push(scope.clone());
+                    }
+                    scopes.push(scope);
+                }
+            }
+        } else if let IrNode::Field(source_field) = compiler.arena.node(field) {
             for reference in source_field.references.iter().flatten() {
                 let scope_map = reference
                     .read()
@@ -5079,6 +5301,8 @@ fn lower_graph_in_class_context(
                 path,
                 parent_path,
                 source_order,
+                merged_classes: None,
+                merged_reference_scopes: None,
             },
             graph_id,
         ));
@@ -5749,14 +5973,25 @@ fn lower_graph_in_class_context(
     // nested edges. IR field order alone does not preserve that distinction.
     // Planning consumes only renderability after validation. Reconstructing
     // EnsureChild order is an export/layout projection, with no diagnostics.
+    let mut object_creation_order = None;
     if retain_source_projection {
         // Legends use compileMap alone, so they retain their independent
         // reconstruction. Ordinary boards reuse the late-validation hierarchy.
-        let source_child_order = validated_hierarchy
-            .unwrap_or_else(|| super::late_validation::hierarchy_order(compiler, root))
+        let hierarchy = validated_hierarchy
+            .unwrap_or_else(|| super::late_validation::hierarchy_order(compiler, root));
+        // compileBoard retains Graph.Objects in newObject allocation order.
+        // Nested edges can create later siblings or edge-only endpoints before
+        // the next field visit. Reuse this global EnsureChild order directly.
+        object_creation_order = Some(Vec::new());
+        let source_child_order = hierarchy
             .into_iter()
             .map(|(parent, children)| {
                 let parent = ast::ByteString::from(parent).to_text().into_owned();
+                if let Some(order) = &mut object_creation_order
+                    && let Some(id) = nodes.get(&parent)
+                {
+                    order.push(*id);
+                }
                 let children = children
                     .into_iter()
                     .enumerate()
@@ -5783,10 +6018,24 @@ fn lower_graph_in_class_context(
             }
         }
     }
-    let mut source_node_order = graph_fields
-        .iter()
-        .map(|(field, graph_id)| (field.source_order, *graph_id))
-        .collect::<Vec<_>>();
+    // SortObjectsByAST starts from newObject allocation order, even on the
+    // document graph. Equal imported ranges are common: starting PDQsort
+    // from lexical field order instead changes its equal-key permutation.
+    let mut source_node_order = if let Some(order) = object_creation_order {
+        let mut positions = vec![None; graph.nodes.len()];
+        for (field, id) in &graph_fields {
+            positions[id.0 as usize] = field.source_order;
+        }
+        order
+            .into_iter()
+            .map(|id| (positions[id.0 as usize], id))
+            .collect::<Vec<_>>()
+    } else {
+        graph_fields
+            .iter()
+            .map(|(field, id)| (field.source_order, *id))
+            .collect::<Vec<_>>()
+    };
     if compiler.arena.root(root) {
         super::go_sort::sort_by_index(
             &mut source_node_order,

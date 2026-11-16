@@ -897,6 +897,48 @@ runs alone remain harness timing noise; missing the ticker entirely was real
 drift and is fixed above.
 Historical run details are in the lane reports and d2-rs-history.
 
+### 2026-11-16 hunt
+
+Seven Codex lanes, then one Opus reviewer per lane, checked generated and
+mutated inputs against the pinned Go CLI (map seeds 1-16 rule out Go
+nondeterminism). Every lane fix was line-reviewed against Go and validated on
+fresh seeds; no case that matched in 0.1.10 fails after the fixes.
+
+- **Language front end:** an empty label with zero size is sized as
+  `SetDimensions` does. Sequence actors declared in several lexical maps now
+  merge as compileMap does: classes in IR pre-order, a map's classes before
+  its own fields, a later primary label replacing earlier ones, imported note
+  scopes and child-board object order. Generated families went from 31-498 of
+  each run to 479-600 of 500-600.
+- **Dagre and ELK:** self-loop dummies follow dagro's removeSelfEdges and
+  translateGraph order (translate before rounding in unexpanded compounds),
+  sequence-group heights are measured in the local frame, outside labels are
+  clipped as Go clips them, and ELK pads nested graphs as d2elklayout does.
+  Open: 17 findings from a 10,000-job replay (one Dagre self-loop case,
+  the rest ELK).
+- **TALA:** outside-label swap margins, step-vessel direction sizing, vessel
+  parent direction, transpose rollback after a cluster flip, hierarchy
+  eligibility (UnpositionedNode), and a tiny inside icon whose score Go turns
+  into a non-finite-score error. Open: about 15 of 320 flip and 13 of 320
+  nested cases, and the narrow-step NaN error text.
+- **Rendering and export:** color errors come from the csscolorparser branch
+  that failed (2,874 colors match); Raku lexer panics are recovered as Go's
+  scene builder recovers them; custom fonts reach sketch and isometric output.
+  Open: Markdown with a custom mono font width, a 1-ulp lab/lch difference.
+- **CLI and WASM:** pflag parsing (`test.` shorthand clusters, `=` forms),
+  flag, environment and config precedence, relink collisions (last board
+  wins), board-path suffixes, TXT wildcard targets, paged duplicate board IDs,
+  `d2 play` and subcommand flags; 1,007 of 1,018 probe invocations match
+  (731 before). Raw WASM responses use Go's `{"data":{"result":...}}` envelope
+  with json.Marshal HTML escaping; the public npm API is unchanged.
+  getELKGraph uses the shared ELK preparation. The editor's
+  getBoardAtPosition parses with an empty path, UTF-8 columns and signed
+  coordinates, and getRefRanges reports Go's errors.
+- **Perf gate:** `perf-bench.py` and `corpus-perf-sweep.py` require identical
+  Go repeats and identical Rust output for every non-PDF format (a Go-vs-Go
+  difference is reported as oracle-nondeterministic); PDF passes when Rust
+  equals an observed Go variant.
+
 ## Verification
 
 Run `cargo test --locked --workspace` for the self-contained default tier and

@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 """Compare d2-rs and the pinned Go D2 oracle on every e2e case and format.
 
-perf-bench.py times 12 SVG cases; this sweep covers the whole corpus: every
-case with every engine as SVG, plus PNG, PDF, PPTX and GIF through Dagre.
+This sweep covers every e2e case with every engine as SVG, PNG, PDF, PPTX,
+GIF and TXT, supplementing perf-bench.py's fixed performance gate.
 Pass 1 times each job once per implementation; pass 2 re-times every job
 over --flag (wall or peak RSS ratio) with --repeat interleaved runs and
 reports medians. Each implementation writes the same output file name in
 its own directory, because PPTX embeds that name. Outputs are hashed so a
-speed-up cannot hide a parity change (only PDF CreationDate/ModDate are
-normalized). Pass --isometric to measure isometric exports. Writes a JSON
-report and prints a per-format summary and every row still slower or larger
-than Go.
+speed-up cannot hide a parity change, with perf-bench.py's compare_samples
+rules: non-PDF Go repeats must agree (else oracle-nondeterministic) and equal
+every Rust repeat; Rust PDFs must equal an observed Go PDF with only the
+CreationDate/ModDate digits masked. Pass --isometric to measure isometric
+exports. Writes a JSON report and prints a per-format summary, outcome counts
+and every row still slower or larger than Go.
 
 usage: corpus-perf-sweep.py --rust <d2-rs> --output <report.json>
 """
@@ -31,7 +33,7 @@ from pathlib import Path
 import references
 
 ENGINES = ("dagre", "elk", "tala")
-EXPORTS = (("png", ()), ("pdf", ()), ("pptx", ()), ("gif", ("--animate-interval=125",)))
+EXPORTS = (("png", ()), ("pdf", ()), ("pptx", ()), ("gif", ("--animate-interval=125",)), ("txt", ()))
 REMOTE_ICON = re.compile(r"^[^#\n]*\bicon\s*:\s*\"?https?://", re.M)
 
 _spec = importlib.util.spec_from_file_location("perf_bench", Path(__file__).with_name("perf-bench.py"))
@@ -46,8 +48,8 @@ def corpus_jobs(isometric=False):
         script = case.get("script") or ""
         # Remote icons time the network, not d2 (as in perf-bench).
         if script.strip() and not REMOTE_ICON.search(script):
-            jobs += [(case["name"], script, engine, "svg", ()) for engine in ENGINES]
-            jobs += [(case["name"], script, "dagre", fmt, extra) for fmt, extra in EXPORTS]
+            jobs += [(case["name"], script, engine, fmt, extra)
+                     for engine in ENGINES for fmt, extra in (("svg", ()), *EXPORTS)]
     if isometric:
         jobs = [(name, script, engine, fmt, (*extra, "--isometric"))
                 for name, script, engine, fmt, extra in jobs]
@@ -75,7 +77,8 @@ def run_job(job, implementations, work, repeat):
     consistent = all(median[impl]["sample_exits"] == [go["exit"]] * repeat
                      and all(x == go["hash"] for x in median[impl]["output_hashes"])
                      for impl in ("go", "rust"))
-    identical = go["exit"] == 0 and go["hash"] is not None and consistent
+    comparison = perf_bench.compare_samples(fmt, go, rust)
+    identical = comparison["outcome"] == "match"
     error_match = False
     if go["exit"] and rust["exit"] and go["hash"] == rust["hash"]:
         # Both refused the input (e.g. Go's GIF pixel limit). That is parity
@@ -84,9 +87,11 @@ def run_job(job, implementations, work, repeat):
         errors = {impl: failure_text(binary, engine, work / impl, fmt, extra)
                   for impl, binary in implementations}
         error_match = identical = consistent and errors["go"] == errors["rust"]
+        if error_match:
+            comparison["outcome"] = "error-match"
     return {"case": name, "engine": engine, "format": fmt, "extra": list(extra), "go": go, "rust": rust, "repeat": repeat,
             "wall_ratio": rust["wall"] / max(go["wall"], 1e-3), "rss_ratio": rust["rss"] / max(go["rss"], 1),
-            "identical": identical, "error_match": error_match}
+            "identical": identical, "error_match": error_match, **comparison}
 
 
 def output_digest(output):
@@ -130,7 +135,7 @@ def main():
     parser.add_argument("--flag", type=float, default=1.0, help="re-time rows whose wall or RSS ratio exceeds this")
     parser.add_argument("--repeat", type=int, default=3)
     parser.add_argument("--isometric", action="store_true")
-    parser.add_argument("--formats", default="svg,png,pdf,pptx,gif", help="comma-separated formats")
+    parser.add_argument("--formats", default="svg,png,pdf,pptx,gif,txt", help="comma-separated formats")
     parser.add_argument("--engines", default=",".join(ENGINES), help="comma-separated engines")
     parser.add_argument("--case", default="", help="regular expression selecting case names")
     args = parser.parse_args()
@@ -160,6 +165,9 @@ def main():
     args.output.write_text(json.dumps({"source_commit": references.SOURCE_COMMIT, "isometric": args.isometric,
                                       "rows": rows, "over_go": over}, indent=1) + "\n")
     print("\n".join(summarize(rows)))
+    outcomes = {outcome: sum(r["outcome"] == outcome for r in rows) for outcome in sorted({r["outcome"] for r in rows})}
+    pdf_variants = max((r["go_variants"] for r in rows if r["format"] == "pdf"), default=0)
+    print(f"outcomes {outcomes}; max PDF Go variants {pdf_variants}")
     print(f"{len(over)} rows slower or larger than Go ({time.time() - start:.0f} s):")
     for r in sorted(over, key=lambda r: -max(r["wall_ratio"], r["rss_ratio"])):
         print(f"  wall {r['wall_ratio']:.2f}x rss {r['rss_ratio']:.2f}x  {r['format']} {r['engine']} {r['case']}"

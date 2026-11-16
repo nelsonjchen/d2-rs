@@ -95,6 +95,77 @@ fn edge_labels(document: &roxmltree::Document) -> Vec<(String, String, String)> 
 }
 
 #[test]
+fn nested_step_vessel_uses_its_container_direction_when_aligning() {
+    // grouping/sequences.go addSequence keeps the vessel in c. Its unset
+    // direction uses edge_length.go's inferred flow, even with a root flow.
+    // Charging the root's explicit direction rejects AlignAxes' ingress move.
+    let svg = render_tala(
+        "direction: left\nc: {\n\
+         n0: {shape: step; label: \"stage 0\"}\n\
+         n1: {shape: step; label: \"stage 1\"}\n\
+         n2: {shape: step; label: \"stage 2\"}\n\
+         n3: {shape: step; label: \"stage 3\"}\n\
+         n0 -> n1: next\nn1 -> n2: next\nn2 -> n3: next\n}\n\
+         outside -> c.n0\nc.n3 -> done\n",
+    );
+    let document = roxmltree::Document::parse(&svg).unwrap();
+    assert_eq!(view_box(&document), "0 0 757 707");
+    assert_eq!(
+        shape_rectangles(&document),
+        [["0", "142"], ["78", "0"], ["387", "439"]]
+    );
+    assert_eq!(
+        shape_paths(&document),
+        [
+            "M 60 202 L 160 202 L 195 253 L 160 303 L 60 303 L 95 253 Z",
+            "M 160 202 L 260 202 L 295 253 L 260 303 L 160 303 L 195 253 Z",
+            "M 260 202 L 360 202 L 395 253 L 360 303 L 260 303 L 295 253 Z",
+            "M 360 202 L 460 202 L 495 253 L 460 303 L 360 303 L 395 253 Z",
+        ]
+    );
+    assert_eq!(
+        routes(&document),
+        ["M 119 68 L 119 198", "M 431 305 L 431 435"]
+    );
+}
+
+#[test]
+fn nested_step_vessel_keeps_horizontal_bounds_for_direction_counts() {
+    // direct.go counts restored endpoints using the sequence vessel's box.
+    // sequence.go resizeWithWork overlaps the four horizontal steps; treating
+    // them as a padded column invents a rightward edge and mirrors the board.
+    let svg = render_tala(
+        "direction: left\nc: {\n\
+         n0: {shape: step}\nn1: {shape: step}\n\
+         n2: {shape: step}\nn3: {shape: step}\n\
+         n0 -> n1\nn1 -> n2\nn2 -> n3\n}\n\
+         outside -> c.n0\nc.n3 -> done\n",
+    );
+    let document = roxmltree::Document::parse(&svg).unwrap();
+    assert_eq!(view_box(&document), "0 0 625 707");
+    assert_eq!(
+        shape_rectangles(&document),
+        [["0", "142"], ["226", "0"], ["271", "439"]]
+    );
+    assert_eq!(
+        shape_paths(&document),
+        [
+            "M 60 202 L 127 202 L 162 253 L 127 303 L 60 303 L 95 253 Z",
+            "M 127 202 L 194 202 L 229 253 L 194 303 L 127 303 L 162 253 Z",
+            "M 194 202 L 261 202 L 296 253 L 261 303 L 194 303 L 229 253 Z",
+            "M 261 202 L 328 202 L 363 253 L 328 303 L 261 303 L 296 253 Z",
+        ]
+    );
+    assert_eq!(
+        routes(&document),
+        [
+            "M 224 33 L 103 33 S 93 33 93 43 L 93 198",
+            "M 324 305 L 324 435",
+        ]
+    );
+}
+
+#[test]
 fn balance_symmetry_leaves_a_sequence_vessel_in_place() {
     // placement/symmetry.go isSimple excludes Graph.IsSequenceVessel, so the
     // n3-n4 vessel is not re-centred between n2 and n1; AlignAxes keeps n3

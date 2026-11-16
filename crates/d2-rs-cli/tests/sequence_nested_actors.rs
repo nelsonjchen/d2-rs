@@ -96,3 +96,68 @@ fn messageless_nested_span_position_is_infinite() {
         );
     }
 }
+
+#[test]
+fn fractional_actor_baselines_measure_groups_before_container_shift() {
+    // d2sequence.newSequenceDiagram widens the oval uniformly, retaining a
+    // fractional actor baseline. placeGroups measures maxY-minY before
+    // Layout calls sd.shift; padding first rounds the nested height to 76.
+    // Both complete group rectangles below are from pinned Go on all engines.
+    let source = r#"shape: sequence_diagram
+a;b;c;d
+a -> b
+ggg: {
+	a -> b: lala
+}
+group 1: {
+  b -> c
+	c -> b: ey
+  nested guy: {
+    c -> b: okay
+  }
+  b.t1 -> c.t1
+  b.t1.t2 -> c.t1
+  c.t1 -> b.t1
+}
+group b: {
+  b -> c
+	c."what would arnold say"
+  c -> b: okay
+}
+choo: {
+  d."this note"
+}
+
+probe: hello {shape: oval; style.fill: blue}
+"#;
+    for engine in ["dagre", "elk", "tala"] {
+        let output = run(engine, source);
+        assert!(
+            output.status.success(),
+            "{engine}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let svg = String::from_utf8(output.stdout).unwrap();
+        let document = roxmltree::Document::parse(&svg).unwrap();
+        let groups = document
+            .descendants()
+            .filter(|node| {
+                node.has_tag_name("rect")
+                    && node.attribute("width") == Some("230")
+                    && node.attribute("stroke").is_some()
+            })
+            .map(|node| {
+                (
+                    node.attribute("x").unwrap(),
+                    node.attribute("y").unwrap(),
+                    node.attribute("height").unwrap(),
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            groups,
+            [("22", "250", "76"), ("172", "562", "75")],
+            "{engine}"
+        );
+    }
+}

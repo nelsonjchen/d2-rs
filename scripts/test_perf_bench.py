@@ -15,6 +15,93 @@ spec.loader.exec_module(bench)
 
 
 class PerfBenchTests(unittest.TestCase):
+    @staticmethod
+    def samples(*outputs, exits=None):
+        return {"exit": 0, "sample_exits": exits or [0] * len(outputs), "output_hashes": list(outputs)}
+
+    def outcome(self, fmt, go, rust):
+        return bench.compare_samples(fmt, go, rust)["outcome"]
+
+    def test_non_pdf_go_disagreement_is_oracle_nondeterministic_never_a_match(self):
+        first, second = {"out.svg": "a"}, {"out.svg": "b"}
+        for fmt in ("svg", "png", "gif", "pptx", "txt"):
+            with self.subTest(fmt=fmt):
+                go = self.samples(first, second, first)
+                for rust in (self.samples(first, first, first), self.samples(first, second, first)):
+                    result = bench.compare_samples(fmt, go, rust)
+                    self.assertEqual(result, {"outcome": "oracle-nondeterministic", "go_variants": 2})
+
+    def test_non_pdf_requires_every_rust_repeat_to_equal_the_single_go_output(self):
+        same, other = {"out.png": "a"}, {"out.png": "b"}
+        go = self.samples(same, same, same)
+        self.assertEqual(bench.compare_samples("png", go, self.samples(same, same, same)),
+                         {"outcome": "match", "go_variants": 1})
+        self.assertEqual(self.outcome("png", go, self.samples(same, other, same)), "mismatch")
+        self.assertEqual(self.outcome("png", go, self.samples(other, other, other)), "mismatch")
+
+    def test_pdf_accepts_any_observed_go_variant_and_counts_variants(self):
+        first, second = {"out.pdf": "map-order-1"}, {"out.pdf": "map-order-2"}
+        go = self.samples(first, second, first)
+        self.assertEqual(bench.compare_samples("pdf", go, self.samples(first, first, second)),
+                         {"outcome": "match", "go_variants": 2})
+        self.assertEqual(self.outcome("pdf", go, self.samples(first, {"out.pdf": "unseen"}, first)), "mismatch")
+
+    def test_multi_file_outputs_compare_complete_inventories(self):
+        full = {"out/index.svg": "root", "out/one.svg": "child", "out/manifest.json": "manifest"}
+        partial = {"out/index.svg": "root", "out/one.svg": "child"}
+        extra = {**full, "out/two.svg": "stray"}
+        for fmt in ("svg", "pdf"):
+            with self.subTest(fmt=fmt):
+                go = self.samples(full, full)
+                self.assertEqual(self.outcome(fmt, go, self.samples(full, full)), "match")
+                self.assertEqual(self.outcome(fmt, go, self.samples(full, partial)), "mismatch")
+                self.assertEqual(self.outcome(fmt, go, self.samples(extra, full)), "mismatch")
+        self.assertEqual(self.outcome("svg", self.samples(full, partial), self.samples(full, full)),
+                         "oracle-nondeterministic")
+
+    def test_failed_empty_or_incomplete_samples_never_match(self):
+        good = {"out.svg": "hash"}
+        cases = [
+            ("go-failed", self.samples(), self.samples(good)),
+            ("go-failed", self.samples({}), self.samples(good)),
+            ("go-failed", self.samples(good, exits=[0, 0]), self.samples(good)),
+            ("go-failed", self.samples(good, good, exits=[0, 1]), self.samples(good, good)),
+            ("rust-failed", self.samples(good), self.samples()),
+            ("rust-failed", self.samples(good, good), self.samples(good, None)),
+            ("rust-failed", self.samples(good, good), self.samples(good, good, exits=[1, 0])),
+        ]
+        for fmt in ("svg", "pdf"):
+            for expected, go, rust in cases:
+                with self.subTest(fmt=fmt, expected=expected, go=go, rust=rust):
+                    self.assertEqual(self.outcome(fmt, go, rust), expected)
+
+    def test_report_rows_and_summary_carry_outcomes_and_pdf_go_variants(self):
+        calls = 0
+
+        def fake_run(binary, engine, source, out, extra=()):
+            nonlocal calls
+            calls += 1
+            # Each job makes 6 calls (warm-up, then 2 repeats; Go before Rust): call 11 is the second Go PDF.
+            out.write_bytes(b"order-2" if out.suffix == ".pdf" and calls == 11 else b"order-1")
+            return 0, 0.01, 0.01, 1000
+
+        jobs = [(1, "case", "a", "dagre", "svg", ()), (1, "case", "a", "dagre", "pdf", ())]
+        with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory)
+            for name in ("go", "rust"):
+                (directory / name).write_bytes(name.encode())
+            report = directory / "report.json"
+            argv = ["perf-bench.py", "--go", str(directory / "go"), "--rust", str(directory / "rust"),
+                    "--output", str(report), "--repeat", "2", "--warmup", "1"]
+            with patch.object(bench, "run", fake_run), patch.object(bench, "benchmark_jobs", return_value=jobs), \
+                    patch.object(sys, "argv", argv), patch("builtins.print"):
+                bench.main()
+            data = json.loads(report.read_text())
+        self.assertEqual([(r["format"], r["outcome"], r["go_variants"], r["identical"]) for r in data["rows"]],
+                         [("svg", "match", 1, True), ("pdf", "match", 2, True)])
+        self.assertEqual(data["summary"]["dagre"]["outcomes"], {"match": 2})
+        self.assertEqual(data["summary"]["dagre"]["max_pdf_go_variants"], 2)
+
     def test_isometric_gate_covers_every_format_and_engine(self):
         with tempfile.TemporaryDirectory() as directory:
             cases = Path(directory)
@@ -45,7 +132,8 @@ class PerfBenchTests(unittest.TestCase):
             path.write_bytes(data.replace(b"20261115000000", b"20261116010203"))
             self.assertEqual(bench.output_inventory(Path(directory)), expected)
             self.assertEqual(len(bench.output_bytes(path)), len(data))
-            for changed in (data.replace(b"image", b"other"), data.replace(b"ModDate", b"OtherXX")):
+            for changed in (data.replace(b"image", b"other"), data.replace(b"ModDate", b"OtherXX"),
+                            data.replace(b"+00'00')\n/Mod", b"-00'00')\n/Mod")):
                 path.write_bytes(changed)
                 self.assertNotEqual(bench.output_inventory(Path(directory)), expected)
             path = path.with_suffix(".svg")

@@ -73,6 +73,10 @@ pub struct Compiler {
     pub(super) nil_board_base: bool,
     pub(super) parser_fault: Option<crate::parser::ParserFault>,
     pub(super) reported_composite_cycles: HashSet<usize>,
+    // compileLabel leaves Language unchanged for a plain-string label. When a
+    // sequence group's reference to an actor descendant is overlaid onto the
+    // object's earlier declaration, the earlier block-string language stays.
+    pub(super) carried_label_languages: HashMap<NodeId, String>,
     // Graph compilation has a board-local class namespace even when an IR
     // composite is shared with a variable definition in an ancestor board.
     pub(crate) graph_class_root: Option<NodeId>,

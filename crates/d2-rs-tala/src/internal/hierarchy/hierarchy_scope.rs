@@ -4785,6 +4785,15 @@ impl Pipeline {
             .map(|child| {
                 let original = &self.graph.nodes[child.0 as usize];
                 let aggregate = aggregate_by_owner.get(&child).copied();
+                // AddSequences clears the retired steps' Container pointers,
+                // but its vessel stays in Sequence.Container. Placement's
+                // shared vessel must retain that scope for direction costs.
+                let parent = match aggregate {
+                    Some(PlacementAggregate::Sequence(index)) => {
+                        self.graph.sequences[index].container
+                    }
+                    _ => original.container,
+                };
                 // CopyEntitiesFrom/AddNode retain the vessel Node's fields.
                 // Its herd is independent of every hidden original member.
                 let herd_node = aggregate
@@ -4799,9 +4808,8 @@ impl Pipeline {
                 ScopeNodeMetadata {
                     node: old_to_new[&child],
                     is_container: aggregate.is_none() && original.is_container,
-                    parent_container: original.container,
-                    parent_tala_id: original
-                        .container
+                    parent_container: parent,
+                    parent_tala_id: parent
                         .map(|parent| self.graph.nodes[parent.0 as usize].tala_id),
                     container_ancestors: original.scoring_container_ancestors.clone(),
                     herd_assignment: self.graph.herd_assignment_snapshot(herd_node),
@@ -4826,6 +4834,11 @@ impl Pipeline {
                     }),
                     is_aggregate_vessel: aggregate.is_some(),
                     node_padding: original.node_padding,
+                    layout_margins: if aggregate.is_none() {
+                        original.layout_margins
+                    } else {
+                        Insets::uniform(0.0)
+                    },
                     content_insets: original.content_insets,
                     label_size: original.label_size,
                     label_position: original.label_position,
@@ -4857,6 +4870,7 @@ impl Pipeline {
                 cluster_arrangement: original.scoring_cluster_arrangement,
                 is_aggregate_vessel: false,
                 node_padding: original.node_padding,
+                layout_margins: original.layout_margins,
                 content_insets: original.content_insets,
                 label_size: original.label_size,
                 label_position: original.label_position,
@@ -9094,6 +9108,10 @@ impl Pipeline {
             node.hierarchy = metadata.hierarchy.clone();
             node.position = metadata.position;
             node.node_padding = metadata.node_padding;
+            // Go's childrenGraph shares Node pointers, including the margins
+            // ComputeNodeSpacing derived from Prescale's enlarged labels.
+            // Reconstructing the measured margin admits swaps Go rejects.
+            node.layout_margins = metadata.layout_margins;
             node.content_insets = metadata.content_insets;
             // AddCluster/AddSequence replace the member with a label-less
             // vessel in the temporary Graph. The source metadata still comes
@@ -12070,8 +12088,15 @@ impl Pipeline {
             }
             #[cfg(feature = "diagnostic-traces")]
             let trace_before_direct = scope.graph.clone();
+            let prior_tree_mirrors = directed.projected_tree_mirrors.len();
             let (mirrors, projected_mirror_refits) =
                 directed.direct_with_reachable(false, Some(&directed_reachable_containers));
+            // The scope graph publishes Tree orientations for its owner;
+            // carry the shared-Tree flips of projected tree members with it.
+            scope
+                .graph
+                .projected_tree_mirrors
+                .extend_from_slice(&directed.projected_tree_mirrors[prior_tree_mirrors..]);
             if crate::internal::trace_env_enabled("TALA_TRACE_DIRECT_204") && root_scope {
                 eprintln!(
                     "DIRECT_204_RUST mirrors={:?} children_before_copy={:?}",

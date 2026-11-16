@@ -1231,6 +1231,19 @@ impl ArenaGraph {
     /// walks every cluster, while upstream only flips the specific vessel that
     /// was moved by the current transpose operation.
     pub(super) fn optimize_cluster_only_flip(&mut self, cluster_index: usize) -> bool {
+        self.optimize_cluster_only_flip_replacing(cluster_index)
+            .is_some()
+    }
+
+    /// `optimize_cluster_only_flip`, returning the graph that an accepted
+    /// flip replaced. The accepted trial is a numerical fork with its own
+    /// member scope; a caller that later rolls back its own transaction
+    /// reinstates this graph so that its retained TopLeft bindings, like Go's
+    /// shared pointers, remain the live ones.
+    pub(super) fn optimize_cluster_only_flip_replacing(
+        &mut self,
+        cluster_index: usize,
+    ) -> Option<ArenaGraph> {
         #[cfg(feature = "diagnostic-traces")]
         self.trace_cluster_policy("before", cluster_index, true);
         let desired = {
@@ -1244,7 +1257,7 @@ impl ArenaGraph {
         #[cfg(feature = "diagnostic-traces")]
         self.trace_cluster_policy("selected", cluster_index, true);
         if self.clusters[cluster_index].arrangement == desired {
-            return false;
+            return None;
         }
 
         let centered = self.cluster_flip_trial(cluster_index, true);
@@ -1252,12 +1265,9 @@ impl ArenaGraph {
             .is_none()
             .then(|| self.cluster_flip_trial(cluster_index, false))
             .flatten();
-        if let Some(committed) = centered.or(top_left) {
-            *self = committed;
-            true
-        } else {
-            false
-        }
+        centered
+            .or(top_left)
+            .map(|committed| std::mem::replace(self, committed))
     }
 
     fn refit_cluster_container_preserving_origin(&mut self, cluster_index: usize) {
@@ -2835,6 +2845,18 @@ impl ArenaGraph {
         projection: &ProjectedCluster,
         owner_session: Option<&mut OwnerScoreSession<'_>>,
     ) -> Result<Option<ClusterArrangement>, OwnerScoreSessionError> {
+        self.optimize_projected_cluster_flip_replacing(node, projection, owner_session)
+            .map(|(desired, _)| desired)
+    }
+
+    /// `optimize_projected_cluster_flip`, also returning the graph an
+    /// accepted flip replaced (see `optimize_cluster_only_flip_replacing`).
+    pub(super) fn optimize_projected_cluster_flip_replacing(
+        &mut self,
+        node: NodeId,
+        projection: &ProjectedCluster,
+        owner_session: Option<&mut OwnerScoreSession<'_>>,
+    ) -> Result<(Option<ClusterArrangement>, Option<ArenaGraph>), OwnerScoreSessionError> {
         let desired = self.projected_cluster_desired_arrangement(
             node,
             projection.arrangement,
@@ -2868,7 +2890,7 @@ impl ArenaGraph {
             );
         }
         if desired == projection.arrangement {
-            return Ok(None);
+            return Ok((None, None));
         }
         let layout = match desired {
             ClusterArrangement::Row => &projection.row,
@@ -2878,13 +2900,13 @@ impl ArenaGraph {
             .projected_cluster_flip_trial(node, desired, layout, true)
             .or_else(|| self.projected_cluster_flip_trial(node, desired, layout, false))
         else {
-            return Ok(None);
+            return Ok((None, None));
         };
         if let Some(session) = owner_session {
             session.publish_accepted_cluster_flip(node, self, &committed, desired)?;
         }
-        *self = committed;
-        Ok(Some(desired))
+        let previous = std::mem::replace(self, committed);
+        Ok((Some(desired), Some(previous)))
     }
 
     /// Recovered `Cluster.ArrangeClusterNodes`.

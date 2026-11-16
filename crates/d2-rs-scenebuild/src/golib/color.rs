@@ -51,8 +51,7 @@ pub(crate) fn unique_gradient_id(css_gradient: &str) -> String {
 /// color.Luminance. The pinned Go ARM64 build fuses the weighted sum into
 /// FMADDs: ((0.299*R) + 0.587*G) + 0.114*B, each addition fused.
 pub(crate) fn luminance(value: &str) -> Result<f64, String> {
-    let [r, g, b, _] =
-        d2_rs_math::svg_color::parse(value).ok_or_else(|| format!("failed to parse {value:?}"))?;
+    let [r, g, b, _] = d2_rs_math::svg_color::parse_result(value)?;
     Ok(0.114f64.mul_add(b, 0.587f64.mul_add(g, 0.299 * r)))
 }
 
@@ -102,8 +101,7 @@ pub(crate) fn darken(value: &str) -> Result<String, String> {
 
 /// color.darkenCSS: go-colorful v1.4.1 Hsl round trip, lightness - 0.1.
 fn darken_css(value: &str) -> Result<String, String> {
-    let [r, g, b, _] =
-        d2_rs_math::svg_color::parse(value).ok_or_else(|| format!("failed to parse {value:?}"))?;
+    let [r, g, b, _] = d2_rs_math::svg_color::parse_result(value)?;
     let (h, s, l) = colorful_hsl(r, g, b);
     let [r, g, b] = colorful_from_hsl(h, s, l - 0.1).map(|v| v.min(1.0).max(0.0));
     // Hex: uint8(c*255 + 0.5); the pinned ARM64 build fuses the sum.

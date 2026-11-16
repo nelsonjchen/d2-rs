@@ -1632,6 +1632,13 @@ fn layout_result_for_seed(
         penalty: race_breakdown.selection_penalty(),
         area: evaluation::race_seed_graph_area(&graph),
     };
+    // result.go evaluateSeedResult: quality.EvaluateWithArea follows the
+    // metadata validation, and a non-finite penalty fails this seed.
+    if !selection_score.penalty.is_finite() {
+        return Err(LayoutError::EngineValidation(
+            "TALA seed result has a non-finite score".into(),
+        ));
+    }
     let race_score = selection_score.penalty;
     let race_seed_edge_order = graph
         .edge_order

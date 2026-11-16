@@ -22,12 +22,27 @@ impl ArenaGraph {
         if self.is_tree_sentinel(node) {
             return false;
         }
+        // isSimpleCandidate also rejects Graph.IsSequenceVessel: AddSequences
+        // runs before hierarchy assignment, so a container holding a step
+        // sequence has the vessel as its child and is never eligible.
+        if self.is_active_sequence_vessel(node) {
+            return false;
+        }
         let node = &self.nodes[node.0 as usize];
         !node.is_container
             && !self.tree_routing_nodes.contains_key(&node.input_id)
             && node.cluster.is_none()
             && node.sequence.is_none()
             && node.hierarchy.is_none()
+    }
+
+    /// layoutgraph/structure_api.go IsSequenceVessel: the node is the vessel
+    /// of an active Graph.Sequences entry (not one of its steps).
+    fn is_active_sequence_vessel(&self, node: NodeId) -> bool {
+        let tala_id = self.nodes[node.0 as usize].tala_id;
+        self.sequences
+            .iter()
+            .any(|sequence| sequence.vessel_tala_id == tala_id && self.sequence_is_active(sequence))
     }
 
     fn has_hierarchy_container_shape(&self, node: NodeId) -> bool {

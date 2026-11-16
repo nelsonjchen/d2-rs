@@ -17,7 +17,7 @@ mod graph_edit;
 mod imports;
 mod references;
 
-pub use boards::{BoardError, board_at_position};
+pub use boards::{BoardError, board_at_position, board_at_signed_position};
 pub use completion::{CompletionItem, CompletionKind, completion_items};
 pub use edit::{EditError, PositionEncoding, SourceEdit, SourcePosition, apply_edits};
 pub use graph_edit::{
@@ -31,5 +31,6 @@ pub use graph_edit::{
 };
 pub use imports::{UpdateImportError, update_import};
 pub use references::{
-    ReferenceError, ReferenceRanges, reference_ranges, reference_ranges_with_files,
+    ReferenceError, ReferenceRanges, memory_import_opener, reference_ranges,
+    reference_ranges_with_files,
 };

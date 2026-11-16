@@ -204,7 +204,10 @@ impl Builder<'_> {
     }
 
     fn collect_code_tokens(&mut self, text: &Text) -> std::result::Result<Vec<Token>, String> {
-        let tokens = match code::tokenize(&text.language, &text.label) {
+        // code_shape.go tokeniseCode/collectCodeTokens recover lexer panics.
+        let tokens = match code::tokenize_checked(&text.language, &text.label)
+            .map_err(|error| error.to_string())?
+        {
             Some(tokens) => tokens,
             None if code::registered(&text.language) => {
                 return Err(format!(

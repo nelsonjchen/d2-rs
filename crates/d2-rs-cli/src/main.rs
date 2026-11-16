@@ -32,7 +32,8 @@ use d2_rs_text::{
         bundled_source_sans_pro_semibold,
     },
 };
-use flate2::{Compression, write::DeflateEncoder};
+#[cfg(test)]
+use flate2::Compression;
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
@@ -262,12 +263,13 @@ fn extract_font_option(args: &[String]) -> Result<(Vec<String>, FontPaths), Stri
 
 fn extract_render_options(
     args: &[String],
-) -> Result<(Vec<String>, RenderOptions, bool, bool), String> {
+) -> Result<(Vec<String>, RenderOptions, bool, Option<bool>), String> {
     let mut source_args = Vec::new();
     let mut options = RenderOptions::default();
     options.custom_fonts = load_render_fonts(args)?;
     let mut center_explicit = false;
-    let mut sketch_explicit = false;
+    // An explicit --sketch value (true or false) wins over source config.
+    let mut sketch_explicit = None;
     let mut index = 0;
     while index < args.len() {
         let argument = &args[index];
@@ -281,7 +283,9 @@ fn extract_render_options(
                     .clone(),
             );
         } else if argument == "--sketch" {
-            sketch_explicit = true;
+            sketch_explicit = Some(true);
+        } else if let Some(value) = argument.strip_prefix("--sketch=") {
+            sketch_explicit = Some(parse_bool_flag(value, "sketch")?);
         } else if argument == "--force-appendix" {
             options.force_appendix = true;
         } else if let Some(value) = argument.strip_prefix("--force-appendix=") {
@@ -380,10 +384,14 @@ fn extract_render_options(
             let id = value
                 .parse::<i64>()
                 .map_err(|error| format!("invalid dark theme value {value:?}: {error}"))?;
-            if theme::find(id).is_none() {
+            // d2cli.Run treats the -1 sentinel as an unset dark theme.
+            options.dark_theme_id = if id == -1 {
+                None
+            } else if theme::find(id).is_none() {
                 return Err(format!("unknown dark theme ID {id}"));
-            }
-            options.dark_theme_id = Some(id);
+            } else {
+                Some(id)
+            };
         } else if matches!(argument.as_str(), "--dark-theme" | "--dark-theme-id") {
             index += 1;
             let value = args
@@ -392,10 +400,14 @@ fn extract_render_options(
             let id = value
                 .parse::<i64>()
                 .map_err(|error| format!("invalid dark theme value {value:?}: {error}"))?;
-            if theme::find(id).is_none() {
+            // d2cli.Run treats the -1 sentinel as an unset dark theme.
+            options.dark_theme_id = if id == -1 {
+                None
+            } else if theme::find(id).is_none() {
                 return Err(format!("unknown dark theme ID {id}"));
-            }
-            options.dark_theme_id = Some(id);
+            } else {
+                Some(id)
+            };
         } else if let Some(value) = argument.strip_prefix("--center=") {
             options.center = parse_bool_flag(value, "center")?;
             center_explicit = true;
@@ -413,12 +425,16 @@ fn extract_render_options(
     Ok((source_args, options, center_explicit, sketch_explicit))
 }
 
+/// xmain.Opts.getEnv: an empty environment value leaves the flag default.
+fn go_env(name: &str) -> Option<String> {
+    std::env::var(name).ok().filter(|value| !value.is_empty())
+}
+
 /// D2 v0.9.0 bundles document assets by default. Keep the decision at the
 /// document boundary so the lower-level source commands remain deterministic
 /// and callers can still request external SVG references with `--bundle=false`.
 fn bundle_requested(args: &[String]) -> Result<bool, String> {
-    let mut bundle = std::env::var("D2_BUNDLE")
-        .ok()
+    let mut bundle = go_env("D2_BUNDLE")
         .map(|value| parse_bool_flag(&value, "D2_BUNDLE"))
         .transpose()?
         .unwrap_or(true);
@@ -1977,10 +1993,10 @@ fn hydrate_render_center(
 fn hydrate_render_sketch(
     input: &[u8],
     source_args: &[String],
-    explicit: bool,
+    explicit: Option<bool>,
 ) -> Result<bool, String> {
-    if explicit {
-        return Ok(true);
+    if let Some(sketch) = explicit {
+        return Ok(sketch);
     }
     let Some(configured) = source_config(input, &source_path_from_args(source_args))? else {
         return Ok(false);
@@ -2375,7 +2391,9 @@ impl Drop for BoardLayoutScope {
 }
 
 fn source_layout(input: &[u8], args: &[String]) -> Result<SourceLayout, String> {
-    source_layout_with_theme(input, args, None, false)
+    // No render flags here: the effective sketch is the source config's.
+    let sketch = hydrate_render_sketch(input, args, None)?;
+    source_layout_with_theme(input, args, None, sketch)
 }
 
 fn source_layout_with_theme(
@@ -2433,8 +2451,7 @@ fn source_render_layout_uncached(
     let mut engine_explicit = false;
     let mut engine_options = d2_rs_core::LayoutEngineOptions::default();
     let mut target = None;
-    let mut document_link_format = None;
-    let mut document_link_extensionless = false;
+    let mut document_link_suffix = None;
     let mut timeout = None;
     let mut index = 0;
     while index < args.len() {
@@ -2504,11 +2521,8 @@ fn source_render_layout_uncached(
             engine = EngineKind::from_str(value).map_err(|error| error.to_string())?;
             engine_explicit = true;
             None
-        } else if let Some(value) = argument.strip_prefix("--document-link-format=") {
-            document_link_format = Some(ExportFormat::parse(value).map_err(|e| e.to_string())?);
-            None
-        } else if argument == "--document-link-extensionless" {
-            document_link_extensionless = true;
+        } else if let Some(value) = argument.strip_prefix("--document-link-suffix=") {
+            document_link_suffix = Some(value.to_owned());
             None
         } else if let Some(value) = argument.strip_prefix("--target=") {
             target = Some(value.to_owned());
@@ -2588,7 +2602,6 @@ fn source_render_layout_uncached(
     };
     let (compiler, root) = (&compiled.compiler, compiled.root);
     let mut configured_theme_id = None;
-    let mut configured_sketch = false;
     let mut tala_seed_data = None;
     if let Some(config) = compiler::extract_config_checked(compiler, root).map_err(|errors| {
         errors
@@ -2598,7 +2611,6 @@ fn source_render_layout_uncached(
             .join("\n")
     })? {
         configured_theme_id = config.theme_id;
-        configured_sketch = config.sketch.unwrap_or(false);
         if !engine_explicit && let Some(layout_engine) = config.layout_engine.as_deref() {
             engine = EngineKind::from_str(layout_engine).map_err(|error| error.to_string())?;
         }
@@ -2612,8 +2624,10 @@ fn source_render_layout_uncached(
         .map(|palette| palette.special_rules);
     let caps_lock = theme_rules.is_some_and(|rules| rules.caps_lock);
     let theme_mono = theme_rules.is_some_and(|rules| rules.mono);
-    let measurer =
-        load_graph_measurer_with_mode(&font_paths, requested_sketch || configured_sketch)?;
+    // Callers pass the effective Sketch (flag/env, else config, else false):
+    // d2lib.applyDefaults picks HandDrawn only when it is true, so an
+    // explicit false must not be overridden by vars.d2-config.sketch here.
+    let measurer = load_graph_measurer_with_mode(&font_paths, requested_sketch)?;
     let graph_root = match target.as_deref() {
         None | Some("") | Some("*") => root,
         Some(target) => {
@@ -2678,7 +2692,7 @@ fn source_render_layout_uncached(
             }
         }
     }
-    if let Some(format) = document_link_format {
+    if let Some(suffix) = document_link_suffix {
         let boards = compiler::board_targets(compiler, root);
         let current = boards
             .iter()
@@ -2702,7 +2716,7 @@ fn source_render_layout_uncached(
             .map(|(target, _)| target.clone())
             .collect::<Vec<_>>();
         relink_document_links(&mut graph, &mut styles, |link| {
-            relink_board_link(link, current, &targets, format, document_link_extensionless)
+            relink_board_link(link, current, &targets, &suffix)
         });
     }
     Ok(SourceRenderLayout {
@@ -3712,14 +3726,6 @@ const SOURCE_COMMANDS: &[&str] = &[
     "version",
 ];
 
-fn read_path(path: &str) -> Result<Vec<u8>, String> {
-    if path == "-" {
-        read_stdin()
-    } else {
-        std::fs::read(path).map_err(|error| format!("could not read {path:?}: {error}"))
-    }
-}
-
 fn source_path_args(path: &str) -> Vec<String> {
     if path == "-" {
         Vec::new()
@@ -3772,6 +3778,22 @@ fn rendered_board_ancestors(target: &str, targets: &BTreeSet<String>) -> Vec<(St
         .collect()
 }
 
+/// paged.go indexPagedBoards: every renderable board's ID (literal names
+/// joined below "root") must be unique, checked in page (preorder) order.
+fn check_paged_board_ids(targets: &[String], selected: &str) -> Result<(), String> {
+    let mut seen = std::collections::HashSet::new();
+    for target in targets {
+        let id = paged_board_id(target, selected);
+        if !seen.insert(id.clone()) {
+            return Err(format!(
+                "paged board tree contains duplicate board ID {}",
+                d2_rs_core::quote_go_bytes(id.as_bytes())
+            ));
+        }
+    }
+    Ok(())
+}
+
 // paged.go walks the selected diagram as "root". Its descendants retain
 // collection/name components, but ancestors outside that diagram disappear.
 fn paged_board_id(target: &str, selected: &str) -> String {
@@ -3790,13 +3812,23 @@ fn paged_board_id(target: &str, selected: &str) -> String {
     id.join(".")
 }
 
-fn board_output_path(
-    target: Option<&str>,
-    format: ExportFormat,
-    board_targets: &[String],
-) -> PathBuf {
+/// d2cli/board_output.go splitBoardOutputPath: keep the authored suffix,
+/// including its leading dot, independently of the selected encoder.
+fn split_board_output_path(output: &Path) -> (PathBuf, String) {
+    let name = output.file_name().unwrap_or_default().to_string_lossy();
+    let suffix = name.rfind('.').map_or("", |dot| &name[dot..]);
+    let stem = name.strip_suffix(suffix).unwrap();
+    let root = if stem.is_empty() || suffix.is_empty() {
+        output.to_path_buf()
+    } else {
+        output.with_file_name(stem)
+    };
+    (root, suffix.to_owned())
+}
+
+fn board_output_path(target: Option<&str>, suffix: &str, board_targets: &[String]) -> PathBuf {
     let Some(target) = target.filter(|target| !target.is_empty()) else {
-        return PathBuf::from(format!("index.{}", format.extension()));
+        return PathBuf::from(format!("index{suffix}"));
     };
 
     // D2 keeps a single child collection flat (`one.svg`) and introduces a
@@ -3832,9 +3864,7 @@ fn board_output_path(
         output.push("index");
     }
     // A dot in the literal board name is not an existing file extension.
-    output
-        .as_mut_os_string()
-        .push(format!(".{}", format.extension()));
+    output.as_mut_os_string().push(suffix);
     output
 }
 
@@ -3862,30 +3892,34 @@ fn relink_board_link(
     link: &str,
     current: &str,
     targets: &[String],
-    format: ExportFormat,
-    extensionless: bool,
+    suffix: &str,
 ) -> Option<String> {
-    let mut current_path = board_output_path(Some(current), format, targets);
-    if extensionless {
-        current_path.set_extension("");
-    }
-    let key = d2_rs_language::parse_key(link.as_bytes()).ok()?;
-    let parts = key.string_ida()?;
-    if parts.first().map(String::as_str) != Some("root") {
-        return None;
-    }
-    let target = if parts.len() == 1 {
-        ""
-    } else {
+    // resolveLinks joins literal names with dots; relink compares that raw
+    // string, without parsing or unquoting it as a D2 key. Boards whose
+    // joined names collide share one map key; resolveLinks merges in board
+    // preorder, so the last board wins, for the current board as well.
+    let resolve = |key: &str| -> Option<&str> {
+        if key == "root" {
+            return Some("");
+        }
+        let path = key.strip_prefix("root.")?;
         targets
             .iter()
-            .find(|t| compiled_board_components(t) == parts[1..])?
-            .as_str()
+            .rfind(|t| compiled_board_components(t).join(".") == path)
+            .map(String::as_str)
     };
-    let mut destination = board_output_path(Some(target), format, targets);
-    if extensionless {
-        destination.set_extension("");
-    }
+    let current = if current.is_empty() {
+        ""
+    } else {
+        resolve(&format!(
+            "root.{}",
+            compiled_board_components(current).join(".")
+        ))
+        .unwrap_or(current)
+    };
+    let current_path = board_output_path(Some(current), suffix, targets);
+    let target = resolve(link)?;
+    let destination = board_output_path(Some(target), suffix, targets);
     Some(relative_board_output_link(&current_path, &destination))
 }
 
@@ -3943,11 +3977,11 @@ fn url_path_escape(segment: &str) -> String {
 fn board_subtree_output_path(
     target: &str,
     selected: &str,
-    format: ExportFormat,
+    suffix: &str,
     targets: &[String],
 ) -> PathBuf {
     if selected.is_empty() {
-        return board_output_path(Some(target), format, targets);
+        return board_output_path(Some(target), suffix, targets);
     }
     let name = board_output::board_output_component(
         compiled_board_components(selected)
@@ -3960,11 +3994,11 @@ fn board_subtree_output_path(
         .filter_map(|child| child.strip_prefix(&prefix).map(str::to_owned))
         .collect::<Vec<_>>();
     if children.is_empty() {
-        return PathBuf::from(format!("{name}.{}", format.extension()));
+        return PathBuf::from(format!("{name}{suffix}"));
     }
     PathBuf::from(name).join(board_output_path(
         target.strip_prefix(&prefix),
-        format,
+        suffix,
         &children,
     ))
 }
@@ -4123,8 +4157,8 @@ fn run_multiboard_document(
             if let Some(center) = center {
                 render_args.push(format!("--center={center}"));
             }
-            if sketch == Some(true) {
-                render_args.push("--sketch".into());
+            if let Some(sketch) = sketch {
+                render_args.push(format!("--sketch={sketch}"));
             }
             if let Some(timeout) = timeout {
                 render_args.push(format!("--timeout={timeout}"));
@@ -4281,8 +4315,8 @@ fn run_multiboard_document(
             if let Some(center) = center {
                 render_args.push(format!("--center={center}"));
             }
-            if sketch == Some(true) {
-                render_args.push("--sketch".into());
+            if let Some(sketch) = sketch {
+                render_args.push(format!("--sketch={sketch}"));
             }
             if let Some(timeout) = timeout {
                 render_args.push(format!("--timeout={timeout}"));
@@ -4365,8 +4399,8 @@ fn run_multiboard_document(
             if let Some(center) = center {
                 render_args.push(format!("--center={center}"));
             }
-            if sketch == Some(true) {
-                render_args.push("--sketch".into());
+            if let Some(sketch) = sketch {
+                render_args.push(format!("--sketch={sketch}"));
             }
             if let Some(timeout) = timeout {
                 render_args.push(format!("--timeout={timeout}"));
@@ -4452,8 +4486,8 @@ fn run_multiboard_document(
             if let Some(center) = center {
                 render_args.push(format!("--center={center}"));
             }
-            if sketch == Some(true) {
-                render_args.push("--sketch".into());
+            if let Some(sketch) = sketch {
+                render_args.push(format!("--sketch={sketch}"));
             }
             if let Some(timeout) = timeout {
                 render_args.push(format!("--timeout={timeout}"));
@@ -4507,6 +4541,7 @@ fn run_multiboard_document(
         return Ok(Vec::new());
     }
     let extensionless = requested_output == Path::new("-");
+    let (output_dir, output_suffix) = split_board_output_path(&requested_output);
     let board_render_args = |target: &str| {
         let mut render_args = source_path_args(input_path);
         render_args.push(format!("--ascii-mode={ascii_mode}"));
@@ -4534,8 +4569,10 @@ fn run_multiboard_document(
         if let Some(center) = center {
             render_args.push(format!("--center={center}"));
         }
-        if sketch == Some(true) {
-            render_args.push("--sketch".into());
+        // Forward explicit and configured values alike, as --center does,
+        // so an explicit false is not re-hydrated from source config.
+        if let Some(sketch) = sketch {
+            render_args.push(format!("--sketch={sketch}"));
         }
         if let Some(timeout) = timeout {
             render_args.push(format!("--timeout={timeout}"));
@@ -4547,10 +4584,7 @@ fn run_multiboard_document(
             format!("--target={target}.*")
         });
         if output_format == ExportFormat::Svg {
-            render_args.push("--document-link-format=svg".into());
-            if extensionless {
-                render_args.push("--document-link-extensionless".into());
-            }
+            render_args.push(format!("--document-link-suffix={output_suffix}"));
         }
         render_args
     };
@@ -4571,7 +4605,6 @@ fn run_multiboard_document(
         let sketch = hydrate_render_sketch(input, &source_args, sketch_explicit)?;
         source_render_layout_with_theme(input, &source_args, theme, sketch)?.target_metadata?;
     }
-    let output_dir = requested_output.with_extension("");
     // main.go skips the workspace for stdout. planBoardOutput then appends a
     // named recursive target before testing for stdout (board_output.go:159),
     // so these boards are ordinary extensionless files below the literal '-'.
@@ -4605,7 +4638,7 @@ fn run_multiboard_document(
                 let path = output_dir.join(board_subtree_output_path(
                     &target,
                     selected,
-                    output_format,
+                    &output_suffix,
                     hash_targets,
                 ));
                 let board = if target.is_empty() {
@@ -4624,6 +4657,13 @@ fn run_multiboard_document(
     let write_dir = workspace.as_ref().map_or(output_dir.clone(), |workspace| {
         workspace.stage_root().to_path_buf()
     });
+    // outputPaths uses stageRoot + extension. With no authored extension,
+    // Go's filepath.Ext sees the dot-prefixed temporary basename as a suffix.
+    let write_suffix = if output_suffix.is_empty() && workspace.is_some() {
+        split_board_output_path(&write_dir).1
+    } else {
+        output_suffix.clone()
+    };
     if output_format != ExportFormat::Ascii && workspace.is_none() {
         std::fs::create_dir_all(&output_dir)
             .map_err(|error| format!("could not create {}: {error}", output_dir.display()))?;
@@ -4673,13 +4713,12 @@ fn run_multiboard_document(
         } else {
             rendered
         };
-        let mut relative_output =
-            board_subtree_output_path(&target, selected, output_format, hash_targets);
-        if extensionless {
-            relative_output.set_extension("");
-        }
+        let relative_output =
+            board_subtree_output_path(&target, selected, &write_suffix, hash_targets);
+        let display_relative =
+            board_subtree_output_path(&target, selected, &output_suffix, hash_targets);
         let output = write_dir.join(&relative_output);
-        let display_output = output_dir.join(&relative_output);
+        let display_output = output_dir.join(&display_relative);
         if preview_target.is_some() && preview_board.as_ref() == Some(&target) {
             preview = rendered.clone();
         }
@@ -4732,22 +4771,19 @@ fn run_document_with_stdout(
 ) -> Result<Vec<u8>, String> {
     let mut input_path = None;
     let mut output_path = None;
-    let mut isometric = std::env::var("D2_ISOMETRIC")
-        .ok()
+    let mut isometric = go_env("D2_ISOMETRIC")
         .filter(|s| !s.is_empty())
         .map(|s| parse_bool_flag(&s, "isometric"))
         .transpose()?;
-    let mut raw_scale = std::env::var("SCALE")
-        .ok()
+    let mut raw_scale = go_env("SCALE")
         .and_then(|s| s.parse::<f64>().ok())
         .unwrap_or(-1.0);
-    let mut raw_interval = std::env::var("D2_ANIMATE_INTERVAL")
-        .ok()
+    let mut raw_interval = go_env("D2_ANIMATE_INTERVAL")
         .and_then(|s| s.parse::<i64>().ok())
         .unwrap_or(0);
     // D2 v0.9.0's document command defaults to Dagre. The source-oriented
     // `layout-source` command keeps its explicit TALA default for diagnostics.
-    let environment_layout = std::env::var("D2_LAYOUT").ok();
+    let environment_layout = go_env("D2_LAYOUT");
     let mut layout = environment_layout
         .clone()
         .unwrap_or_else(|| "dagre".to_owned());
@@ -4755,29 +4791,24 @@ fn run_document_with_stdout(
     let mut stdout_format = None;
     // D2's ASCII renderer treats any value other than `standard` as its
     // extended Unicode charset. Preserve that permissive fallback.
-    let mut ascii_mode = std::env::var("D2_ASCII_MODE").unwrap_or_else(|_| "extended".to_owned());
-    let mut no_xml_tag = std::env::var("D2_NO_XML_TAG")
-        .ok()
+    let mut ascii_mode = go_env("D2_ASCII_MODE").unwrap_or_else(|| "extended".to_owned());
+    let mut no_xml_tag = go_env("D2_NO_XML_TAG")
         .map(|value| parse_bool_flag(&value, "no-xml-tag"))
         .transpose()?
         .unwrap_or(false);
-    let mut omit_version = std::env::var("OMIT_VERSION")
-        .ok()
+    let mut omit_version = go_env("OMIT_VERSION")
         .map(|value| parse_bool_flag(&value, "omit-version"))
         .transpose()?
         .unwrap_or(false);
-    let mut bundle = std::env::var("D2_BUNDLE")
-        .ok()
+    let mut bundle = go_env("D2_BUNDLE")
         .map(|value| parse_bool_flag(&value, "D2_BUNDLE"))
         .transpose()?
         .unwrap_or(true);
-    let mut force_appendix = std::env::var("D2_FORCE_APPENDIX")
-        .ok()
+    let mut force_appendix = go_env("D2_FORCE_APPENDIX")
         .map(|value| parse_bool_flag(&value, "D2_FORCE_APPENDIX"))
         .transpose()?
         .unwrap_or(false);
-    let mut pad = std::env::var("D2_PAD")
-        .ok()
+    let mut pad = go_env("D2_PAD")
         .map(|value| {
             let parsed = value
                 .parse::<f64>()
@@ -4790,8 +4821,7 @@ fn run_document_with_stdout(
         .transpose()?;
     // D2 calls this environment variable SCALE (rather than D2_SCALE). Its
     // default -1 means that no explicit scale was requested.
-    let mut scale = std::env::var("SCALE")
-        .ok()
+    let mut scale = go_env("SCALE")
         .map(|value| {
             let parsed = value
                 .parse::<f64>()
@@ -4807,37 +4837,25 @@ fn run_document_with_stdout(
         .transpose()?
         .flatten();
     let mut salt = None;
-    let mut theme_id = std::env::var("D2_THEME")
-        .ok()
-        .and_then(|value| value.parse::<i64>().ok());
-    let mut dark_theme_id = std::env::var("D2_DARK_THEME")
-        .ok()
+    let mut theme_id = go_env("D2_THEME").and_then(|value| value.parse::<i64>().ok());
+    let mut dark_theme_id = go_env("D2_DARK_THEME")
         .and_then(|value| value.parse::<i64>().ok())
         .filter(|value| *value >= 0);
-    let mut center = std::env::var("D2_CENTER")
-        .ok()
+    let mut center = go_env("D2_CENTER")
         .map(|value| parse_bool_flag(&value, "center"))
         .transpose()?;
-    let mut sketch = std::env::var("D2_SKETCH")
-        .ok()
+    let mut sketch = go_env("D2_SKETCH")
         .map(|value| parse_bool_flag(&value, "sketch"))
         .transpose()?;
-    let mut animate_interval = std::env::var("D2_ANIMATE_INTERVAL")
+    // An Int64 default from D2_ANIMATE_INTERVAL; like the flag, d2cli
+    // animates only when the value is positive.
+    let mut animate_interval = u64::try_from(raw_interval)
         .ok()
-        .map(|value| {
-            value
-                .parse::<u64>()
-                .map_err(|error| format!("invalid animate-interval value {value:?}: {error}"))
-        })
-        .transpose()?;
-    if animate_interval == Some(0) {
-        return Err("animate-interval must be positive".into());
-    }
+        .filter(|interval| *interval > 0);
     // The v0.9.0 CLI gives every document invocation a 120-second deadline;
     // an explicit D2_TIMEOUT environment value replaces it.
     let mut timeout = Some(
-        std::env::var("D2_TIMEOUT")
-            .ok()
+        go_env("D2_TIMEOUT")
             .map(|value| {
                 value
                     .parse::<i64>()
@@ -4902,13 +4920,10 @@ fn run_document_with_stdout(
             let value = args
                 .get(index)
                 .ok_or_else(|| "--port requires a value".to_owned())?;
-            value
-                .parse::<u16>()
-                .map_err(|error| format!("invalid port value {value:?}: {error}"))?;
-        } else if let Some(value) = argument.strip_prefix("--port=") {
-            value
-                .parse::<u16>()
-                .map_err(|error| format!("invalid port value {value:?}: {error}"))?;
+            // A pflag String; d2cli uses it only to listen in watch mode.
+            let _ = value;
+        } else if argument.starts_with("--port=") {
+            // Accepted like --host=: no validation outside watch mode.
         } else if argument == "--browser" {
             index += 1;
             if args.get(index).is_none() {
@@ -4919,6 +4934,9 @@ fn run_document_with_stdout(
             || argument.starts_with("--img-cache=")
         {
             // These options only affect the watch preview.
+        } else if argument.starts_with("--check=") || argument == "--debug=false" {
+            // d2cli.Run consults --check only for `fmt`. A false --debug
+            // leaves ms.Log.Debug silent; debug logging is not ported.
         } else if let Some(value) = argument.strip_prefix("--layout=") {
             layout = value.to_owned();
             layout_explicit = true;
@@ -5045,10 +5063,15 @@ fn run_document_with_stdout(
             let parsed = value
                 .parse::<i64>()
                 .map_err(|error| format!("invalid dark theme value {value:?}: {error}"))?;
-            if theme::find(parsed).is_none() {
+            // d2cli.Run: `if *darkThemeFlag == -1 { darkThemeFlag = nil }`
+            // precedes the catalog lookup, for flags and D2_DARK_THEME alike.
+            dark_theme_id = if parsed == -1 {
+                None
+            } else if theme::find(parsed).is_none() {
                 return Err(theme_not_found("--dark-theme", parsed));
-            }
-            dark_theme_id = Some(parsed);
+            } else {
+                Some(parsed)
+            };
         } else if matches!(argument.as_str(), "--dark-theme" | "--dark-theme-id") {
             index += 1;
             let value = args
@@ -5057,10 +5080,15 @@ fn run_document_with_stdout(
             let parsed = value
                 .parse::<i64>()
                 .map_err(|error| format!("invalid dark theme value {value:?}: {error}"))?;
-            if theme::find(parsed).is_none() {
+            // d2cli.Run: `if *darkThemeFlag == -1 { darkThemeFlag = nil }`
+            // precedes the catalog lookup, for flags and D2_DARK_THEME alike.
+            dark_theme_id = if parsed == -1 {
+                None
+            } else if theme::find(parsed).is_none() {
                 return Err(theme_not_found("--dark-theme", parsed));
-            }
-            dark_theme_id = Some(parsed);
+            } else {
+                Some(parsed)
+            };
         } else if let Some(value) = argument.strip_prefix("--center=") {
             center = Some(parse_bool_flag(value, "center")?);
         } else if argument == "--center" || argument == "-c" {
@@ -5267,6 +5295,37 @@ fn run_document_with_stdout(
             )
         })?
     };
+    if std::env::var("D2_LSP_MODE").as_deref() == Ok("1") {
+        // Pinned d2cli.compile returns the partial parser AST, even on syntax
+        // errors, before compilation or layout. File ranges use AbsPath.
+        let path = if input_path == "-" {
+            input_path.clone()
+        } else {
+            clean_asset_path(&std::path::absolute(&input_path).map_err(|e| e.to_string())?)
+                .to_string_lossy()
+                .into_owned()
+        };
+        let parsed = parse(&path, &input, None);
+        #[derive(serde::Serialize)]
+        struct LspOutput {
+            #[serde(rename = "Ast")]
+            ast: d2_rs_core::ast::Map,
+            #[serde(rename = "Err")]
+            error: Option<d2_rs_language::parser::ParseError>,
+        }
+        let json = serde_json::to_string(&LspOutput {
+            ast: parsed.map,
+            error: parsed.error,
+        })
+        .map_err(|e| e.to_string())?
+        .replace('&', "\\u0026")
+        .replace('<', "\\u003c")
+        .replace('>', "\\u003e")
+        .replace('\u{2028}', "\\u2028")
+        .replace('\u{2029}', "\\u2029");
+        write_stdout(json.as_bytes())?;
+        std::process::exit(42);
+    }
     let _source_config = SourceConfigScope::enter(&input);
     // Go starts this ticker after reading the source and constructing its
     // compile options, immediately before d2lib.Compile. Keep it live across
@@ -5277,8 +5336,6 @@ fn run_document_with_stdout(
     let mut partial_written = false;
     let result = (|| -> Result<Vec<u8>, String> {
         let output_path = output_path.as_deref();
-        let mut compiled_source = None;
-        let mut _compiled_source_scope = None;
         // d2cli.compile substitutes ELK for the Dagre flag before source
         // config is applied, including an explicitly requested Dagre flag.
         if output_format == ExportFormat::Ascii && layout == "dagre" {
@@ -5287,65 +5344,62 @@ fn run_document_with_stdout(
             // so source configuration cannot override the ASCII default.
             layout_explicit = true;
         }
-        if !layout_explicit
-            || seeds.is_none()
-            || sketch.is_none()
-            || pad.is_none()
-            || theme_id.is_none()
-            || dark_theme_id.is_none()
-            || center.is_none()
-            || isometric.is_none()
-        {
-            // d2lib.compileInput receives graph and config from the same
-            // d2compiler.Compile call. Keep this IR for the board plan rather
-            // than parsing/compiling it again after applying source options.
-            let (compiler, root) = compile_board_source(&input, &input_path)?;
-            let compiled = CompiledSource::new(&input, &input_path, compiler, root);
-            let config = source_config_from_compiled(&compiled.compiler, compiled.root);
-            remember_source_config(&input, &input_path, &config);
-            _compiled_source_scope = Some(CompiledSourceScope::enter(compiled.clone()));
-            compiled_source = Some(compiled);
-            if let Some(config) = config? {
-                if !layout_explicit {
-                    if let Some(layout_engine) = config.layout_engine.as_deref() {
-                        layout = layout_engine.to_owned();
-                    } else if output_format == ExportFormat::Ascii {
-                        layout = "elk".to_owned();
-                    }
+        // Go compiles even when every source option is supplied by flags.
+        // Compiler errors precede layout selection and isometric conflicts.
+        // d2lib.compileInput receives graph and config from the same
+        // d2compiler.Compile call. Keep this IR for the board plan rather
+        // than parsing/compiling it again after applying source options.
+        let (compiler, root) = compile_board_source(&input, &input_path)?;
+        let compiled = CompiledSource::new(&input, &input_path, compiler, root);
+        let config = source_config_from_compiled(&compiled.compiler, compiled.root);
+        remember_source_config(&input, &input_path, &config);
+        let _compiled_source_scope = CompiledSourceScope::enter(compiled.clone());
+        let mut compiled_source = Some(compiled);
+        if let Some(config) = config? {
+            if !layout_explicit {
+                if let Some(layout_engine) = config.layout_engine.as_deref() {
+                    layout = layout_engine.to_owned();
+                } else if output_format == ExportFormat::Ascii {
+                    layout = "elk".to_owned();
                 }
-                if pad.is_none()
-                    && let Some(configured_pad) = config.pad
-                {
-                    pad = Some(configured_pad as f64);
-                }
-                if theme_id.is_none()
-                    && let Some(configured_theme) = config.theme_id
-                {
-                    if theme::find(configured_theme).is_none() {
-                        return Err(format!("unknown theme ID {configured_theme}"));
-                    }
-                    theme_id = Some(configured_theme);
-                }
-                if dark_theme_id.is_none()
-                    && let Some(configured_theme) = config.dark_theme_id
-                {
-                    if theme::find(configured_theme).is_none() {
-                        return Err(format!("unknown dark theme ID {configured_theme}"));
-                    }
-                    dark_theme_id = Some(configured_theme);
-                }
-                if isometric.is_none() {
-                    isometric = config.isometric;
-                }
-                if center.is_none() {
-                    center = config.center;
-                }
-                if sketch.is_none() {
-                    sketch = config.sketch;
-                }
-            } else if !layout_explicit && output_format == ExportFormat::Ascii {
-                layout = "elk".to_owned();
             }
+            if pad.is_none()
+                && let Some(configured_pad) = config.pad
+            {
+                pad = Some(configured_pad as f64);
+            }
+            if theme_id.is_none()
+                && let Some(configured_theme) = config.theme_id
+            {
+                if theme::find(configured_theme).is_none() {
+                    return Err(format!("unknown theme ID {configured_theme}"));
+                }
+                theme_id = Some(configured_theme);
+            }
+            if dark_theme_id.is_none()
+                && let Some(configured_theme) = config.dark_theme_id
+            {
+                if theme::find(configured_theme).is_none() {
+                    return Err(format!("unknown dark theme ID {configured_theme}"));
+                }
+                dark_theme_id = Some(configured_theme);
+            }
+            if isometric.is_none() {
+                isometric = config.isometric;
+            }
+            if center.is_none() {
+                center = config.center;
+            }
+            if sketch.is_none() {
+                sketch = config.sketch;
+            }
+        } else if !layout_explicit && output_format == ExportFormat::Ascii {
+            layout = "elk".to_owned();
+        }
+        // d2lib.compileInput checks this after compilation/configuration and
+        // before resolving the layout engine or validating export options.
+        if sketch == Some(true) && isometric == Some(true) {
+            return Err("sketch cannot be combined with isometric rendering".into());
         }
         // d2plugin.FindPlugin matches the bundled names with EqualFold.
         let selected_engine = match layout.to_lowercase().as_str() {
@@ -5365,9 +5419,6 @@ fn run_document_with_stdout(
                 raw_scale,
                 raw_interval,
             )?;
-            if sketch == Some(true) {
-                return Err("sketch cannot be combined with isometric rendering".into());
-            }
             return isometric_cli::run(
                 &input,
                 &input_path,
@@ -5416,8 +5467,10 @@ fn run_document_with_stdout(
         // without returning a preview on ordinary file writes.
         let recursive_subtree = if !preview_boards
             && animate_interval.is_none()
-            && matches!(output_format, ExportFormat::Svg | ExportFormat::Png)
-        {
+            && matches!(
+                output_format,
+                ExportFormat::Svg | ExportFormat::Png | ExportFormat::Ascii
+            ) {
             target.as_deref().and_then(|value| value.strip_suffix(".*"))
         } else {
             None
@@ -5501,10 +5554,16 @@ fn run_document_with_stdout(
                         .map(PathBuf::from)
                         .or_else(|| default_output_path(&input_path, output_format))
                 {
-                    board_output::BoardOutputWorkspace::new(&requested_output.with_extension(""))?
-                        .publish()?;
+                    board_output::BoardOutputWorkspace::new(
+                        &split_board_output_path(&requested_output).0,
+                    )?
+                    .publish()?;
                 }
                 return Ok(Vec::new());
+            }
+            // newPagedRenderer indexes the board tree before rendering.
+            if matches!(output_format, ExportFormat::Pdf | ExportFormat::Pptx) {
+                check_paged_board_ids(&board_plan.targets, &animation_root)?;
             }
             // planBoardOutput uses every child board, including folder-only
             // steps that precede the root's first drawable object.
@@ -5578,8 +5637,10 @@ fn run_document_with_stdout(
         if let Some(center) = center {
             render_args.push(format!("--center={center}"));
         }
-        if sketch == Some(true) {
-            render_args.push("--sketch".into());
+        // Forward explicit and configured values alike, as --center does,
+        // so an explicit false is not re-hydrated from source config.
+        if let Some(sketch) = sketch {
+            render_args.push(format!("--sketch={sketch}"));
         }
         if let Some(timeout) = timeout {
             render_args.push(format!("--timeout={timeout}"));
@@ -5589,10 +5650,14 @@ fn run_document_with_stdout(
         }
         render_args.extend(source_adapter_args);
         if output_format == ExportFormat::Svg && animate_interval.is_none() {
-            render_args.push("--document-link-format=svg".into());
-            if output_path == Some("-") || output_path.is_none() && input_path == "-" {
-                render_args.push("--document-link-extensionless".into());
-            }
+            let destination = output_path
+                .map(PathBuf::from)
+                .or_else(|| default_output_path(&input_path, output_format))
+                .unwrap_or_else(|| PathBuf::from("-"));
+            render_args.push(format!(
+                "--document-link-suffix={}",
+                split_board_output_path(&destination).1
+            ));
         }
         // d2lib.compileBoard lays out every board before the CLI selects a
         // named target. Preserve errors from earlier boards for leaf exports.
@@ -6158,37 +6223,38 @@ fn run_themes(_args: &[String]) -> Result<Vec<u8>, String> {
     Ok(d2_rs_core::theme::catalog_text().into_bytes())
 }
 
-/// Encodes a D2 script exactly as the v0.9.0 playground URL helper does.
-/// D2 uses a raw DEFLATE stream at best compression followed by padded URL
-/// safe base64.
-fn encode_play_script(source: &[u8]) -> Result<String, String> {
-    let mut encoder = DeflateEncoder::new(Vec::new(), Compression::best());
-    encoder
-        .write_all(source)
-        .map_err(|error| format!("could not compress playground input: {error}"))?;
-    let compressed = encoder
-        .finish()
-        .map_err(|error| format!("could not finish playground input: {error}"))?;
-    Ok(base64::engine::general_purpose::URL_SAFE.encode(compressed))
-}
-
 fn open_playground(url: &str) -> Result<(), String> {
-    let browser = std::env::var("BROWSER").ok();
-    if browser.as_deref() == Some("0") || std::env::var_os("D2_RS_NO_BROWSER").is_some() {
+    // util-go xbrowser.Open: "0"/"false" disable; any other value except
+    // "", "1" and "true" runs `sh -sc '<BROWSER> "$1"' -- url`.
+    let browser = std::env::var("BROWSER").unwrap_or_default();
+    if matches!(browser.as_str(), "0" | "false") || std::env::var_os("D2_RS_NO_BROWSER").is_some() {
         return Ok(());
     }
-    if let Some(browser) = browser.filter(|browser| !browser.is_empty()) {
-        return std::process::Command::new(browser)
-            .arg(url)
-            .status()
-            .map_err(|error| format!("could not open playground in a browser: {error}"))
-            .and_then(|status| {
-                if status.success() {
-                    Ok(())
-                } else {
-                    Err(format!("browser exited with status {status}"))
-                }
-            });
+    if !matches!(browser.as_str(), "" | "1" | "true") {
+        let script = format!("{browser} \"$1\"");
+        let output = std::process::Command::new("sh")
+            .args(["-sc", &script, "--", url])
+            .stdin(std::process::Stdio::null())
+            .output()
+            .map_err(|error| error.to_string())?;
+        if output.status.success() {
+            return Ok(());
+        }
+        let mut combined = output.stdout;
+        combined.extend_from_slice(&output.stderr);
+        #[cfg(unix)]
+        let signal = std::os::unix::process::ExitStatusExt::signal(&output.status);
+        #[cfg(not(unix))]
+        let signal: Option<i32> = None;
+        let status = match (output.status.code(), signal) {
+            (Some(code), _) => format!("exit status {code}"),
+            (None, Some(signal)) => format!("signal: {signal}"),
+            (None, None) => output.status.to_string(),
+        };
+        return Err(format!(
+            "failed to run [sh -sc {script} -- {url}] (out: {}): {status}",
+            d2_rs_core::quote_go_bytes(&combined)
+        ));
     }
     #[cfg(target_os = "macos")]
     let mut command = {
@@ -6221,46 +6287,58 @@ fn open_playground(url: &str) -> Result<(), String> {
 }
 
 fn run_play(args: &[String]) -> Result<Vec<u8>, String> {
-    let mut source_path = None;
-    let mut theme_id = 0_i64;
-    let mut sketch = false;
-    let mut index = 0;
-    while index < args.len() {
-        let argument = &args[index];
-        if argument == "--sketch" || argument == "-s" {
-            sketch = true;
-        } else if let Some(value) = argument.strip_prefix("--theme=") {
-            theme_id = value
-                .parse::<i64>()
-                .map_err(|error| format!("invalid theme value {value:?}: {error}"))?;
-        } else if argument == "--theme" || argument == "-t" {
-            index += 1;
-            let value = args
-                .get(index)
-                .ok_or_else(|| "--theme requires a value".to_owned())?;
-            theme_id = value
-                .parse::<i64>()
-                .map_err(|error| format!("invalid theme value {value:?}: {error}"))?;
-        } else if argument.starts_with('-') && argument != "-" {
-            return Err(format!("unrecognized play option {argument}"));
-        } else if source_path.replace(argument.clone()).is_some() {
-            return Err(command_line::usage(
-                "play must be passed one argument: either a filepath or '-' for stdin",
-            ));
-        }
-        index += 1;
+    // The flag boundary validated every flag and forwarded each explicit one
+    // as `--name=value`; xmain registered non-empty environment values as
+    // the flag defaults (d2cli/play.go reads theme and sketch from the flag
+    // set). main.go rejects isometric before playCmd counts its arguments.
+    let flag_value = |name: &str, env: &str| {
+        let prefix = format!("--{name}=");
+        args.iter()
+            .take_while(|argument| *argument != "--")
+            .filter_map(|argument| argument.strip_prefix(&prefix))
+            .last()
+            .map(str::to_owned)
+            .or_else(|| go_env(env))
+    };
+    let truthy = |value: Option<String>| {
+        value.is_some_and(|value| {
+            matches!(value.as_str(), "1" | "t" | "T" | "true" | "TRUE" | "True")
+        })
+    };
+    if truthy(flag_value("isometric", "D2_ISOMETRIC")) {
+        return Err(command_line::usage(
+            "isometric images are local exports; use an output filename instead of play",
+        ));
     }
-    let source_path = source_path.ok_or_else(|| {
-        command_line::usage("play must be passed one argument: either a filepath or '-' for stdin")
-    })?;
-    let source = read_path(&source_path)?;
-    let encoded = encode_play_script(&source)?;
+    let positionals = command_line::positional_arguments(args);
+    let [source_path] = positionals.as_slice() else {
+        return Err(command_line::usage(
+            "play must be passed one argument: either a filepath or '-' for stdin",
+        ));
+    };
+    let theme_id = flag_value("theme", "D2_THEME")
+        .map(|value| value.parse::<i64>().map_err(|error| error.to_string()))
+        .transpose()?
+        .unwrap_or(0);
+    let sketch = truthy(flag_value("sketch", "D2_SKETCH"));
+    // play.go readInput: stdin errors are wrapped; file errors are usage.
+    let source = if source_path == "-" {
+        read_stdin().map_err(|error| format!("error reading from stdin: {error}"))?
+    } else {
+        std::fs::read(source_path).map_err(|error| {
+            command_line::usage(local_asset_read_error(Path::new(source_path), error))
+        })?
+    };
+    let encoded = d2_rs_lib::urlenc::encode_bytes(&source);
     let url = format!(
         "https://play.d2lang.com/?script={encoded}&sketch={}&theme={theme_id}&",
         i32::from(sketch)
     );
-    eprintln!("opening playground: {url}");
-    open_playground(&url)?;
+    // play.go openBrowser logs and then only warns when opening fails.
+    eprintln!("info: opening playground: {url}");
+    if let Err(error) = open_playground(&url) {
+        eprintln!("warn: failed to open browser to {url}: {error}");
+    }
     Ok(Vec::new())
 }
 
@@ -6376,7 +6454,25 @@ fn apply_network_policy(args: Vec<String>) -> Vec<String> {
 }
 
 fn dispatch_without_version(args: &[String]) -> Result<Vec<u8>, CommandError> {
-    let args = &command_line::expand_shorthands(args);
+    let mut args = command_line::expand_shorthands(args);
+    // d2cli.Run switches on ms.Opts.Flags.Arg(0), the first positional after
+    // pflag removed the (already normalized) flags that precede it.
+    if args
+        .first()
+        .is_some_and(|first| first.starts_with("--") && first != "--")
+        && let Some(index) = args
+            .iter()
+            .take_while(|argument| *argument != "--")
+            .position(|argument| !argument.starts_with("--"))
+        && matches!(
+            args[index].as_str(),
+            "layout" | "themes" | "fmt" | "play" | "validate" | "version"
+        )
+    {
+        let command = args.remove(index);
+        args.insert(0, command);
+    }
+    let args = &args;
     let Some(command) = args.first().map(String::as_str) else {
         return command_line::help().map_err(Into::into);
     };
@@ -6384,6 +6480,10 @@ fn dispatch_without_version(args: &[String]) -> Result<Vec<u8>, CommandError> {
     // stdin branch, otherwise an interactive `d2-rs version` waits forever
     // for input even though the command has no payload.
     if command == "version" {
+        // main.go counts positionals only: `version` accepts no arguments.
+        if command_line::positional_arguments(&args[1..]).is_empty() {
+            return run_inner(&args[..1], &[]).map_err(Into::into);
+        }
         return run_inner(args, &[]).map_err(Into::into);
     }
     let result = match command {
@@ -6391,16 +6491,21 @@ fn dispatch_without_version(args: &[String]) -> Result<Vec<u8>, CommandError> {
         "validate" => run_validate(&args[1..]),
         "themes" => run_themes(&args[1..]),
         "play" => run_play(&args[1..]),
-        "layout" if args.len() > 1 && !args[1].starts_with('-') => {
+        "layout"
+            if args[1..]
+                .iter()
+                .all(|argument| argument.starts_with("--") && argument != "--")
+                || !command_line::positional_arguments(&args[1..]).is_empty() =>
+        {
             // d2cli layoutCmd counts the parsed positionals, `layout` included.
-            if command_line::positional_arguments(&args[1..]).len() > 1 {
+            let positionals = command_line::positional_arguments(&args[1..]);
+            if positionals.len() > 1 {
                 return Err(
                     command_line::usage("layout subcommand accepts at most one argument").into(),
                 );
             }
-            run_layout_command(&args[1..])
+            run_layout_command(&positionals)
         }
-        "layout" if args.len() == 1 => run_layout_command(&[]),
         command if SOURCE_COMMANDS.contains(&command) => {
             let input = read_stdin()?;
             run(args, &input)
@@ -6864,7 +6969,10 @@ mod tests {
 
     #[test]
     fn playground_encoding_matches_v090_urlenc() {
-        let encoded = encode_play_script(b"a -> b\n").unwrap();
+        // lib/urlenc.Encode: Go 1.27 BestCompression bytes, padded URL base64.
+        let encoded = d2_rs_lib::urlenc::encode_bytes(b"a -> b\n");
+        // Pinned Go play URL for "a -> b\n" (d2 play with BROWSER=0).
+        assert_eq!(encoded, "SlTQtVNI4gIMAA==");
         let bytes = base64::engine::general_purpose::URL_SAFE
             .decode(encoded)
             .unwrap();
@@ -8235,23 +8343,19 @@ layers: {
             "scenarios.review".to_owned(),
         ];
         assert_eq!(
-            board_output_path(None, ExportFormat::Svg, &targets),
+            board_output_path(None, ".svg", &targets),
             PathBuf::from("index.svg")
         );
         assert_eq!(
-            board_output_path(Some("layers.one"), ExportFormat::Svg, &targets),
+            board_output_path(Some("layers.one"), ".svg", &targets),
             PathBuf::from("layers/one/index.svg")
         );
         assert_eq!(
-            board_output_path(
-                Some("layers.one.scenarios.deployed"),
-                ExportFormat::Svg,
-                &targets
-            ),
+            board_output_path(Some("layers.one.scenarios.deployed"), ".svg", &targets),
             PathBuf::from("layers/one/deployed.svg")
         );
         assert_eq!(
-            board_output_path(Some("scenarios.review"), ExportFormat::Svg, &targets),
+            board_output_path(Some("scenarios.review"), ".svg", &targets),
             PathBuf::from("scenarios/review.svg")
         );
     }

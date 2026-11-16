@@ -7,6 +7,9 @@ pub enum CodeWorkError {
     ExpandedPieces(usize),
     Cancelled,
     DeadlineExceeded,
+    /// A Go runtime panic inside a Chroma lexer, recovered by d2scenebuild
+    /// tokeniseCode/collectCodeTokens and reported as "lexer panic: %v".
+    LexerPanic(String),
 }
 impl std::fmt::Display for CodeWorkError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -17,6 +20,7 @@ impl std::fmt::Display for CodeWorkError {
             }
             Self::Cancelled => f.write_str("context canceled"),
             Self::DeadlineExceeded => f.write_str("context deadline exceeded"),
+            Self::LexerPanic(message) => write!(f, "lexer panic: {message}"),
         }
     }
 }
@@ -79,6 +83,20 @@ impl<'a> Control<'a> {
             budget: None,
             cancel: self.cancel,
             error: None,
+        }
+    }
+    /// Records the runtime error a Go lexer panics with at this point; later
+    /// checks stop every enclosing lexer loop.
+    pub(super) fn lexer_panic(&mut self, message: impl Into<String>) {
+        if self.error.is_none() {
+            self.error = Some(CodeWorkError::LexerPanic(message.into()));
+        }
+    }
+    /// A panic in an intermediate (unmetered) lexer stream unwinds through
+    /// the enclosing Chroma iterator as well.
+    pub(super) fn inherit_panic(&mut self, child: &Control<'_>) {
+        if let Some(CodeWorkError::LexerPanic(message)) = &child.error {
+            self.lexer_panic(message.clone());
         }
     }
     pub fn check(&mut self) -> bool {

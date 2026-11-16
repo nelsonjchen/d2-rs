@@ -166,121 +166,153 @@ pub fn css_named_rgb(lowercase_name: &str) -> Option<[u8; 3]> {
 
 /// csscolorparser v0.1.8 `Parse`: straight RGBA components in [0, 1].
 pub fn parse(raw: &str) -> Option<[f64; 4]> {
+    parse_result(raw).ok()
+}
+
+/// csscolorparser v0.1.8 `Parse` with its error values: each failing branch
+/// returns the same message at the same point as the Go function.
+pub fn parse_result(raw: &str) -> Result<[f64; 4], String> {
     let names = css_named_colors();
     let lowered = String::from_utf8(d2_rs_core::ir::go_lowercase(raw.as_bytes())).unwrap();
-    let s = lowered.trim();
+    let mut s = lowered.trim();
     if s == "transparent" {
-        return Some([0.; 4]);
+        return Ok([0.; 4]);
     }
     if let Some(rgb) = names.get(s) {
-        return Some([
+        return Ok([
             f64::from(rgb[0]) / 255.,
             f64::from(rgb[1]) / 255.,
             f64::from(rgb[2]) / 255.,
             1.,
         ]);
     }
-    if let Some(s) = s.strip_prefix('#') {
-        return hex(s);
+    if let Some(digits) = s.strip_prefix('#') {
+        return hex(digits).ok_or_else(|| format!("Invalid hex color, {raw}"));
     }
     if let Some(open) = s.find('(').filter(|_| s.ends_with(')')) {
         let name = s[..open].trim();
-        let fields: Vec<_> = s[open + 1..s.len() - 1]
+        let inner = &s[open + 1..s.len() - 1];
+        let fields: Vec<_> = inner
             .split([',', '/', ' '])
             .filter(|p| !p.is_empty())
             .collect();
         if !matches!(fields.len(), 3 | 4) {
-            return None;
+            return Err("Invalid format".into());
         }
         let alpha = if fields.len() == 4 {
-            clamp(percent(fields[3], 1.)?.0)
+            clamp(
+                percent(fields[3], 1.)
+                    .ok_or_else(|| "Invalid format".to_owned())?
+                    .0,
+            )
         } else {
             1.
         };
-        let rgb = match name {
-            "rgb" | "rgba" => [
-                clamp(percent(fields[0], 255.)?.0),
-                clamp(percent(fields[1], 255.)?.0),
-                clamp(percent(fields[2], 255.)?.0),
-            ],
-            "hsl" | "hsla" => hsl(
-                angle(fields[0])?,
-                percent(fields[1], 1.)?.0,
-                percent(fields[2], 1.)?.0,
-            ),
-            "hwb" | "hwba" => {
-                let h = angle(fields[0])?;
-                let w = clamp(percent(fields[1], 1.)?.0);
-                let b = clamp(percent(fields[2], 1.)?.0);
-                if w + b >= 1. {
-                    [w / (w + b); 3]
-                } else {
-                    let mut rgb = hsl(h, 1., 0.5);
-                    for n in &mut rgb {
-                        *n = n.mul_add(1. - w - b, w);
-                    }
-                    rgb
-                }
+        let error = match name {
+            "rgb" | "rgba" | "hsl" | "hsla" | "oklab" | "oklch" => {
+                Some(format!("Wrong {name}() components, {raw}"))
             }
-            "hsv" | "hsva" => {
-                let h = angle(fields[0])?;
-                let s = clamp(percent(fields[1], 1.)?.0);
-                let v = clamp(percent(fields[2], 1.)?.0);
-                let l = (2. - s) * v / 2.;
-                let sat = if l == 0. {
-                    s
-                } else if l == 1. {
-                    0.
-                } else if l < 0.5 {
-                    s * v / (l * 2.)
-                } else {
-                    s * v / (-2_f64).mul_add(l, 2.)
-                };
-                hsl(h, sat, l)
-            }
-            "oklab" | "lab" => {
-                let (mut l, lp) = percent(fields[0], 1.)?;
-                let (mut a, ap) = percent(fields[1], 1.)?;
-                let (mut b, bp) = percent(fields[2], 1.)?;
-                let limit = if name == "lab" { 125. } else { 0.4 };
-                if ap {
-                    a = (a + 1.).mul_add(limit, -limit);
-                }
-                if bp {
-                    b = (b + 1.).mul_add(limit, -limit);
-                }
-                if name == "lab" && lp {
-                    l *= 100.;
-                }
-                if name == "lab" {
-                    lab(floor0(l), a, b)
-                } else {
-                    oklab(floor0(l), a, b)
-                }
-            }
-            "oklch" | "lch" => {
-                let (mut l, lp) = percent(fields[0], 1.)?;
-                let (mut c, cp) = percent(fields[1], 1.)?;
-                let h = angle(fields[2])? * std::f64::consts::PI / 180.;
-                if cp {
-                    c *= if name == "lch" { 150. } else { 0.4 };
-                }
-                if name == "lch" && lp {
-                    l *= 100.;
-                }
-                let c = floor0(c);
-                let (sn, cs) = h.sin_cos();
-                if name == "lch" {
-                    lab(floor0(l), c * cs, c * sn)
-                } else {
-                    oklab(floor0(l), c * cs, c * sn)
-                }
-            }
-            _ => return hex(s),
+            "hwb" | "hwba" => Some(format!("Wrong hwb() components, {raw}")),
+            "hsv" | "hsva" => Some(format!("Wrong hsv() components, {raw}")),
+            "lab" => Some("Invalid lab()".to_owned()),
+            "lch" => Some("Invalid lch()".to_owned()),
+            // Unknown function names fall through to the bare-hex check on
+            // the parenthesized text, as in Go.
+            _ => None,
         };
-        return Some([rgb[0], rgb[1], rgb[2], alpha]);
+        if let Some(error) = error {
+            let [r, g, b] = function_rgb(name, &fields).ok_or(error)?;
+            return Ok([r, g, b, alpha]);
+        }
+        s = inner;
     }
-    hex(s)
+    hex(s).ok_or_else(|| format!("Invalid color format, {raw}"))
+}
+
+/// The component parsing and conversion of one known csscolorparser color
+/// function; `None` when a component fails to parse.
+fn function_rgb(name: &str, fields: &[&str]) -> Option<[f64; 3]> {
+    Some(match name {
+        "rgb" | "rgba" => [
+            clamp(percent(fields[0], 255.)?.0),
+            clamp(percent(fields[1], 255.)?.0),
+            clamp(percent(fields[2], 255.)?.0),
+        ],
+        "hsl" | "hsla" => hsl(
+            angle(fields[0])?,
+            percent(fields[1], 1.)?.0,
+            percent(fields[2], 1.)?.0,
+        ),
+        "hwb" | "hwba" => {
+            let h = angle(fields[0])?;
+            let w = clamp(percent(fields[1], 1.)?.0);
+            let b = clamp(percent(fields[2], 1.)?.0);
+            if w + b >= 1. {
+                [w / (w + b); 3]
+            } else {
+                let mut rgb = hsl(h, 1., 0.5);
+                for n in &mut rgb {
+                    *n = n.mul_add(1. - w - b, w);
+                }
+                rgb
+            }
+        }
+        "hsv" | "hsva" => {
+            let h = angle(fields[0])?;
+            let s = clamp(percent(fields[1], 1.)?.0);
+            let v = clamp(percent(fields[2], 1.)?.0);
+            let l = (2. - s) * v / 2.;
+            let sat = if l == 0. {
+                s
+            } else if l == 1. {
+                0.
+            } else if l < 0.5 {
+                s * v / (l * 2.)
+            } else {
+                s * v / (-2_f64).mul_add(l, 2.)
+            };
+            hsl(h, sat, l)
+        }
+        "oklab" | "lab" => {
+            let (mut l, lp) = percent(fields[0], 1.)?;
+            let (mut a, ap) = percent(fields[1], 1.)?;
+            let (mut b, bp) = percent(fields[2], 1.)?;
+            let limit = if name == "lab" { 125. } else { 0.4 };
+            if ap {
+                a = (a + 1.).mul_add(limit, -limit);
+            }
+            if bp {
+                b = (b + 1.).mul_add(limit, -limit);
+            }
+            if name == "lab" && lp {
+                l *= 100.;
+            }
+            if name == "lab" {
+                lab(floor0(l), a, b)
+            } else {
+                oklab(floor0(l), a, b)
+            }
+        }
+        "oklch" | "lch" => {
+            let (mut l, lp) = percent(fields[0], 1.)?;
+            let (mut c, cp) = percent(fields[1], 1.)?;
+            let h = angle(fields[2])? * std::f64::consts::PI / 180.;
+            if cp {
+                c *= if name == "lch" { 150. } else { 0.4 };
+            }
+            if name == "lch" && lp {
+                l *= 100.;
+            }
+            let c = floor0(c);
+            let (sn, cs) = h.sin_cos();
+            if name == "lch" {
+                lab(floor0(l), c * cs, c * sn)
+            } else {
+                oklab(floor0(l), c * cs, c * sn)
+            }
+        }
+        _ => return None,
+    })
 }
 /// Original importer parseSolidColor boundary, returning straight NRGBA bytes.
 pub fn solid(value: &str) -> Result<[u8; 4], String> {
@@ -307,6 +339,41 @@ pub fn solid(value: &str) -> Result<[u8; 4], String> {
     let bytes = color.map(|v| (v * 255. + 0.5) as i32 as u8);
     Ok(bytes)
 }
+#[cfg(test)]
+mod parse_errors {
+    use super::parse_result;
+
+    #[test]
+    fn each_failing_branch_returns_the_go_parse_error() {
+        for (input, error) in [
+            ("", "Invalid color format, "),
+            ("nosuch", "Invalid color format, nosuch"),
+            ("#", "Invalid hex color, #"),
+            ("#12G", "Invalid hex color, #12G"),
+            ("#12345", "Invalid hex color, #12345"),
+            ("rgb(1,2)", "Invalid format"),
+            ("rgb(1,2,3,4,5)", "Invalid format"),
+            ("rgb(1,2,3,x)", "Invalid format"),
+            ("foo(1,2,3,x)", "Invalid format"),
+            ("RGBA(1, 2, x)", "Wrong rgba() components, RGBA(1, 2, x)"),
+            ("hsl(1x,2,3)", "Wrong hsl() components, hsl(1x,2,3)"),
+            ("hwba(1,2,x)", "Wrong hwb() components, hwba(1,2,x)"),
+            ("hsv(x,2,3)", "Wrong hsv() components, hsv(x,2,3)"),
+            ("oklab(x,1,1)", "Wrong oklab() components, oklab(x,1,1)"),
+            ("oklch(1,1,1px)", "Wrong oklch() components, oklch(1,1,1px)"),
+            ("lab(x,1,1)", "Invalid lab()"),
+            ("lch(1,1,x)", "Invalid lch()"),
+            ("foo(1,2,3)", "Invalid color format, foo(1,2,3)"),
+            ("rgb(1,2,3", "Invalid color format, rgb(1,2,3"),
+        ] {
+            assert_eq!(parse_result(input), Err(error.to_owned()), "{input:?}");
+        }
+        for input in [" ABC ", "transparent", "Red", "rgb(1 2 3 / 50%)", "fff8"] {
+            assert!(parse_result(input).is_ok(), "{input:?}");
+        }
+    }
+}
+
 #[cfg(all(test, feature = "oracle-fixtures"))]
 mod tests {
     use super::*;

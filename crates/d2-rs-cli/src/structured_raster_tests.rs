@@ -48,11 +48,11 @@ fn quoted_board_components_preserve_source_output_names_and_navigation_ancestry(
     ];
     // Exact original Go output inventory from quoted-board-grid under all engines.
     assert_eq!(
-        board_output_path(Some(&targets[0]), ExportFormat::Png, &targets),
+        board_output_path(Some(&targets[0]), ".png", &targets),
         PathBuf::from("a.b/index.png")
     );
     assert_eq!(
-        board_output_path(Some(&targets[1]), ExportFormat::Png, &targets),
+        board_output_path(Some(&targets[1]), ".png", &targets),
         PathBuf::from("a.b/x.y.png")
     );
     let set = targets.iter().cloned().collect();
@@ -64,11 +64,7 @@ fn quoted_board_components_preserve_source_output_names_and_navigation_ancestry(
         ]
     );
     assert_eq!(
-        board_output_path(
-            Some("layers.'a.b'"),
-            ExportFormat::Svg,
-            &["layers.'a.b'".into()]
-        ),
+        board_output_path(Some("layers.'a.b'"), ".svg", &["layers.'a.b'".into()]),
         PathBuf::from("a.b.svg")
     );
 }

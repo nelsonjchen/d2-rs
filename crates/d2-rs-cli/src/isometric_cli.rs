@@ -525,6 +525,8 @@ pub(super) fn run(
         .or_else(|| default_output_path(input_path, format))
         .unwrap_or_else(|| PathBuf::from("-"));
     if is_paged {
+        // newIsometricPagedRenderer calls indexPagedBoards first.
+        super::check_paged_board_ids(&targets, &selected)?;
         return paged::run(
             input,
             input_path,
@@ -627,7 +629,7 @@ pub(super) fn run(
             format.extension().to_uppercase()
         ));
     }
-    let out_dir = output.with_extension("");
+    let (out_dir, output_suffix) = split_board_output_path(&output);
     let local_targets = descendants
         .iter()
         .map(|t| {
@@ -655,12 +657,16 @@ pub(super) fn run(
                 t.clone(),
                 if has_children {
                     if selected.is_empty() {
-                        out_dir.join(board_output_path(Some(local), format, &local_targets))
+                        out_dir.join(board_output_path(
+                            Some(local),
+                            &output_suffix,
+                            &local_targets,
+                        ))
                     } else {
                         out_dir.join(board_subtree_output_path(
                             t,
                             &selected,
-                            format,
+                            &output_suffix,
                             &plan.all_targets,
                         ))
                     }

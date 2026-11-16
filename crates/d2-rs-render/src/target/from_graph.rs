@@ -252,17 +252,11 @@ pub(crate) fn export(
     } else {
         None
     };
-    let font_family = if crate::target_theme_rules(graph).mono {
-        "SourceCodePro"
-    } else if sketch || options.hand_drawn_font {
-        "HandDrawn"
-    } else {
-        "SourceSansPro"
-    };
+    let (font_family, mono_font_family) = crate::target_font_families(graph, options, sketch)?;
     Ok(TargetDiagram {
         config,
         font_family: Some(font_family.into()),
-        mono_font_family: Some("SourceCodePro".into()),
+        mono_font_family: Some(mono_font_family.into()),
         shapes: Some(shapes.into()),
         connections: Some(connections.into()),
         root,

@@ -181,11 +181,15 @@ pub(super) fn object_spacing(graph: &Graph, id: NodeId) -> (Insets, Insets) {
     let mut container_icon_default = false;
     if node.has_icon && icon_position.is_none() {
         icon_position = Some(
+            // positionLabelsIcons: SQLTable, Class or a non-empty Language.
+            // Code shapes always carry one (compile.go sets "text" for an
+            // explicit code shape); a plain text shape has none.
             if container
                 || matches!(
                     node.shape,
-                    ShapeKind::Class | ShapeKind::SqlTable | ShapeKind::Code | ShapeKind::Text
+                    ShapeKind::Class | ShapeKind::SqlTable | ShapeKind::Code
                 )
+                || graph.node_has_language(id)
             {
                 LabelPosition::OutsideTopLeft
             } else {

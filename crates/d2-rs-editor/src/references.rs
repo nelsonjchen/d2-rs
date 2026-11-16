@@ -25,6 +25,9 @@ pub enum ReferenceError {
     /// The requested key is not a valid D2 key path.
     #[error("invalid reference key {key:?}: {message}")]
     InvalidKey { key: String, message: String },
+    /// The requested key parsed, but has neither a key path nor edges.
+    #[error("invalid reference key {key:?}: empty key path and no edges")]
+    EmptyKey { key: String },
     /// Source parsing failed.
     #[error("could not parse source: {0}")]
     Parse(String),
@@ -37,6 +40,22 @@ pub enum ReferenceError {
     /// IR compilation failed before references could be selected.
     #[error("could not compile source: {0}")]
     Compile(String),
+}
+
+impl ReferenceError {
+    /// The error text of D2's `d2lsp.GetRefRanges` for this failure, which
+    /// the raw WASM `getRefRanges` export returns (d2lsp/d2lsp.go:14-26,67-92).
+    pub fn upstream_message(&self) -> String {
+        match self {
+            Self::InvalidKey { message, .. } | Self::Parse(message) | Self::Compile(message) => {
+                message.clone()
+            }
+            Self::EmptyKey { key } => format!("\"{key}\" is invalid"),
+            Self::SourceNotFound { path } => format!("\"{path}\" not found"),
+            // fmt %v of a []string.
+            Self::BoardNotFound { path } => format!("board \"[{}]\" not found", path.join(" ")),
+        }
+    }
 }
 
 /// Returns source and import ranges for a resolved field or edge key.
@@ -53,9 +72,8 @@ pub fn reference_ranges(source: &str, key: &str) -> Result<ReferenceRanges, Refe
         message: error.to_string(),
     })?;
     if map_key.key.is_none() && map_key.edges.as_ref().is_none_or(|edges| edges.is_empty()) {
-        return Err(ReferenceError::InvalidKey {
+        return Err(ReferenceError::EmptyKey {
             key: key.to_owned(),
-            message: "empty key path and no edges".into(),
         });
     }
     let parsed = parse(
@@ -83,7 +101,7 @@ pub fn reference_ranges(source: &str, key: &str) -> Result<ReferenceRanges, Refe
 /// Returns reference ranges from a virtual filesystem and selected board.
 ///
 /// This is the in-memory counterpart of D2's `d2lsp.GetRefRanges`: imports are
-/// opened through the compiler's explicit provider, and `board_path` selects
+/// opened through [`memory_import_opener`], and `board_path` selects
 /// nested `layers`, `scenarios`, or `steps` maps before resolving the key.
 pub fn reference_ranges_with_files(
     path: &str,
@@ -91,21 +109,12 @@ pub fn reference_ranges_with_files(
     board_path: &[String],
     key: &str,
 ) -> Result<ReferenceRanges, ReferenceError> {
+    // d2lsp/d2lsp.go:67-92 getBoardMap runs before the key is parsed.
     let source = files
         .get(path)
         .ok_or_else(|| ReferenceError::SourceNotFound {
             path: path.to_owned(),
         })?;
-    let map_key = parse_map_key(key.as_bytes()).map_err(|error| ReferenceError::InvalidKey {
-        key: key.to_owned(),
-        message: error.to_string(),
-    })?;
-    if map_key.key.is_none() && map_key.edges.as_ref().is_none_or(|edges| edges.is_empty()) {
-        return Err(ReferenceError::InvalidKey {
-            key: key.to_owned(),
-            message: "empty key path and no edges".into(),
-        });
-    }
     let parsed = parse(
         path,
         source.as_bytes(),
@@ -117,30 +126,89 @@ pub fn reference_ranges_with_files(
     if let Some(error) = parsed.error {
         return Err(ReferenceError::Parse(error.to_string()));
     }
-    let files = files.clone();
-    let opener: compiler::ImportOpener = Box::new(move |requested| {
-        files
-            .get(requested)
-            .cloned()
-            .map(|bytes| {
-                Box::new(std::io::Cursor::new(bytes)) as Box<dyn d2_rs_language::stream::ByteReader>
-            })
-            .ok_or_else(|| format!("source file {requested:?} was not found"))
-    });
     let (compiler, root) = compiler::compile_ir_with_options(
         ast::Shared::new(parsed.map),
         compiler::CompileOptions {
-            import_opener: Some(opener),
+            import_opener: Some(memory_import_opener(files)),
             utf16_positions: false,
         },
     )
     .map_err(|error| ReferenceError::Compile(error.to_string()))?;
+    // d2ir.Compile returns its accumulated errors as one error.
+    if !compiler.errors.is_empty() {
+        return Err(ReferenceError::Compile(
+            compiler
+                .errors
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n"),
+        ));
+    }
     let map = find_board_map(&compiler.arena, root, board_path).ok_or_else(|| {
         ReferenceError::BoardNotFound {
             path: board_path.to_vec(),
         }
     })?;
+    // d2lsp/d2lsp.go:20-26.
+    let map_key = parse_map_key(key.as_bytes()).map_err(|error| ReferenceError::InvalidKey {
+        key: key.to_owned(),
+        message: error.to_string(),
+    })?;
+    if map_key.key.is_none() && map_key.edges.as_ref().is_none_or(|edges| edges.is_empty()) {
+        return Err(ReferenceError::EmptyKey {
+            key: key.to_owned(),
+        });
+    }
     Ok(collect_reference_ranges(&compiler.arena, map, &map_key))
+}
+
+/// An import opener over in-memory files with the semantics of D2's
+/// `lib/memfs`, which the WASM API and `d2lsp.GetRefRanges` use.
+///
+/// Names are cleaned, each file's directory exists and reads as "cannot read
+/// a directory", and a missing name fails as `fs.ErrNotExist` does.
+pub fn memory_import_opener(files: &HashMap<String, String>) -> compiler::ImportOpener {
+    // lib/memfs/memfs.go New and Open.
+    let mut entries = HashMap::new();
+    for (path, source) in files {
+        let path = clean_memory_path(path);
+        let dir = path
+            .rfind('/')
+            .map_or(".", |index| if index == 0 { "/" } else { &path[..index] })
+            .to_owned();
+        entries.insert(dir, None);
+        entries.insert(path, Some(source.clone()));
+    }
+    Box::new(move |path| match entries.get(&clean_memory_path(path)) {
+        Some(Some(source)) => Ok(Box::new(std::io::Cursor::new(source.as_bytes().to_vec()))
+            as Box<dyn d2_rs_language::stream::ByteReader>),
+        Some(None) => Ok(Box::new(MemoryDirectory) as Box<dyn d2_rs_language::stream::ByteReader>),
+        None => Err("file does not exist".into()),
+    })
+}
+
+struct MemoryDirectory;
+impl d2_rs_language::stream::ByteReader for MemoryDirectory {
+    fn read_bytes(&mut self, _: &mut [u8]) -> (usize, Option<d2_rs_language::stream::ReadError>) {
+        (
+            0,
+            Some(d2_rs_language::stream::ReadError::Other(
+                "cannot read a directory".into(),
+            )),
+        )
+    }
+}
+
+fn clean_memory_path(path: &str) -> String {
+    if path.is_empty() {
+        return ".".into();
+    }
+    ast::Import {
+        path: ast::KeyPath::from_strings([path]).path,
+        ..Default::default()
+    }
+    .path_with_pre()
 }
 
 fn find_board_map(

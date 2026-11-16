@@ -28,6 +28,7 @@ path = "src/main.rs"
 [dependencies]
 d2-rs-render.workspace = true
 d2-rs-export.workspace = true
+d2-rs-lib.workspace = true
 d2-rs-core.workspace = true
 d2-rs-language.workspace = true
 d2-rs-layout.workspace = true
@@ -57,7 +58,6 @@ libmimalloc-sys = { version = "=0.1.49", default-features = false }
 unicode-normalization = "=0.1.25"
 
 [dev-dependencies]
-d2-rs-lib.workspace = true
 d2-rs-testdata.workspace = true
 zip.workspace = true
 d2-rs-elk.workspace = true

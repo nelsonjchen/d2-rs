@@ -142,6 +142,45 @@ fn prescaled_outside_label_reserves_its_scaled_margin() {
 }
 
 #[test]
+fn sized_swaps_preserve_prescaled_outside_label_clearance() {
+    // Prescale grows n4's label before ComputeNodeSpacing. Go's shared
+    // childrenGraph nodes retain the resulting margins in bestSwapCandidate's
+    // overlap checks (placement/sized_optimizer.go), requiring a 78px gap
+    // between n4's bottom label and n2's top label during sized swaps.
+    let svg = render_tala(
+        "n0: { label: \"auth queue log\" }\n\
+         n2: { label.near: outside-top-right; width: 80 }\n\
+         n3: { shape: class; \"+field\": int; \"-method(a int)\": bool }\n\
+         n4: { label.near: outside-bottom-center }\n\
+         n0 -- n2\nn3 <- n4\nn4 -> n2\nn0 <- n2\nn2 -> n3\nn4 <-> n2\n",
+        "1",
+    );
+    let actual = geometry(&svg);
+    assert_eq!(actual.view_box, "0 0 690 690");
+    assert_rectangles(
+        &actual.rectangles,
+        &[
+            ["5", "368", "151", "120"],
+            ["40", "214", "80", "61"],
+            ["186", "91", "302", "184"],
+            ["186", "91", "302", "92"],
+            ["0", "0", "120", "120"],
+        ],
+    );
+    assert_eq!(
+        actual.routes,
+        [
+            "M 66 366 L 66 277",
+            "M 182 167 L 110 167 S 100 167 100 157 L 100 122",
+            "M 60 122 L 60 210",
+            "M 92 364 L 92 277",
+            "M 122 244 L 182 244",
+            "M 80 124 L 80 210",
+        ]
+    );
+}
+
+#[test]
 fn constant_near_bounds_use_the_tala_label_dimensions() {
     // The TALA patch replaces n1's LabelDimensions with its prescaled label
     // before d2near.boundingBox places the legend below the graph.
@@ -360,4 +399,221 @@ fn object_grid_cell_keeps_tala_routes_around_its_nested_grid() {
         ],
     );
     assert_eq!(actual.routes, ["M 379 319 L 245 319"]);
+}
+
+fn run_tala_without_bundling(source: &str, seeds: &str) -> (bool, String) {
+    let mut process = Command::new(env!("CARGO_BIN_EXE_d2-rs"))
+        .args([
+            "--layout=tala",
+            "--bundle=false",
+            "--tala-seeds",
+            seeds,
+            "-",
+            "-",
+        ])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    process
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(source.as_bytes())
+        .unwrap();
+    let output = process.wait_with_output().unwrap();
+    (
+        output.status.success(),
+        String::from_utf8(output.stderr).unwrap(),
+    )
+}
+
+#[test]
+fn zero_sized_text_icon_makes_every_seed_score_non_finite() {
+    // A one-letter `shape: text` node is too small for an inside icon, so
+    // Node.IconSize is 0. quality/labels.go scores the icon box against the
+    // placed boxes including itself and subtracts one; a zero-sized box does
+    // not overlap itself, the label total is -1 and 1 / (1 + total) is +Inf.
+    // result.go evaluateSeedResult rejects each seed's non-finite score.
+    for source in [
+        "a: {shape: text; icon: https://example.com/icon.svg}\n",
+        "a: {shape: text; icon: https://example.com/icon.svg}\nb -> a\n",
+        "a: {shape: text; icon: https://example.com/icon.svg; icon.near: top-left}\n",
+    ] {
+        let (success, stderr) = run_tala_without_bundling(source, "1,2");
+        assert!(!success, "{source}");
+        assert_eq!(
+            stderr,
+            "err: failed to compile -: all TALA seed attempts failed: \
+             seed 1: TALA seed result has a non-finite score\n\
+             err: seed 2: TALA seed result has a non-finite score\n",
+            "{source}"
+        );
+    }
+    // A wider text label leaves room for a nonzero icon; an outside icon is
+    // not clipped to the inner box. Both lay out normally in Go.
+    for source in [
+        "a: hello world {shape: text; icon: https://example.com/icon.svg}\n",
+        "a: {shape: text; icon: https://example.com/icon.svg; icon.near: outside-top-left}\n",
+    ] {
+        let (success, stderr) = run_tala_without_bundling(source, "1,2");
+        assert!(success, "{source}: {stderr}");
+    }
+}
+
+#[test]
+fn rejected_transpose_after_a_cluster_flip_restores_the_step_container() {
+    // x and y form a cluster beside l0's step sequence. transpose.go runs
+    // optimizeCluster(onlyFlip) inside each rotation's transaction, and
+    // Transaction.Rollback restores the original TopLeft pointers; the
+    // rejected rotations leave this layout. Previously every seed failed.
+    let svg = render_tala(
+        "l0: {\n  a: {shape: step}\n  b: {shape: step}\n  a -> b\n}\n\
+         x -> l0\ny -> l0\nsrc -> l0.a\n",
+        "1",
+    );
+    let actual = geometry(&svg);
+    assert_eq!(actual.view_box, "0 0 473 565");
+    assert_rectangles(
+        &actual.rectangles,
+        &[
+            ["0", "142", "271", "221"],
+            ["99", "0", "54", "66"],
+            ["173", "0", "54", "66"],
+            ["0", "0", "67", "66"],
+        ],
+    );
+    assert_eq!(
+        actual.routes,
+        [
+            "M 126 68 L 126 99 C 126 109 136 99 136 109 L 136 138",
+            "M 200 68 L 200 94 S 200 104 190 104 L 146 104 S 136 104 136 114 L 136 138",
+            "M 30 68 L 30 242 S 30 252 40 252 L 90 252",
+        ]
+    );
+}
+
+#[test]
+fn container_holding_a_step_sequence_is_not_a_hierarchy_member() {
+    // AddSequences runs before hierarchy assignment, so l0's only child is
+    // the sequence vessel. hierarchy/eligibility.go isSimpleCandidate rejects
+    // Graph.IsSequenceVessel, so x, y -> l0 -> src stays in ordinary
+    // placement. Treating l0 as a hierarchy member left its steps without
+    // positions and every seed failed ("UnpositionedNode").
+    let svg = render_tala(
+        "l0: {\na: {shape: step}\nb: {shape: step}\na -> b\n}\n\
+         x -> l0\ny -> l0\nl0.a -> src\n",
+        "1",
+    );
+    let actual = geometry(&svg);
+    assert_eq!(actual.view_box, "0 0 473 708");
+    assert_rectangles(
+        &actual.rectangles,
+        &[
+            ["0", "142", "271", "221"],
+            ["72", "0", "54", "66"],
+            ["146", "0", "54", "66"],
+            ["73", "440", "67", "66"],
+        ],
+    );
+    assert_eq!(
+        actual.routes,
+        [
+            "M 99 68 L 99 94 S 99 104 109 104 L 126 104 S 136 104 136 114 L 136 138",
+            "M 173 68 L 173 94 S 173 104 163 104 L 146 104 S 136 104 136 114 L 136 138",
+            "M 95 305 L 95 436",
+        ]
+    );
+}
+
+#[test]
+fn swap_stage_direct_skips_mirroring_while_a_sequence_has_abducted_edges() {
+    // placement/direct.go returns before computing transforms when any node
+    // in Graph.Nodes is a sequence vessel with edge abductions; the vessel
+    // itself is a Graph.Nodes member. SwapStuff's direct(true) must not
+    // mirror these boards.
+    let svg = render_tala(
+        "l0: {\n  a: {shape: step}\n  b: {shape: step}\n  a -> b\n}\n\
+         x -> l0\ny -> l0\nsrc -> l0.a\n",
+        "3",
+    );
+    let actual = geometry(&svg);
+    assert_eq!(actual.view_box, "0 0 648 625");
+    assert_rectangles(
+        &actual.rectangles,
+        &[
+            ["0", "142", "271", "221"],
+            ["71", "0", "54", "66"],
+            ["145", "0", "54", "66"],
+            ["379", "220", "67", "66"],
+        ],
+    );
+    assert_eq!(
+        actual.routes,
+        [
+            "M 98 68 L 98 94 S 98 104 108 104 L 125 104 S 135 104 135 114 L 135 138",
+            "M 172 68 L 172 94 S 172 104 162 104 L 145 104 S 135 104 135 114 L 135 138",
+            "M 412 288 L 412 413 S 412 423 402 423 L 99 423 S 89 423 89 413 L 89 307",
+        ]
+    );
+    let svg = render_tala(
+        "c: {\ndirection: left\nn0: {shape: step}\nn1: {shape: step}\nn0 -> n1\n}\n\
+         outside -> c.n0\nc.n1 -> done\ndone -> c\n",
+        "1",
+    );
+    let actual = geometry(&svg);
+    assert_eq!(actual.view_box, "0 0 813 553");
+    assert_rectangles(
+        &actual.rectangles,
+        &[
+            ["153", "70", "289", "221"],
+            ["513", "148", "98", "66"],
+            ["0", "147", "81", "66"],
+        ],
+    );
+    assert_eq!(
+        actual.routes,
+        [
+            "M 562 216 L 562 341 S 562 351 552 351 L 256 351 S 246 351 246 341 L 246 235",
+            "M 297 128 L 297 10 S 297 0 287 0 L 50 0 S 40 0 40 10 L 40 143",
+            "M 83 180 L 149 180",
+        ]
+    );
+}
+
+#[test]
+fn root_mirror_flips_trees_restored_inside_a_nested_container() {
+    // hub -> l1, l2 is a tree placed inside l0 (direction left), then the
+    // root direct() mirrors x. placement/direct.go mirrorNode flips the
+    // shared NodeToTree orientation of every mirrored member, including tree
+    // members restored below the nested container, so the leaves are entered
+    // from the side facing the hub.
+    let svg = render_tala(
+        "l0: {\ndirection: left\nhub -> l1\nhub -> l2\n}\nsrc -> l0.s\next -- l0\n",
+        "1",
+    );
+    let actual = geometry(&svg);
+    assert_eq!(actual.view_box, "0 0 693 704");
+    assert_rectangles(
+        &actual.rectangles,
+        &[
+            ["142", "134", "349", "368"],
+            ["194", "0", "67", "66"],
+            ["0", "252", "68", "66"],
+            ["202", "318", "72", "66"],
+            ["374", "376", "57", "66"],
+            ["374", "260", "57", "66"],
+            ["202", "194", "52", "66"],
+        ],
+    );
+    assert_eq!(
+        actual.routes,
+        [
+            "M 276 351 L 314 351 S 324 351 324 361 L 324 399 S 324 409 334 409 L 370 409",
+            "M 276 351 L 314 351 S 324 351 324 341 L 324 303 S 324 293 334 293 L 370 293",
+            "M 228 68 L 228 190",
+            "M 70 285 L 140 285",
+        ]
+    );
 }

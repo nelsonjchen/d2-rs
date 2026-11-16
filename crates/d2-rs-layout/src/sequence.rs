@@ -707,7 +707,7 @@ fn layout_inner(
         .and_then(|node| node.label_size)
         .filter(|size| size.width > 0.0 && size.height > 0.0)
         .map_or(0.0, |size| size.height);
-    let mut actor_center_x = root_origin.x + GROUP_CONTAINER_PADDING;
+    let mut actor_center_x = 0.0;
     let mut actor_centers = BTreeMap::new();
     let mut max_actor_height: f64 = 0.0;
     let mut actor_widths = BTreeMap::new();
@@ -732,6 +732,9 @@ fn layout_inner(
         actor_widths.insert(actor_id, width);
         max_actor_height = max_actor_height.max(height);
     }
+    // newSequenceDiagram adds the vertical/title bands before placement.
+    max_actor_height += VERTICAL_PADDING;
+    max_actor_height += root_label_height;
     let mut actor_steps = Vec::new();
     for pair in actors.windows(2) {
         let width = actor_widths[&pair[0]];
@@ -813,23 +816,24 @@ fn layout_inner(
             actor_center_x += actor_steps[index - 1];
         }
         let center_x = actor_center_x;
+        // placeActors aligns the label below image/person actors to the
+        // common baseline even when an explicit icon position is retained.
+        let label_height = if matches!(
+            actor.shape,
+            d2_rs_core::ShapeKind::Image | d2_rs_core::ShapeKind::Person
+        ) && graph
+            .node_labels
+            .get(&actor_id)
+            .is_none_or(|label| !label.is_empty())
+        {
+            actor.label_size.map_or(0.0, |size| size.height)
+        } else {
+            0.0
+        };
         let origin = actor.locked_position.unwrap_or(Point {
-            // Go's sequence adapter rounds only the horizontal top-left;
-            // preserving that detail keeps half-pixel actor widths stable.
+            // Go rounds the local horizontal origin before sd.shift.
             x: (center_x - width / 2.0).round(),
-            // Go places actors locally before sd.shift adds the container
-            // inset, after the height and label subtractions.
-            y: max_actor_height
-                + VERTICAL_PADDING
-                + root_label_height
-                - height
-                // Source placeActors aligns the label below image/person
-                // actors to the common baseline, subtracting its measured
-                // height even when an explicit icon position is retained.
-                - if matches!(actor.shape, d2_rs_core::ShapeKind::Image | d2_rs_core::ShapeKind::Person)
-                    && graph.node_labels.get(&actor_id).is_none_or(|label| !label.is_empty())
-                { actor.label_size.map_or(0.0, |size| size.height) } else { 0.0 }
-                + (root_origin.y + GROUP_CONTAINER_PADDING),
+            y: max_actor_height - height - label_height,
         });
         let rect = Rect {
             origin,
@@ -837,7 +841,6 @@ fn layout_inner(
         };
         actor_centers.insert(actor_id, rect.center());
         boxes.insert(actor_id, rect);
-        max_actor_height = max_actor_height.max(height);
     }
 
     let mut nested_boxes = Vec::new();
@@ -874,12 +877,7 @@ fn layout_inner(
         }
     }
 
-    let message_y = root_origin.y
-        + GROUP_CONTAINER_PADDING
-        + VERTICAL_PADDING
-        + root_label_height
-        + max_actor_height
-        + message_step();
+    let message_y = max_actor_height + message_step();
     let mut routes = BTreeMap::new();
     let mut message_rows = BTreeMap::new();
     let mut message_offset = message_y;
@@ -1246,7 +1244,7 @@ fn layout_inner(
     let mut content_right = actors
         .last()
         .and_then(|id| boxes.get(id))
-        .map_or(root_origin.x, |rect| rect.right());
+        .map_or(0.0, |rect| rect.right());
     for (edge_id, route) in &routes {
         for point in route {
             content_right = content_right.max(point.x);
@@ -1278,7 +1276,7 @@ fn layout_inner(
                 .iter()
                 .filter_map(|id| boxes.get(id).map(|rect| rect.bottom())),
         )
-        .fold(root_origin.y, f64::max)
+        .fold(0.0, f64::max)
         + message_step();
     if let Some(root) = root_node {
         boxes.insert(
@@ -1286,8 +1284,8 @@ fn layout_inner(
             Rect {
                 origin: root_origin,
                 size: Size {
-                    width: (content_right - root_origin.x + GROUP_CONTAINER_PADDING).max(1.0),
-                    height: (lifeline_end - root_origin.y + GROUP_CONTAINER_PADDING).max(1.0),
+                    width: (content_right + GROUP_CONTAINER_PADDING * 2.0).max(1.0),
+                    height: (lifeline_end + GROUP_CONTAINER_PADDING * 2.0).max(1.0),
                 },
             },
         );
@@ -1470,8 +1468,8 @@ fn layout_inner(
         result.synthetic_root = Some(d2_rs_core::SyntheticRootState {
             top_left: Some(root_origin),
             size: Size {
-                width: (content_right - root_origin.x + GROUP_CONTAINER_PADDING).max(1.0),
-                height: (lifeline_end - root_origin.y + GROUP_CONTAINER_PADDING).max(1.0),
+                width: (content_right + GROUP_CONTAINER_PADDING * 2.0).max(1.0),
+                height: (lifeline_end + GROUP_CONTAINER_PADDING * 2.0).max(1.0),
             },
             label_position: Some(LabelPosition::InsideTopCenter),
             icon_position: None,
@@ -1506,6 +1504,29 @@ fn layout_inner(
                 }
             })
             .collect();
+    // d2sequence.Layout calls sd.shift only after placeGroups and
+    // addLifelineEdges. Measuring in the padded frame changes cancellation
+    // in maxY-minY for fractional actor baselines, including integer export.
+    let shift = Point {
+        x: root_origin.x + GROUP_CONTAINER_PADDING,
+        y: root_origin.y + GROUP_CONTAINER_PADDING,
+    };
+    for (id, rect) in &mut result.boxes {
+        if Some(*id) != root_node {
+            rect.origin.x += shift.x;
+            rect.origin.y += shift.y;
+        }
+    }
+    for point in result.routes.values_mut().flatten() {
+        point.x += shift.x;
+        point.y += shift.y;
+    }
+    for line in &mut result.sequence_lifelines {
+        for point in &mut line.route {
+            point.x += shift.x;
+            point.y += shift.y;
+        }
+    }
     for (actor, local) in &actor_layouts {
         let (Some(before), Some(after)) = (local.boxes.get(actor), result.boxes.get(actor)) else {
             continue;

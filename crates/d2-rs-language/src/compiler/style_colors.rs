@@ -1,6 +1,4 @@
 // SPDX-License-Identifier: MPL-2.0
-// CSS stop acceptance translates csscolorparser v0.1.8 (MIT), Copyright (c)
-// 2020 Nor Khasyatillah. See THIRD_PARTY_NOTICES.md for the preserved license.
 //! D2 lib/color.ValidColor, including its distinct ordinary/gradient grammars.
 use d2_rs_core::{ir::go_lowercase, parse_d2_float};
 
@@ -94,58 +92,9 @@ pub(super) fn valid_color(value: &str) -> bool {
     })
 }
 
-fn number(value: &str) -> bool {
-    parse_d2_float(value.trim_matches(space)).is_some()
-}
-
-fn percentage_or_number(value: &str) -> bool {
-    number(value.strip_suffix('%').unwrap_or(value))
-}
-
-fn angle(value: &str) -> bool {
-    for suffix in ["deg", "grad", "rad", "turn"] {
-        if let Some(value) = value.strip_suffix(suffix) {
-            return number(value);
-        }
-    }
-    number(value)
-}
-
+/// lib/color.ValidColor checks each gradient stop with csscolorparser.Parse.
 fn css_stop(raw: &str) -> bool {
-    let value = lower(raw);
-    let value = value.trim_matches(space);
-    if value != "currentcolor" && named(value) {
-        return true;
-    }
-    if let Some(digits) = value.strip_prefix('#') {
-        return hex(digits, &[3, 4, 6, 8]);
-    }
-    if let Some(open) = value.find('(')
-        && let Some(inner) = value[open + 1..].strip_suffix(')')
-    {
-        let function = value[..open].trim_matches(space);
-        let parts: Vec<_> = inner
-            .split([',', '/', ' '])
-            .filter(|p| !p.is_empty())
-            .collect();
-        if !matches!(parts.len(), 3 | 4) {
-            return false;
-        }
-        if parts.len() == 4 && !percentage_or_number(parts[3]) {
-            return false;
-        }
-        return match function {
-            "rgb" | "rgba" | "oklab" | "lab" => parts[..3].iter().all(|v| percentage_or_number(v)),
-            "hsl" | "hsla" | "hwb" | "hwba" | "hsv" | "hsva" => {
-                angle(parts[0]) && percentage_or_number(parts[1]) && percentage_or_number(parts[2])
-            }
-            "oklch" | "lch" => {
-                percentage_or_number(parts[0]) && percentage_or_number(parts[1]) && angle(parts[2])
-            }
-            _ => false,
-        };
-    }
-    hex(value, &[3, 4, 6, 8])
+    d2_rs_math::svg_color::parse(raw).is_some()
 }
 
 #[cfg(test)]

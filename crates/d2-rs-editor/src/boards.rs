@@ -19,14 +19,6 @@ pub struct BoardError {
     pub message: String,
 }
 
-fn ast_position(position: SourcePosition) -> Position {
-    Position {
-        line: position.line as i64,
-        column: position.column as i64,
-        byte: -1,
-    }
-}
-
 fn in_range(map: &Map, position: Position) -> bool {
     !position.before(map.range.start) && position.before(map.range.end)
 }
@@ -99,15 +91,41 @@ pub fn board_at_position(
     position: SourcePosition,
     encoding: PositionEncoding,
 ) -> Result<Option<Vec<String>>, BoardError> {
+    board_at_signed_position(
+        source,
+        position.line as i64,
+        position.column as i64,
+        encoding,
+    )
+}
+
+/// [`board_at_position`] for signed coordinates, as D2's
+/// `d2lsp.GetBoardAtPosition` takes a `d2ast.Position` of Go ints.
+///
+/// A negative line or column is compared as is, so it lies before every
+/// source position on that line rather than after it.
+pub fn board_at_signed_position(
+    source: &str,
+    line: i64,
+    column: i64,
+    encoding: PositionEncoding,
+) -> Result<Option<Vec<String>>, BoardError> {
+    // d2lsp/d2lsp.go:96-105: the byte offset is ignored and the source is
+    // parsed with an empty path, so diagnostics carry no `path:` prefix.
     let parsed = parse(
-        "-",
+        "",
         source.as_bytes(),
         Some(ParseOptions {
             utf16_positions: matches!(encoding, PositionEncoding::Utf16),
             errors: None,
         }),
     );
-    let path = walk(&parsed.map, Vec::new(), ast_position(position));
+    let position = Position {
+        line,
+        column,
+        byte: -1,
+    };
+    let path = walk(&parsed.map, Vec::new(), position);
     if let Some(error) = parsed.error {
         return Err(BoardError {
             path,
@@ -119,7 +137,41 @@ pub fn board_at_position(
 
 #[cfg(test)]
 mod tests {
-    use super::{PositionEncoding, SourcePosition, board_at_position};
+    use super::{PositionEncoding, SourcePosition, board_at_position, board_at_signed_position};
+
+    #[test]
+    fn board_parse_diagnostics_omit_a_synthetic_filename() {
+        // d2lsp.GetBoardAtPosition passes an empty filename to d2parser.Parse.
+        // Cursor location and position encoding do not add a source filename.
+        for encoding in [PositionEncoding::Utf8, PositionEncoding::Utf16] {
+            for (source, message, partial_board) in [
+                ("a: {", "1:4: maps must be terminated with }", None),
+                ("a: [x\n", "1:4: arrays must be terminated with ]", None),
+                (
+                    "layers: {\n one: {\n x\n",
+                    "2:7: maps must be terminated with }\n1:9: maps must be terminated with }",
+                    Some(vec!["layers".to_owned(), "one".to_owned()]),
+                ),
+            ] {
+                for position in [
+                    SourcePosition { line: 0, column: 0 },
+                    SourcePosition { line: 0, column: 4 },
+                    SourcePosition { line: 2, column: 1 },
+                ] {
+                    let error = board_at_position(source, position, encoding).unwrap_err();
+                    assert_eq!(
+                        error.path,
+                        if position.line == 2 {
+                            partial_board.clone()
+                        } else {
+                            None
+                        }
+                    );
+                    assert_eq!(error.message, message);
+                }
+            }
+        }
+    }
 
     #[test]
     fn finds_nested_layer_board() {
@@ -254,5 +306,54 @@ mod tests {
                 );
             }
         }
+    }
+
+    // Expected values below are the pinned Go d2wasm getBoardAtPosition
+    // responses (d2lsp.GetBoardAtPosition, d2lsp/d2lsp.go:96-105).
+    #[test]
+    fn diagnostics_have_no_path_prefix() {
+        let error = board_at_position(
+            "a: {",
+            SourcePosition { line: 0, column: 0 },
+            PositionEncoding::Utf8,
+        )
+        .unwrap_err();
+        assert_eq!(error.path, None);
+        assert_eq!(error.message, "1:4: maps must be terminated with }");
+
+        let source = "layers: {\n one: {\n  x -> \n }\n}\n";
+        let error = board_at_signed_position(source, 2, 3, PositionEncoding::Utf8).unwrap_err();
+        assert_eq!(
+            error.path,
+            Some(vec!["layers".to_owned(), "one".to_owned()])
+        );
+        assert_eq!(error.message, "3:3: connection missing destination");
+    }
+
+    #[test]
+    fn utf8_columns_count_bytes() {
+        let error = board_at_signed_position("雪: {", 0, 0, PositionEncoding::Utf8).unwrap_err();
+        assert_eq!(error.message, "1:6: maps must be terminated with }");
+        // `"雪雪"` takes eight bytes, so byte column 20 is inside its map.
+        let source = "layers: {\"雪雪\": {b}}";
+        let path = board_at_signed_position(source, 0, 20, PositionEncoding::Utf8).unwrap();
+        assert_eq!(path, Some(vec!["layers".to_owned(), "雪雪".to_owned()]));
+    }
+
+    #[test]
+    fn negative_coordinates_precede_the_line() {
+        let source = "layers: {\n one: {\n  b\n }\n}";
+        assert_eq!(
+            board_at_signed_position(source, 1, -1, PositionEncoding::Utf8),
+            Ok(None)
+        );
+        assert_eq!(
+            board_at_signed_position(source, 2, -1, PositionEncoding::Utf8),
+            Ok(Some(vec!["layers".to_owned(), "one".to_owned()]))
+        );
+        assert_eq!(
+            board_at_signed_position(source, -1, 0, PositionEncoding::Utf8),
+            Ok(None)
+        );
     }
 }

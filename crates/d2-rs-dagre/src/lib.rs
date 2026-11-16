@@ -363,6 +363,7 @@ pub fn layout_with_options_and_rank_trace_with_cancellation(
         // preserving their child coordinates.
         if !source_expanded {
             prepare_compound_prefit(graph, &mut boxes, dagre_options, bk_layout.as_ref());
+            normalize_compound_self_edge_flow(graph, &mut boxes);
             debug_boxes("prepared_borders", graph, &boxes);
             // `prepare_compound_prefit` places children from the Dagre rank
             // model, including its border-dummy lanes. Applying the direct-
@@ -3429,6 +3430,126 @@ fn rank_span_for_node(node: &d2_rs_core::Node, horizontal: bool) -> f64 {
     }
 }
 
+fn normalize_compound_self_edge_flow(graph: &Graph, boxes: &mut BTreeMap<NodeId, Rect>) {
+    // positionSelfEdges removes its dummies before translateGraph measures
+    // the surviving nodes (including reconstructed compound envelopes) and
+    // restored edge labels. A wide loop dummy can size the last rank without
+    // extending the final hull to that rank's outer border after reflection.
+    if !graph
+        .nodes()
+        .any(|(id, _)| has_rankable_children(graph, id))
+    {
+        return;
+    }
+    let horizontal = horizontal_for(graph.direction);
+    let mut minimum = boxes
+        .values()
+        .map(|rect| {
+            if horizontal {
+                rect.origin.x
+            } else {
+                rect.origin.y
+            }
+        })
+        .fold(f64::INFINITY, f64::min);
+    let mut has_self_edge = false;
+    for (edge_id, _) in graph.edges() {
+        let (source, target) = resolve_edge_endpoints(graph, edge_id);
+        if source != target {
+            continue;
+        }
+        has_self_edge = true;
+        if let (Some(rect), Some(label)) =
+            (boxes.get(&source), edge_label_layout_size(graph, edge_id))
+        {
+            let center = if horizontal {
+                rect.center().x
+            } else {
+                rect.center().y
+            };
+            minimum = minimum.min(center - label.height / 2.0);
+        }
+    }
+    if has_self_edge && minimum.is_finite() && minimum != 0.0 {
+        for rect in boxes.values_mut() {
+            if horizontal {
+                rect.origin.x -= minimum;
+            } else {
+                rect.origin.y -= minimum;
+            }
+        }
+    }
+    if !has_self_edge {
+        return;
+    }
+    // D2 publishes Round(x - w/2) only after translateGraph
+    // (d2dagrelayout/layout.go:217); rank_nodes_with_model deferred the
+    // leaves' flow-axis rounding for this translation.
+    for (id, node) in graph.nodes() {
+        if !defers_leaf_flow_rounding(graph, id, node) {
+            continue;
+        }
+        if let Some(rect) = boxes.get_mut(&id) {
+            if horizontal {
+                rect.origin.x = rect.origin.x.round();
+            } else {
+                rect.origin.y = rect.origin.y.round();
+            }
+        }
+    }
+}
+
+/// Unexpanded source compounds with self-edges translate by the restored
+/// self-label extents after the compound pre-fit. Their leaves keep the
+/// fractional flow coordinate until then, as Dagro's translateGraph runs
+/// before D2 rounds object origins.
+fn compound_self_edge_translation_pending(graph: &Graph) -> bool {
+    graph
+        .nodes()
+        .any(|(id, _)| has_rankable_children(graph, id))
+        && graph.edges().any(|(edge_id, _)| {
+            let (source, target) = resolve_edge_endpoints(graph, edge_id);
+            source == target
+        })
+}
+
+fn defers_leaf_flow_rounding(graph: &Graph, id: NodeId, node: &d2_rs_core::Node) -> bool {
+    !is_sequence_descendant(graph, id)
+        && !has_rankable_children(graph, id)
+        && node.locked_position.is_none()
+        && node.constrained_x.is_none()
+        && node.constrained_y.is_none()
+}
+
+fn include_self_edge_rank_spans(
+    graph: &Graph,
+    ranks: &BTreeMap<NodeId, usize>,
+    labels: &[Option<Size>],
+    spans: &mut BTreeMap<usize, f64>,
+) {
+    // Dagro inserts self-edge dummies after ordering and before positionY.
+    // They contribute to each rank's maximum height, including the border
+    // centers from which removeBorderNodes derives compound envelopes.
+    for (edge_id, _) in graph.edges() {
+        let Some(label) = labels[edge_id.0 as usize] else {
+            continue;
+        };
+        let (source, target) = resolve_edge_endpoints(graph, edge_id);
+        if source != target {
+            continue;
+        }
+        if let Some(&rank) = ranks.get(&source) {
+            let span = if horizontal_for(graph.direction) {
+                label.width
+            } else {
+                label.height
+            };
+            let current = spans.entry(rank).or_default();
+            *current = current.max(span);
+        }
+    }
+}
+
 #[cfg(test)]
 fn rank_nodes(graph: &Graph, options: DagreOptions, source_mode: bool) -> BTreeMap<NodeId, Rect> {
     rank_nodes_with_model(graph, options, source_mode, true).0
@@ -3490,6 +3611,7 @@ fn rank_nodes_with_model(
             *rank_span = rank_span.max(span);
         }
     }
+    include_self_edge_rank_spans(graph, &rank, &label_sizes, &mut rank_width);
     let mut label_lane_spans = BTreeMap::<i64, f64>::new();
     if source_mode {
         for (&edge_id, &label_rank) in &label_ranks {
@@ -3852,12 +3974,19 @@ fn rank_nodes_with_model(
         } else {
             None
         };
-        let max_x = boxes
-            .values()
+        // With a border-rank flow end, the measured compound boxes are not
+        // Dagro nodes: their envelopes are rebuilt from border records after
+        // reflection, so only leaves and the border extent set the pivot.
+        let pivot_boxes = || {
+            boxes.iter().filter_map(|(id, rect)| {
+                (source_compound_flow_end.is_none() || !has_rankable_children(graph, *id))
+                    .then_some(rect)
+            })
+        };
+        let max_x = pivot_boxes()
             .map(|rect| rect.right())
             .fold(source_compound_flow_end.unwrap_or(0.0), f64::max);
-        let max_y = boxes
-            .values()
+        let max_y = pivot_boxes()
             .map(|rect| rect.bottom())
             .fold(source_compound_flow_end.unwrap_or(0.0), f64::max);
         for rect in boxes.values_mut() {
@@ -3875,11 +4004,13 @@ fn rank_nodes_with_model(
     // translate every raw coordinate by a fractional amount before D2 rounds
     // object origins (dagro layout.go:225-271). Preserve that exact frame.
     let mut self_edge_flow_translation = None;
-    // Compound ranks already retain the border extent used by Dagro's
-    // translateGraph. Re-normalizing their leaf boxes drops that boundary
-    // rank, and the flat self-edge translation bypasses compound route
-    // normalization after reflection.
-    if compound_bounds.is_empty() {
+    // Unexpanded compound ranks retain the border extent used by Dagro's
+    // translateGraph until prepare_compound_prefit rebuilds their envelopes
+    // (normalize_compound_self_edge_flow then translates them). Expanded
+    // compounds already carry their border envelopes in `boxes`, so the
+    // same minimum applies here; their routes use the compound model's
+    // translation, which measures the same restored label extents.
+    if compound_bounds.is_empty() || source_expanded {
         let mut flow_min = boxes
             .values()
             .map(|rect| {
@@ -3939,6 +4070,8 @@ fn rank_nodes_with_model(
     // Apply Dagre's center-to-top-left rounding after the alignment pass.
     // Rounding earlier would feed half-pixel centers back into singleton-rank
     // alignment and move the neighboring node by an extra half pixel.
+    let defer_flow_rounding =
+        source_mode && !source_expanded && compound_self_edge_translation_pending(graph);
     for (id, node) in graph.nodes() {
         if is_sequence_descendant(graph, id) {
             continue;
@@ -3951,8 +4084,12 @@ fn rank_nodes_with_model(
             continue;
         }
         let rect = boxes.get_mut(&id).expect("ranked node exists");
-        rect.origin.x = rect.origin.x.round();
-        rect.origin.y = rect.origin.y.round();
+        if !(defer_flow_rounding && horizontal) {
+            rect.origin.x = rect.origin.x.round();
+        }
+        if !(defer_flow_rounding && !horizontal) {
+            rect.origin.y = rect.origin.y.round();
+        }
         if source_expanded {
             // d2dagrelayout.Layout publishes every Dagro object with rounded
             // origins and ceiling dimensions before rank/cross spacing. In
@@ -4270,6 +4407,12 @@ fn brandes_koepf_all_coordinates_model(
     let left = result
         .iter()
         .filter_map(|(id, value)| {
+            // positionSelfEdges removes self-edge dummies before
+            // translateGraph, which measures the restored label boxes
+            // instead (dagro layout.go:421-437, 225-251).
+            if let Some(&label_span) = model.self_edge_label_cross_spans.get(id) {
+                return Some(*value - label_span / 2.0);
+            }
             let span = model.spans.get(id).copied()?;
             // Zero-size edge dummies are removed before Dagro's translateGraph
             // pass. Label dummies survive and therefore participate in the
@@ -4408,10 +4551,12 @@ fn apply_source_compound_cross_coordinates(
         // span of this vessel's own border lanes; the graph-wide BK span also
         // includes unrelated outside objects and can inflate a dense vessel.
         if border_bounds_valid && root_unlocked {
+            // removeBorderNodes centers the vessel on its left border, and
+            // D2 publishes Round(x - width/2) (d2dagrelayout/layout.go:217).
             if horizontal {
-                root_box.origin.y = border_min;
+                root_box.origin.y = border_min.round();
             } else {
-                root_box.origin.x = border_min;
+                root_box.origin.x = border_min.round();
             }
         }
         if border_bounds_valid && root_unlocked {
@@ -4610,6 +4755,9 @@ struct BkModel {
     source_border_nodes: BTreeSet<NodeId>,
     source_border_sides: BTreeMap<NodeId, Vec<NodeId>>,
     self_edge_dummies: BTreeMap<EdgeId, NodeId>,
+    /// Cross-axis extent of each self-edge dummy's restored label box in
+    /// Dagro's final frame, keyed by dummy.
+    self_edge_label_cross_spans: BTreeMap<NodeId, f64>,
     #[cfg(feature = "diagnostic-traces")]
     all_nodes: Vec<NodeId>,
 }
@@ -5240,6 +5388,7 @@ impl BkModel {
         // The adapter has already resolved compound endpoints before Dagro
         // removes self-edges, including authored child-to-container edges.
         let mut self_edge_dummies = BTreeMap::new();
+        let mut self_edge_label_cross_spans = BTreeMap::new();
         let self_edges = edge_order
             .iter()
             .filter_map(|&edge_id| {
@@ -5265,6 +5414,12 @@ impl BkModel {
                     all_nodes.push(dummy);
                     expanded.push(dummy);
                     self_edge_dummies.insert(edge_id, dummy);
+                    // positionSelfEdges restores the label object, which
+                    // missed adjustCoordinateSystem's swap but receives
+                    // undoCoordinateSystem's. Its final cross extent is the
+                    // adapter's label width in every direction, while the
+                    // LR/RL dummy occupied only the height in BK.
+                    self_edge_label_cross_spans.insert(dummy, size.width);
                 }
             }
             *layer = expanded;
@@ -5315,6 +5470,7 @@ impl BkModel {
             source_border_nodes,
             source_border_sides,
             self_edge_dummies,
+            self_edge_label_cross_spans,
             #[cfg(feature = "diagnostic-traces")]
             all_nodes,
         }
@@ -6256,6 +6412,7 @@ fn prepare_compound_prefit(
             .or_insert(span);
     }
     let rank_half_sep = rank_separation(graph, options) / 2.0;
+    include_self_edge_rank_spans(graph, &ranks, &label_sizes, &mut rank_spans);
     let mut fractional_label_spans = BTreeMap::<i64, f64>::new();
     for (&edge_id, &label_rank) in &label_ranks {
         if !label_rank.is_finite() || label_rank < 0.0 {
@@ -10260,17 +10417,7 @@ fn build_dagre_route_model(
         // rounds to the published origin, keep it; re-anchoring to the box's
         // geometric center would inject a false half-pixel translation.
         let model_origin = (current - dagre_span / 2.0).round();
-        let delta = if let Some(translation) = layout.self_edge_flow_translation {
-            // BT reflects flow coordinates before translateGraph. The
-            // positive model center already represents the reflected route
-            // in its translated frame; only the published boxes need the
-            // retained translation above.
-            if graph.direction == Direction::Up {
-                0.0
-            } else {
-                translation
-            }
-        } else if source_compound {
+        let delta = if source_compound {
             // Dagro mirrors rank coordinates, then translateGraph subtracts
             // the minimum extent over every node (dagro layout.go:225-271)
             // before D2 rounds each box origin (d2dagrelayout/layout.go:217).
@@ -10278,15 +10425,65 @@ fn build_dagre_route_model(
             // a negative half pixel first is not translation invariant, and
             // anchoring to the published center loses the original half pixel.
             // Any later D2 shift of the published origin carries over.
+            // positionSelfEdges replaces each self-edge dummy with its label
+            // box, whose final flow extent is the adapter's label height in
+            // every direction (layout.go:421-437, coordinate_system.go).
+            let self_label_flow_spans = model
+                .self_edge_dummies
+                .iter()
+                .map(|(&edge_id, &dummy)| {
+                    let span =
+                        edge_label_layout_size(graph, edge_id).map_or(0.0, |size| size.height);
+                    (dummy, span)
+                })
+                .collect::<BTreeMap<_, _>>();
             let minimum = model
                 .ranks
                 .iter()
                 .filter_map(|(id, rank)| {
-                    Some(flow_centers.get(rank)? - model.flow_spans.get(id)? / 2.0)
+                    let span = self_label_flow_spans
+                        .get(id)
+                        .or_else(|| model.flow_spans.get(id))?;
+                    Some(flow_centers.get(rank)? - span / 2.0)
                 })
                 .fold(f64::INFINITY, f64::min);
             let normalized_origin = (current - minimum - dagre_span / 2.0).round();
-            -minimum + published_origin - normalized_origin
+            // Only D2's later integer shifts remain once both origins are
+            // published: a compound self-label extent can leave this box at
+            // its translated, not yet rounded, Dagro origin.
+            -minimum + published_origin.round() - normalized_origin
+        } else if let Some(translation) = layout.self_edge_flow_translation {
+            // RL/BT already reflected and normalized the published boxes.
+            // Normalize the signed rank centers independently: self-edge
+            // dummies affected positionY, but positionSelfEdges removed them
+            // before translateGraph measured nodes and restored label boxes.
+            if matches!(graph.direction, Direction::Left | Direction::Up) {
+                let mut minimum = graph
+                    .nodes()
+                    .filter_map(|(id, _)| {
+                        Some(
+                            flow_centers.get(model.ranks.get(&id)?)?
+                                - model.flow_spans.get(&id)? / 2.0,
+                        )
+                    })
+                    .fold(f64::INFINITY, f64::min);
+                for (edge_id, _) in graph.edges() {
+                    let (source, target) = resolve_edge_endpoints(graph, edge_id);
+                    if source == target
+                        && let (Some(rank), Some(label)) = (
+                            model.ranks.get(&source),
+                            edge_label_layout_size(graph, edge_id),
+                        )
+                        && let Some(center) = flow_centers.get(rank)
+                    {
+                        minimum = minimum.min(center - label.height / 2.0);
+                    }
+                }
+                let normalized_origin = (current - minimum - dagre_span / 2.0).round();
+                -minimum + published_origin - normalized_origin
+            } else {
+                translation
+            }
         } else {
             published_origin - model_origin
         };
@@ -12478,15 +12675,26 @@ fn boundary_intersection(rect: Rect, toward: Point) -> Point {
 /// before adding it to the segment origin. This is intentionally different
 /// from a mathematically exact intersection and is required for parity with
 /// the published v0.9.0 route coordinates.
+#[cfg(test)]
 fn clip_route_like_d2(
-    mut points: Vec<Point>,
+    points: Vec<Point>,
     source: Rect,
     target: Rect,
     source_label_box: Option<(LabelPosition, Rect)>,
     target_label_box: Option<(LabelPosition, Rect)>,
 ) -> Vec<Point> {
+    clip_route_with_label_hits_like_d2(points, source, target, source_label_box, target_label_box).0
+}
+
+fn clip_route_with_label_hits_like_d2(
+    mut points: Vec<Point>,
+    source: Rect,
+    target: Rect,
+    source_label_box: Option<(LabelPosition, Rect)>,
+    target_label_box: Option<(LabelPosition, Rect)>,
+) -> (Vec<Point>, bool, bool) {
     if points.len() < 2 {
-        return points;
+        return (points, false, false);
     }
     // d2dagrelayout first chops the raw Dagro path against the ordinary
     // source/target rectangles. TraceToShape then runs a second intersection
@@ -12501,10 +12709,13 @@ fn clip_route_like_d2(
     {
         points[last] = *intersection;
     }
+    let mut source_label_hit = false;
+    let mut target_label_hit = false;
     if let Some((position, label_box)) = source_label_box {
         let intersections = label_intersections(position, label_box, points[1], points[0]);
         if let Some(intersection) = intersections.first() {
             points[0] = *intersection;
+            source_label_hit = true;
         } else if let Some(intersection) =
             go_box_intersections(source, points[1], points[0]).first()
         {
@@ -12518,6 +12729,7 @@ fn clip_route_like_d2(
             label_intersections(position, label_box, points[last - 1], points[last]);
         if let Some(intersection) = intersections.first() {
             points[last] = *intersection;
+            target_label_hit = true;
         } else if let Some(intersection) =
             go_box_intersections(target, points[last - 1], points[last]).first()
         {
@@ -12528,7 +12740,7 @@ fn clip_route_like_d2(
     {
         points[last] = *intersection;
     }
-    points
+    (points, source_label_hit, target_label_hit)
 }
 
 /// Apply D2's final shape-perimeter trace after its rectangle and external
@@ -12544,14 +12756,21 @@ fn clip_route_to_shapes_like_d2(
     source_label_box: Option<(LabelPosition, Rect)>,
     target_label_box: Option<(LabelPosition, Rect)>,
 ) -> Vec<Point> {
-    let mut points = clip_route_like_d2(points, source, target, source_label_box, target_label_box);
+    let (mut points, source_overlaps_label, target_overlaps_label) =
+        clip_route_with_label_hits_like_d2(
+            points,
+            source,
+            target,
+            source_label_box,
+            target_label_box,
+        );
     if points.len() < 2 {
         return points;
     }
 
-    let source_overlaps_label = source_label_box.is_some_and(|(position, label_box)| {
-        !label_intersections(position, label_box, points[1], points[0]).is_empty()
-    });
+    // Edge.TraceToShape retains overlapsOutsideLabel from the intersection.
+    // Its rounded displacement can put the endpoint outside a fractional
+    // label box, so intersecting again would discard a valid label hit.
     if !source_overlaps_label {
         let shape = graph
             .node(edge.source)
@@ -12561,9 +12780,6 @@ fn clip_route_to_shapes_like_d2(
     }
 
     let last = points.len() - 1;
-    let target_overlaps_label = target_label_box.is_some_and(|(position, label_box)| {
-        !label_intersections(position, label_box, points[last - 1], points[last]).is_empty()
-    });
     if !target_overlaps_label {
         let shape = graph
             .node(edge.target)
@@ -14164,6 +14380,7 @@ mod tests {
             source_border_side: BTreeMap::new(),
             source_border_vertical: BTreeMap::new(),
             self_edge_dummies: BTreeMap::new(),
+            self_edge_label_cross_spans: BTreeMap::new(),
             source_border_nodes: BTreeSet::new(),
             source_border_sides: BTreeMap::new(),
             #[cfg(feature = "diagnostic-traces")]
@@ -17683,6 +17900,98 @@ mod tests {
                 result.boxes[&node].origin.y
             };
             assert_eq!(flow_origin, expected_flow_origin, "{direction:?}");
+        }
+    }
+
+    #[test]
+    fn rounded_outside_label_hit_survives_shape_tracing() {
+        // d2graph.Edge.TraceToShape retains overlapsOutsideLabel even when
+        // geo.IntersectionPoint rounds the hit beyond the label's right edge.
+        // Reduced from graph-differential shapes seed 14, case 505.
+        let mut graph = Graph::default();
+        let mut source_node = Node::new(
+            "source",
+            Size {
+                width: 140.0,
+                height: 10.0,
+            },
+        );
+        source_node.shape = ShapeKind::StoredData;
+        let source = graph.add_node(source_node);
+        let target = graph.add_node(Node::new(
+            "target",
+            Size {
+                width: 109.0,
+                height: 26.0,
+            },
+        ));
+        let source_box = Rect {
+            origin: Point { x: 0.0, y: 266.0 },
+            size: graph.node(source).unwrap().size,
+        };
+        let target_box = Rect {
+            origin: Point { x: 26.0, y: 397.0 },
+            size: graph.node(target).unwrap().size,
+        };
+        let label = Some((
+            LabelPosition::OutsideBottomCenter,
+            Rect {
+                origin: Point { x: 56.5, y: 281.0 },
+                size: Size {
+                    width: 27.0,
+                    height: 21.0,
+                },
+            },
+        ));
+        let points = vec![
+            Point {
+                x: 73.12977099236642,
+                y: 276.0,
+            },
+            Point { x: 111.0, y: 336.5 },
+            Point { x: 85.0, y: 397.5 },
+        ];
+        for reversed in [false, true] {
+            let mut route = points.clone();
+            let (edge, start_box, end_box, start_label, end_label) = if reversed {
+                route.reverse();
+                (
+                    Edge {
+                        source: target,
+                        target: source,
+                    },
+                    target_box,
+                    source_box,
+                    None,
+                    label,
+                )
+            } else {
+                (Edge { source, target }, source_box, target_box, label, None)
+            };
+            let route = super::clip_route_to_shapes_like_d2(
+                &graph,
+                &edge,
+                route,
+                start_box,
+                end_box,
+                start_label,
+                end_label,
+            );
+            let endpoint = if reversed {
+                *route.last().unwrap()
+            } else {
+                route[0]
+            };
+            // Pinned geo.Box.Intersections/IntersectionPoint rounds from
+            // the segment origin, which differs for the reversed route.
+            assert_eq!(
+                endpoint,
+                Point {
+                    x: if reversed { 83.0 } else { 84.0 },
+                    y: 292.5
+                },
+                "reversed={reversed}"
+            );
         }
     }
 
