@@ -1934,6 +1934,7 @@ impl VisibilityGraph {
         target_midpoint: Point,
         target: Point,
         orientation: Orientation,
+        source_port: Option<usize>,
     ) -> Option<Vec<usize>> {
         fn next_in_direction(
             graph: &VisibilityGraph,
@@ -1977,7 +1978,13 @@ impl VisibilityGraph {
                 })
         }
 
-        let source_index = self.index_of(source)?;
+        // routeInSShape starts from TreeEdgePath.SourcePortNode, the port
+        // node itself (coordinator.go:740). A tiny node's centre port can
+        // share its point with the node centre, which index_of would return.
+        let source_index = match source_port {
+            Some(index) => index,
+            None => self.index_of(source)?,
+        };
         let mut current = source_index;
         let mut visited = BTreeSet::from([current]);
         let mut path = vec![source_index];

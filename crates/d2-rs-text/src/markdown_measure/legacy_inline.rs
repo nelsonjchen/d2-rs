@@ -8,6 +8,9 @@ use roxmltree::Node;
 pub struct Context {
     pub size: f64,
     pub mono: bool,
+    /// Inside `pre`/`code`: Go's measureMarkdownNode switches to
+    /// monoFontFamily there (markdown.go:463-471).
+    pub code: bool,
     pub face: u8,
     pub line_height: f64,
     pub css: bool,
@@ -115,15 +118,19 @@ impl MarkdownMeasurer<'_> {
             if text.trim_matches(['\n', '\t', '\u{8}']).is_empty() {
                 return Some(Size::default());
             }
-            let font = match (ctx.mono, ctx.face) {
-                (true, 1) => self.mono_bold_font,
-                (true, 2) => self.mono_italic_font,
-                (true, 3) => self.mono_semibold_font,
-                (true, _) => self.mono_font,
-                (false, 1) => self.bold_font,
-                (false, 2) => self.italic_font,
-                (false, 3) => self.semibold_font,
-                (false, _) => self.font,
+            let font = match (ctx.code, ctx.mono, ctx.face) {
+                (true, _, 1) => self.code_bold_font,
+                (true, _, 2) => self.code_italic_font,
+                (true, _, 3) => self.code_semibold_font,
+                (true, _, _) => self.code_font,
+                (false, true, 1) => self.mono_bold_font,
+                (false, true, 2) => self.mono_italic_font,
+                (false, true, 3) => self.mono_semibold_font,
+                (false, true, _) => self.mono_font,
+                (false, false, 1) => self.bold_font,
+                (false, false, 2) => self.italic_font,
+                (false, false, 3) => self.semibold_font,
+                (false, false, _) => self.font,
             };
             let code = node
                 .parent()
@@ -253,7 +260,7 @@ impl MarkdownMeasurer<'_> {
             "strong" | "b" => ctx.face = 1,
             "em" => ctx.face = 2,
             "code" => {
-                ctx.mono = true;
+                ctx.code = true;
                 ctx.face = 0;
             }
             _ => {}
@@ -397,7 +404,7 @@ impl MarkdownMeasurer<'_> {
             ctx.line_height = 1.25;
         }
         if tag == "pre" {
-            ctx.mono = true;
+            ctx.code = true;
             ctx.face = 0;
         }
         let line_height = ctx.size * ctx.line_height;
@@ -590,6 +597,7 @@ impl MarkdownMeasurer<'_> {
         let ctx = Context {
             size: f64::from(font_size),
             mono,
+            code: false,
             face: 0,
             line_height: 1.5,
             css: false,

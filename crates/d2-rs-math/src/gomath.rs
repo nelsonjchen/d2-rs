@@ -1,6 +1,6 @@
 // Copyright 2009, 2010, 2011, 2018 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license (Go BSD-3-Clause;
-// the full text is retained in crates/d2-rs-render/THIRD_PARTY_NOTICES.md).
+// the full text is retained in THIRD_PARTY_NOTICES.md).
 // Cephes Math Library Release 2.8. Copyright 1984, 1987, 1989, 1992, 2000
 // by Stephen L. Moshier: "The readme file at http://netlib.sandia.gov/cephes/
 // says: Some software in this archive may be from the book _Methods and
@@ -23,7 +23,7 @@
 
 #![allow(clippy::excessive_precision)]
 
-use super::go_fmadd as product_sum;
+use d2_rs_core::go_fmadd as product_sum;
 use std::f64::consts::PI;
 
 fn nan() -> f64 {
@@ -445,13 +445,13 @@ pub fn exp(x: f64) -> f64 {
     }
     // FNMSUBD/FMADDD: Log2e*x -+ 0.5, then FCVTZSD truncation.
     let k_float = if x < 0.0 {
-        super::go_fnmsub(LOG2E, x, 0.5)
+        d2_rs_core::go_fnmsub(LOG2E, x, 0.5)
     } else {
         product_sum(LOG2E, x, 0.5)
     };
     let k = k_float as i64;
     let kf = k as f64;
-    let hi = super::go_fmsub(kf, LN2_HI, x);
+    let hi = d2_rs_core::go_fmsub(kf, LN2_HI, x);
     let lo = kf * LN2_LO;
     let r = hi - lo;
     let t = r * r;
@@ -459,7 +459,7 @@ pub fn exp(x: f64) -> f64 {
     c = product_sum(t, c, P3);
     c = product_sum(t, c, P2);
     c = product_sum(t, c, P1);
-    c = super::go_fmsub(t, c, r);
+    c = d2_rs_core::go_fmsub(t, c, r);
     let y = 1.0 - ((lo - (r * c) / (2.0 - c)) - hi);
     // Inline Ldexp(y, k) without special-case checks.
     let bits = y.to_bits();

@@ -8,6 +8,8 @@
 //! temporary negative or padded working coordinates do not leak to output.
 
 use super::*;
+// placement/stages.go Normalize uses math.Min, which propagates NaN.
+use crate::internal::routing::channel_solver::minimum as go_min;
 
 impl ArenaGraph {
     // Recovered Graph.pad used by Pipeline.Rescale.
@@ -89,8 +91,8 @@ impl ArenaGraph {
                     );
                 }
                 let position = required(self.position(node.input_id), recover)?;
-                minimum_x = minimum_x.min(position.x);
-                minimum_y = minimum_y.min(position.y);
+                minimum_x = go_min(minimum_x, position.x);
+                minimum_y = go_min(minimum_y, position.y);
             }
             // Graph.Edges membership is separate from retained edge allocations.
             for edge_id in &self.edge_order.read() {
@@ -100,8 +102,8 @@ impl ArenaGraph {
                     if crate::internal::trace_env_enabled("TALA_TRACE_NORMALIZE") {
                         eprintln!("NORMALIZE_RUST_POINT {},{}", point.x, point.y);
                     }
-                    minimum_x = minimum_x.min(point.x.floor());
-                    minimum_y = minimum_y.min(point.y.floor());
+                    minimum_x = go_min(minimum_x, point.x.floor());
+                    minimum_y = go_min(minimum_y, point.y.floor());
                 }
                 if let Some(label) = &edge.label {
                     let top_left = required(
@@ -118,15 +120,18 @@ impl ArenaGraph {
                     if crate::internal::trace_env_enabled("TALA_TRACE_NORMALIZE") {
                         eprintln!("NORMALIZE_RUST_LABEL {},{}", top_left.x, top_left.y);
                     }
-                    minimum_x = minimum_x.min(top_left.x.floor());
-                    minimum_y = minimum_y.min(top_left.y.floor());
+                    minimum_x = go_min(minimum_x, top_left.x.floor());
+                    minimum_y = go_min(minimum_y, top_left.y.floor());
                 }
             }
         }
 
         // The recovered implementation is only called on a laid-out graph.
         // Keep the empty arena finite and unchanged for the public probe API.
-        if !minimum_x.is_finite() || !minimum_y.is_finite() {
+        // A NaN minimum (for example a NaN edge-label top-left on a
+        // zero-length route) is not skipped: Go translates every node and
+        // point by it, and result validation then rejects the seed.
+        if minimum_x.is_infinite() || minimum_y.is_infinite() {
             return Ok(());
         }
         #[cfg(feature = "diagnostic-traces")]

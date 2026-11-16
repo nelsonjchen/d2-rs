@@ -298,10 +298,31 @@ port bug, check that Go agrees with itself:
   is not edited. With `D2RS_GO_MAPSEED=<n>`, map randomness comes from a
   counter mixed with `n`, so single-goroutine layouts are reproducible per
   seed; unset, it behaves like the stock oracle.
-- `scripts/graph-differential.py` renders a differing case again under map
-  seeds 1-16 (or reruns the stock oracle when the seeded build is absent)
-  and reports `oracle-nondeterministic`, not a mismatch, when one of those
-  outputs equals d2-rs's.
+- `scripts/build-cli-clock-oracle.py --mapseed` builds the clock-injected
+  trace CLI with the same runtime patch, for harnesses that run a clock
+  oracle (`differential-scoreboard.py --epoch`, `fuzz-differential.py
+  --format pdf`, `cli-diff-scoreboard.py --epoch`); pass it as
+  `--go-mapseed`. Seed numbers depend on the exact invocation (arguments,
+  output path, environment), because the counter also feeds maps made before
+  the layout runs: the same input can take the other map order under seeds
+  2,3,7,9,10 in one invocation and 3,6,12,13 in another. Compare d2-rs with
+  the set of seeded variants of the same invocation, never with a seed number
+  recorded elsewhere.
+- `scripts/mapseed.py` is the one place that resamples and classifies. Every
+  differential harness calls it when stock Go repeats disagree or d2-rs
+  differs from stock Go: the seeded oracle renders the case under map seeds
+  1-16 (`--mapseed-seeds`) with the harness's own capture, and the case is
+  `mapseed-match` (d2-rs equals a seeded output; the record names the seeds
+  and the number of Go variants), `go-nondeterministic-no-rust-match` (a
+  d2-rs bug), `mismatch`, or `mapseed-oracle-missing` when the seeded build
+  is absent or does not reproduce `--go` with the variable unset. Only the
+  seeded oracle resolves a difference: there is no fallback to stock reruns.
+  `docs/SCOREBOARD-WORKFLOW.md`, "Map order", lists the classifications.
+- `tools/fixtures/inputs/mapseed-cases.json` lists inputs known to depend on
+  map order: an identity (SHA-256 of the source and CLI arguments), a
+  locator (harness, seed and case) and a reason, never an output. A harness
+  adds to it only when run with `--record-mapseed`, and reports a listed
+  input as `known-mapseed` after its seeds still match.
 
 Like every oracle binary, the seeded build is regenerated, never committed.
 

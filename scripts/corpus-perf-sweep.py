@@ -8,9 +8,12 @@ over --flag (wall or peak RSS ratio) with --repeat interleaved runs and
 reports medians. Each implementation writes the same output file name in
 its own directory, because PPTX embeds that name. Outputs are hashed so a
 speed-up cannot hide a parity change, with perf-bench.py's compare_samples
-rules: non-PDF Go repeats must agree (else oracle-nondeterministic) and equal
-every Rust repeat; Rust PDFs must equal an observed Go PDF with only the
-CreationDate/ModDate digits masked. Pass --isometric to measure isometric
+rules: non-PDF Go repeats must agree and equal every Rust repeat, and a
+non-PDF Go disagreement is resolved only by the seedable-map oracle
+(--go-mapseed, --mapseed-seeds; scripts/mapseed.py): mapseed-match or
+known-mapseed when every Rust repeat equals a seeded Go output, else
+go-nondeterministic-no-rust-match or mapseed-oracle-missing. Rust PDFs must
+equal an observed Go PDF with only the CreationDate/ModDate digits masked. Pass --isometric to measure isometric
 exports. Writes a JSON report and prints a per-format summary, outcome counts
 and every row still slower or larger than Go.
 
@@ -22,7 +25,9 @@ import argparse
 import hashlib
 import importlib.util
 import json
+import os
 import re
+import shutil
 import statistics
 import subprocess
 import sys
@@ -30,6 +35,7 @@ import tempfile
 import time
 from pathlib import Path
 
+import mapseed
 import references
 
 ENGINES = ("dagre", "elk", "tala")
@@ -56,7 +62,21 @@ def corpus_jobs(isometric=False):
     return jobs
 
 
-def run_job(job, implementations, work, repeat):
+def seeded_digest(oracle, engine, source, directory, fmt, extra, seed):
+    """One untimed seeded-oracle run hashed like output_digest, or None on failure."""
+    if directory.exists():
+        shutil.rmtree(directory)
+    directory.mkdir(parents=True)
+    output = directory / f"out.{fmt}"
+    result = subprocess.run([str(Path(oracle).resolve()), f"--layout={engine}", *extra, str(source), str(output)],
+                            capture_output=True, timeout=610, check=False, env={**os.environ, mapseed.ENV: str(seed)})
+    try:
+        return output_digest(output) if result.returncode == 0 else None
+    except ValueError:
+        return None
+
+
+def run_job(job, implementations, work, repeat, oracle=None, seeds=mapseed.DEFAULT_SEEDS, registry=None):
     name, script, engine, fmt, extra = job
     samples = {impl: [] for impl, _ in implementations}
     for _ in range(repeat):
@@ -77,8 +97,12 @@ def run_job(job, implementations, work, repeat):
     consistent = all(median[impl]["sample_exits"] == [go["exit"]] * repeat
                      and all(x == go["hash"] for x in median[impl]["output_hashes"])
                      for impl in ("go", "rust"))
-    comparison = perf_bench.compare_samples(fmt, go, rust)
-    identical = comparison["outcome"] == "match"
+    known = bool(registry and registry.known(mapseed.identity(script, [f"--layout={engine}", *extra, fmt])))
+    comparison = perf_bench.compare_samples(
+        fmt, go, rust,
+        lambda seed: seeded_digest(oracle.path, engine, work / "go" / "input.d2", work / "go-mapseed", fmt, extra, seed),
+        oracle, seeds, known)
+    identical = comparison["outcome"] in mapseed.PASSING
     error_match = False
     if go["exit"] and rust["exit"] and go["hash"] == rust["hash"]:
         # Both refused the input (e.g. Go's GIF pixel limit). That is parity
@@ -138,7 +162,10 @@ def main():
     parser.add_argument("--formats", default="svg,png,pdf,pptx,gif,txt", help="comma-separated formats")
     parser.add_argument("--engines", default=",".join(ENGINES), help="comma-separated engines")
     parser.add_argument("--case", default="", help="regular expression selecting case names")
+    mapseed.add_arguments(parser)
     args = parser.parse_args()
+    oracle = perf_bench.mapseed_oracle(args.go, args.go_mapseed)
+    registry = mapseed.Registry(args.mapseed_registry)
     implementations = (("go", args.go.resolve()), ("rust", args.rust.resolve()))
     formats, engines = args.formats.split(","), args.engines.split(",")
     if set(formats) - {"svg", *(fmt for fmt, _ in EXPORTS)} or set(engines) - set(ENGINES):
@@ -152,14 +179,14 @@ def main():
         work = Path(tmp)
         rows = []
         for index, job in enumerate(jobs):
-            rows.append(run_job(job, implementations, work, 1))
+            rows.append(run_job(job, implementations, work, 1, oracle, args.mapseed_seeds, registry))
             if index % 20 == 0:
                 print(f"pass 1: {index}/{len(jobs)} after {time.time() - start:.0f} s", flush=True)
         flagged = [k for k, row in enumerate(rows)
                    if row["go"]["exit"] == 0 and max(row["wall_ratio"], row["rss_ratio"]) > args.flag]
         print(f"pass 2: re-timing {len(flagged)} rows", flush=True)
         for k in flagged:
-            rows[k] = run_job(jobs[k], implementations, work, args.repeat)
+            rows[k] = run_job(jobs[k], implementations, work, args.repeat, oracle, args.mapseed_seeds, registry)
     over = [r for r in rows if r["go"]["exit"] == 0 and max(r["wall_ratio"], r["rss_ratio"]) > 1.0]
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps({"source_commit": references.SOURCE_COMMIT, "isometric": args.isometric,
@@ -168,6 +195,23 @@ def main():
     outcomes = {outcome: sum(r["outcome"] == outcome for r in rows) for outcome in sorted({r["outcome"] for r in rows})}
     pdf_variants = max((r["go_variants"] for r in rows if r["format"] == "pdf"), default=0)
     print(f"outcomes {outcomes}; max PDF Go variants {pdf_variants}")
+    for r in rows:
+        if r["outcome"] in (mapseed.NO_RUST_MATCH, mapseed.ORACLE_MISSING):
+            print(f"FAIL {r['outcome']}: {r['format']} {r['engine']} {r['case']}")
+        elif r["outcome"] in (mapseed.MAPSEED_MATCH, mapseed.KNOWN_MAPSEED):
+            print(f"{r['outcome']} (seeds {','.join(map(str, r['mapseed']['mapseed_seeds']))}): "
+                  f"{r['format']} {r['engine']} {r['case']}")
+    if any(r["outcome"] == mapseed.ORACLE_MISSING for r in rows):
+        print(f"error: {oracle.message()}", file=sys.stderr)
+    if args.record_mapseed:
+        jobs_by_row = {(job[0], job[2], job[3], tuple(job[4])): job for job in jobs}
+        added = mapseed.record_cases(registry, (
+            (mapseed.identity(job[1], [f"--layout={job[2]}", *job[4], job[3]]), job[1], [f"--layout={job[2]}", *job[4], job[3]],
+             f"corpus-perf-sweep.py {r['case']} {r['engine']} {r['format']}",
+             mapseed.Resolution(r["outcome"], r["mapseed"]["mapseed_seeds"], r["mapseed"]["go_variants"]))
+            for r in rows if r.get("mapseed", {}).get("go_variants", 1) > 1
+            for job in [jobs_by_row[(r["case"], r["engine"], r["format"], tuple(r["extra"]))]]), "corpus-perf-sweep")
+        print(f"recorded {added} new map-order-dependent inputs in {registry.path}")
     print(f"{len(over)} rows slower or larger than Go ({time.time() - start:.0f} s):")
     for r in sorted(over, key=lambda r: -max(r["wall_ratio"], r["rss_ratio"])):
         print(f"  wall {r['wall_ratio']:.2f}x rss {r['rss_ratio']:.2f}x  {r['format']} {r['engine']} {r['case']}"

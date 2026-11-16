@@ -1,10 +1,12 @@
 """Resource measurements must belong to one invocation, with no stale output."""
 import importlib.util
+import io
 import json
 import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr
 from pathlib import Path
 from unittest.mock import patch
 
@@ -22,14 +24,42 @@ class PerfBenchTests(unittest.TestCase):
     def outcome(self, fmt, go, rust):
         return bench.compare_samples(fmt, go, rust)["outcome"]
 
-    def test_non_pdf_go_disagreement_is_oracle_nondeterministic_never_a_match(self):
+    def test_non_pdf_go_disagreement_without_the_seeded_oracle_never_matches(self):
         first, second = {"out.svg": "a"}, {"out.svg": "b"}
         for fmt in ("svg", "png", "gif", "pptx", "txt"):
             with self.subTest(fmt=fmt):
                 go = self.samples(first, second, first)
-                for rust in (self.samples(first, first, first), self.samples(first, second, first)):
-                    result = bench.compare_samples(fmt, go, rust)
-                    self.assertEqual(result, {"outcome": "oracle-nondeterministic", "go_variants": 2})
+                with redirect_stderr(io.StringIO()):
+                    result = bench.compare_samples(fmt, go, self.samples(first, first, first))
+                    self.assertEqual((result["outcome"], result["go_variants"]), ("mapseed-oracle-missing", 2))
+                    missing = bench.mapseed.Oracle(Path("/nonexistent/go-mapseed"))
+                    result = bench.compare_samples(fmt, go, self.samples(first, first, first), lambda seed: first, missing)
+                    self.assertEqual(result["outcome"], "mapseed-oracle-missing")
+                # d2-rs disagreeing with itself cannot be resolved by any seed.
+                self.assertEqual(self.outcome(fmt, go, self.samples(first, second, first)), "mismatch")
+
+    def seeded(self, fmt, go, rust, table, known=False):
+        with tempfile.NamedTemporaryFile() as binary:
+            oracle = bench.mapseed.Oracle(Path(binary.name))
+            return bench.compare_samples(fmt, go, rust, lambda seed: table.get(seed, go["output_hashes"][0]),
+                                         oracle, (1, 2, 3, 4), known)
+
+    def test_non_pdf_go_disagreement_is_resolved_only_by_a_seeded_output(self):
+        first, second, other = {"out.svg": "a"}, {"out.svg": "b"}, {"out.svg": "c"}
+        go = self.samples(first, second, first)
+        result = self.seeded("svg", go, self.samples(second, second, second), {3: second})
+        self.assertEqual((result["outcome"], result["mapseed"]["mapseed_seeds"], result["go_variants"]),
+                         ("mapseed-match", [3], 2))
+        self.assertEqual(self.seeded("svg", go, self.samples(second, second), {3: second}, known=True)["outcome"],
+                         "known-mapseed")
+        # Equal to a stock Go repeat but to no seeded output: a d2-rs failure.
+        self.assertEqual(self.seeded("svg", go, self.samples(second, second), {})["outcome"],
+                         "go-nondeterministic-no-rust-match")
+        self.assertEqual(self.seeded("png", go, self.samples(other, other), {2: second})["outcome"],
+                         "go-nondeterministic-no-rust-match")
+        # A seeded run that failed is not a variant.
+        self.assertEqual(self.seeded("svg", go, self.samples(second), {1: None, 3: second})["mapseed"]["seed_failures"],
+                         [1])
 
     def test_non_pdf_requires_every_rust_repeat_to_equal_the_single_go_output(self):
         same, other = {"out.png": "a"}, {"out.png": "b"}
@@ -56,8 +86,9 @@ class PerfBenchTests(unittest.TestCase):
                 self.assertEqual(self.outcome(fmt, go, self.samples(full, full)), "match")
                 self.assertEqual(self.outcome(fmt, go, self.samples(full, partial)), "mismatch")
                 self.assertEqual(self.outcome(fmt, go, self.samples(extra, full)), "mismatch")
-        self.assertEqual(self.outcome("svg", self.samples(full, partial), self.samples(full, full)),
-                         "oracle-nondeterministic")
+        with redirect_stderr(io.StringIO()):
+            self.assertEqual(self.outcome("svg", self.samples(full, partial), self.samples(full, full)),
+                             "mapseed-oracle-missing")
 
     def test_failed_empty_or_incomplete_samples_never_match(self):
         good = {"out.svg": "hash"}

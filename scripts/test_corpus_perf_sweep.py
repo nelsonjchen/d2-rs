@@ -1,4 +1,5 @@
 """The corpus sweep must time every format and give both CLIs the same output name."""
+import hashlib
 import importlib.util
 import json
 import sys
@@ -171,16 +172,39 @@ class CorpusPerfSweepTests(unittest.TestCase):
                 sweep.main()
             rows = json.loads(report.read_text())["rows"]
         self.assertEqual([(r["format"], r["repeat"], r["outcome"], r["go_variants"]) for r in rows],
-                         [("svg", 2, "oracle-nondeterministic", 2), ("pdf", 2, "match", 2)])
+                         [("svg", 2, "mapseed-oracle-missing", 2), ("pdf", 2, "match", 2)])
         lines = [call.args[0] for call in printed.call_args_list if call.args]
-        self.assertIn("outcomes {'match': 1, 'oracle-nondeterministic': 1}; max PDF Go variants 2", lines)
+        self.assertIn("outcomes {'mapseed-oracle-missing': 1, 'match': 1}; max PDF Go variants 2", lines)
+        self.assertIn("FAIL mapseed-oracle-missing: svg dagre case", lines)
 
-    def test_non_pdf_go_disagreement_is_reported_not_matched(self):
+    def test_non_pdf_go_disagreement_without_the_seeded_oracle_is_not_matched(self):
         for fmt in ("svg", "png", "pptx", "gif", "txt"):
             with self.subTest(fmt=fmt):
                 result = self.run_with_second_go_sample_different(fmt)
                 self.assertFalse(result["identical"])
-                self.assertEqual((result["outcome"], result["go_variants"]), ("oracle-nondeterministic", 2))
+                self.assertEqual((result["outcome"], result["go_variants"]), ("mapseed-oracle-missing", 2))
+
+    def test_non_pdf_go_disagreement_is_resolved_by_a_seeded_output(self):
+        calls = 0
+
+        def fake_run(binary, engine, source, output, extra=()):
+            nonlocal calls
+            calls += 1
+            output.write_bytes(b"other Go order" if calls == 3 else b"first Go order")
+            return 0, 0.01, 0.01, 1000
+
+        first = hashlib.sha256(b"first Go order").hexdigest()
+        for table, expected, seeds in (({2: first}, "mapseed-match", [2]),
+                                       ({}, "go-nondeterministic-no-rust-match", [])):
+            calls = 0
+            seeded = lambda oracle, engine, source, directory, fmt, extra, seed: table.get(seed)  # noqa: E731
+            with patch.object(sweep.perf_bench, "run", fake_run), patch.object(sweep, "seeded_digest", seeded), \
+                    tempfile.TemporaryDirectory() as tmp, tempfile.NamedTemporaryFile() as binary:
+                oracle = sweep.mapseed.Oracle(Path(binary.name))
+                result = sweep.run_job(("case", "a", "dagre", "svg", ()), (("go", Path("go")), ("rust", Path("rust"))),
+                                       Path(tmp), 2, oracle, (1, 2, 3))
+            self.assertEqual((result["outcome"], result["identical"], result["mapseed"]["mapseed_seeds"]),
+                             (expected, expected == "mapseed-match", seeds))
 
     def test_board_directory_inventories_must_be_complete(self):
         calls = 0

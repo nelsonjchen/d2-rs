@@ -617,3 +617,282 @@ fn root_mirror_flips_trees_restored_inside_a_nested_container() {
         ]
     );
 }
+
+#[test]
+fn nan_edge_label_on_a_zero_length_route_fails_result_validation() {
+    // The retry edge between two overlapping steps routes with zero length,
+    // so its outside label's top-left is NaN. placement/stages.go Normalize
+    // folds it into the origin with math.Min, which propagates NaN to every
+    // node; result_validate.go validateCompletedGraph then rejects the seed.
+    let (success, stderr) = run_tala_without_bundling(
+        "c: {\ndirection: left\nn0: {shape: step; width: 30}\nn1: {shape: step}\nn0 -> n1\n\
+         n1 -> n0: retry\n}\noutside -> c.n0\nc.n1 -> done\n",
+        "1,2",
+    );
+    assert!(!success);
+    assert_eq!(
+        stderr,
+        "err: failed to compile -: all TALA seed attempts failed: seed 1: validate TALA seed \
+         result: node 3859557458: node x is outside the finite supported range: NaN\n\
+         err: seed 2: validate TALA seed result: node 3859557458: node x is outside the finite \
+         supported range: NaN\n"
+    );
+}
+
+#[test]
+fn sibling_component_direct_ignores_another_components_sequence_abduction() {
+    // l0 splits into the abducting s0_0 -> sequence component and the hub
+    // tree. direct.go:279-284 tests only the sequences of the nodes being
+    // directed, so the hub component still mirrors toward its edges.
+    let svg = render_tala(
+        "l0: {\ns0_1: {shape: step}\ns0_2: {shape: step}\ns0_0 -> s0_1\ns0_1 -> s0_2\n\
+         hub0 -> leaf0_0\nhub0 -> leaf0_1\nhub0 -> leaf0_2\n}\n",
+        "1",
+    );
+    let actual = geometry(&svg);
+    assert_eq!(actual.view_box, "0 0 817 620");
+    assert_rectangles(
+        &actual.rectangles,
+        &[
+            ["0", "0", "615", "418"],
+            ["376", "60", "77", "66"],
+            ["60", "176", "80", "66"],
+            ["240", "292", "96", "66"],
+            ["240", "176", "96", "66"],
+            ["240", "60", "96", "66"],
+        ],
+    );
+    assert_eq!(
+        actual.routes,
+        [
+            "M 407 128 L 407 184",
+            "M 142 209 L 180 209 S 190 209 190 219 L 190 315 S 190 325 200 325 L 236 325",
+            "M 142 209 L 236 209",
+            "M 142 209 L 180 209 S 190 209 190 199 L 190 103 S 190 93 200 93 L 236 93",
+        ]
+    );
+}
+
+#[test]
+fn a_node_joined_to_a_container_and_its_step_is_not_a_tree_leaf() {
+    // dst has two Node.Edges after AddSequences: l0 -> dst and the vessel's
+    // abducted l0.s2 -> dst. trees/preprocess_helpers.go treeFringeNodes
+    // requires exactly one, so dst is never peeled and Graph.Edges keeps its
+    // order for AlignAxes.
+    let svg = render_tala(
+        "l0: {\ns1: {shape: step}\ns2: {shape: step}\ns1 -> s2\n}\nl0 -> dst\nl0.s2 -> dst\n",
+        "1",
+    );
+    let actual = geometry(&svg);
+    assert_eq!(actual.view_box, "0 0 489 565");
+    assert_rectangles(
+        &actual.rectangles,
+        &[["0", "0", "287", "221"], ["110", "297", "68", "66"]],
+    );
+    assert_eq!(
+        actual.routes,
+        ["M 131 223 L 131 293", "M 152 163 L 152 293"]
+    );
+}
+
+#[test]
+fn swap_stage_direct_mirrors_an_allocated_sequence_vessel() {
+    // SwapStuff's direct(checkEdgeLength) mirrors y. The live step vessel
+    // keeps its TopLeft only in its owner-bound point; mirrorNode reflects it
+    // like every other Graph.Nodes entry, so l0 does not stretch to the
+    // unmirrored vessel and the transaction is accepted.
+    let svg = render_tala(
+        "l0: {\ns0: {shape: step}\ns1: {shape: step}\ns0 -> s1\nc\n}\nx1 <- l0\nx2 -> l0\n\
+         l0 -> dst\nl0 -> dst\n",
+        "2",
+    );
+    let actual = geometry(&svg);
+    assert_eq!(actual.view_box, "0 0 489 826");
+    assert_rectangles(
+        &actual.rectangles,
+        &[
+            ["0", "131", "287", "307"],
+            ["186", "0", "62", "66"],
+            ["0", "0", "62", "66"],
+            ["83", "504", "120", "120"],
+            ["60", "191", "53", "66"],
+        ],
+    );
+    assert_eq!(
+        actual.routes,
+        [
+            "M 217 70 L 217 129",
+            "M 31 68 L 31 127",
+            "M 123 440 L 123 500",
+            "M 163 440 L 163 500",
+        ]
+    );
+}
+
+#[test]
+fn grid_internal_crossing_is_routed_by_its_grid_not_after_constant_nears() {
+    // r.y.z -> r.u.v crosses into r.u's sequence diagram, but both endpoints
+    // are inside grid r. r's own LayoutNested call restores and routes it;
+    // the root call (which also places the legend k) never sees it.
+    let svg = render_tala(
+        "k: {near: top-right; m.n; o; m.p}\n\
+         r: {grid-rows: 1; u: {shape: sequence_diagram; v -> x}; y.z}\nr.y.z -> r.u.v\n",
+        "1",
+    );
+    let actual = geometry(&svg);
+    assert_eq!(actual.view_box, "0 0 1194 1035");
+    assert_eq!(
+        actual.routes[0],
+        "M 460 118 L 460 10 S 460 0 450 0 L 132 0 S 122 0 122 10 L 122 139"
+    );
+}
+
+#[test]
+fn nested_grid_crossings_route_in_extraction_order() {
+    // LayoutNested restores crossings per extraction in queue order (grid n1
+    // before grid n3.c0), and RouteEdges routes them in that order, so the
+    // earlier routes are obstacles for the later ones.
+    let svg = render_tala(
+        "n1: {\n  grid-columns: 3\n  c0: {\n  }\n  c1: {\n  }\n}\nn3: {\n  c0: {\n    \
+         grid-columns: 1\n  }\n}\nn3.c1 <- n2: api\n\
+         n3.c1 -> n3.c0.c1 { style.double-border: true }\nn3.c0.c1 <- n1.c0.c2\n\
+         n3.c0.c2 -> n4: log\nn3.c1 -> n1.c0.c1: queue { label.near: top-center }\n\
+         n3.c1 <- n1.c0.c0\n",
+        "1",
+    );
+    let actual = geometry(&svg);
+    assert_eq!(actual.view_box, "0 0 1087 819");
+    assert_eq!(
+        actual.routes,
+        [
+            "M 593 201 L 593 68",
+            "M 626 235 L 724 235 S 734 235 734 245 L 734 261",
+            "M 734 261 L 734 -50 S 734 -60 724 -60 L 160 -60 S 150 -60 150 -50 L 150 118",
+            "M 734 439 L 734 447 S 734 457 724 457 L 67 457",
+            "M 586 273 L 586 342 S 586 352 576 352 L 241 352 S 231 352 231 342 L 231 190",
+            "M 609 275 L 609 362 S 609 372 599 372 L 161 372 S 151 372 151 362 L 151 274",
+        ]
+    );
+}
+
+#[test]
+fn obstruction_filter_follows_a_cluster_member_to_its_vessel() {
+    // c.n.o -> c.m: c is the second member of the [d, c] cluster, whose vessel
+    // the arena carries in d's slot. layout.go:314 isDescendantOf walks c to
+    // the vessel, so the vessel is not an obstruction of c's own edge; the
+    // swap commit then resizes the vessel from the refitted c.
+    let svg = render_tala("w -> d\nw -> c\nc.extra\nc.n.o -> c.m\nd.x\n", "1");
+    let actual = geometry(&svg);
+    assert_eq!(actual.view_box, "0 0 964 790");
+    assert_rectangles(
+        &actual.rectangles,
+        &[
+            ["352", "0", "58", "66"],
+            ["0", "144", "371", "444"],
+            ["391", "144", "371", "444"],
+            ["451", "204", "82", "66"],
+            ["451", "290", "174", "186"],
+            ["645", "290", "57", "66"],
+            ["60", "204", "53", "66"],
+            ["511", "350", "54", "66"],
+        ],
+    );
+    assert_eq!(
+        actual.routes,
+        [
+            "M 381 68 L 381 95 S 381 105 371 105 L 186 105 S 176 105 176 115 L 176 140",
+            "M 381 68 L 381 95 S 381 105 391 105 L 576 105 S 586 105 586 115 L 586 140",
+            "M 538 348 L 538 330 S 538 320 548 320 L 641 320",
+        ]
+    );
+}
+
+#[test]
+fn sequence_step_direction_penalty_reads_the_vessel_container() {
+    // A step's Container is nil while its sequence is active, so
+    // edge_length.go's outerNode stays the step and ContainerDirection
+    // reaches l0's `direction: down` through the vessel.
+    let svg = render_tala(
+        "l0: {\ndirection: down\ns0_0: {shape: step; label: \"processing step 0\"}\n\
+         s0_1: {shape: step; label: \"s 1\"}\ns0_0 -> s0_1\nl1: {\nhub1 -> leaf1_0\n\
+         hub1 -> leaf1_1\nhub1 -> leaf1_2\nhub1 -> leaf1_3\n}\n}\nsrc <-> l0.s0_0\n\
+         sink -> l0.l1.hub1\nsrc -- l0.l1.s1_0\n",
+        "1",
+    );
+    let actual = geometry(&svg);
+    assert_eq!(actual.view_box, "0 0 1181 994");
+    assert_eq!(
+        actual.rectangles[0..4]
+            .iter()
+            .map(|rect| rect.each_ref().map(String::as_str))
+            .collect::<Vec<_>>(),
+        [
+            ["0", "216", "979", "576"],
+            ["130", "0", "67", "66"],
+            ["599", "18", "75", "66"],
+            ["355", "276", "564", "456"],
+        ]
+    );
+    assert_eq!(
+        actual.routes[4..],
+        [
+            "M 163 70 L 163 272",
+            "M 636 86 L 636 332",
+            "M 199 33 L 443 33 S 453 33 453 43 L 453 334",
+        ]
+    );
+}
+
+#[test]
+fn tree_route_starts_at_a_centre_port_that_shares_the_node_centre() {
+    // A 10x10 stored_data node's right-centre port is its centre point.
+    // routeInSShape starts from the port node itself, so both isolated tree
+    // edges route as trees from that shared port.
+    let svg = render_tala(
+        "n0: { shape: person; height: 52 }\nn1: { shape: stored_data; width: 10; height: 10 }\n\
+         n2: { shape: oval; width: 20; height: 27 }\nn1 -> n0\nn1 -> n2\n",
+        "1",
+    );
+    let actual = geometry(&svg);
+    assert_eq!(actual.view_box, "0 0 349 381");
+    assert_eq!(
+        actual.routes,
+        [
+            "M 7 95 L 111 95",
+            "M 7 95 L 50 95 S 60 95 60 85 L 60 24 S 60 14 70 14 L 114 14",
+        ]
+    );
+}
+
+#[test]
+fn node_placement_mirror_leaves_sequence_steps_reflected_until_a_sync() {
+    // The root direct() mirrors l0 and reflects s1 and s2 inside their
+    // vessel (mirrorNode over Sequence.Nodes). AlignAxes scores the
+    // abducted l0.s1 -> dst edge from the reflected step, as Go does.
+    let svg = render_tala(
+        "l0: {\ns1: {shape: step}\ns2: {shape: step}\ns0 -> s1\ns1 -> s2\n}\nx1 -> l0\n\
+         x2 <- l0\nl0.s1 -> dst\n",
+        "1",
+    );
+    let actual = geometry(&svg);
+    assert_eq!(actual.view_box, "0 0 563 867");
+    assert_rectangles(
+        &actual.rectangles,
+        &[
+            ["39", "157", "287", "353"],
+            ["152", "0", "62", "66"],
+            ["299", "599", "62", "66"],
+            ["0", "599", "68", "66"],
+            ["205", "384", "61", "66"],
+        ],
+    );
+    assert_eq!(
+        actual.routes,
+        [
+            "M 203 417 L 142 417 S 132 417 132 407 L 132 322",
+            "M 183 68 L 183 153",
+            "M 295 632 L 193 632 S 183 632 183 622 L 183 512",
+            "M 131 267 L 63 267 S 53 267 53 277 L 53 595",
+        ]
+    );
+}

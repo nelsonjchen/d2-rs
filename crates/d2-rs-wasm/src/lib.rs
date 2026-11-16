@@ -1576,6 +1576,10 @@ impl WasmFontGraphMeasurer {
             mono_bold_font: &self.mono_bold,
             mono_semibold_font: &self.mono_semibold,
             mono_italic_font: &self.mono_italic,
+            code_font: &self.mono,
+            code_bold_font: &self.mono_bold,
+            code_semibold_font: &self.mono_semibold,
+            code_italic_font: &self.mono_italic,
         }
         .markdown_dimensions(source, font_size, bold, italic, mono_default)
     }

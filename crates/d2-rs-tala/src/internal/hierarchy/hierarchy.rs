@@ -177,6 +177,17 @@ impl Pipeline {
         for (node, orientation) in assigned_orientations {
             self.graph.publish_tree_orientation(node, orientation);
         }
+        // The same mirrorAxes walk reflects each step of a mirrored sequence
+        // vessel; nothing re-arranges them until a sequence sync.
+        for &(vessel_tala_id, mirror_x, mirror_y) in &placed.projected_sequence_mirrors {
+            let entry = self
+                .graph
+                .sequence_reflections
+                .entry(vessel_tala_id)
+                .or_insert((false, false));
+            entry.0 ^= mirror_x;
+            entry.1 ^= mirror_y;
+        }
     }
 
     /// Preserve live nested vessels when publishing combined root snapshots.

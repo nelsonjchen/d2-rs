@@ -24,6 +24,14 @@ Each release names the upstream Go D2 commit it matches, from
   TXT wildcard targets and `d2 play` follow Go's CLI.
 - The raw WASM exports return Go's response envelope and escaping;
   `getBoardAtPosition` and `getRefRanges` report Go's errors and positions.
+- `--debug` and `$DEBUG` print the same debug output as Go, including in
+  watch mode.
+- Multi-board text (`.txt`) output sizes each board's canvas as Go does.
+- A custom `--font-mono` font changes only Markdown code, as in Go.
+- lab(), lch(), oklab(), oklch() and other functional colors use Go's exact
+  arithmetic on each architecture.
+- More Dagre, ELK and TALA layouts match Go, including self-loops in
+  containers and child boards, nested sequence diagrams, and steps.
 
 ## [0.1.10] - 2026-11-15
 

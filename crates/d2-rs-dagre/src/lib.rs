@@ -7985,6 +7985,7 @@ fn initial_source_routes(
                         edge_id,
                         edge,
                         boxes[&source],
+                        boxes[&edge.source],
                         model.as_ref(),
                         options.node_sep,
                         options.edge_sep,
@@ -9063,6 +9064,7 @@ fn curve_fitted_routes(
                             "DAGRE_CURVE_CLIP_INPUT id={edge_id:?} points={points:?} source={source:?} target={target:?}"
                         );
                     }
+                    points = extend_short_endpoint_segments_like_d2(points, source, target);
                     let source = modifier_trace_box(
                         graph,
                         edge.source,
@@ -11973,6 +11975,7 @@ fn build_routes(
                 id,
                 edge,
                 source,
+                boxes[&edge.source],
                 route_model.as_ref(),
                 dagre_options.node_sep,
                 dagre_options.edge_sep,
@@ -12401,6 +12404,7 @@ fn dagre_self_loop_points(
     edge_id: EdgeId,
     edge: &Edge,
     rect: Rect,
+    endpoint_rect: Rect,
     route_model: Option<&DagreRouteModel>,
     node_sep: f64,
     edge_sep: f64,
@@ -12412,7 +12416,10 @@ fn dagre_self_loop_points(
     // D2 publishes rounded object boxes before adding the center sentinels
     // to Dagro's loop controls (layout.go:202–204,235–240). The controls keep
     // their fractional Dagro coordinates; only the sentinels use this center.
-    let endpoint_center = published_dagre_box(rect).center();
+    // The sentinel is the authored edge.Src.Center() (layout.go:249-255): a
+    // container self-edge is routed around a descendant leaf in Dagro (the
+    // endpoint resolver), but its sentinels stay at the container's center.
+    let endpoint_center = published_dagre_box(endpoint_rect).center();
     let mut center = rect.center();
     let width = rect.size.width.trunc();
     let height = rect.size.height.trunc();
@@ -12957,6 +12964,55 @@ fn trace_route_with_shapes_like_d2(
     (points, source_decoration_clipped, target_decoration_clipped)
 }
 
+/// geo Vector.AddLength(MIN_SEGMENT_LEN) of `end - start`, added to `base`:
+/// `a.Unit().Multiply(a.Length() + length)` with Length's FMA accumulation.
+fn extend_beyond_like_go(base: Point, start: Point, end: Point) -> Point {
+    let (dx, dy) = (end.x - start.x, end.y - start.y);
+    let length = d2_rs_core::go_fmadd(dy, dy, d2_rs_core::go_fmadd(dx, dx, 0.0)).sqrt();
+    let inverse = 1.0 / length;
+    let scaled = length + D2_MIN_SEGMENT_LEN;
+    Point {
+        x: base.x + dx * inverse * scaled,
+        y: base.y + dy * inverse * scaled,
+    }
+}
+/// d2dagrelayout layout.go:290-325, run on the fitted boxes before
+/// TraceToShape. A route endpoint within MIN_SEGMENT_LEN of its neighbor (a
+/// self-loop's center sentinel next to a loop control near the center, say)
+/// is replaced by extending the adjacent segment into the endpoint's box.
+fn extend_short_endpoint_segments_like_d2(
+    mut points: Vec<Point>,
+    source: Rect,
+    target: Rect,
+) -> Vec<Point> {
+    let mut start_index = 0;
+    let mut end_index = points.len() - 1;
+    let start = points[start_index];
+    let end = points[end_index];
+    if start_index + 2 < points.len()
+        && segment_length_like_go(start, points[start_index + 1]) < D2_MIN_SEGMENT_LEN
+    {
+        let next_start = points[start_index + 1];
+        let next_end = points[start_index + 2];
+        let extended_start = extend_beyond_like_go(next_end, next_start, next_end);
+        if let Some(point) = go_box_intersections(source, next_end, extended_start).first() {
+            start_index += 1;
+            points[start_index] = *point;
+        }
+    }
+    if end_index >= 2 && segment_length_like_go(end, points[end_index - 1]) < D2_MIN_SEGMENT_LEN {
+        let prev_start = points[end_index - 2];
+        let prev_end = points[end_index - 1];
+        let extended_end = extend_beyond_like_go(prev_start, prev_start, prev_end);
+        if let Some(point) = go_box_intersections(target, prev_start, extended_end).first() {
+            end_index -= 1;
+            points[end_index] = *point;
+        }
+    }
+    points.truncate(end_index + 1);
+    points.drain(..start_index);
+    points
+}
 /// geo.Box.Contains: inclusive on every edge.
 fn go_box_contains(rect: Rect, point: Point) -> bool {
     !(point.x < rect.origin.x
@@ -17758,6 +17814,10 @@ mod tests {
                     origin: Point { x: 0.0, y: 0.0 },
                     size,
                 },
+                Rect {
+                    origin: Point { x: 0.0, y: 0.0 },
+                    size,
+                },
                 None,
                 super::DEFAULT_NODE_SEP,
                 20.0,
@@ -17836,6 +17896,7 @@ mod tests {
                 &graph,
                 edge_id,
                 edge,
+                rect,
                 rect,
                 None,
                 super::DEFAULT_NODE_SEP,

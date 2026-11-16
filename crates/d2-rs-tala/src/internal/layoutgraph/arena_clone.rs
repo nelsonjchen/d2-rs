@@ -105,6 +105,8 @@ impl Clone for ArenaGraph {
             transaction_external_cluster_layouts: self.transaction_external_cluster_layouts.clone(),
             projected_transaction_nodes: self.projected_transaction_nodes.clone(),
             projected_tree_mirrors: self.projected_tree_mirrors.clone(),
+            projected_sequence_mirrors: self.projected_sequence_mirrors.clone(),
+            sequence_reflections: self.sequence_reflections.clone(),
             root_grid_bin_pack_completed: self.root_grid_bin_pack_completed,
             sequences: self.sequences.clone(),
             sequence_backlinks_complete: self.sequence_backlinks_complete,

@@ -1177,11 +1177,27 @@ fn draw_shape(
 
 /// Render a decoded public target using source ASCII artist semantics.
 /// The source RenderOpts.Scale is unused; its artist retains SCALE=1.
-pub fn render(diagram: &TargetDiagram, mode: &str, _scale: Option<f64>) -> Result<String, String> {
+pub fn render(diagram: &TargetDiagram, mode: &str, scale: Option<f64>) -> Result<String, String> {
+    render_with_nested_bounds(diagram, mode, scale, None)
+}
+/// [`render`] with the bounding box of descendant boards that the target
+/// diagram does not carry; it joins Diagram.NestedBoundingBox.
+pub fn render_with_nested_bounds(
+    diagram: &TargetDiagram,
+    mode: &str,
+    _scale: Option<f64>,
+    descendant_bounds: Option<[f64; 4]>,
+) -> Result<String, String> {
     let data = serde_json::to_value(diagram).map_err(|e| e.to_string())?;
     let shapes = values(&data["shapes"]);
     let connections = values(&data["connections"]);
     let mut bounds = diagram.nested_bounding_box()?;
+    if let Some(other) = descendant_bounds {
+        bounds[0] = bounds[0].min(other[0]);
+        bounds[1] = bounds[1].min(other[1]);
+        bounds[2] = bounds[2].max(other[2]);
+        bounds[3] = bounds[3].max(other[3]);
+    }
     for connection in connections {
         let route = values(&connection["route"]);
         let label = text(connection, "label");

@@ -549,7 +549,7 @@ pub use model::{
     LayoutSnapshot, LayoutStage,
 };
 pub use snapshot::layout_snapshot;
-pub(crate) use snapshot::{layout_result, layout_result_with_cancellation};
+pub(crate) use snapshot::{layout_result, layout_result_with_cancellation, validate_layout_input};
 pub(crate) use snapshot::{route_existing, route_existing_with_cancellation};
 
 #[cfg(test)]

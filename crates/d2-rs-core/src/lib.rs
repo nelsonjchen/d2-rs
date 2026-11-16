@@ -18,9 +18,9 @@ mod go_float;
 #[doc(hidden)]
 pub use go_float::fused_mul_add;
 #[doc(hidden)]
-pub use go_float::go_fmadd;
-#[doc(hidden)]
 pub use go_float::go_round;
+#[doc(hidden)]
+pub use go_float::{go_fmadd, go_fmsub, go_fnmsub};
 pub mod grid;
 #[cfg(windows)]
 #[doc(hidden)]
@@ -1651,6 +1651,13 @@ pub struct Graph {
     #[serde(skip)]
     #[doc(hidden)]
     pub node_order_override: Vec<NodeId>,
+    /// D2's `g.Objects` order when an engine adapter has replaced
+    /// `node_order_override` with its own traversal (TALA's depth-first
+    /// ChildrenArray visits). Empty when `node_order_override` (or, without
+    /// it, node order) is already that order.
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub source_object_order: Vec<NodeId>,
     /// Exact GraphJSON graph members, separate from the complete interned
     /// record inventory. Some(empty, empty) is an explicitly empty graph.
     /// This decoder-to-engine transfer is consumed before layout starts.

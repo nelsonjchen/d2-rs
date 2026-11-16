@@ -21,35 +21,8 @@
 use d2_rs_core::stable_sort::StableSort;
 use std::fmt::Write as _;
 
-pub mod gomath;
-
-pub use d2_rs_core::go_fmadd;
-
-/// `a - x*y` as Go ARM64 `FMSUBD`; separate ops elsewhere.
-#[inline]
-pub fn go_fmsub(x: f64, y: f64, a: f64) -> f64 {
-    #[cfg(target_arch = "aarch64")]
-    {
-        (-x).mul_add(y, a)
-    }
-    #[cfg(not(target_arch = "aarch64"))]
-    {
-        a - x * y
-    }
-}
-
-/// `x*y - a` as Go ARM64 `FNMSUBD`; separate ops elsewhere.
-#[inline]
-pub fn go_fnmsub(x: f64, y: f64, a: f64) -> f64 {
-    #[cfg(target_arch = "aarch64")]
-    {
-        x.mul_add(y, -a)
-    }
-    #[cfg(not(target_arch = "aarch64"))]
-    {
-        x * y - a
-    }
-}
+pub use d2_rs_core::{go_fmadd, go_fmsub, go_fnmsub};
+pub use d2_rs_math::gomath;
 
 /// Go `fmt` `%v` for a float64 (strconv 'g', shortest, exponent threshold 6,
 /// at least two exponent digits). Used by `SvgPathContext` command strings and

@@ -1,6 +1,9 @@
 """The fuzz driver exposes formats/flags and includes upstream test scripts."""
 import importlib.util
+import io
 import json
+import sys
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 import random
 import tempfile
@@ -37,6 +40,44 @@ class FuzzDriverTests(unittest.TestCase):
         self.assertEqual(scripts["e2e:one"], "e2e")
         self.assertEqual(scripts["upstream:plain.d2"], "plain")
         self.assertEqual(scripts["upstream:sample_test.go:script:0"], "from test")
+
+    def fuzz_with(self, root, rust_text, seeded=True):
+        def cli(name, variants):
+            path = root / name
+            path.write_text(f"#!{sys.executable}\nimport os, sys\nvariants = {variants!r}\n"
+                            "text = variants.get(os.environ.get('D2RS_GO_MAPSEED'), variants[None])\n"
+                            "open(sys.argv[-1], 'w').write('<svg xmlns=\"http://www.w3.org/2000/svg\"><text>'"
+                            " + text + '</text></svg>')\n")
+            path.chmod(0o755)
+            return path
+        cases, upstream, out = root / "cases", root / "upstream", root / f"out-{rust_text}-{seeded}"
+        cases.mkdir(exist_ok=True); upstream.mkdir(exist_ok=True)
+        (cases / "one.json").write_text(json.dumps({"script": "a -> b"}))
+        go = cli("go", {None: "A"})
+        if seeded:
+            cli("go-mapseed", {None: "A", "3": "B"})
+        printed = io.StringIO()
+        with redirect_stdout(printed), redirect_stderr(io.StringIO()):
+            FUZZ.main([str(cli(f"rust-{rust_text}", {None: rust_text})), "--go", str(go), "--cases", str(cases),
+                       "--upstream", str(upstream), "--jobs", "2", "--out", str(out), "--mapseed-seeds", "1-4",
+                       "--mapseed-registry", str(root / "registry.json")])
+        summary = json.loads((out / "summary.json").read_text())
+        findings = [json.loads(line) for line in (out / "findings.jsonl").read_text().splitlines()]
+        return summary, findings, printed.getvalue()
+
+    def test_output_differences_are_resolved_with_map_seeds(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            summary, findings, _ = self.fuzz_with(root, "B")
+            self.assertEqual((summary["findings"], summary["outcomes"], findings), ({}, {"mapseed-match": 2}, []))
+            summary, findings, printed = self.fuzz_with(root, "C")
+            self.assertEqual(summary["findings"], {"go-nondeterministic-no-rust-match": 2})
+            self.assertEqual({(f["kind"], f["go_variants"], tuple(f["mapseed_seeds"])) for f in findings},
+                             {("go-nondeterministic-no-rust-match", 2, ())})
+            self.assertIn("FAIL go-nondeterministic-no-rust-match", printed)
+            (root / "go-mapseed").unlink()
+            summary, _, _ = self.fuzz_with(root, "B", seeded=False)
+            self.assertEqual(summary["findings"], {"mapseed-oracle-missing": 2})
 
     def test_pdf_rejects_the_live_clock_oracle(self):
         with self.assertRaisesRegex(SystemExit, "clock-injected"):

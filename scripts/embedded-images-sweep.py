@@ -3,6 +3,9 @@
 
 Run with uv run --offline --no-project --with pillow python scripts/embedded-images-sweep.py.
 Generated inputs and captures stay under oracle-cache/reports; no network assets.
+A differing case is resampled with the seedable-map oracle and classified by
+scripts/mapseed.py (--go-mapseed, --mapseed-seeds, --record-mapseed); rows
+carry the classification, and only match, mapseed-match and known-mapseed pass.
 """
 from __future__ import annotations
 
@@ -19,11 +22,14 @@ import re
 import shutil
 import struct
 import subprocess
+import sys
 import tempfile
 import zlib
 
 from PIL import Image
 
+import mapseed
+import os
 import references
 from fuzz_common import _validate_output
 
@@ -120,7 +126,7 @@ def normalized(data, suffix):
     return data
 
 
-def capture(binary, directory, source, engine, fmt, iso, timeout):
+def capture(binary, directory, source, engine, fmt, iso, timeout, extra_env=None):
     directory.mkdir()
     (directory / "input.d2").write_text(source)
     flags = [f"--layout={engine}", "--tala-seeds=1", "--omit-version"]
@@ -130,7 +136,8 @@ def capture(binary, directory, source, engine, fmt, iso, timeout):
         flags.append("--animate-interval=100")
     try:
         result = subprocess.run([str(binary), *flags, "input.d2", f"output.{fmt}"],
-                                cwd=directory, capture_output=True, timeout=timeout)
+                                cwd=directory, capture_output=True, timeout=timeout,
+                                env={**os.environ, **(extra_env or {})} if extra_env else None)
     except subprocess.TimeoutExpired:
         return {"exit": "timeout", "files": {}, "invalid": []}
     files, invalid = {}, []
@@ -170,6 +177,7 @@ def main():
     parser.add_argument("--timeout", type=float, default=30)
     parser.add_argument("--jobs", type=int, choices=range(1, 7), default=3)
     parser.add_argument("--out", type=Path, default=references.REPORTS / "embedded-images")
+    mapseed.add_arguments(parser)
     args = parser.parse_args()
     for field, allowed in [("engines", {"dagre", "elk", "tala"}),
                            ("formats", {"svg", "png", "pdf", "pptx", "gif"}),
@@ -178,7 +186,13 @@ def main():
         if not set(values) <= allowed or len(values) != len(set(values)):
             parser.error(f"--{field} must select distinct values from {', '.join(sorted(allowed))}")
     args.out.mkdir(parents=True, exist_ok=True)
-    rows = []
+    rows, recorded = [], []
+    registry = mapseed.Registry(args.mapseed_registry)
+
+    def probe(binary):
+        with tempfile.TemporaryDirectory(prefix="embedded-probe-") as tmp:
+            return capture(binary.resolve(), Path(tmp) / "probe", "a -> b\n", "dagre", "svg", False, args.timeout)
+    oracle = mapseed.Oracle((args.go_mapseed or mapseed.default_oracle(args.go)).resolve(), args.go, probe)
     with tempfile.TemporaryDirectory(prefix="inputs-", dir=args.out) as temporary:
         root = Path(temporary)
         assets = generate(root / "assets")
@@ -194,10 +208,32 @@ def main():
                                   mode == "isometric", args.timeout)
                    for label, binary in [("go", args.go), ("rust", args.rust)]}
             failures = [key for key in got['go'] if got['go'].get(key) != got['rust'].get(key)]
-            if any(r["invalid"] or r["exit"] == "timeout" for r in got.values()):
+            invalid = any(r["invalid"] or r["exit"] == "timeout" for r in got.values())
+            arguments = [f"--layout={engine}", fmt, mode]
+            known = registry.known(mapseed.identity(source, arguments))
+            resolution = None
+            if (failures or known) and not invalid:
+                def seeded(seed):
+                    target = directory / f"go-mapseed-{seed}"
+                    result = capture(oracle.path, target, source, engine, fmt,
+                                     mode == "isometric", args.timeout, {mapseed.ENV: str(seed)})
+                    shutil.rmtree(target)
+                    return result
+                resolution = mapseed.resolve([got['go']], [got['rust']], seeded, oracle, args.mapseed_seeds, known,
+                                             usable=lambda r: not r["invalid"] and r["exit"] != "timeout")
+            if invalid:
                 failures.append("invalid-or-timeout")
+            outcome = resolution.classification if resolution else "mismatch" if failures else "match"
             row = dict(asset=name, transport=transport, shape=shape, engine=engine, format=fmt,
-                       mode=mode, outcome="mismatch" if failures else "match", differences=failures)
+                       mode=mode, outcome=outcome, differences=failures)
+            if resolution:
+                row["mapseed"] = resolution.record()
+                if resolution.go_variants > 1:
+                    recorded.append((mapseed.identity(source, arguments), source, arguments,
+                                     f"embedded-images-sweep.py {name} {transport} {shape} {engine} {fmt} {mode}",
+                                     resolution))
+            if outcome in mapseed.PASSING:
+                failures = []
             if failures:
                 row.update(got)
             return index, row, source, directory
@@ -205,7 +241,7 @@ def main():
         retained_bytes = 0
         with ThreadPoolExecutor(max_workers=args.jobs) as pool:
             for index, row, source, directory in pool.map(run_case, enumerate(matrix)):
-                if row['outcome'] != 'match':
+                if row['outcome'] not in mapseed.PASSING:
                     witness = args.out / f"case-{index:04}"
                     if witness.exists():
                         raise RuntimeError(f"capture exists: {witness}; use a fresh --out")
@@ -226,7 +262,16 @@ def main():
               "counts": dict(Counter(r['outcome'] for r in rows)), "rows": rows}
     (args.out / "summary.json").write_text(json.dumps(report, indent=2) + '\n')
     print(report['counts'])
-    return int(any(r['outcome'] != 'match' for r in rows))
+    for row in rows:
+        if row['outcome'] in (mapseed.NO_RUST_MATCH, mapseed.ORACLE_MISSING):
+            print(f"FAIL {row['outcome']}: {row['asset']} {row['transport']} {row['shape']} {row['engine']} "
+                  f"{row['format']} {row['mode']}")
+    if report['counts'].get(mapseed.ORACLE_MISSING):
+        print(f"error: {oracle.message()}", file=sys.stderr)
+    if args.record_mapseed:
+        added = mapseed.record_cases(registry, recorded, "embedded-images-sweep")
+        print(f"recorded {added} new map-order-dependent inputs in {registry.path}")
+    return int(any(r['outcome'] not in mapseed.PASSING for r in rows))
 
 
 if __name__ == "__main__":

@@ -322,10 +322,15 @@ impl ArenaGraph {
         let mut surviving_children = BTreeMap::<Option<NodeId>, Vec<NodeId>>::new();
         let mut sequence_owner = BTreeMap::<NodeId, NodeId>::new();
         let mut sequence_vessels = BTreeMap::new();
+        // The concrete vessel is a node of the sequence's container
+        // (grouping/sequences.go AddNewNodeToContainer), while the stable
+        // members' own container links are cleared.
+        let mut sequence_owner_container = BTreeMap::<NodeId, Option<NodeId>>::new();
         for (index, sequence) in self.sequences.iter().enumerate() {
             let Some(owner) = sequence.members.first().copied() else {
                 continue;
             };
+            sequence_owner_container.insert(owner, sequence.container);
             for member in &sequence.members {
                 sequence_owner.insert(*member, owner);
             }
@@ -337,6 +342,12 @@ impl ArenaGraph {
         // trees/layout.go marks actual sequence vessels as terminal nodes.
         // This numerical view keeps their carriers, but reads incidence from
         // the allocated vessel and projects both endpoints consistently.
+        let owner_container = |graph: &ArenaGraph, node: NodeId| {
+            sequence_owner_container
+                .get(&node)
+                .copied()
+                .unwrap_or(graph.nodes[node.0 as usize].container)
+        };
         let tree_incidents = |graph: &ArenaGraph, node: NodeId| {
             let actual = sequence_vessels.get(&node).copied().unwrap_or(node);
             graph.nodes[actual.0 as usize].edges.read()
@@ -439,9 +450,7 @@ impl ArenaGraph {
                             // remain in the current container-node set.
                             // A sole cross-container edge therefore keeps a
                             // node out of the fringe.
-                            if self.nodes[other.0 as usize].container != *scope
-                                || active.contains(&other)
-                            {
+                            if owner_container(self, other) != *scope || active.contains(&other) {
                                 live_degree += 1;
                                 adjacent.push((other, edge_id));
                             }
@@ -485,7 +494,7 @@ impl ArenaGraph {
                                                     } else {
                                                         return false;
                                                     };
-                                                    self.nodes[other.0 as usize].container != *scope
+                                                    owner_container(self, other) != *scope
                                                         || active.contains(&other)
                                                 })
                                                 .count()

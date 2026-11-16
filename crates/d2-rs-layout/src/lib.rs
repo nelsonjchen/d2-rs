@@ -69,6 +69,7 @@ impl Drop for DiagnosticLayoutScope {
 
 pub mod grid;
 pub mod near;
+pub mod scope_checks;
 pub mod sequence;
 
 /// Built-in layout engine names accepted by the D2 layout boundary.
@@ -1059,6 +1060,12 @@ impl LayoutDispatcher {
                 let target = nearest_sequence_scope(graph, edge.target);
                 let source_grid = outermost_grid_scope(graph, edge.source);
                 let target_grid = outermost_grid_scope(graph, edge.target);
+                // Both endpoints below one outermost grid: that grid is the
+                // extraction at this level, and its own LayoutNested call
+                // restored and routed the crossing (d2layouts.go:323-348).
+                if source_grid.is_some() && source_grid == target_grid {
+                    return false;
+                }
                 source != target && (source.is_some() || target.is_some())
                     || source_grid != target_grid
                         && (source_grid.is_some() || target_grid.is_some())
@@ -2224,9 +2231,16 @@ fn order_lifelines_like_layout_nested(graph: &Graph, result: &mut LayoutResult) 
     if result.sequence_lifelines.len() < 2 {
         return;
     }
+    // LayoutNested's queue walks ChildrenArray (d2layouts.go:92-93), which
+    // can differ from node order (an import re-declared later moves its
+    // field after its siblings). Parents without a recorded order fall back
+    // to node order.
     let mut children: BTreeMap<Option<NodeId>, Vec<NodeId>> = BTreeMap::new();
     for (id, node) in graph.nodes() {
         children.entry(node.parent).or_default().push(id);
+    }
+    for (parent, order) in &graph.hierarchy_children_order {
+        children.insert(*parent, order.clone());
     }
     fn visit(
         graph: &Graph,
@@ -2745,7 +2759,7 @@ fn reroute_reinserted_grid_edges(
     engine: EngineKind,
     cancellation: Option<&CancellationToken>,
 ) -> Result<(), LayoutDispatchError> {
-    let selected = graph
+    let mut selected = graph
         .edges()
         .filter_map(|(id, edge)| {
             let sequence = outermost_sequence_scope(graph, edge.source);
@@ -2758,6 +2772,14 @@ fn reroute_reinserted_grid_edges(
                 .then_some(id)
         })
         .collect::<Vec<_>>();
+    // LayoutNested appends each extraction's crossings in queue order
+    // (d2layouts.go extractedEdges), and RouteEdges routes them in that
+    // order, so earlier routes are obstacles for later ones.
+    if graph.root_grid_rows.is_some() || graph.root_grid_columns.is_some() {
+        order_root_grid_extractions(graph, &mut selected);
+    } else {
+        order_extracted_edges(graph, &mut selected);
+    }
     reroute_selected_grid_edges(graph, result, options, engine, cancellation, &selected)
 }
 
@@ -2785,6 +2807,9 @@ fn normalize_tala_input(graph: &Graph) -> Cow<'_, Graph> {
     for (id, _) in graph.nodes().filter(|(_, node)| needs_insets(node)) {
         normalized.node_mut(id).unwrap().content_insets = Insets::uniform(60.0);
     }
+    // d2talalayout keeps g.Objects untouched (it collects its own visits), so
+    // LayoutNested's validation still walks the compiled order.
+    normalized.source_object_order = source_object_order(graph);
     normalized.set_node_order_override(order);
     Cow::Owned(normalized)
 }
@@ -3822,6 +3847,11 @@ fn project_graph_in_edge_order(
         .collect();
     projected.node_order_override = source
         .node_order_override
+        .iter()
+        .filter_map(|id| node_map.get(id).copied())
+        .collect();
+    projected.source_object_order = source
+        .source_object_order
         .iter()
         .filter_map(|id| node_map.get(id).copied())
         .collect();
@@ -7370,13 +7400,159 @@ mod tests {
     }
 }
 
+/// D2's `g.Objects` order (d2compiler compile.go:90 SortObjectsByAST),
+/// before any engine-specific traversal replaced `node_order_override`.
+fn source_object_order(graph: &Graph) -> Vec<NodeId> {
+    if !graph.source_object_order.is_empty() {
+        graph.source_object_order.clone()
+    } else if !graph.node_order_override.is_empty() {
+        graph.node_order_override.clone()
+    } else {
+        graph.nodes().map(|(id, _)| id).collect()
+    }
+}
+/// The order of `g.Objects` when d2layouts.go:368 validateObjectPositions
+/// runs at the end of LayoutNested for `scope` (None: the board root). The
+/// deferred SaveOrder restore has not run yet, so the objects of extracted
+/// nested diagrams are no longer in source order:
+/// - ExtractSubgraph/extractSubgraphs (d2layouts.go:430-560, 637-730) keep
+///   the remaining objects in order and move each nested diagram's objects
+///   (descendants; the container too for a constant near) out;
+/// - d2near.Layout (d2near/layout.go:74-88) appends the constant-near graphs
+///   by near set: top/bottom-center, center-left/right, then the corners;
+/// - InjectNested (d2layouts.go:732-745) appends the other nested graphs in
+///   their breadth-first extraction order. Each nested graph comes back in
+///   source order, because its own LayoutNested restored it.
+pub(crate) fn layout_nested_validation_order(graph: &Graph, scope: Option<NodeId>) -> Vec<NodeId> {
+    let source_order = source_object_order(graph);
+    // Parents without a recorded ChildrenArray order fall back to node order,
+    // grouped in one pass.
+    let mut node_order_children: BTreeMap<Option<NodeId>, Vec<NodeId>> = BTreeMap::new();
+    for (id, node) in graph.nodes() {
+        node_order_children.entry(node.parent).or_default().push(id);
+    }
+    let children = |parent: Option<NodeId>| -> &[NodeId] {
+        graph
+            .hierarchy_children_order
+            .get(&parent)
+            .or_else(|| node_order_children.get(&parent))
+            .map_or(&[], Vec::as_slice)
+    };
+    let is_grid = |id: Option<NodeId>| match id {
+        None => graph.root_grid_rows.is_some() || graph.root_grid_columns.is_some(),
+        Some(id) => graph
+            .node(id)
+            .is_some_and(|node| node.grid_rows.is_some() || node.grid_columns.is_some()),
+    };
+    let is_sequence = |id: Option<NodeId>| match id {
+        None => graph.root_sequence_diagram,
+        Some(id) => graph.is_sequence_diagram(id),
+    };
+    // NestedGraphInfo checks sequence before grid.
+    let scope_is_grid = !is_sequence(scope) && is_grid(scope);
+    // (container, includes itself, near set rank for constant nears)
+    let mut extractions: Vec<(NodeId, bool, Option<u8>)> = Vec::new();
+    let mut queue: std::collections::VecDeque<NodeId> = children(scope).iter().copied().collect();
+    while let Some(current) = queue.pop_front() {
+        let Some(node) = graph.node(current) else {
+            continue;
+        };
+        let has_children = !children(Some(current)).is_empty();
+        // NestedGraphInfo: constant nears only on the board root graph.
+        let near_rank = scope
+            .is_none()
+            .then_some(node.canvas_position)
+            .flatten()
+            .map(|position| match position {
+                CanvasPosition::TopCenter | CanvasPosition::BottomCenter => 0,
+                CanvasPosition::CenterLeft | CanvasPosition::CenterRight => 1,
+                _ => 2,
+            });
+        let special = near_rank.is_some() || is_sequence(Some(current)) || is_grid(Some(current));
+        if special {
+            if near_rank.is_none() && !has_children {
+                continue;
+            }
+            extractions.push((current, near_rank.is_some(), near_rank));
+        } else if scope_is_grid && has_children {
+            // Grid cell containers (d2layouts.go:121-212) end up extracted
+            // without themselves.
+            extractions.push((current, false, None));
+        } else {
+            queue.extend(children(Some(current)).iter().copied());
+        }
+    }
+    let owners: BTreeMap<NodeId, usize> = extractions
+        .iter()
+        .enumerate()
+        .map(|(index, (container, _, _))| (*container, index))
+        .collect();
+    let owner_of = |id: NodeId| -> Option<usize> {
+        let mut current = Some(id);
+        while let Some(candidate) = current {
+            if let Some(&index) = owners.get(&candidate)
+                && (candidate != id || extractions[index].1)
+            {
+                return Some(index);
+            }
+            current = graph.node(candidate).and_then(|node| node.parent);
+        }
+        None
+    };
+    let in_scope = |id: NodeId| -> bool {
+        let Some(scope) = scope else {
+            return true;
+        };
+        let mut current = graph.node(id).and_then(|node| node.parent);
+        while let Some(candidate) = current {
+            if candidate == scope {
+                return true;
+            }
+            current = graph.node(candidate).and_then(|node| node.parent);
+        }
+        false
+    };
+    let mut remaining = Vec::new();
+    let mut groups: Vec<Vec<NodeId>> = vec![Vec::new(); extractions.len()];
+    for id in source_order.into_iter().filter(|&id| in_scope(id)) {
+        match owner_of(id) {
+            Some(index) => groups[index].push(id),
+            None => remaining.push(id),
+        }
+    }
+    for rank in 0..3 {
+        for (index, (_, _, near_rank)) in extractions.iter().enumerate() {
+            if *near_rank == Some(rank) {
+                remaining.append(&mut groups[index]);
+            }
+        }
+    }
+    for (index, (_, _, near_rank)) in extractions.iter().enumerate() {
+        if near_rank.is_none() {
+            remaining.append(&mut groups[index]);
+        }
+    }
+    remaining
+}
 // d2layouts.validateObjectPositions runs after LayoutNested has restored and
 // routed its graph. It rejects infinities only; NaN is not this source error.
 fn validate_object_positions(
     graph: &Graph,
     result: &LayoutResult,
 ) -> Result<(), LayoutDispatchError> {
-    for (id, node) in graph.nodes() {
+    // Only the reported object depends on the walk order; skip building it
+    // when every position is finite.
+    if !result
+        .boxes
+        .values()
+        .any(|rect| rect.origin.x.is_infinite() || rect.origin.y.is_infinite())
+    {
+        return Ok(());
+    }
+    for id in layout_nested_validation_order(graph, None) {
+        let Some(node) = graph.node(id) else {
+            continue;
+        };
         if let Some(rect) = result.boxes.get(&id)
             && (rect.origin.x.is_infinite() || rect.origin.y.is_infinite())
         {

@@ -200,7 +200,7 @@ fn past_origin(origin: Option<Point>, point: Point) -> bool {
 // fmt's default float verb uses shortest %g, with exponent notation below
 // -4 or at/above 6. The scientific mantissa is generated without rounding
 // through a decimal/logarithm intermediate.
-pub(super) fn go_general_float(value: f64) -> String {
+pub(in crate::internal) fn go_general_float(value: f64) -> String {
     if value.is_nan() {
         return "NaN".into();
     }

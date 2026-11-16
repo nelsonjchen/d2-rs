@@ -605,8 +605,9 @@ d2-rs and the pinned Go CLI on generated inputs (outputs and witnesses go to
   reproduces. On 12 seeds x 300 cases all three engines now match Go on
   every case on both architectures, except dagre seed 7 case 136: Go itself
   has two outputs for it (map order in `shiftReachableDownIndexed`) and
-  d2-rs gives one of them, so the sweep reports it as
-  `oracle-nondeterministic` (see docs/FIXTURES.md, "Map order").
+  d2-rs gives one of them (11 of 16 map seeds), so the sweep reports it as
+  `known-mapseed` from `tools/fixtures/inputs/mapseed-cases.json` (see
+  docs/FIXTURES.md, "Map order").
 - `scripts/fuzz-differential.py` and `scripts/fuzz-minimize.py`: random
   structural mutations of corpus inputs, flagging Rust panics, hangs and
   exit, error-text or output divergence, then line/character minimization.
@@ -935,9 +936,46 @@ fresh seeds; no case that matched in 0.1.10 fails after the fixes.
   getBoardAtPosition parses with an empty path, UTF-8 columns and signed
   coordinates, and getRefRanges reports Go's errors.
 - **Perf gate:** `perf-bench.py` and `corpus-perf-sweep.py` require identical
-  Go repeats and identical Rust output for every non-PDF format (a Go-vs-Go
-  difference is reported as oracle-nondeterministic); PDF passes when Rust
-  equals an observed Go variant.
+  Go repeats and identical Rust output for every non-PDF format; PDF passes
+  when Rust equals an observed Go variant.
+
+Round 2 (Opus agents on the leftovers above, same rules):
+
+- **Map order in every harness:** `scripts/mapseed.py` resolves any Go-vs-Go
+  or Go-vs-Rust difference with the seedable oracle and labels each case
+  `match`, `mapseed-match` (with the matching seeds), `known-mapseed`
+  (listed in `tools/fixtures/inputs/mapseed-cases.json`, written only by
+  `--record-mapseed`), `go-nondeterministic-no-rust-match` (a d2-rs bug) or
+  `mismatch`. Go failures are scored as `error-match` or `error-mismatch`
+  (exit code, full stderr, no leftover files) instead of being skipped. See
+  docs/SCOREBOARD-WORKFLOW.md for the table.
+- **Dagre and ELK:** the 17 open findings are fixed (elk-go node and port
+  comparators, mirrored nested self-loops, one-sided loop label margins from
+  `updateMargins`), Dagre's d2dagrelayout short-endpoint extension
+  (layout.go:290-325) is ported, child-board self-loops use the authored
+  container's center, nested sequence lifelines follow `ChildrenArray`, and
+  validateObjectPositions errors name the object Go names. Layout-hunt
+  2026111622 (10,000 jobs) and 2026111641 (4,000) report no findings.
+- **TALA:** Normalize keeps NaN and validateCompletedGraph is ported (Go's
+  narrow-step error text), mirrored steps stay reflected until SyncSequences,
+  edge-length obstruction and direction terms follow active aggregates,
+  cluster vessels resize before arranging, tree routes leave from the source
+  port, grid-internal edges route inside the grid's own LayoutNested call.
+  Fresh flip/nested/steps runs match on 317-320 of 320.
+- **Rendering:** a custom `--font-mono` measures only Markdown code; body
+  text under mono themes uses bundled Source Code Pro as Go does. lab/lch/
+  oklab/oklch and hsl/hwb/hsv use Go's math and fuse multiply-adds only on
+  arm64 (1,452 values bit-identical to Go on arm64).
+- **CLI:** `--debug` and `$DEBUG` print Go's `debug:` lines on stderr and
+  Go's DEBUG records on stdout, including layout reuse (Go's layout
+  signature) and the records' cut-off on layout failures; watch-mode debug
+  lines and backup-file skipping follow watch.go. Multi-board TXT boards size
+  their canvas from the nested bounding box as Go does. `DEBUG_ASCII`
+  per-cell records are not ported.
+
+Open: TALA long-tail cases (about 1 in 320 in the flip, nested and steps
+families), and the raw ELK API with explicit port model order (not reachable
+from D2).
 
 ## Verification
 

@@ -11,8 +11,11 @@ exact shape sizes and edge angles, which the upstream corpus barely varies.
 Each case is a small graph of non-rectangular shapes with varied sizes,
 directions, parallel and reversed edges and containers; both binaries render
 it with every layout and complete output inventories are compared byte for
-byte. Mismatching inputs are written under --out with a JSONL index; the exit
-status is 1 when any case differs.
+byte. A differing case is resampled with the seedable-map oracle and
+classified by scripts/mapseed.py (--go-mapseed, --mapseed-seeds,
+--record-mapseed); mapseed-match and known-mapseed pass. Every other
+differing input is written under --out with a JSONL index carrying its
+classification; the exit status is 1 when any case fails.
 """
 import argparse
 import concurrent.futures
@@ -23,6 +26,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import mapseed  # noqa: E402
 import references  # noqa: E402
 from fuzz_common import run  # noqa: E402
 
@@ -71,24 +75,49 @@ def generate(rng):
     return "\n".join(lines) + "\n"
 
 
-def compare(case, rust, go, layouts):
+def capture(binary, source, directory, layout, extra_env=None):
+    directory.mkdir()
+    (directory / "input.d2").write_text(source)
+    return run(binary, directory, layout, "out", "svg", (), extra_env)
+
+
+def mapseed_oracle(go, path=None):
+    def probe(binary):
+        with tempfile.TemporaryDirectory(prefix="shape-trace-probe-") as tmp:
+            code, _, digest = capture(binary, "a -> b\n", Path(tmp) / "probe", "dagre")
+            return code, digest
+    return mapseed.Oracle(path or mapseed.default_oracle(go), go, probe)
+
+
+def compare(case, rust, go, layouts, oracle=None, seeds=mapseed.DEFAULT_SEEDS, registry=None):
     index, source = case
     mismatches = []
     with tempfile.TemporaryDirectory(prefix="shape-trace-") as tmp:
         root = Path(tmp)
         for layout in layouts:
-            outcomes = {}
-            for name, binary in (("go", go), ("rust", rust)):
-                directory = root / f"{layout}-{name}"
-                directory.mkdir()
-                (directory / "input.d2").write_text(source)
-                outcomes[name] = run(binary, directory, layout, "out")
+            outcomes = {name: capture(binary, source, root / f"{layout}-{name}", layout)
+                        for name, binary in (("go", go), ("rust", rust))}
             go_code, _, go_digest = outcomes["go"]
             rust_code, _, rust_digest = outcomes["rust"]
             if go_code != 0:
                 continue  # no oracle result
-            if rust_code != 0 or go_digest != rust_digest:
-                mismatches.append({"case": index, "layout": layout, "go": go_code, "rust": rust_code})
+            if rust_code != 0:
+                mismatches.append({"case": index, "layout": layout, "go": go_code, "rust": rust_code,
+                                   "classification": "mismatch"})
+                continue
+            known = bool(registry and registry.known(mapseed.identity(source, [f"--layout={layout}", "svg"])))
+            if go_digest == rust_digest and not known:
+                continue
+
+            def seeded(seed):
+                code, _, digest = capture(oracle.path, source, root / f"{layout}-go-mapseed-{seed}", layout,
+                                          {mapseed.ENV: str(seed)})
+                return digest if code == 0 else None
+            resolution = mapseed.resolve([go_digest], [rust_digest], seeded, oracle, seeds, known,
+                                         usable=lambda digest: digest is not None)
+            if resolution.classification != mapseed.MATCH:
+                mismatches.append({"case": index, "layout": layout, "go": go_code, "rust": rust_code,
+                                   **resolution.record()})
     return index, source, mismatches
 
 
@@ -101,7 +130,10 @@ def main(argv=None):
     parser.add_argument("--layouts", default="dagre,elk")
     parser.add_argument("--jobs", type=int, default=8)
     parser.add_argument("--out", default=str(references.REPORTS / "shape-trace"))
+    mapseed.add_arguments(parser)
     args = parser.parse_args(argv)
+    oracle = mapseed_oracle(args.go, args.go_mapseed)
+    registry = mapseed.Registry(args.mapseed_registry)
     layouts = [layout for layout in args.layouts.split(",") if layout]
     rng = random.Random(args.seed)
     cases = [(i, generate(rng)) for i in range(args.cases)]
@@ -109,18 +141,32 @@ def main(argv=None):
     out.mkdir(parents=True, exist_ok=True)
     findings = []
     with concurrent.futures.ThreadPoolExecutor(args.jobs) as pool:
-        for index, source, mismatches in pool.map(lambda c: compare(c, args.rust, args.go, layouts), cases):
+        work = lambda c: compare(c, args.rust, args.go, layouts, oracle, args.mapseed_seeds, registry)  # noqa: E731
+        for index, source, mismatches in pool.map(work, cases):
             for mismatch in mismatches:
                 path = out / f"case-{index:05d}-{mismatch['layout']}.d2"
                 path.write_text(source)
-                findings.append({**mismatch, "input": str(path)})
+                findings.append({**mismatch, "input": str(path), "source": source})
     with open(out / "findings.jsonl", "w") as index_file:
         for finding in sorted(findings, key=lambda f: (f["case"], f["layout"])):
-            index_file.write(json.dumps(finding) + "\n")
+            index_file.write(json.dumps({k: v for k, v in finding.items() if k != "source"}) + "\n")
     for layout in layouts:
-        bad = sum(1 for f in findings if f["layout"] == layout)
-        print(f"{layout}: {args.cases - bad}/{args.cases} cases match Go")
-    return 1 if findings else 0
+        records = [f for f in findings if f["layout"] == layout]
+        print(mapseed.summary(layout, args.cases,
+                              records + [{"classification": "match"}] * (args.cases - len(records))))
+    failing = [f for f in findings if f["classification"] not in mapseed.PASSING]
+    for finding in failing:
+        print(f"FAIL {finding['classification']}: {finding['input']} ({finding['layout']})")
+    if any(f["classification"] == mapseed.ORACLE_MISSING for f in findings):
+        print(f"error: {oracle.message()}", file=sys.stderr)
+    if args.record_mapseed:
+        added = mapseed.record_cases(registry, (
+            (mapseed.identity(f["source"], [f"--layout={f['layout']}", "svg"]), f["source"], [f"--layout={f['layout']}", "svg"],
+             f"shape-trace-differential.py --seed {args.seed} case {f['case']} --layouts {f['layout']}",
+             mapseed.Resolution(f["classification"], f.get("mapseed_seeds", []), f.get("go_variants", 1)))
+            for f in findings), "shape-trace-differential")
+        print(f"recorded {added} new map-order-dependent inputs in {registry.path}")
+    return 1 if failing else 0
 
 
 if __name__ == "__main__":

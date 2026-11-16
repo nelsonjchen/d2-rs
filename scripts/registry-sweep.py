@@ -4,13 +4,24 @@ arrowhead and CLI flag D2 supports, one small board per case, d2-rs vs Go.
 
 usage: registry-sweep.py <d2-rs> [--go GO] [--only shapes,styles,arrows,flags,special] [--out DIR] [--workers 8]
 
-A case passes when both exit codes match and, if both succeed, output bytes
-match (PDF is skipped for bytes). Mismatches are written to --out as
-<group>-<n>.d2 plus a JSONL index with the arguments, exits and first error.
+A case passes when both exit codes match and, if both succeed, the complete
+output inventory matches (one file, or every board of a multi-board output
+directory; PDF is skipped for bytes). Missing or empty output is
+go/rust-invalid-output. A differing case is first resampled with
+the seedable-map oracle and classified by scripts/mapseed.py (--go-mapseed,
+--mapseed-seeds, --record-mapseed): mapseed-match and known-mapseed pass.
+Mismatches are written to --out as <group>-<n>.d2 plus a JSONL index with the
+arguments, exits, first error and classification.
 """
-import argparse, concurrent.futures as cf, hashlib, itertools, json, os, re, subprocess, tempfile
+import argparse, concurrent.futures as cf, hashlib, importlib.util, itertools, json, os, re, subprocess, sys, tempfile
+from pathlib import Path
 
+import mapseed
 import references
+
+_spec = importlib.util.spec_from_file_location("perf_bench", Path(__file__).with_name("perf-bench.py"))
+perf_bench = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(perf_bench)
 
 SHAPES = ["rectangle", "square", "page", "parallelogram", "document", "cylinder", "queue", "package", "step", "callout",
           "stored_data", "person", "diamond", "oval", "circle", "hexagon", "cloud", "text", "c4-person"]
@@ -130,47 +141,114 @@ def special_cases(n):
                         if sketch and (eng != "dagre" or fmt != "svg"): continue
                         yield group, f"{name}-{eng}-{fmt}{'-sketch' if sketch else ''}", body, [f"--layout={eng}", *sketch], fmt
 
-def run(binary, d, args, fmt, name):
+def run(binary, d, args, fmt, name, extra_env=None):
+    """Exit, masked first error line, and a digest of the complete output inventory.
+
+    Each run writes <name>/out.<fmt> so every implementation uses the same
+    output stem (board manifests and links are relative to it). A multi-board
+    input writes the extensionless <name>/out/ directory instead; it is hashed
+    as a complete inventory with perf-bench's output_inventory.
+    """
     layout = [] if any(a.startswith("--layout") for a in args) else ["--layout=dagre"]
+    os.makedirs(os.path.join(d, name))
+    target = f"{name}/out.{fmt}"
     try:
-        p = subprocess.run([binary, *layout, *args, "input.d2", f"{name}.{fmt}"], cwd=d, capture_output=True, timeout=60,
-                           env={**os.environ, "SOURCE_DATE_EPOCH": "946782245"})
+        p = subprocess.run([binary, *layout, *args, "input.d2", target], cwd=d, capture_output=True, timeout=60,
+                           env={**os.environ, "SOURCE_DATE_EPOCH": "946782245", **(extra_env or {})})
     except subprocess.TimeoutExpired:
         return "timeout", "", None
-    out = os.path.join(d, f"{name}.{fmt}")
-    digest = hashlib.sha256(open(out, "rb").read()).hexdigest() if p.returncode == 0 and os.path.exists(out) else None
     err = next((l for l in p.stderr.decode("utf-8", "replace").splitlines() if "err" in l.lower()), "")
-    return p.returncode, err.replace(d, "<dir>"), digest
+    err = err.replace(d, "<dir>").replace(f"{name}/out", "<out>")
+    if p.returncode:
+        return p.returncode, err, None
+    out = Path(d) / target
+    try:
+        if out.is_file():
+            if not out.stat().st_size:
+                raise ValueError("empty output")
+            return 0, err, hashlib.sha256(out.read_bytes()).hexdigest()
+        if out.with_suffix("").is_dir():
+            inventory = perf_bench.output_inventory(out.with_suffix(""))
+            if inventory:
+                return 0, err, hashlib.sha256(json.dumps(inventory, sort_keys=True).encode()).hexdigest()
+        raise ValueError("missing output")
+    except ValueError:
+        return "invalid-output", err, None
+
+
+def key(result, fmt):
+    """What the kinds compare: success and output bytes (not PDF), or the first error line."""
+    code, err, digest = result
+    if code in ("timeout", "invalid-output") or isinstance(code, int) and code < 0:
+        return ("unusable", code)
+    return ("ok", digest if fmt != "pdf" else None) if code == 0 else ("error", re.sub(r"\s+", " ", err))
+
+
+def mapseed_oracle(go, path=None):
+    def probe(binary):
+        d = tempfile.mkdtemp(prefix="en-probe-")
+        try:
+            open(os.path.join(d, "input.d2"), "w").write("a -> b\n")
+            return key(run(binary, d, [], "svg", "probe"), "svg")
+        finally:
+            subprocess.run(["rm", "-rf", d])
+    return mapseed.Oracle(path or mapseed.default_oracle(go), go, probe)
+
 
 def check(job):
-    rust, go, group, n, body, args, fmt = job
+    rust, go, group, n, body, args, fmt, oracle, seeds, registry = job
     d = tempfile.mkdtemp(prefix="en-"); open(os.path.join(d, "input.d2"), "w").write(body)
     open(os.path.join(d, "icon.svg"), "w").write(ICON_SVG); open(os.path.join(d, "icon.png"), "wb").write(ICON_PNG)
-    g = run(go, d, args, fmt, "go"); r = run(rust, d, args, fmt, "rust"); subprocess.run(["rm", "-rf", d])
+    g = run(go, d, args, fmt, "go"); r = run(rust, d, args, fmt, "rust")
+    resolution = None
     if g[0] == "timeout" or r[0] == "timeout":
         kind = "rust-timeout" if r[0] == "timeout" and g[0] != "timeout" else None
-    elif (g[0] == 0) != (r[0] == 0): kind = "exit-diff"
-    elif g[0] == 0 and g[2] != r[2] and fmt != "pdf": kind = "output-diff"
-    elif g[0] != 0 and re.sub(r"\s+", " ", g[1]) != re.sub(r"\s+", " ", r[1]): kind = "error-diff"
-    else: kind = None
-    return group, n, body, args, fmt, kind, g[0], r[0], g[1], r[1]
+    else:
+        if "invalid-output" in (g[0], r[0]): kind = "go-invalid-output" if g[0] == "invalid-output" else "rust-invalid-output"
+        elif (g[0] == 0) != (r[0] == 0): kind = "exit-diff"
+        elif g[0] == 0 and g[2] != r[2] and fmt != "pdf": kind = "output-diff"
+        elif g[0] != 0 and re.sub(r"\s+", " ", g[1]) != re.sub(r"\s+", " ", r[1]): kind = "error-diff"
+        else: kind = None
+        known = registry.known(mapseed.identity(body, [*args, fmt]))
+        if kind and not kind.endswith("invalid-output") or known:
+            seeded = lambda seed: key(run(oracle.path, d, args, fmt, f"go-mapseed-{seed}", {mapseed.ENV: str(seed)}), fmt)  # noqa: E731
+            resolution = mapseed.resolve([key(g, fmt)], [key(r, fmt)], seeded, oracle, seeds, known,
+                                         usable=lambda k: k[0] != "unusable")
+            if resolution.passed: kind = None
+            elif resolution.classification != mapseed.MISMATCH: kind = resolution.classification
+    subprocess.run(["rm", "-rf", d])
+    return group, n, body, args, fmt, kind, g[0], r[0], g[1], r[1], resolution
 
 def main():
     a = argparse.ArgumentParser(); a.add_argument("rust"); a.add_argument("--go", default=str(references.GO_ORACLE))
     a.add_argument("--only", default="shapes,styles,arrows,flags,special"); a.add_argument("--out", default=str(references.REPORTS / "registry-sweep"))
     a.add_argument("--workers", type=int, default=8)
+    mapseed.add_arguments(a)
     o = a.parse_args(); os.makedirs(o.out, exist_ok=True)
-    jobs = [(o.rust, o.go, *c) for c in cases(o.only.split(","))]
+    oracle, registry, recorded = mapseed_oracle(o.go, o.go_mapseed), mapseed.Registry(o.mapseed_registry), []
+    jobs = [(o.rust, o.go, *c, oracle, o.mapseed_seeds, registry) for c in cases(o.only.split(","))]
     totals, index = {}, open(os.path.join(o.out, "findings.jsonl"), "w")
     with cf.ThreadPoolExecutor(o.workers) as ex:
-        for group, n, body, args, fmt, kind, ge, re_, gerr, rerr in ex.map(check, jobs):
+        for group, n, body, args, fmt, kind, ge, re_, gerr, rerr, resolution in ex.map(check, jobs):
             t = totals.setdefault(group, {"cases": 0}); t["cases"] += 1
+            if resolution and resolution.passed and resolution.classification != mapseed.MATCH:
+                t[resolution.classification] = t.get(resolution.classification, 0) + 1
+            if resolution and resolution.go_variants > 1:
+                recorded.append((mapseed.identity(body, [*args, fmt]), body, [*args, fmt], f"registry-sweep.py {group} {n}", resolution))
             if kind:
                 t[kind] = t.get(kind, 0) + 1
                 name = f"{group}-{n}.d2"; open(os.path.join(o.out, name), "w").write(body)
                 index.write(json.dumps({"group": group, "n": n, "file": name, "args": args, "fmt": fmt, "kind": kind,
-                                        "go_exit": ge, "rust_exit": re_, "go_err": gerr[:240], "rust_err": rerr[:240]}) + "\n")
+                                        "go_exit": ge, "rust_exit": re_, "go_err": gerr[:240], "rust_err": rerr[:240],
+                                        **(resolution.record() if resolution else {})}) + "\n")
+                if kind in (mapseed.NO_RUST_MATCH, mapseed.ORACLE_MISSING):
+                    print(f"FAIL {kind}: {os.path.join(o.out, name)}", flush=True)
     print("DONE", json.dumps(totals), flush=True)
+    if any(t.get(mapseed.ORACLE_MISSING) for t in totals.values()):
+        print(f"error: {oracle.message()}", file=sys.stderr)
+    if o.record_mapseed:
+        added = mapseed.record_cases(registry, recorded, "registry-sweep")
+        print(f"recorded {added} new map-order-dependent inputs in {registry.path}")
 
 if __name__ == "__main__":
     main()

@@ -1535,6 +1535,26 @@ impl ArenaGraph {
     /// first member's slot (see `active_node_position`). edge_length.go
     /// 914/925 skips the vessel itself and any ancestor of a replacement
     /// endpoint, so compare that slot as the vessel it stands for.
+    /// layoutgraph/layout.go:314 isDescendantOf: a cluster member's parent is
+    /// its active vessel (the member's Container is cleared while the cluster
+    /// is active). The stable arena carries that vessel in the first member's
+    /// slot, so a later member reaches it through its active aggregate owner.
+    fn is_descendant_through_aggregates(&self, node: NodeId, ancestor: NodeId) -> bool {
+        let mut current = node;
+        loop {
+            if current == ancestor {
+                return true;
+            }
+            if self.active_aggregate_owner(current) == ancestor {
+                return true;
+            }
+            match self.nodes[current.0 as usize].container {
+                Some(container) => current = container,
+                None => return false,
+            }
+        }
+    }
+
     fn route_obstruction_identity(&self, obstruction: NodeId) -> NodeId {
         if let Some(index) = self.nodes[obstruction.0 as usize].sequence
             && self.sequences[index].members.first() == Some(&obstruction)
@@ -4929,8 +4949,8 @@ impl ArenaGraph {
                 if cached_obstructions.is_none()
                     && (obstruction_identity == node
                         || obstruction_identity == adjacent
-                        || self.is_descendant_of(node, obstruction_identity)
-                        || self.is_descendant_of(adjacent, obstruction_identity))
+                        || self.is_descendant_through_aggregates(node, obstruction_identity)
+                        || self.is_descendant_through_aggregates(adjacent, obstruction_identity))
                 {
                     (false, false, false, false, false)
                 } else {
@@ -6706,11 +6726,48 @@ impl ArenaGraph {
                     .scoring_container_ancestors
                     .len()
             });
-        let outer_container = if node_container != adjacent_container && node_depth > adjacent_depth
-        {
-            adjacent_container
+        // An active sequence step's Container is nil in TALA
+        // (grouping/sequences.go:418), so depth() counts only the step itself
+        // and the raw-container comparison sees nil, while
+        // ContainerDirection reads the vessel's container (node.go:2344).
+        let sequence_step_container = |tala_id: i64| {
+            self.sequences
+                .iter()
+                .find(|sequence| {
+                    self.sequence_is_active(sequence)
+                        && sequence
+                            .members
+                            .iter()
+                            .any(|member| self.nodes[member.0 as usize].tala_id == tala_id)
+                })
+                .map(|sequence| {
+                    sequence
+                        .container
+                        .map(|container| self.nodes[container.0 as usize].tala_id)
+                })
+        };
+        let node_step = sequence_step_container(
+            projected_node.map_or(self.nodes[node.0 as usize].tala_id, |projected| {
+                projected.tala_id
+            }),
+        );
+        let adjacent_step = sequence_step_container(
+            projected_adjacent.map_or(self.nodes[adjacent.0 as usize].tala_id, |projected| {
+                projected.tala_id
+            }),
+        );
+        let (node_raw, node_depth) = match node_step {
+            Some(_) => (None, 0),
+            None => (node_container, node_depth),
+        };
+        let (adjacent_raw, adjacent_depth) = match adjacent_step {
+            Some(_) => (None, 0),
+            None => (adjacent_container, adjacent_depth),
+        };
+        let outer_container = if node_raw != adjacent_raw && node_depth > adjacent_depth {
+            adjacent_step.unwrap_or(adjacent_container)
         } else {
-            node_container
+            node_step.unwrap_or(node_container)
         };
         let Some(container_tala_id) = outer_container else {
             return self.scoring_directions.contains_key(&None)

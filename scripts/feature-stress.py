@@ -8,10 +8,16 @@ Each family maps n to a dict of input files (input.d2 plus any imports), the
 CLI layout and extra arguments, and the output extension. Rows report median
 CPU and peak RSS ratios and whether outputs are byte-identical (PDF embeds a
 date and is timed only). Flags: over Go, mismatch, Rust failure where Go
-succeeds, Rust timeout, and CPU ratio growing with n.
+succeeds, Rust timeout, and CPU ratio growing with n. Outputs that differ
+(Go repeats disagreeing, or Rust differing from Go) are resampled, untimed,
+with the seedable-map oracle and classified by scripts/mapseed.py
+(--go-mapseed, --mapseed-seeds, --record-mapseed): a mapseed-match or
+known-mapseed row is not flagged; go-nondeterministic-no-rust-match and
+mapseed-oracle-missing are flagged under that name.
 """
-import argparse, hashlib, os, shutil, statistics, subprocess, tempfile, time
+import argparse, hashlib, json, os, shutil, statistics, subprocess, sys, tempfile, time
 
+import mapseed
 import references
 
 def objs(n, prefix="o"):
@@ -147,13 +153,13 @@ FAMILIES.update({
 for theme in (0, 1, 3, 4, 5, 6, 8, 100, 101, 102, 103, 104, 105, 200, 201, 300, 301, 302, 303):
     FAMILIES[f"theme-{theme}"] = (wrap(themed), "dagre", [f"--theme={theme}"], "png")
 
-def run(binary, d, layout, args, ext, timeout):
+def run(binary, d, layout, args, ext, timeout, extra_env=None):
     out = os.path.join(d, f"output.{ext}")
     if os.path.exists(out):
         os.remove(out)
     start = time.monotonic()
     proc = subprocess.Popen([binary, f"--layout={layout}", *args, "input.d2", f"output.{ext}"], cwd=d,
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env={**os.environ, "SOURCE_DATE_EPOCH": "946782245"})
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env={**os.environ, "SOURCE_DATE_EPOCH": "946782245", **(extra_env or {})})
     while True:
         pid, status, ru = os.wait4(proc.pid, os.WNOHANG)
         if pid:
@@ -171,7 +177,19 @@ def main():
     p.add_argument("rust"); p.add_argument("--go", default=str(references.GO_ORACLE))
     p.add_argument("--sizes", default="10,100,1000"); p.add_argument("--repeat", type=int, default=3)
     p.add_argument("--only", default=""); p.add_argument("--timeout", type=float, default=300)
+    mapseed.add_arguments(p)
     a = p.parse_args()
+    registry, recorded = mapseed.Registry(a.mapseed_registry), []
+
+    def probe(binary):
+        d = tempfile.mkdtemp(prefix="stress2-probe-")
+        try:
+            open(os.path.join(d, "input.d2"), "w").write("a -> b\n")
+            x = run(binary, d, "dagre", [], "svg", 120)
+            return x and (x[0], x[3])
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+    oracle = mapseed.Oracle(a.go_mapseed or mapseed.default_oracle(a.go), a.go, probe)
     sizes = [int(s) for s in a.sizes.split(",")]
     wanted = a.only.split(",") if a.only else list(FAMILIES)
     unknown = [f for f in wanted if f not in FAMILIES]
@@ -188,6 +206,19 @@ def main():
             g, r = [], []
             for _ in range(a.repeat):
                 g.append(run(a.go, d, layout, args, ext, a.timeout)); r.append(run(a.rust, d, layout, args, ext, a.timeout))
+            files = gen(n)
+            identity = mapseed.identity(json.dumps(files, sort_keys=True), [f"--layout={layout}", *args, ext])
+            resolution = None
+            if ext != "pdf" and all(x is not None and x[0] for x in g + r) and (
+                    len({x[3] for x in g + r}) != 1 or registry.known(identity)):
+                def seeded(seed):
+                    x = run(oracle.path, d, layout, args, ext, a.timeout, {mapseed.ENV: str(seed)})
+                    return x[3] if x and x[0] else None
+                resolution = mapseed.resolve([x[3] for x in g], [x[3] for x in r], seeded, oracle, a.mapseed_seeds,
+                                             registry.known(identity), usable=lambda digest: digest is not None)
+                if resolution.go_variants > 1:
+                    recorded.append((identity, json.dumps(files, sort_keys=True), [f"--layout={layout}", *args, ext],
+                                     f"feature-stress.py {fam} n={n}", resolution))
             shutil.rmtree(d, ignore_errors=True)
             tag = f"{fam:18} n={n:5}"
             if any(x is None for x in g + r):
@@ -207,12 +238,21 @@ def main():
             same = len({x[3] for x in g + r}) == 1
             ratios.append((n, cpu)); mark = ""
             if cpu > 1.0 or rss > 1.0: mark += " OVER-GO"
-            if not same and ext != "pdf": mark += " MISMATCH"
-            print(f"{tag} cpu {cpu:5.2f}x rss {rss:5.2f}x  go {med(g,1):8.3f}s {med(g,2):7.1f}MiB  rust {med(r,1):8.3f}s {med(r,2):7.1f}MiB same={same}{mark}", flush=True)
+            note = ""
+            if resolution and resolution.passed and resolution.classification != mapseed.MATCH:
+                note = f" {resolution.classification}(seeds {','.join(map(str, resolution.seeds))})"
+            elif resolution and not resolution.passed:
+                mark += " MISMATCH" if resolution.classification == mapseed.MISMATCH else " " + resolution.classification
+            print(f"{tag} cpu {cpu:5.2f}x rss {rss:5.2f}x  go {med(g,1):8.3f}s {med(g,2):7.1f}MiB  rust {med(r,1):8.3f}s {med(r,2):7.1f}MiB same={same}{note}{mark}", flush=True)
             if mark: flagged.append(f"{fam}@{n}:{mark.strip()}")
         if len(ratios) >= 2 and ratios[-1][1] > ratios[0][1] * 1.5 and ratios[-1][1] > 0.6:
             print(f"{fam:18} GROWING cpu {ratios[0][1]:.2f} -> {ratios[-1][1]:.2f}", flush=True); flagged.append(f"{fam}@{ratios[-1][0]}:growing")
     print("FLAGGED:", " ".join(flagged) or "none")
+    if any(mapseed.ORACLE_MISSING in flag for flag in flagged):
+        print(f"error: {oracle.message()}", file=sys.stderr)
+    if a.record_mapseed:
+        added = mapseed.record_cases(registry, recorded, "feature-stress")
+        print(f"recorded {added} new map-order-dependent inputs in {registry.path}")
 
 if __name__ == "__main__":
     main()

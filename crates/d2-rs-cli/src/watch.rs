@@ -127,8 +127,15 @@ pub(super) fn open_tracked_file(
 ) -> Result<fs::File, d2_rs_scenebuild::LocalFileError> {
     let file = policy.open(path)?;
     record_dependency(path);
+    if let Ok(mut opened) = TRACKED_FS_OPENED.lock() {
+        opened.push(path.to_path_buf());
+    }
     Ok(file)
 }
+
+/// trackedFS.opened of the current watch compile: the imports, in open
+/// order. Go's watch list is the input plus these (watch.go:396-431).
+static TRACKED_FS_OPENED: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
 
 #[cfg(all(test, unix))]
 #[path = "watch/tracked_fs_api_tests.rs"]
@@ -255,8 +262,11 @@ where
     let remote_cache = config
         .img_cache
         .then(|| Arc::new(Mutex::new(BTreeMap::new())));
-    let mut dependencies =
-        DependencySet::from([absolute_watch_path(Path::new(&config.input_path))]);
+    // watchLoop's first ensureAddWatch(inputPath) (watch.go:247).
+    let mut dependencies = DependencySet::new();
+    if watchable(Path::new(&config.input_path)) {
+        dependencies.insert(absolute_watch_path(Path::new(&config.input_path)));
+    }
     compile_and_publish(
         &config,
         &active_target,
@@ -286,6 +296,23 @@ where
         let mut current_snapshot = snapshot(&dependencies);
         let changed = current_snapshot != last_snapshot;
         if changed {
+            // watch.go:287 logs each fsnotify event as it arrives. Polling
+            // sees the burst's net effect, one event per changed file.
+            for (path, state) in &current_snapshot {
+                let previous = last_snapshot.get(path);
+                if previous == Some(state) {
+                    continue;
+                }
+                let operation = match (previous.is_some_and(|old| old.exists), state.exists) {
+                    (true, false) => "REMOVE",
+                    (false, true) => "CREATE",
+                    _ => "WRITE",
+                };
+                super::cli_log::command_debug(&format!(
+                    "received file system event {operation:<13} {}",
+                    d2_rs_core::quote_go_bytes(path.as_os_str().as_encoded_bytes())
+                ));
+            }
             thread::sleep(CHANGE_DEBOUNCE);
             current_snapshot = snapshot(&dependencies);
         }
@@ -357,10 +384,41 @@ fn compile_and_publish<F>(
     arguments.push(format!("--target={target}"));
     arguments.push("--watch-preview".into());
     let _remote_cache_scope = use_remote_asset_cache(remote_cache);
+    if let Ok(mut tracked) = TRACKED_FS_OPENED.lock() {
+        tracked.clear();
+    }
     let (result, opened) = render(&arguments);
+    let tracked = TRACKED_FS_OPENED
+        .lock()
+        .map(|mut tracked| std::mem::take(&mut *tracked))
+        .unwrap_or_default();
     dependencies.clear();
-    dependencies.insert(absolute_watch_path(Path::new(&config.input_path)));
-    dependencies.extend(opened.into_iter().map(|path| absolute_watch_path(&path)));
+    let input = absolute_watch_path(Path::new(&config.input_path));
+    if backup_file_reason(Path::new(&config.input_path)).is_none() {
+        dependencies.insert(input.clone());
+    }
+    // replaceWatchList(fs.opened) (watch.go:396-431) retries every import
+    // not yet watched; a backup file is never added, so it is logged each
+    // time. Other recorded dependencies (fonts, images) stay polled.
+    // The CLI compiles the source more than once (planning and rendering);
+    // keep each opened import once, in first-open order.
+    let mut skipped = BTreeSet::new();
+    let mut seen = BTreeSet::new();
+    for path in tracked.into_iter().filter(|path| seen.insert(path.clone())) {
+        let absolute = absolute_watch_path(&path);
+        if absolute != input && !watchable(&path) {
+            skipped.insert(absolute);
+        }
+    }
+    dependencies.extend(
+        opened
+            .into_iter()
+            .map(|path| absolute_watch_path(&path))
+            .filter(|path| !skipped.contains(path)),
+    );
+    if backup_file_reason(Path::new(&config.input_path)).is_some() {
+        dependencies.remove(&input);
+    }
 
     let (svg, error) = match result {
         Ok(bytes) => match String::from_utf8(bytes) {
@@ -1023,6 +1081,45 @@ fn file_snapshot(metadata: &fs::Metadata) -> FileSnapshot {
     }
 }
 
+/// d2cli/watch.go isBackupFile (:754-790), on filepath.Ext and Base.
+fn backup_file_reason(path: &Path) -> Option<&'static str> {
+    let base = path
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let ext = base.rfind('.').map_or("", |index| &base[index..]);
+    Some(match () {
+        _ if ext.ends_with('~') => "generic backup file (~)",
+        _ if ext == ".swp" || ext == ".swx" => "vim swap file",
+        _ if ext == ".tmp" => "generic temp file",
+        _ if ext == ".DS_Store" => "OSX thumbnail",
+        _ if ext == ".bck" => "Helix backup",
+        _ if base == "4913" => "vim temp file",
+        _ if ext.starts_with(".goutputstream") => "GNOME temp file",
+        _ if ext.ends_with("jb_old___") => "IntelliJ old backup",
+        _ if ext.ends_with("jb_tmp___") => "IntelliJ temp file",
+        _ if ext.ends_with("jb_bak___") => "IntelliJ backup",
+        _ if ext.starts_with(".sb-") => "Byword temp file",
+        _ if base.starts_with(".#") => "Emacs lock file",
+        _ if base.starts_with('#') => "Emacs temp file",
+        _ => return None,
+    })
+}
+
+/// watcher.addWatch (watch.go:378-383): backup files are not watched.
+fn watchable(path: &Path) -> bool {
+    match backup_file_reason(path) {
+        Some(reason) => {
+            super::cli_log::command_debug(&format!(
+                "skipping watch for {}: detected as {reason}",
+                d2_rs_core::quote_go_bytes(super::human_path(path).as_bytes())
+            ));
+            false
+        }
+        None => true,
+    }
+}
+
 fn absolute_watch_path(path: &Path) -> PathBuf {
     if let Ok(canonical) = fs::canonicalize(path) {
         return canonical;
@@ -1597,6 +1694,31 @@ mod tests {
         let _ = fs::remove_file(&path);
         assert_ne!(before, created);
         assert_ne!(created, changed);
+    }
+
+    #[test]
+    fn backup_files_follow_watch_go_is_backup_file() {
+        for (path, reason) in [
+            ("a.d2~", Some("generic backup file (~)")),
+            ("a.swp", Some("vim swap file")),
+            ("a.swx", Some("vim swap file")),
+            ("dir/a.tmp", Some("generic temp file")),
+            (".DS_Store", Some("OSX thumbnail")),
+            ("a.bck", Some("Helix backup")),
+            ("4913", Some("vim temp file")),
+            ("a.goutputstream-X1", Some("GNOME temp file")),
+            ("a.d2jb_old___", Some("IntelliJ old backup")),
+            ("a.jb_tmp___", Some("IntelliJ temp file")),
+            ("a.jb_bak___", Some("IntelliJ backup")),
+            ("a.sb-123", Some("Byword temp file")),
+            (".#a.d2", Some("Emacs lock file")),
+            ("#a.d2#", Some("Emacs temp file")),
+            ("a.d2", None),
+            ("tmp/a.d2", None),
+            ("a.tmpx", None),
+        ] {
+            assert_eq!(backup_file_reason(Path::new(path)), reason, "{path}");
+        }
     }
 
     #[test]

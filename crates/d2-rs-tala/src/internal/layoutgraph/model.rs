@@ -3334,6 +3334,13 @@ pub(super) struct ArenaGraph {
     /// pointer's NodeToTree orientation; publication replays these flips on
     /// the owning tree member.
     pub(super) projected_tree_mirrors: Vec<(i64, bool, bool)>,
+    /// Sequence vessels (by TALA ID) whose steps an unchecked mirrorAxes
+    /// reflected individually (placement/direct.go:225-236 walks
+    /// Sequence.Nodes through rdfsWalk), recorded by the graph that mirrored.
+    pub(super) projected_sequence_mirrors: Vec<(i64, bool, bool)>,
+    /// Accumulated step reflection per sequence vessel since the last
+    /// sequence sync, replayed from placed scopes into the pipeline graph.
+    pub(super) sequence_reflections: BTreeMap<i64, (bool, bool)>,
     pub(super) root_grid_bin_pack_completed: bool,
     pub(super) sequences: Vec<SequenceState>,
     /// True once `assign_sequences` has populated every node backlink.

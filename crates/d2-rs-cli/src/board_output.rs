@@ -515,16 +515,16 @@ impl BoardOutputWorkspace {
             .unwrap_or(Path::new("."));
         std::fs::create_dir_all(parent)
             .map_err(|error| format!("create board output parent: {error}"))?;
-        // os.MkdirTemp(parent, ".d2-board-output-"): a fresh 0700 directory.
+        // os.MkdirTemp(parent, ".d2-board-output-"): a fresh 0700 directory
+        // named with os.nextRandom, the decimal form of a random uint32.
         let mut attempt = 0u32;
         let stage_root = loop {
-            let nanos = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map_or(0, |duration| duration.subsec_nanos());
-            let candidate = parent.join(format!(
-                ".d2-board-output-{}{nanos:09}{attempt}",
-                std::process::id()
-            ));
+            use ring::rand::SecureRandom as _;
+            let mut random = [0; 4];
+            ring::rand::SystemRandom::new()
+                .fill(&mut random)
+                .map_err(|_| "create board output staging directory: no randomness".to_owned())?;
+            let candidate = parent.join(format!(".d2-board-output-{}", u32::from_ne_bytes(random)));
             match create_private_dir(&candidate) {
                 Ok(()) => break candidate,
                 Err(error)

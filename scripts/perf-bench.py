@@ -7,9 +7,14 @@ isometric exports covering SVG, PNG, GIF, PDF, PPTX and every engine. Each
 (case, engine, implementation) runs --repeat times; medians are reported.
 Outputs are compared byte for byte, so a speed-up can never hide a parity
 change: non-PDF Go repeats must agree with each other and with every Rust
-repeat (a Go disagreement is reported as oracle-nondeterministic, never a
-match); a Rust PDF must equal one observed Go PDF after masking only the
-CreationDate/ModDate digits (Go's PDF resource order follows map iteration).
+repeat. A non-PDF Go-vs-Go disagreement is resolved only by the seedable-map
+oracle (--go-mapseed, default the --go path plus -mapseed; untimed runs under
+--mapseed-seeds, default 1-16): every Rust repeat equal to a seeded Go output
+is mapseed-match (or known-mapseed), Rust equal to none is
+go-nondeterministic-no-rust-match, and a missing oracle is
+mapseed-oracle-missing; only mapseed-match and known-mapseed pass. A Rust PDF
+must equal one observed Go PDF after masking only the CreationDate/ModDate
+digits (Go's PDF resource order follows map iteration).
 Writes a JSON report and prints a per-engine summary with outcome counts.
 
 usage: perf-bench.py --rust <d2-rs> --output <report.json> [--cases 12]
@@ -19,6 +24,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import resource
 import shutil
@@ -29,6 +35,7 @@ import tempfile
 import time
 from pathlib import Path
 
+import mapseed
 import references
 
 ENGINES = ("dagre", "elk", "tala")
@@ -151,31 +158,70 @@ def _complete(sample):
                 and all(code == 0 for code in exits) and all(outputs))
 
 
-def compare_samples(fmt, go, rust):
+def compare_samples(fmt, go, rust, resample=None, oracle=None, seeds=mapseed.DEFAULT_SEEDS, known=False):
     """Classify every captured Go and Rust repeat of one job.
 
-    Outcomes: "match"; "mismatch"; "oracle-nondeterministic" (Go repeats
-    disagree in a non-PDF format, which is never a match); "go-failed" and
-    "rust-failed" (a nonzero exit, missing or empty output in any repeat).
-    Multi-file outputs compare as complete inventories.
+    Outcomes: "match"; "mismatch"; "go-failed" and "rust-failed" (a nonzero
+    exit, missing or empty output in any repeat); and, when non-PDF Go
+    repeats disagree, scripts/mapseed.py's classification of the seeded
+    resamples: "mapseed-match"/"known-mapseed" (every Rust repeat equals the
+    output of a map seed; the row lists the seeds),
+    "go-nondeterministic-no-rust-match" or "mapseed-oracle-missing".
+    resample(seed) captures the seeded oracle's output; oracle is the
+    mapseed.Oracle it runs. Multi-file outputs compare as complete inventories.
 
     Non-PDF formats: every Go repeat must equal every other Go repeat and
-    every Rust repeat. PDF only: pinned lib/pdf leaves fpdf catalogSort
-    disabled, so resource order follows Go map iteration and varies between
-    Go runs; each Rust repeat must equal one observed Go repeat, compared
-    after output_bytes masks the CreationDate/ModDate digits.
+    every Rust repeat; a Rust output equal only to a stock Go repeat never
+    resolves a Go disagreement. PDF only: pinned lib/pdf leaves fpdf
+    catalogSort disabled, so resource order follows Go map iteration and
+    varies between Go runs; each Rust repeat must equal one observed Go
+    repeat, compared after output_bytes masks the CreationDate/ModDate digits.
     """
     go_variants = _variants(go["output_hashes"])
     result = {"outcome": "match", "go_variants": len(go_variants)}
     if not _complete(go):
         result["outcome"] = "go-failed"
-    elif fmt != "pdf" and len(go_variants) != 1:
-        result["outcome"] = "oracle-nondeterministic"
     elif not _complete(rust):
         result["outcome"] = "rust-failed"
+    elif fmt != "pdf" and len(go_variants) != 1:
+        resolution = mapseed.resolve(go["output_hashes"], rust["output_hashes"],
+                                     resample or (lambda seed: None), oracle, seeds, known,
+                                     usable=lambda output: bool(output))
+        result.update(outcome=resolution.classification, go_variants=resolution.go_variants,
+                      mapseed=resolution.record())
     elif not all(output in go_variants for output in rust["output_hashes"]):
         result["outcome"] = "mismatch"
     return result
+
+
+def seeded_inventory(oracle, engine, source, directory, fmt, extra, seed):
+    """One untimed seeded-oracle run: its complete output inventory, or None."""
+    if directory.exists():
+        shutil.rmtree(directory)
+    directory.mkdir(parents=True)
+    out = directory / f"out.{fmt}"
+    result = subprocess.run([str(Path(oracle).resolve()), f"--layout={engine}", *extra, str(source), str(out)],
+                            capture_output=True, timeout=610, check=False,
+                            env={**os.environ, mapseed.ENV: str(seed)})
+    try:
+        return output_inventory(directory) if result.returncode == 0 else None
+    except ValueError:
+        return None
+
+
+def mapseed_oracle(go, path=None):
+    """The seeded oracle paired with go: it must reproduce go on a tiny input."""
+    def probe(binary):
+        with tempfile.TemporaryDirectory(prefix="perf-mapseed-probe-") as tmp:
+            source = Path(tmp) / "input.d2"
+            source.write_text("a -> b\n")
+            directory = Path(tmp) / "out"
+            directory.mkdir()
+            out = directory / "out.svg"
+            code = subprocess.run([str(Path(binary).resolve()), "--layout=dagre", str(source), str(out)],
+                                  capture_output=True, timeout=120, check=False).returncode
+            return code, output_inventory(directory) if code == 0 else None
+    return mapseed.Oracle(path or mapseed.default_oracle(go), go, probe)
 
 
 def measure_child(command):
@@ -197,7 +243,11 @@ def main():
     parser.add_argument("--cases", type=int, default=12)
     parser.add_argument("--repeat", type=int, default=3)
     parser.add_argument("--warmup", type=int, default=1)
+    mapseed.add_arguments(parser)
     args = parser.parse_args()
+    oracle = mapseed_oracle(args.go, args.go_mapseed)
+    registry = mapseed.Registry(args.mapseed_registry)
+    recorded = []
     rows = []
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
@@ -233,8 +283,18 @@ def main():
                     "cpu": statistics.median(s[2] for s in samples[impl]),
                     "rss": statistics.median(s[3] for s in samples[impl]),
                 }
-            row.update(compare_samples(fmt, row["go"], row["rust"]))
-            row["identical"] = row["outcome"] == "match"
+            arguments = [f"--layout={engine}", *extra, fmt]
+            known = registry.known(mapseed.identity(script, arguments))
+            row.update(compare_samples(
+                fmt, row["go"], row["rust"],
+                lambda seed: seeded_inventory(oracle.path, engine, source, tmp / "go-mapseed", fmt, extra, seed),
+                oracle, args.mapseed_seeds, known))
+            row["identical"] = row["outcome"] in mapseed.PASSING
+            if row.get("mapseed", {}).get("go_variants", 1) > 1:
+                recorded.append((mapseed.identity(script, arguments), script, arguments,
+                                 f"perf-bench.py {name} {engine} {fmt}",
+                                 mapseed.Resolution(row["outcome"], row["mapseed"]["mapseed_seeds"],
+                                                    row["mapseed"]["go_variants"])))
             rows.append(row)
             print(f"completed {len(rows)}: {engine}/{fmt} {name}", flush=True)
     summary = {}
@@ -269,6 +329,17 @@ def main():
                                      "binaries": {impl: {"path": str(binary.resolve()), "sha256": hashlib.sha256(binary.read_bytes()).hexdigest()}
                                                   for impl, binary in (("go", args.go), ("rust", args.rust))},
                                      "summary": summary, "rows": rows}, indent=1) + "\n")
+    for row in rows:
+        if row["outcome"] in (mapseed.NO_RUST_MATCH, mapseed.ORACLE_MISSING):
+            print(f"FAIL {row['outcome']}: {row['engine']}/{row['format']} {row['case']}")
+        elif row["outcome"] in (mapseed.MAPSEED_MATCH, mapseed.KNOWN_MAPSEED):
+            print(f"{row['outcome']} (seeds {','.join(map(str, row['mapseed']['mapseed_seeds']))}): "
+                  f"{row['engine']}/{row['format']} {row['case']}")
+    if any(row["outcome"] == mapseed.ORACLE_MISSING for row in rows):
+        print(f"error: {oracle.message()}", file=sys.stderr)
+    if args.record_mapseed:
+        added = mapseed.record_cases(registry, recorded, "perf-bench")
+        print(f"recorded {added} new map-order-dependent inputs in {registry.path}")
     for engine, s in summary.items():
         print(f"{engine}: rust/go wall {s['wall_ratio']}x (geomean {s['wall_geomean']}x, total {s['wall_total_ratio']}x) cpu {s['cpu_ratio']}x (total {s['cpu_total_ratio']}x) rss {s['rss_ratio']}x; identical {s['identical']}/{s['cases']}"
               f"; outcomes {s['outcomes']}; max PDF Go variants {s['max_pdf_go_variants']}")

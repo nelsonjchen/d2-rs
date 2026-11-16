@@ -3867,6 +3867,10 @@ impl GraphMeasurer for BundledGraphMeasurer {
             mono_bold_font: &self.fonts.mono_bold,
             mono_semibold_font: &self.fonts.mono_semibold,
             mono_italic_font: &self.fonts.mono_italic,
+            code_font: &self.fonts.mono,
+            code_bold_font: &self.fonts.mono_bold,
+            code_semibold_font: &self.fonts.mono_semibold,
+            code_italic_font: &self.fonts.mono_italic,
         }
         .markdown_dimensions(label, font_size, bold, italic, false)
     }
@@ -3898,6 +3902,10 @@ impl GraphMeasurer for BundledGraphMeasurer {
             mono_bold_font: &self.fonts.mono_bold,
             mono_semibold_font: &self.fonts.mono_semibold,
             mono_italic_font: &self.fonts.mono_italic,
+            code_font: &self.fonts.mono,
+            code_bold_font: &self.fonts.mono_bold,
+            code_semibold_font: &self.fonts.mono_semibold,
+            code_italic_font: &self.fonts.mono_italic,
         }
         .markdown_dimensions(label, font_size, bold, italic, true)
     }

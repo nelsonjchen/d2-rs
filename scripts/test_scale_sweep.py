@@ -54,6 +54,23 @@ class ScaleSweepTests(unittest.TestCase):
         self.assertEqual(row([{**error, "stderr_hash": "first"}],
                              [{**error, "stderr_hash": "second"}])["status"], "parity-error-mismatch")
 
+    def test_parity_mismatch_is_resolved_only_by_a_seeded_output(self):
+        def resolved(table, go_digests=("go-a", "go-b", "go-a"), rust_digest="go-b", oracle_exists=True):
+            result = row([sample(digest=d) for d in go_digests], [sample(digest=rust_digest)] * 3)
+            self.assertEqual(result["status"], "parity-mismatch")
+            result["source"] = "/unused/input.d2"
+            with tempfile.NamedTemporaryFile() as binary, \
+                    patch.object(sweep, "seeded_hash", lambda *a: table.get(a[-1], "go-a")), \
+                    contextlib.redirect_stderr(io.StringIO()):
+                oracle = sweep.mapseed.Oracle(Path(binary.name) if oracle_exists else Path("/nonexistent/mapseed"))
+                sweep.resolve_row(result, oracle, (1, 2, 3), False, Path("/unused"), None)
+            return result
+        result = resolved({2: "go-b"})
+        self.assertEqual((result["status"], result["mapseed"]["mapseed_seeds"]), ("measured", [2]))
+        self.assertEqual(resolved({})["status"], "go-nondeterministic-no-rust-match")
+        self.assertEqual(resolved({}, ("go-a",) * 3, "rust")["status"], "parity-mismatch")
+        self.assertEqual(resolved({2: "go-b"}, oracle_exists=False)["status"], "mapseed-oracle-missing")
+
     def test_pdf_comparison_is_explicitly_incomparable(self):
         result = row([sample()] * 3, [sample(digest="different")] * 3, fmt="pdf")
         self.assertEqual(result["status"], "measured")

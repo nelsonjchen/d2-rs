@@ -2651,6 +2651,53 @@ pub fn render_ascii_with_options(
     options: &RenderOptions,
     sketch: bool,
 ) -> Result<Vec<u8>, ExportError> {
+    render_ascii_with_nested_bounds(graph, result, labels, styles, options, sketch, None)
+}
+/// [`render_ascii_with_options`] for a board whose descendant boards are
+/// still attached (d2cli multi-board output): d2ascii's canvas starts from
+/// Diagram.NestedBoundingBox (d2ascii.go:134, d2target.go:424-448), so the
+/// union of the descendants' bounding boxes joins the board's own.
+pub fn render_ascii_with_nested_bounds(
+    graph: &Graph,
+    result: &LayoutResult,
+    labels: &BTreeMap<NodeId, String>,
+    styles: &BTreeMap<NodeId, SourceNodeStyle>,
+    options: &RenderOptions,
+    sketch: bool,
+    descendant_bounds: Option<[f64; 4]>,
+) -> Result<Vec<u8>, ExportError> {
+    let diagram = ascii_target_diagram(graph, result, labels, styles, options, sketch)?;
+    ascii_target::render_with_nested_bounds(
+        &diagram,
+        options.ascii_mode.as_deref().unwrap_or("extended"),
+        options.scale,
+        descendant_bounds,
+    )
+    .map(String::into_bytes)
+    .map_err(ExportError::Render)
+}
+/// d2target Diagram.BoundingBox of one measured board, as the ASCII
+/// renderer's target diagram carries it.
+pub fn ascii_board_bounding_box(
+    graph: &Graph,
+    result: &LayoutResult,
+    labels: &BTreeMap<NodeId, String>,
+    styles: &BTreeMap<NodeId, SourceNodeStyle>,
+    options: &RenderOptions,
+    sketch: bool,
+) -> Result<[f64; 4], ExportError> {
+    ascii_target_diagram(graph, result, labels, styles, options, sketch)?
+        .bounding_box()
+        .map_err(ExportError::Render)
+}
+fn ascii_target_diagram(
+    graph: &Graph,
+    result: &LayoutResult,
+    labels: &BTreeMap<NodeId, String>,
+    styles: &BTreeMap<NodeId, SourceNodeStyle>,
+    options: &RenderOptions,
+    sketch: bool,
+) -> Result<d2_rs_render::target::TargetDiagram, ExportError> {
     let primary_mono = options
         .theme_id
         .and_then(theme::palette)
@@ -2662,17 +2709,8 @@ pub fn render_ascii_with_options(
         "fontFamily": if primary_mono {"SourceCodePro"} else if sketch {"HandDrawn"} else {"SourceSansPro"},
         "monoFontFamily":"SourceCodePro"
     });
-    let diagram: d2_rs_render::target::TargetDiagram =
-        serde_json::from_value(diagram).map_err(|e| ExportError::Render(e.to_string()))?;
-    ascii_target::render(
-        &diagram,
-        options.ascii_mode.as_deref().unwrap_or("extended"),
-        options.scale,
-    )
-    .map(String::into_bytes)
-    .map_err(ExportError::Render)
+    serde_json::from_value(diagram).map_err(|e| ExportError::Render(e.to_string()))
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -135,6 +135,8 @@ mod letter_unicode;
 mod mathit_glyphs;
 mod number_unicode;
 pub use scene::import_scene_svg;
+/// Pinned Go `math` functions shared by the renderers and color parsing.
+pub mod gomath;
 #[doc(hidden)]
 pub mod svg_bounds;
 #[doc(hidden)]

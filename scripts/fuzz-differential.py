@@ -20,10 +20,19 @@ input files under --out with a JSONL index:
 
 Inputs where pinned Go panics or dies on a signal have no oracle result. They
 are retained in skips.jsonl with Rust's outcome, but do not count as findings.
+
+An exit-diff, output-diff or error-diff is first resampled with the
+seedable-map oracle (--go-mapseed, default the --go path plus -mapseed; for
+PDF a clock+mapseed build from build-cli-clock-oracle.py --mapseed) under
+--mapseed-seeds (default 1-16) and classified by scripts/mapseed.py. A
+mapseed-match or known-mapseed is an outcome, not a finding; a
+go-nondeterministic-no-rust-match or mapseed-oracle-missing is a finding of
+that kind. Findings carry the classification, matching seeds and Go variants.
 """
-import argparse, json, os, random, re, subprocess, tempfile
+import argparse, json, os, random, re, subprocess, sys, tempfile
 from pathlib import Path
 
+import mapseed
 import references
 from fuzz_common import EMPTY_INVENTORY, first_error, run
 
@@ -112,7 +121,44 @@ def parse_args(argv=None):
         help="exact render flag, normally passed as --render-flag=--sketch",
     )
     parser.add_argument("--out", default=str(references.REPORTS / "fuzz"))
+    mapseed.add_arguments(parser)
     return parser.parse_args(argv)
+
+
+def outcome_key(exit_code, stderr, digest, directory):
+    """What the kinds below compare: the inventory, or the masked first error line."""
+    if exit_code == 0:
+        return ("ok", digest)
+    if exit_code in ("timeout", "invalid-output") or go_crashed(exit_code, stderr):
+        return ("unusable", exit_code)
+    return ("error", first_error(stderr, directory))
+
+
+def usable_key(key):
+    return key[0] != "unusable"
+
+
+def mapseed_oracle(o):
+    def probe(binary):
+        directory = tempfile.mkdtemp(prefix="fz-probe-")
+        try:
+            Path(directory, "input.d2").write_text("a -> b\n")
+            return outcome_key(*run(binary, directory, o.layout, "probe", o.format, o.render_flag), directory)
+        finally:
+            subprocess.run(["rm", "-rf", directory])
+    return mapseed.Oracle(o.go_mapseed or mapseed.default_oracle(o.go), o.go, probe,
+                          mapseed.CLOCK_BUILD_COMMAND if o.format == "pdf" else mapseed.BUILD_COMMAND)
+
+
+def resolve(o, oracle, registry, text, d, go_key, rust_key):
+    args = [f"--layout={o.layout}", *o.render_flag, o.format]
+    known = registry.known(mapseed.identity(text, args))
+
+    def seeded(seed):
+        name = f"go-mapseed-{seed}"
+        code, stderr, digest = run(oracle.path, d, o.layout, name, o.format, o.render_flag, {mapseed.ENV: str(seed)})
+        return outcome_key(code, stderr, digest, d)
+    return mapseed.resolve([go_key], [rust_key], seeded, oracle, o.mapseed_seeds, known, usable_key)
 
 
 def load_scripts(cases, upstream):
@@ -150,6 +196,7 @@ def main(argv=None):
         raise SystemExit("no fuzz corpus inputs found")
     counts, outcomes = {}, {}
     go_crash_rust_outcomes = {}
+    oracle, registry, recorded = mapseed_oracle(o), mapseed.Registry(o.mapseed_registry), []
     index = open(os.path.join(o.out, "findings.jsonl"), "a")
     skips = open(os.path.join(o.out, "skips.jsonl"), "a")
     for job in range(o.jobs):
@@ -174,7 +221,21 @@ def main(argv=None):
             elif (rg == 0) != (rr == 0): kind = "exit-diff"
             elif rg == 0 and hg != hr: kind = "output-diff"
             elif rg != 0 and first_error(eg, d) != first_error(er, d): kind = "error-diff"
+            resolution = None
+            if kind in ("exit-diff", "output-diff", "error-diff") or kind is None and rg != "timeout" and \
+                    registry.known(mapseed.identity(text, [f"--layout={o.layout}", *o.render_flag, o.format])):
+                resolution = resolve(o, oracle, registry, text, d, outcome_key(rg, eg, hg, d), outcome_key(rr, er, hr, d))
+                if resolution.passed:
+                    kind = None
+                elif resolution.classification != mapseed.MISMATCH:
+                    kind = resolution.classification
+                if resolution.go_variants > 1:
+                    recorded.append((mapseed.identity(text, [f"--layout={o.layout}", *o.render_flag, o.format]), text,
+                                     [f"--layout={o.layout}", *o.render_flag, o.format],
+                                     f"fuzz-differential.py --seed {o.seed} --layout {o.layout} --format {o.format}"
+                                     f" job {job} ({case})", resolution))
             outcome = kind or ("go-timeout" if rg == "timeout" else
+                               resolution.classification if resolution and resolution.classification != mapseed.MATCH else
                                "empty-output-match" if hg == hr == EMPTY_INVENTORY else "match")
         outcomes[outcome] = outcomes.get(outcome, 0) + 1
         if go_crash:
@@ -194,7 +255,10 @@ def main(argv=None):
             index.write(json.dumps({"job": job, "kind": kind, "case": case, "file": name, "go_exit": rg, "rust_exit": rr,
                                     "mutation_family": o.mutation_family,
                                     "format": o.format, "render_flags": o.render_flag,
-                                    "go_err": first_error(eg, d)[:300], "rust_err": first_error(er, d)[:300] or er[-300:]}) + "\n"); index.flush()
+                                    "go_err": first_error(eg, d)[:300], "rust_err": first_error(er, d)[:300] or er[-300:],
+                                    **(resolution.record() if resolution else {})}) + "\n"); index.flush()
+            if kind in (mapseed.NO_RUST_MATCH, mapseed.ORACLE_MISSING):
+                print(f"FAIL {kind}: {os.path.join(o.out, name)}", flush=True)
         subprocess.run(["rm", "-rf", d])
         if (job + 1) % 250 == 0:
             print(f"{job + 1}/{o.jobs} findings {counts}", flush=True)
@@ -205,6 +269,11 @@ def main(argv=None):
                    "findings": counts, "outcomes": outcomes,
                    "go_crash_rust_outcomes": go_crash_rust_outcomes}, summary, indent=2)
     print("DONE", counts, "outcomes", outcomes, flush=True)
+    if counts.get(mapseed.ORACLE_MISSING):
+        print(f"error: {oracle.message()}", file=sys.stderr)
+    if o.record_mapseed:
+        added = mapseed.record_cases(registry, recorded, "fuzz-differential")
+        print(f"recorded {added} new map-order-dependent inputs in {registry.path}")
 
 if __name__ == "__main__":
     main()

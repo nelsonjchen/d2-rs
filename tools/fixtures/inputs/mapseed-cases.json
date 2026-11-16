@@ -1,0 +1,17 @@
+{
+  "description": "Inputs whose pinned Go output depends on map iteration order. Written only by a differential harness run with --record-mapseed; no oracle output is stored (see scripts/mapseed.py).",
+  "cases": [
+    {
+      "identity": "7bd846d0ed3a7790626582315b336ddb3cfa9fb0fbf8f47f4500bf8766537e32",
+      "source_sha256": "639acbe579250569976049b96282d26b8fb628ab3b0752a7443dd2c6fbc78966",
+      "args": [
+        "--layout=dagre",
+        "svg"
+      ],
+      "harness": "graph-differential",
+      "input": "graph-differential.py --family wide --seed 7 case 136 --layouts dagre",
+      "reason": "pinned Go output varies with map order",
+      "recorded": "2026-11-16"
+    }
+  ]
+}

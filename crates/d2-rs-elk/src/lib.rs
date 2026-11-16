@@ -961,7 +961,21 @@ fn layout_elk_graph_with_edge_bindings(
                         maximum = maximum.max(x + node.width + node.margin_right);
                     }
                 }
-                let mirror = minimum + maximum;
+                // graph_transformer.go mirrorAllX reflects the nested graph
+                // against its own extent (Size.X - 2*Offset.X), which also
+                // spans external-port dummies and edge space, so the node span
+                // alone can be too narrow. The container's published flow
+                // extent is that extent plus both paddings and twice the
+                // centering shift; `offset` carries the left padding and that
+                // shift (less the hull minimum the transfer subtracted).
+                let mirror = if is_root_edge || component.is_some() {
+                    minimum + maximum
+                } else {
+                    let (left, right) = arena.graphs[owner.graph as usize]
+                        .padding
+                        .map_or((0.0, 0.0), |padding| (padding.left, padding.right));
+                    route_axis_max + left - right - 2.0 * offset
+                };
                 points = layered::edge_route_points_transfer(&arena, edge_id, false)?
                     .into_iter()
                     .zip(&points)
@@ -1753,9 +1767,12 @@ fn reserve_loop_margins(arena: &mut LayeredArena, graph_id: LGraphId) -> Result<
                 });
         // Inline West/East labels straddle their segment from the node top
         // (OrthogonalSelfLoopRouter.updateMargins over placeRoutedLabels).
+        // label_placer.go assignOneSidedSimple clears inline labels first, so
+        // a one-sided West/East loop keeps its label beside the segment.
         let inline_side_label_bounds = layered::self_loop_label_side(arena, edge_id as LEdgeId)
             .filter(|side| {
                 matches!(side, PortSide::West | PortSide::East)
+                    && side_label.is_none()
                     && arena.inline_loop_labels.contains(&(edge_id as LEdgeId))
             })
             .and_then(|side| {
@@ -1771,6 +1788,28 @@ fn reserve_loop_margins(arena: &mut LayeredArena, graph_id: LGraphId) -> Result<
                 let segment = self_loop_route_side_coordinate(&points, side)?;
                 Some((segment - width / 2.0, segment + width / 2.0, height))
             });
+        // label_placer.go assignOneSidedSimple/computeLabelCoordinates: a
+        // one-sided West/East label is LabelTop aligned to the topmost of
+        // its two ports (Position.Y = port.Position.Y + port.Anchor.Y; loop
+        // ports have a zero anchor). orthogonal_router.go:41-44 then feeds
+        // Position and Position+Size to updateMargins (lines 98-103).
+        let side_label_vertical_bounds = side_label.and_then(|_| {
+            let edge = &arena.edges[edge_id];
+            let top = [edge.source_port?, edge.target_port?]
+                .into_iter()
+                .map(|port| arena.ports[port as usize].y)
+                .fold(f64::INFINITY, f64::min);
+            let (width, height) = arena.loop_label_sizes.get(&(edge_id as LEdgeId))?;
+            let height = if matches!(
+                arena.graphs[0].direction,
+                LayerDirection::Down | LayerDirection::Up
+            ) {
+                *width
+            } else {
+                *height
+            };
+            Some((top, top + height))
+        });
         let side_label_bounds = side_label.and_then(|(side, width, spacing)| {
             points.get(1).map(|point| {
                 let left = if side == PortSide::West {
@@ -1800,6 +1839,10 @@ fn reserve_loop_margins(arena: &mut LayeredArena, graph_id: LGraphId) -> Result<
         if let Some((left, right)) = side_label_bounds {
             node.margin_left = node.margin_left.max(node.position_x - left);
             node.margin_right = node.margin_right.max(right - node.position_x - node.width);
+        }
+        if let Some((top, bottom)) = side_label_vertical_bounds {
+            node.margin_top = node.margin_top.max(-top);
+            node.margin_bottom = node.margin_bottom.max(bottom - node.height);
         }
         if let Some((left, right, height)) = inline_side_label_bounds {
             node.margin_left = node.margin_left.max(node.position_x - left);

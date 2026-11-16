@@ -1,5 +1,7 @@
 """Failure-oriented contracts for the CLI differential harness."""
 import importlib.util
+import io
+from contextlib import redirect_stderr
 from pathlib import Path
 import random
 import sys
@@ -27,9 +29,73 @@ class DifferentialContracts(unittest.TestCase):
         path.chmod(0o755)
         return path
 
-    def compare(self, go_body, rust_body, source="a", options=None):
-        args = SimpleNamespace(go=self.binary("go", go_body), rust=self.binary("rust", rust_body), timeout=2, tala_timeout=2, png_timeout=2)
+    def compare(self, go_body, rust_body, source="a", options=None, oracle=None, registry=None):
+        go = self.binary("go", go_body)
+        # By default the fake Go is its own seeded build: it ignores the seed.
+        args = SimpleNamespace(go=go, rust=self.binary("rust", rust_body), timeout=2, tala_timeout=2, png_timeout=2,
+                               mapseed_oracle=D.mapseed.Oracle(oracle or go), mapseed_seeds=(1, 2, 3),
+                               mapseed_registry_entries=registry)
         return D.compare(("control", source, "original", options or []), args)
+
+    # Map seed 2 takes the other map order; unset, the stock order.
+    SEEDED_GO = ('import os\nPath("output.svg").write_text("<svg>" + '
+                 '{"2": "<g/>"}.get(os.environ.get("D2RS_GO_MAPSEED"), "") + "</svg>")\n')
+
+    def test_mapseed_match_passes_and_records_seeds(self):
+        row = self.compare(self.SEEDED_GO, 'Path("output.svg").write_text("<svg><g/></svg>")\n')
+        self.assertEqual((row["outcome"], row["mapseed"]["mapseed_seeds"], row["mapseed"]["go_variants"]),
+                         ("mapseed-match", [2], 2))
+        self.assertFalse(D.failed(row))
+
+    def test_known_mapseed(self):
+        registry = D.mapseed.Registry(self.root / "registry.json")
+        registry.add(D.job_identity("a", [], {}), "a", [], "test", "test", "test")
+        row = self.compare(self.SEEDED_GO, 'Path("output.svg").write_text("<svg><g/></svg>")\n', registry=registry)
+        self.assertEqual(row["outcome"], "known-mapseed")
+        self.assertFalse(D.failed(row))
+
+    def test_go_nondeterministic_without_rust_match_fails_with_cluster(self):
+        row = self.compare(self.SEEDED_GO, 'Path("output.svg").write_text("<svg><a/></svg>")\n')
+        self.assertEqual((row["outcome"], row["mapseed"]["go_variants"]), ("go-nondeterministic-no-rust-match", 2))
+        self.assertTrue(D.failed(row))
+        self.assertEqual(D.cluster_label(row), "go-nondeterministic-no-rust-match: svg element: svg")
+
+    def test_missing_seeded_oracle_fails(self):
+        with redirect_stderr(io.StringIO()):
+            row = self.compare(self.SEEDED_GO, 'Path("output.svg").write_text("<svg><g/></svg>")\n',
+                               oracle=self.root / "absent-mapseed")
+        self.assertEqual(row["outcome"], "mapseed-oracle-missing")
+        self.assertTrue(D.failed(row))
+
+    def test_oracle_stamp_evidence(self):
+        base = "x: go1.27.0\n\tbuild\tGOARCH=arm64\n"
+        stamp = '\tbuild\t-ldflags="-X github.com/d2lang/d2/lib/version.Version=v0.9.0"\n'
+        self.assertTrue(D.stamped(base + stamp + "\tbuild\tvcs.modified=false\n"))
+        # Go omits -ldflags from build info under -trimpath; a clean tree is then required.
+        self.assertTrue(D.stamped(base + "\tbuild\t-trimpath=true\n\tbuild\tvcs.modified=false\n"))
+        self.assertFalse(D.stamped(base + "\tbuild\t-trimpath=true\n\tbuild\tvcs.modified=true\n"))
+        self.assertFalse(D.stamped(base + '\tbuild\t-ldflags="-s -w"\n\tbuild\t-trimpath=true\n\tbuild\tvcs.modified=false\n'))
+        self.assertFalse(D.stamped(base + "\tbuild\tvcs.modified=false\n"))
+
+    def test_trimpath_oracle_passes_provenance_but_unstamped_does_not(self):
+        arch = {"x86_64": "amd64", "aarch64": "arm64"}[D.platform.machine()]
+        metadata = (f"go: {D.references.MANIFEST['d2']['go_toolchain']}\n\tbuild\t-trimpath=true\n\tbuild\tGOARCH={arch}\n"
+                    f"\tbuild\tvcs.revision={D.references.SOURCE_COMMIT}\n\tbuild\tvcs.modified=false\n")
+        binary = self.binary("oracle", "")
+
+        def fake(version):
+            return lambda argv, **kw: metadata if argv[0] == "go" else version + "\n"
+        with patch.object(D.subprocess, "check_output", fake("v0.9.0")):
+            self.assertIn("build_metadata", D.provenance(binary, True))
+        with patch.object(D.subprocess, "check_output", fake("v0.8.1-HEAD")), self.assertRaises(ValueError):
+            D.provenance(binary, True)
+        with patch.object(D.subprocess, "check_output", lambda argv, **kw: metadata.replace("vcs.modified=false", "vcs.modified=true")
+                          if argv[0] == "go" else "v0.9.0\n"), self.assertRaises(ValueError):
+            D.provenance(binary, True)
+
+    def test_seed_reaches_the_environment(self):
+        self.assertEqual(D.environment(None, 7)[D.mapseed.ENV], "7")
+        self.assertNotIn(D.mapseed.ENV, D.environment(None))
 
     def test_multiboard_success_requires_complete_file_set_and_bytes(self):
         body = 'Path("output").mkdir()\nPath("output/a.svg").write_text("<svg/>")\n'

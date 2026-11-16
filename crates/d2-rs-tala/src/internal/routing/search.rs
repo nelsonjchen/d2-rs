@@ -1974,12 +1974,14 @@ fn prepare_route_flavor_owned(
                 }) else {
                     continue;
                 };
+                let source_owner = graph.edge_records[tree.sentinel_edge.0 as usize].from;
                 let Some(expanded_ids) = visibility.s_shape_route_indices(
                     route.points[0],
                     route.source_midpoint,
                     route.target_midpoint,
                     *route.points.last().unwrap(),
                     route.route_orientation,
+                    visibility.port_index(source_owner, route.points[0]),
                 ) else {
                     continue;
                 };

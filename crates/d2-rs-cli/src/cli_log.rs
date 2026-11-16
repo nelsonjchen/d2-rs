@@ -1,9 +1,81 @@
 // SPDX-License-Identifier: MPL-2.0
 //! lib/log/prettyhandler.go: warnings use stdout, ANSI colors and local RFC3339.
+//! util-go cmdlog: `debug:` lines go to stderr while `$DEBUG` is true.
 use std::io::Write;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+/// d2cli.Run's resolved --debug flag (with `$DEBUG` as its default). When it
+/// is true Go levels the slog context at Debug and sets `$DEBUG=1`.
+static DEBUG: AtomicBool = AtomicBool::new(false);
+
+pub(crate) fn set_debug(enabled: bool) {
+    DEBUG.store(enabled, Ordering::Relaxed);
+}
+
+/// Whether d2cli.Run leveled its slog context at Debug (main.go:224-227).
+pub(crate) fn debug_enabled() -> bool {
+    DEBUG.load(Ordering::Relaxed)
+}
+
+/// Whether a cmdlog Debug write would print (no error report for `$DEBUG`).
+pub(crate) fn command_debug_active() -> bool {
+    debug_enabled()
+        || matches!(
+            std::env::var_os("DEBUG")
+                .unwrap_or_default()
+                .as_encoded_bytes(),
+            b"1" | b"true"
+        )
+}
+
+/// util-go cmdlog `ms.Log.Debug.Printf`: debugWriter consults xos.Env.Debug
+/// on every write, so `$DEBUG=1` prints these lines even with --debug=false,
+/// and an invalid value writes Env.Debug's unterminated error instead.
+pub(crate) fn command_debug(message: &str) {
+    if !debug_enabled() {
+        let value = std::env::var_os("DEBUG").unwrap_or_default();
+        match value.as_encoded_bytes() {
+            b"" | b"0" | b"false" => return,
+            b"1" | b"true" => {}
+            bytes => {
+                // xos.Env.Bool: fmt.Errorf("$%s must be 0, 1, false or true
+                // but got %q"), written by Env.Debug without a newline.
+                let _ = write!(
+                    std::io::stderr().lock(),
+                    "env: $DEBUG must be 0, 1, false or true but got {}",
+                    d2_rs_core::quote_go_bytes(bytes)
+                );
+                return;
+            }
+        }
+    }
+    // cmdlog.prefixWriter: "debug:" plus a space before each nonempty line.
+    let mut text = String::new();
+    for line in message.split_terminator('\n') {
+        if line.is_empty() {
+            text.push_str("debug:\n");
+        } else {
+            text.push_str("debug: ");
+            text.push_str(line);
+            text.push('\n');
+        }
+    }
+    let _ = std::io::stderr().lock().write_all(text.as_bytes());
+}
+
+/// lib/log.Debug through the leveled PrettyHandler (stdout, cyan level).
+pub(crate) fn debug(message: &str) {
+    if debug_enabled() {
+        pretty("\x1b[36mDEBUG\x1b[0m", message);
+    }
+}
+
 pub(crate) fn warn(message: &str) {
+    pretty("\x1b[33mWARN \x1b[0m", message);
+}
+
+fn pretty(level: &str, message: &str) {
     // Explicit reproducible-clock control, shared with document exporters.
     // Ordinary invocations retain Go's local wall clock.
     let injected = std::env::var("SOURCE_DATE_EPOCH")
@@ -22,18 +94,26 @@ pub(crate) fn warn(message: &str) {
     // adapter forwards these bytes to its own process stdout unchanged.
     if let Some(path) = std::env::var_os("D2_RS_CLI_PROCESS_LOG") {
         if let Ok(mut file) = std::fs::OpenOptions::new().append(true).open(path) {
-            let _ = write_warning(&mut file, &timestamp, message);
+            let _ = write_record(&mut file, &timestamp, level, message);
             return;
         }
     }
-    let _ = write_warning(&mut std::io::stdout().lock(), &timestamp, message);
+    let _ = write_record(&mut std::io::stdout().lock(), &timestamp, level, message);
 }
 
+#[cfg(test)]
 fn write_warning(writer: &mut impl Write, timestamp: &str, message: &str) -> std::io::Result<()> {
-    writeln!(
-        writer,
-        "\x1b[2m{timestamp}\x1b[0m \x1b[33mWARN \x1b[0m {message}"
-    )
+    write_record(writer, timestamp, "\x1b[33mWARN \x1b[0m", message)
+}
+
+// PrettyHandler.Handle: fmt.Println("<faded ts> <colored %-5s level> msg").
+fn write_record(
+    writer: &mut impl Write,
+    timestamp: &str,
+    level: &str,
+    message: &str,
+) -> std::io::Result<()> {
+    writeln!(writer, "\x1b[2m{timestamp}\x1b[0m {level} {message}")
 }
 
 // tm_gmtoff is a C long, which is 32 bits on some targets.

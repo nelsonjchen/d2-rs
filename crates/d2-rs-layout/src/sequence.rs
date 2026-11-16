@@ -58,6 +58,66 @@ pub fn layout(graph: &Graph, options: &LayoutOptions) -> Result<LayoutResult, La
     layout_inner(graph, options, root, EngineKind::Tala, false, None)
 }
 
+/// d2sequence.newSequenceDiagram's actor checks (sequence_diagram.go:78-110)
+/// for the scope rooted at `root_node` (`None`: the document root), without
+/// laying it out: the first declared actor that is itself a sequence diagram,
+/// then an empty actor list, are errors. `live` lists the objects still in
+/// the scope's graph after LayoutNested's extractions; the check runs on
+/// their projection, with the same group and actor selection as the layout.
+pub fn validate_sequence_actors(
+    graph: &Graph,
+    root_node: Option<NodeId>,
+    live: &[NodeId],
+) -> Result<(), String> {
+    let mut visible = live.to_vec();
+    if let Some(root) = root_node {
+        visible.push(root);
+    }
+    visible.stable_sort();
+    visible.dedup();
+    let (graph, nodes, _) = super::project_graph(graph, &visible, false);
+    let graph = &graph;
+    let root_node = root_node.map(|root| {
+        NodeId(
+            nodes
+                .iter()
+                .position(|id| *id == root)
+                .expect("sequence root is visible") as u32,
+        )
+    });
+    let mut groups = Vec::new();
+    for (id, node) in graph.nodes() {
+        if node.parent == root_node && is_sequence_group(graph, id, root_node) {
+            groups.push(id);
+            groups.extend(super::ordered_descendants(graph, id));
+        }
+    }
+    let actors = graph
+        .nodes()
+        .filter_map(|(id, node)| (node.parent == root_node && !groups.contains(&id)).then_some(id))
+        .collect::<Vec<_>>();
+    if let Some(actor) = actors
+        .iter()
+        .copied()
+        .filter(|id| graph.is_sequence_diagram(*id))
+        .min_by_key(|id| note_line(graph, *id))
+    {
+        let node = graph.node(actor).expect("sequence actor");
+        let name = root_node
+            .and_then(|root| graph.node(root))
+            .and_then(|root| node.external_id.strip_prefix(&root.external_id))
+            .and_then(|suffix| suffix.strip_prefix('.'))
+            .unwrap_or(&node.external_id);
+        return Err(format!(
+            "actors in sequence diagrams cannot themselves be sequence diagrams: {name}"
+        ));
+    }
+    if actors.is_empty() {
+        return Err("no actors declared in sequence diagram".to_owned());
+    }
+    Ok(())
+}
+
 /// Lays out a root sequence diagram after applying LayoutNested's actor
 /// subtree passes with the selected core engine.
 pub fn layout_with_nested(
@@ -3867,13 +3927,22 @@ fn validate_scope_positions(
     result: &LayoutResult,
     root: Option<NodeId>,
 ) -> Result<(), LayoutError> {
+    // Only the reported object depends on the walk order; skip building it
+    // when every position is finite.
+    if !result
+        .boxes
+        .values()
+        .any(|rect| rect.origin.x.is_infinite() || rect.origin.y.is_infinite())
+    {
+        return Ok(());
+    }
     let prefix = root
         .and_then(|id| graph.node(id))
         .map(|node| format!("{}.", node.external_id));
-    for (id, node) in graph.nodes() {
-        if Some(id) == root || !is_descendant_or_self(graph, id, root) {
+    for id in crate::layout_nested_validation_order(graph, root) {
+        let Some(node) = graph.node(id) else {
             continue;
-        }
+        };
         if let Some(rect) = result.boxes.get(&id)
             && (rect.origin.x.is_infinite() || rect.origin.y.is_infinite())
         {

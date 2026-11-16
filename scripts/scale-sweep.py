@@ -7,6 +7,12 @@ interleaved samples. Filter --families/--sizes/--engines/--formats for a
 bounded investigation. Generated inputs and retained outputs live beside
 the JSON report under oracle-cache/reports/scale-sweep, never in the tree.
 PDF output is measured but is not compared with Go (embedded timestamps).
+A parity mismatch (Go samples disagreeing, or Rust differing from Go) is
+resampled, untimed, with the seedable-map oracle and classified by
+scripts/mapseed.py (--go-mapseed, --mapseed-seeds, --record-mapseed): a
+mapseed-match or known-mapseed row is scored as measured; otherwise the row's
+status is the classification (go-nondeterministic-no-rust-match,
+mapseed-oracle-missing) or parity-mismatch.
 """
 from __future__ import annotations
 
@@ -30,6 +36,7 @@ import time
 import xml.etree.ElementTree as ET
 import zlib
 
+import mapseed
 import references
 
 FAMILIES = ("chain", "fanout", "grid", "sparse", "dense", "nested", "sequence", "sql", "long-label")
@@ -283,6 +290,42 @@ def run_sample(binary, engine, fmt, source, directory, args, remaining):
     return sample
 
 
+def seeded_hash(oracle, engine, fmt, source, directory, args, seed):
+    """One untimed seeded-oracle run hashed like run_sample, or None."""
+    directory.mkdir()
+    output = directory / f"out.{fmt}"
+    environment = {k: v for k, v in os.environ.items() if not k.startswith(("D2_", "D2RS_", "TALA_TRACE_"))}
+    try:
+        result = subprocess.run([str(oracle), f"--layout={engine}", f"--timeout={math.ceil(args.timeout) + 1}",
+                                 str(source), str(output)], capture_output=True, timeout=args.timeout,
+                                env={**environment, **({mapseed.ENV: str(seed)} if seed is not None else {})})
+        if result.returncode or not output.is_file() or not output.stat().st_size:
+            return None
+        validate_output(output, fmt)
+        with output.open("rb") as stream:
+            return hashlib.file_digest(stream, "sha256").hexdigest()
+    except (OSError, ValueError, ET.ParseError, zlib.error, subprocess.TimeoutExpired):
+        return None
+
+
+def resolve_row(row, oracle, seeds, known, directory, args):
+    """Resamples a parity-mismatch row (or a known input) with map seeds."""
+    go = [sample["hash"] for sample in row["go"]["samples"]]
+    rust = [sample["hash"] for sample in row["rust"]["samples"]]
+    resolution = mapseed.resolve(
+        go, rust, lambda seed: seeded_hash(oracle.path, row["engine"], row["format"], Path(row["source"]),
+                                           directory / f"go-mapseed-{seed}", args, seed),
+        oracle, seeds, known, usable=lambda digest: digest is not None)
+    row["mapseed"] = resolution.record()
+    if resolution.passed:
+        row["status"] = "measured"
+    elif resolution.classification != mapseed.MISMATCH:
+        row["status"] = resolution.classification
+    row["over_go"] = (row["status"] in ("measured", "parity-mismatch") and
+                      (row["wall_ratio"] > 1 or row["rss_ratio"] > 1))
+    return resolution
+
+
 def finish_row(row):
     for impl in ("go", "rust"):
         samples = row[impl]["samples"]
@@ -392,7 +435,16 @@ def main():
     parser.add_argument("--budget-mib", type=int, default=1024, help="cumulative input/output capture budget")
     parser.add_argument("--file-mib", type=int, default=128)
     parser.add_argument("--max-jobs", type=int, default=None)
+    mapseed.add_arguments(parser)
     args = parser.parse_args()
+    registry, recorded = mapseed.Registry(args.mapseed_registry), []
+
+    def probe(binary):
+        with tempfile.TemporaryDirectory(prefix="scale-probe-") as tmp:
+            source = Path(tmp) / "input.d2"
+            source.write_text("a -> b\n")
+            return seeded_hash(binary, "dagre", "svg", source, Path(tmp) / "out", args, None)
+    oracle = mapseed.Oracle((args.go_mapseed or mapseed.default_oracle(args.go)).resolve(), args.go, probe)
     selections = {}
     for key, choices in (("families", FAMILIES + RASTER_FAMILIES), ("engines", ENGINES), ("formats", FORMATS)):
         selections[key] = getattr(args, key).split(",")
@@ -480,6 +532,13 @@ def main():
                 if stop:
                     break
             finish_row(row)
+            arguments = [f"--layout={engine}", fmt]
+            known = registry.known(mapseed.identity(script, arguments))
+            if row["status"] == "parity-mismatch" or known and row["status"] == "measured" and fmt != "pdf":
+                resolution = resolve_row(row, oracle, args.mapseed_seeds, known, directory, args)
+                if resolution.go_variants > 1:
+                    recorded.append((mapseed.identity(script, arguments), script, arguments,
+                                     f"scale-sweep.py {family} {size} {engine} {fmt} --seed {args.seed}", resolution))
             report["rows"].append(row)
             save()
             print(f"{len(report['rows'])}/{len(jobs)} {family}/{size} {engine}/{fmt}: {row['status']}"
@@ -492,6 +551,14 @@ def main():
     finally:
         save()
     print(table(report["rows"]), end="")
+    for r in report["rows"]:
+        if r["status"] in (mapseed.NO_RUST_MATCH, mapseed.ORACLE_MISSING):
+            print(f"FAIL {r['status']}: {r['source']} ({r['engine']}/{r['format']})")
+    if any(r["status"] == mapseed.ORACLE_MISSING for r in report["rows"]):
+        print(f"error: {oracle.message()}", file=sys.stderr)
+    if args.record_mapseed:
+        added = mapseed.record_cases(registry, recorded, "scale-sweep")
+        print(f"recorded {added} new map-order-dependent inputs in {registry.path}")
     failed = any(r["over_go"] or r["status"] not in ("measured", "skip-go-timeout", "skip-go-error") for r in report["rows"])
     return int(not report["complete"] or failed or any(t["rising"] for t in report["trends"]))
 

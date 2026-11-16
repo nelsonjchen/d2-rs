@@ -67,14 +67,15 @@ uv run --no-project python scripts/differential-scoreboard.py --rust target/rele
 
 Runs Go and Rust on upstream `.d2` files and test scripts, each with one
 seeded mutation (`--seed`, `--cap` cases), and compares exit code, stdout,
-stderr and output bytes. A case passes as `match`. Mismatches are printed
+stderr and output bytes. A case passes as `match`, or as `mapseed-match` or
+`known-mapseed` (see "Map order" below). Mismatches are printed
 grouped by cluster; Go crashes or timeouts, unscored outputs and budget
 exhaustion are counted apart, never as matches. A few mismatch clusters
 remain open.
 
 For a fresh search, add `--expanded-matrix --seed 20261103` and use a
 clock oracle (`scripts/build-cli-clock-oracle.py`, `--go <clock-oracle>
---epoch 946782245`). This mode preserves the older queues and adds all
+--epoch 946782245`, plus `--go-mapseed <clock+mapseed oracle>`). This mode preserves the older queues and adds all
 bundled themes, both dark themes, pad/center/scale/sketch sweeps, deeper
 containers, relative near, grids, table/class shapes, Markdown, LaTeX and
 icons. Each original and mutated source runs on Dagre, ELK and TALA;
@@ -151,6 +152,43 @@ the outputs, and for some the time and memory, with the pinned Go CLI:
 
 Each distinct mismatch cluster is a failing board. Open findings are in
 `docs/STATUS.md`, "Beyond the upstream corpus".
+
+### Map order
+
+Go randomizes map iteration, so a few inputs (mostly Dagre's
+`shiftReachableDown`) have more than one Go output. Every harness above that
+compares Go with d2-rs (`differential-scoreboard.py` and
+`language-combination-sweep.py`, `graph-differential.py`, `layout-hunt.py`,
+`fuzz-differential.py`, `shape-trace-differential.py`, `registry-sweep.py`,
+`embedded-images-sweep.py`, `cli-diff-scoreboard.py`, the stress and scale
+sweeps, `perf-bench.py` and `corpus-perf-sweep.py`) resamples a differing
+case with the seedable-map oracle (`scripts/build-mapseed-oracle.py`) through
+`scripts/mapseed.py` and reports one classification per case:
+
+| classification | meaning | passes |
+| --- | --- | --- |
+| `match` | stock Go and d2-rs agree | yes |
+| `mapseed-match` | d2-rs equals Go's output under at least one map seed; the record lists the seeds and the number of Go variants seen | yes |
+| `known-mapseed` | a `mapseed-match` on an input listed in `tools/fixtures/inputs/mapseed-cases.json` | yes |
+| `go-nondeterministic-no-rust-match` | Go's output varies with the map seed, and d2-rs equals none of its outputs: a d2-rs bug | no |
+| `mismatch` | Go gives one output under every seed and d2-rs differs | no |
+| `mapseed-oracle-missing` | the case needed the seeded oracle, which is absent or not paired with `--go` (the message names the build command) | no |
+
+Each harness keeps its own error-match rules. Seeds default to 1-16
+(`--mapseed-seeds`); every seed runs, so the record lists every matching one.
+A d2-rs output equal only to a stock Go repeat, never to a seeded one, does
+not resolve a disagreement. `perf-bench.py` and `corpus-perf-sweep.py`
+resample only non-PDF Go-vs-Go disagreements (seeded runs are untimed); a
+stable Go output that d2-rs differs from stays `mismatch`, and PDF keeps its
+observed-variant rule. Harnesses that run a clock oracle need a clock+mapseed
+build as `--go-mapseed` (`build-cli-clock-oracle.py --mapseed`). Summaries
+print per-classification counts, for example `dagre: 299/300 match, 1
+mapseed-match (seeds 3,9)`, and list every failing input. `--record-mapseed`
+adds inputs whose Go output varied to the registry; nothing else writes it,
+and it holds no oracle output. `scripts/fuzz-minimize.py` reduces a
+`go-nondeterministic-no-rust-match` finding while Go still varies across the
+seeds and d2-rs equals none of its outputs, and skips
+`mapseed-oracle-missing` findings with the build command.
 
 ## Checking a change
 

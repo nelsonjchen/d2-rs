@@ -1,10 +1,18 @@
 #!/usr/bin/env python3
-"""Build the pinned trace CLI with explicit log/PDF clock injection; restore sources."""
+"""Build the pinned trace CLI with explicit log/PDF clock injection; restore sources.
+
+With --mapseed the build also gets build-mapseed-oracle.py's seedable map
+order (tools/patches/go1.27-runtime-mapseed.patch through `go build
+-overlay`), for harnesses that use a clock oracle and resample with map seeds
+(differential-scoreboard.py --epoch, fuzz-differential.py --format pdf).
+"""
 import argparse
 import os
 import subprocess
+import tempfile
 from pathlib import Path
 
+import mapseed
 import references
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -13,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--mapseed", action="store_true", help="also apply the seedable map-order runtime patch")
     args = parser.parse_args()
     references.verify_source()
     trace = references.TRACE_CHECKOUT
@@ -40,8 +49,10 @@ def main():
         pdf_helper.write_bytes((ROOT / "tools/cli-scoreboard/pdf_clock.go").read_bytes())
         env = dict(os.environ, GOMODCACHE=str(ROOT / ".reference/go-mod/pkg/mod"),
                    GOCACHE=str(ROOT / ".reference/go-build"), GOFLAGS="-mod=mod", GOPROXY="off", GOMAXPROCS="2")
-        subprocess.run(["go", "build", "-ldflags", "-X github.com/d2lang/d2/lib/version.Version=v0.9.0",
-                        "-o", str(output), "."], cwd=trace, env=env, check=True, timeout=300)
+        with tempfile.TemporaryDirectory(prefix="clock-mapseed-") as scratch:
+            overlay = ["-overlay", str(mapseed.runtime_overlay(scratch, env))] if args.mapseed else []
+            subprocess.run(["go", "build", *overlay, "-ldflags", "-X github.com/d2lang/d2/lib/version.Version=v0.9.0",
+                            "-o", str(output), "."], cwd=trace, env=env, check=True, timeout=300)
     finally:
         for path, original in originals.items():
             if original is None:

@@ -295,6 +295,11 @@ impl ArenaGraph {
             let (offset, size) = self
                 .sequence_member_geometry(sequence_index, endpoint)
                 .expect("sequence endpoint belongs to its active vessel");
+            // getAlignmentDeltas reads the step's own TopLeft, which keeps a
+            // NodePlacement reflection until the next sequence sync.
+            if let Some(position) = self.position(endpoint) {
+                return (position, size);
+            }
             return (
                 Point {
                     x: vessel_position.x + offset.x,
@@ -1339,7 +1344,51 @@ impl ArenaGraph {
         self.invalidate_node_order_membership();
         self.synchronize_original_owner_graph_view();
         self.sync_sequences();
+        self.apply_sequence_reflections();
         self.cost_cache.reset_placement();
+    }
+
+    /// NodePlacement's unchecked direct() calls reflect sequence steps one
+    /// by one and nothing re-arranges them before a committed transaction's
+    /// Graph.SyncSequences (transaction.go:1232). Reproduce that state on the
+    /// arranged steps: within the vessel box, a step at offset o with width w
+    /// is reflected to W - o - w (and to H - h vertically).
+    fn apply_sequence_reflections(&mut self) {
+        let reflections = std::mem::take(&mut self.sequence_reflections);
+        for (vessel_tala_id, (mirror_x, mirror_y)) in reflections {
+            if !mirror_x && !mirror_y {
+                continue;
+            }
+            let Some(index) = self
+                .sequences
+                .iter()
+                .position(|sequence| sequence.vessel_tala_id == vessel_tala_id)
+            else {
+                continue;
+            };
+            let Some(vessel) = self.topology_vessel_node(TopologyVessel::Sequence(index)) else {
+                continue;
+            };
+            let Some(origin) = self.position(vessel) else {
+                continue;
+            };
+            let size = self.sequence_vessel_size(index);
+            for member in self.sequences[index].members.clone() {
+                let Some(mut position) = self.position(member) else {
+                    continue;
+                };
+                let member_size = self.nodes[member.0 as usize].rect.size;
+                if mirror_x {
+                    position.x =
+                        origin.x + size.width - (position.x - origin.x) - member_size.width;
+                }
+                if mirror_y {
+                    position.y =
+                        origin.y + size.height - (position.y - origin.y) - member_size.height;
+                }
+                self.set_position(member, position);
+            }
+        }
     }
 
     /// AlignAxes explicitly supplies Sequence.EdgeAbductions. Retain its

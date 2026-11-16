@@ -9959,7 +9959,10 @@ impl<'a> InputModelNodeComparator<'a> {
                 let Some((_, _, source, target)) = self.dummy_endpoint_ports(second) else {
                     return Ordering::Equal;
                 };
-                let dummy_layer = self.arena.nodes[second as usize].layer;
+                // elk-go preserveorder/node_comparator.go handleHelperDummyNodes
+                // takes this layer from the normal node (`first`), not from the
+                // dummy, when the dummy is the second argument.
+                let dummy_layer = self.arena.nodes[first as usize].layer;
                 if self.arena.nodes[source as usize].layer != dummy_layer
                     && self.arena.nodes[target as usize].layer != dummy_layer
                 {
@@ -10005,41 +10008,56 @@ impl<'a> InputModelNodeComparator<'a> {
                 } else {
                     second
                 };
+                // elk-go preserveorder/node_comparator.go handleHelperDummyNodes,
+                // LongEdge/LongEdge case. Its updates are kept verbatim, even
+                // where they record the opposite of the returned order (Compare
+                // then records the returned order as well).
                 if first_reference == second_reference {
-                    if self.before_ports && first_source_feedback && second_source_feedback {
-                        let ports = &self.arena.nodes[first_reference as usize].ports;
-                        let first_position =
-                            ports.iter().position(|port| *port == first_source_port);
-                        let second_position =
-                            ports.iter().position(|port| *port == second_source_port);
-                        if let (Some(first_position), Some(second_position)) =
-                            (first_position, second_position)
-                        {
-                            return if first_position > second_position {
+                    if self.before_ports {
+                        if first_source_feedback && second_source_feedback {
+                            // A fresh ModelOrderPortComparator without target
+                            // orders and portModelOrder=secondTargetFeedback.
+                            // The current layer's ports carry no long-edge
+                            // targets yet: SortByInputModel assigns them only
+                            // after this first node sort.
+                            let no_targets = BTreeMap::new();
+                            let no_orders = BTreeMap::new();
+                            let mut ports = InputModelPortComparator::new(
+                                self.arena,
+                                self.previous_layer,
+                                &no_targets,
+                                &no_orders,
+                                first_reference,
+                            );
+                            ports.port_model_order = second_target_feedback;
+                            return if ports.compare(first_source_port, second_source_port)
+                                == Ordering::Greater
+                            {
+                                self.update(second, first);
                                 Ordering::Greater
                             } else {
+                                self.update(first, second);
                                 Ordering::Less
                             };
-                        }
-                    } else if !self.before_ports {
-                        let ports = &self.arena.nodes[first_reference as usize].ports;
-                        if let Some(position) =
-                            ports.iter().position(|port| *port == first_source_port)
-                            && ports
-                                .iter()
-                                .position(|port| *port == second_source_port)
-                                .is_some_and(|other| position < other)
-                        {
-                            return Ordering::Less;
-                        }
-                        if let Some(position) =
-                            ports.iter().position(|port| *port == second_source_port)
-                            && ports
-                                .iter()
-                                .position(|port| *port == first_source_port)
-                                .is_some_and(|other| position < other)
-                        {
+                        } else if first_source_feedback && second_target_feedback {
+                            self.update(second, first);
                             return Ordering::Greater;
+                        } else if first_target_feedback && second_source_feedback {
+                            self.update(first, second);
+                            return Ordering::Less;
+                        } else if first_target_feedback && second_target_feedback {
+                            return Ordering::Equal;
+                        }
+                    } else {
+                        // The first of the two source ports in the shared
+                        // reference node's port list decides.
+                        for port in &self.arena.nodes[first_reference as usize].ports {
+                            if *port == first_source_port {
+                                return Ordering::Less;
+                            }
+                            if *port == second_source_port {
+                                return Ordering::Greater;
+                            }
                         }
                     }
                 }
@@ -10182,6 +10200,11 @@ struct InputModelPortComparator<'a> {
     target_by_port: &'a BTreeMap<LPortId, LNodeId>,
     target_orders: &'a BTreeMap<LNodeId, usize>,
     _owner: LNodeId,
+    /// port_comparator.go PortModelOrder: compare explicit port model
+    /// orders before edge orders. SortByInputModel passes the graph's
+    /// portModelOrder (false for D2); handleHelperDummyNodes passes
+    /// secondTargetFeedback.
+    port_model_order: bool,
     #[cfg(feature = "diagnostic-traces")]
     comparison_index: usize,
     bigger_than: BTreeMap<LPortId, BTreeSet<LPortId>>,
@@ -10202,6 +10225,7 @@ impl<'a> InputModelPortComparator<'a> {
             target_by_port,
             target_orders,
             _owner,
+            port_model_order: false,
             #[cfg(feature = "diagnostic-traces")]
             comparison_index: 0,
             bigger_than: BTreeMap::new(),
@@ -10216,6 +10240,15 @@ impl<'a> InputModelPortComparator<'a> {
         index
     }
 
+    /// port_comparator.go checkPortModelOrder (no group model order in D2):
+    /// None when disabled, when a port lacks a model order, or on a tie.
+    fn port_model_order_cmp(&self, first: &LPort, second: &LPort) -> Option<Ordering> {
+        if !self.port_model_order {
+            return None;
+        }
+        let order = first.model_order?.cmp(&second.model_order?);
+        (order != Ordering::Equal).then_some(order)
+    }
     fn compare(&mut self, first_id: LPortId, second_id: LPortId) -> Ordering {
         #[cfg(feature = "diagnostic-traces")]
         let comparison_index = self.next_comparison_index();
@@ -10346,6 +10379,13 @@ impl<'a> InputModelPortComparator<'a> {
                     apply_reverse_order(first_position.cmp(&second_position), reverse_order),
                 );
             }
+            if let Some(order) = self.port_model_order_cmp(&first, &second) {
+                return self.record(
+                    first_id,
+                    second_id,
+                    apply_reverse_order(order, reverse_order),
+                );
+            }
         }
 
         let first_outgoing = first
@@ -10359,11 +10399,18 @@ impl<'a> InputModelPortComparator<'a> {
             .copied()
             .find(|edge_id| self.arena.edges[*edge_id as usize].active);
         if let (Some(first_edge), Some(second_edge)) = (first_outgoing, second_outgoing) {
-            reverse_order = if matches!(first.side, PortSide::West | PortSide::South) {
-                -1
-            } else {
-                1
-            };
+            // port_comparator.go negates the running reverseOrder, which the
+            // incoming-edge block may already have negated.
+            if matches!(first.side, PortSide::West | PortSide::South) {
+                reverse_order = -reverse_order;
+            }
+            if let Some(order) = self.port_model_order_cmp(&first, &second) {
+                return self.record(
+                    first_id,
+                    second_id,
+                    apply_reverse_order(order, reverse_order),
+                );
+            }
             let first_target = self.target_by_port.get(&first_id).copied();
             let second_target = self.target_by_port.get(&second_id).copied();
             let first_order = original_edge_model_order(self.arena, first_edge);
@@ -10379,13 +10426,19 @@ impl<'a> InputModelPortComparator<'a> {
                     .unwrap_or(second_order);
                 first_target_order.cmp(&second_target_order)
             };
-            if order != Ordering::Equal {
-                return self.record(
-                    first_id,
-                    second_id,
-                    apply_reverse_order(order, reverse_order),
-                );
-            }
+            // port_comparator.go always decides once both ports have outgoing
+            // edges: `firstOrder > secondOrder` gives reverseOrder, anything
+            // else (including a tie) -reverseOrder.
+            let order = if order == Ordering::Greater {
+                Ordering::Greater
+            } else {
+                Ordering::Less
+            };
+            return self.record(
+                first_id,
+                second_id,
+                apply_reverse_order(order, reverse_order),
+            );
         }
 
         if first_incoming.is_some() && second_outgoing.is_some() {

@@ -132,6 +132,20 @@ impl Engine {
         engine::layout_result(graph, options)
     }
 
+    /// Runs only the input checks [`Engine::layout`] makes before laying out
+    /// (seed data and list, concurrency, D2 object validation).
+    ///
+    /// # Errors
+    ///
+    /// Returns the [`LayoutError`] that [`Engine::layout`] would return for
+    /// the same input before placement starts.
+    pub fn validate_layout_input(
+        &self,
+        graph: &Graph,
+        options: &LayoutOptions,
+    ) -> Result<(), LayoutError> {
+        engine::validate_layout_input(graph, options)
+    }
     /// Places nodes and routes edges while observing a caller-owned
     /// cancellation token.
     ///

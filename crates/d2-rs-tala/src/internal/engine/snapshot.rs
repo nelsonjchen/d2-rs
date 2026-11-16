@@ -9,6 +9,7 @@
 
 use super::*;
 use crate::RaceScoreComponents;
+use crate::internal::owner_placement::go_general_float;
 use d2_rs_core::stable_sort::StableSort;
 use std::borrow::Cow;
 use std::cmp::Ordering as CandidateOrdering;
@@ -1278,6 +1279,110 @@ fn refinement_preserves_authored_positions(input: &Graph, graph: &ArenaGraph) ->
 /// checks a node's label before its icon. A sequence step's explicit
 /// position is never fixed (labeling.Initialize skips it), so label placement
 /// can move it and Go rejects that seed.
+/// result_validate.go validateCompletedGraph (:421-475): per-node
+/// (validateResultNode :477-508) and per-edge (validateResultEdge :510-556)
+/// geometry checks over Graph.Nodes and Graph.Edges in order. The nil,
+/// repeated, duplicate-ID and foreign-endpoint checks guard pointer graphs
+/// that the arena cannot represent.
+fn completed_graph_error(graph: &ArenaGraph) -> Option<LayoutError> {
+    // limits.go maxResultCoordinate.
+    const MAX_RESULT_COORDINATE: f64 = 1_000_000_000.0;
+    // result_validate.go:558-570 validateResultCoordinate/Dimension.
+    fn coordinate(name: &str, value: f64) -> Option<String> {
+        (!value.is_finite() || value.abs() > MAX_RESULT_COORDINATE).then(|| {
+            format!(
+                "{name} is outside the finite supported range: {}",
+                go_general_float(value)
+            )
+        })
+    }
+    fn dimension(name: &str, value: f64, zero_allowed: bool) -> Option<String> {
+        (!value.is_finite()
+            || value < 0.0
+            || (!zero_allowed && value == 0.0)
+            || value > MAX_RESULT_COORDINATE)
+            .then(|| {
+                format!(
+                    "{name} is outside the supported range: {}",
+                    go_general_float(value)
+                )
+            })
+    }
+    let fail = |message: String| {
+        Some(LayoutError::EngineValidation(format!(
+            "validate TALA seed result: {message}"
+        )))
+    };
+    for node_id in graph.graph_node_order_cow().iter().copied() {
+        let node = &graph.nodes[node_id.0 as usize];
+        let id = node.tala_id;
+        let Some(top_left) = graph.position(node_id) else {
+            return fail(format!("node {id} has no position"));
+        };
+        let size = node.rect.size;
+        if let Some(error) = coordinate("node x", top_left.x)
+            .or_else(|| coordinate("node y", top_left.y))
+            .or_else(|| dimension("node width", size.width, false))
+            .or_else(|| dimension("node height", size.height, false))
+        {
+            return fail(format!("node {id}: {error}"));
+        }
+        if !(top_left.x + size.width).is_finite() || !(top_left.y + size.height).is_finite() {
+            return fail(format!("node {id} bounds overflow"));
+        }
+        if let Some(label) = node.label_size
+            && let Some(error) = dimension("node label width", label.width, true)
+                .or_else(|| dimension("node label height", label.height, true))
+        {
+            return fail(format!("node {id}: {error}"));
+        }
+    }
+    for edge_id in graph.edge_order.read() {
+        let edge = &graph.edge_records[edge_id.0 as usize];
+        let id = edge.tala_id;
+        let route = edge.route.read();
+        if route.len() < 2 {
+            return fail(format!("edge {id} has an incomplete route"));
+        }
+        for (index, point) in route.iter().enumerate() {
+            if let Some(error) =
+                coordinate("route x", point.x).or_else(|| coordinate("route y", point.y))
+            {
+                return fail(format!("edge {id} point {index}: {error}"));
+            }
+        }
+        if let Some(label) = &edge.label {
+            let percentage = label.percentage;
+            if !percentage.is_finite() || !(0.0..=1.0).contains(&percentage) {
+                return fail(format!(
+                    "edge {id} has invalid label percentage {}",
+                    go_general_float(percentage)
+                ));
+            }
+        }
+        let labels = [
+            ("label", edge.label.as_ref().map(|label| label.size)),
+            (
+                "source arrowhead label",
+                edge.source_arrowhead_label.as_ref().map(|label| label.size),
+            ),
+            (
+                "target arrowhead label",
+                edge.target_arrowhead_label.as_ref().map(|label| label.size),
+            ),
+        ];
+        for (name, size) in labels {
+            let Some(size) = size else { continue };
+            if let Some(error) = dimension(&format!("{name} width"), size.width, true)
+                .or_else(|| dimension(&format!("{name} height"), size.height, true))
+            {
+                return fail(format!("edge {id}: {error}"));
+            }
+        }
+    }
+    None
+}
+
 fn authored_position_metadata_error(input: &Graph, graph: &ArenaGraph) -> Option<LayoutError> {
     for node_id in graph.graph_node_order_cow().iter().copied() {
         let actual = &graph.nodes[node_id.0 as usize];
@@ -1497,6 +1602,27 @@ pub(crate) fn layout_result(
     layout_result_with_cancellation(input, options, None)
 }
 
+/// The input checks layout_result_with_cancellation makes before its seed
+/// race (d2talalayout.Layout's seed plan and validateD2Objects), without
+/// laying the graph out.
+pub(crate) fn validate_layout_input(
+    input: &Graph,
+    options: &LayoutOptions,
+) -> Result<(), LayoutError> {
+    let configured_options;
+    let options = if let Some(data) = &input.tala_seed_data {
+        configured_options = LayoutOptions {
+            seeds: data.clone().map_err(LayoutError::InvalidSeedData)?,
+            max_concurrency: options.max_concurrency,
+        };
+        &configured_options
+    } else {
+        options
+    };
+    let seeds = options.normalized_seeds()?;
+    options.effective_max_concurrency(seeds.len())?;
+    validation::validate(input)
+}
 /// Runs the recovered pipeline while observing a caller-owned cancellation
 /// token at seed, stage, routing, and work-guard boundaries.
 pub(crate) fn layout_result_with_cancellation(
@@ -1578,6 +1704,11 @@ fn layout_result_for_seed(
             .unwrap_or(LayoutError::Cancelled));
     }
     if let Some(error) = snapshot.layout_error.take() {
+        return Err(error);
+    }
+    // result.go evaluateSeedResult: validateCompletedGraph runs before the
+    // topology and metadata checks and before scoring.
+    if let Some(error) = snapshot.graph.as_ref().and_then(completed_graph_error) {
         return Err(error);
     }
     let boxes = snapshot

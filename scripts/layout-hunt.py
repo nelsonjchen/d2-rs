@@ -3,6 +3,12 @@
 
 Reuses graph-differential's capture, map-seed resampling and minimization.
 Generated inputs and oracle outputs are temporary; only findings are retained.
+A case whose Go and d2-rs outcomes (inventory digest, or exit code and first
+error line) differ is resampled with the seedable-map oracle and classified by
+scripts/mapseed.py: mapseed-match and known-mapseed pass, as do
+rendered-match and error-match; go-nondeterministic-no-rust-match,
+mapseed-oracle-missing and every other kind fail. Each finding's JSON carries
+the classification, the matching map seeds and the Go variant count.
 """
 import argparse
 import concurrent.futures
@@ -10,6 +16,7 @@ import importlib.util
 import json
 from pathlib import Path
 import random
+import sys
 import tempfile
 
 from fuzz_common import first_error
@@ -22,34 +29,46 @@ _spec.loader.exec_module(graph)
 FAMILIES = ("containers", "grids", "sequences", "ports", "short-shapes")
 
 
-def compare(case, rust, go, minimize=True):
+PASSING = {"rendered-match", "error-match", graph.mapseed.MAPSEED_MATCH, graph.mapseed.KNOWN_MAPSEED}
+
+
+def compare(case, rust, go, resampler, minimize=True):
     index, source, flags = case
     results = []
     for layout in ("dagre", "elk"):
+        record = {}
         with tempfile.TemporaryDirectory(prefix="layout-hunt-") as tmp:
             root = Path(tmp)
-            gc, ge, gh = graph.outcome(go, source, layout, flags, root, "go")
-            rc, re, rh = graph.outcome(rust, source, layout, flags, root, "rust")
+            go_result = graph.outcome(go, source, layout, flags, root, "go")
+            rust_result = graph.outcome(rust, source, layout, flags, root, "rust")
+            (gc, ge, gh), (rc, re, rh) = go_result, rust_result
+            go_key = graph.outcome_key(go_result, root / "go")
+            rust_key = graph.outcome_key(rust_result, root / "rust")
             if "panic:" in ge or isinstance(gc, int) and gc < 0:
                 kind = "go-crash"
             elif gc == "timeout" or rc == "timeout":
                 kind = "timeout"
             elif gc == "invalid-output" or rc == "invalid-output":
                 kind = "invalid-output"
-            elif gc == rc == 0 and gh == rh:
-                kind = "rendered-match"
-            elif gc == rc and gc != 0 and first_error(ge, root / "go") == first_error(re, root / "rust"):
-                kind = "error-match"
-            elif gc == rc == 0:
-                kind = graph.diverges(source, layout, flags, rust, go) or "rendered-match"
             else:
-                kind = "error-diff" if gc == rc else "exit-diff"
+                if gc == rc == 0:
+                    kind = "rendered-match" if gh == rh else "output-diff"
+                elif gc == rc and first_error(ge, root / "go") == first_error(re, root / "rust"):
+                    kind = "error-match"
+                else:
+                    kind = "error-diff" if gc == rc else "exit-diff"
+                if kind not in ("rendered-match", "error-match") or resampler.known(source, layout, flags):
+                    resolution = resampler.resolve(source, layout, flags, root, go_key, rust_key)
+                    record = resolution.record()
+                    if resolution.classification == graph.mapseed.MATCH:
+                        pass  # A known input that stock Go matched.
+                    elif resolution.classification != graph.mapseed.MISMATCH:
+                        kind = resolution.classification
         small = None
-        if minimize and (kind == "output-diff" or gc == 0 and rc != 0):
-            small = graph.minimize(source, layout, flags, rust, go,
-                                   "output-diff" if rc == 0 else f"rust-exit-{rc}")
+        if minimize and (kind in ("output-diff", graph.mapseed.NO_RUST_MATCH) and rc == 0 or gc == 0 and rc != 0):
+            small = graph.minimize(source, layout, flags, rust, go, kind if rc == 0 else f"rust-exit-{rc}", resampler)
         results.append({"case": index, "layout": layout, "kind": kind,
-                        "go_exit": gc, "rust_exit": rc, "minimized": small})
+                        "go_exit": gc, "rust_exit": rc, "minimized": small, **record})
     return index, source, results
 
 
@@ -110,7 +129,11 @@ def main():
     parser.add_argument("--jobs", type=int, default=5)
     parser.add_argument("--no-minimize", action="store_true")
     parser.add_argument("--out", type=Path, required=True)
+    graph.mapseed.add_arguments(parser)
     args = parser.parse_args()
+    registry = graph.mapseed.Registry(args.mapseed_registry)
+    resampler = graph.Resampler(args.go, args.go_mapseed, args.mapseed_seeds, registry)
+    recorded = []
     args.out.mkdir(parents=True, exist_ok=True)
     rng = random.Random(args.seed)
     summary = []
@@ -118,25 +141,43 @@ def main():
         if family not in FAMILIES:
             parser.error(f"unknown family: {family}")
         cases = [(i, generate(rng, family), ()) for i in range(args.cases)]
-        counts = {}
+        counts, family_records = {}, []
         with concurrent.futures.ThreadPoolExecutor(args.jobs) as pool:
             def check(case):
-                return compare(case, args.rust, args.go, not args.no_minimize)
+                return compare(case, args.rust, args.go, resampler, not args.no_minimize)
             for index, source, findings in pool.map(check, cases):
                 for finding in findings:
                     kind = finding["kind"]
                     counts[kind] = counts.get(kind, 0) + 1
+                    family_records.append({"layout": finding["layout"], "mapseed_seeds": finding.get("mapseed_seeds", []),
+                                           "classification": "match" if kind in ("rendered-match", "error-match") else kind})
+                    if finding.get("go_variants", 1) > 1:
+                        recorded.append((resampler.identity(source, finding["layout"], ()), source,
+                                         graph.Resampler.args(finding["layout"], ()),
+                                         f"layout-hunt.py --seed {args.seed} --families {family} case {index}"
+                                         f" layout {finding['layout']}",
+                                         graph.mapseed.Resolution(kind, finding.get("mapseed_seeds", []),
+                                                                  finding["go_variants"])))
                     if kind in ("rendered-match", "error-match"):
                         continue
                     stem = args.out / f"{family}-{index:05d}-{finding['layout']}"
                     stem.with_suffix(".d2").write_text(finding["minimized"] or source)
                     stem.with_suffix(".original.d2").write_text(source)
                     stem.with_suffix(".json").write_text(json.dumps(finding, indent=2) + "\n")
+                    if kind not in PASSING:
+                        print(f"FAIL {kind}: {stem.with_suffix('.d2')}", flush=True)
         summary.append({"family": family, "seed": args.seed, "jobs": 2 * len(cases), **counts})
         print(json.dumps(summary[-1]), flush=True)
+        for layout in ("dagre", "elk"):
+            print(graph.mapseed.summary(f"{family} {layout}", len(cases),
+                                        [r for r in family_records if r["layout"] == layout]), flush=True)
         (args.out / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
-    return int(any(set(row) - {"family", "seed", "jobs", "rendered-match", "error-match", graph.NONDETERMINISTIC}
-                   for row in summary))
+    if any(graph.mapseed.ORACLE_MISSING in row for row in summary):
+        print(f"error: {resampler.oracle.message()}", file=sys.stderr)
+    if args.record_mapseed:
+        added = graph.mapseed.record_cases(registry, recorded, "layout-hunt")
+        print(f"recorded {added} new map-order-dependent inputs in {registry.path}")
+    return int(any(set(row) - {"family", "seed", "jobs", *PASSING} for row in summary))
 
 
 if __name__ == "__main__":

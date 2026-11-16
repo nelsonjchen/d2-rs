@@ -44,6 +44,10 @@ fn main() {
                 mono_font: &mono,
                 mono_bold_font: &mono_bold,
                 mono_italic_font: &mono_italic,
+                code_font: &mono,
+                code_bold_font: &mono_bold,
+                code_semibold_font: &mono_semibold,
+                code_italic_font: &mono_italic,
                 mono_semibold_font: &mono_semibold,
             };
             let size = measurer.markdown_dimensions(

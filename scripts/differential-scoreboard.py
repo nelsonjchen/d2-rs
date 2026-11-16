@@ -4,6 +4,15 @@
 Inputs are upstream .d2 files and raw `script:` literals in Go tests. Each
 selected input is also subject to one seeded mutation. The language matrix
 provides its own isolated import tree; other inputs do not copy external assets.
+
+A case whose Go and Rust results differ is rendered again by the seedable-map
+Go oracle under map seeds 1-16 (--mapseed-seeds) and classified by
+scripts/mapseed.py: mapseed-match and known-mapseed pass;
+go-nondeterministic-no-rust-match, mismatch and mapseed-oracle-missing fail.
+With --epoch the seeded oracle must be a clock+mapseed build
+(build-cli-clock-oracle.py --mapseed) given as --go-mapseed; otherwise it
+defaults to the --go path plus -mapseed. Rows carry the classification,
+matching seeds and Go variant count under "mapseed".
 """
 import struct
 import zlib
@@ -31,6 +40,7 @@ import threading
 import time
 import shutil
 
+import mapseed
 import references
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -110,11 +120,13 @@ def normalize(data):
     return re.sub(rb'(data-d2-version|d2Version)="[^"]*"', rb'\1=""', data)
 
 
-def environment(epoch=None):
+def environment(epoch=None, map_seed=None):
     result = {"PATH": os.defpath, "HOME": str(ROOT),
               "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8", "TZ": "UTC", "NO_COLOR": "1", "GOMAXPROCS": "2"}
     if epoch is not None:
         result["SOURCE_DATE_EPOCH"] = str(epoch)
+    if map_seed is not None:
+        result[mapseed.ENV] = str(map_seed)
     return result
 
 
@@ -173,7 +185,7 @@ def validate_output(path, data, suffix):
     elif suffix == ".txt": data.decode("utf-8")
 
 
-def run(binary, source, options, timeout, directory, epoch=None, fixtures=None):
+def run(binary, source, options, timeout, directory, epoch=None, fixtures=None, map_seed=None):
     global budget_used
     for name, content in (fixtures or {}).items():
         path = directory / name
@@ -193,7 +205,7 @@ def run(binary, source, options, timeout, directory, epoch=None, fixtures=None):
     try:
         with logs[0].open("wb") as stdout, logs[1].open("wb") as stderr:
             process = subprocess.Popen([str(binary), *args], cwd=directory, stdout=stdout,
-                                       stderr=stderr, env=environment(epoch))
+                                       stderr=stderr, env=environment(epoch, map_seed))
     except OSError as error:
         return {"exit": "process-failure", "error": str(error)}
     deadline = time.monotonic() + timeout
@@ -248,7 +260,19 @@ def run(binary, source, options, timeout, directory, epoch=None, fixtures=None):
             "files": files, "text_files": text_files, "invalid_output": invalid}
 
 
-def compare(job, args):
+def usable(result):
+    """A seeded run that crashed, timed out or wrote invalid output is not a Go variant."""
+    code = result.get("exit")
+    return not (code in ("timeout", "process-failure", "budget-exceeded") or result.get("invalid_output")
+                or isinstance(code, int) and (code < 0 or b"panic:" in result.get("stderr", b"")))
+
+
+def job_identity(source, options, fixtures):
+    extra = [f"fixtures={json.dumps(fixtures, sort_keys=True)}"] if fixtures else []
+    return mapseed.identity(source, [*options, *extra])
+
+
+def compare(job, args, resolve_mapseed=True):
     name, source, mutation, options, *extra = job
     fixtures = extra[0] if extra else {}
     row = {"input": name, "mutation": mutation, "options": options,
@@ -259,6 +283,9 @@ def compare(job, args):
     timeout = max(args.timeout, render_timeout) if (format_of(options) in ("png", "pdf", "pptx", "gif") or "--layout=tala" in options or "--isometric" in options) else args.timeout
     if getattr(args, "baseline_matrix", False):
         timeout = args.png_timeout if "--png" in options else args.tala_timeout if "--layout=tala" in options else args.timeout
+    registry = getattr(args, "mapseed_registry_entries", None)
+    known = bool(registry and registry.known(job_identity(source, options, fixtures)))
+    resolution = None
     with tempfile.TemporaryDirectory(prefix="d2-diff-") as temp:
         # Identical paths, clean filesystem for each process, including fmt.
         directory = Path(temp) / "run"
@@ -266,8 +293,19 @@ def compare(job, args):
         go = run(args.go, source, options, timeout, directory, epoch, fixtures)
         shutil.rmtree(directory); directory.mkdir()
         rust = run(args.rust, source, options, timeout, directory, epoch, fixtures)
+        scored = usable(go) and usable(rust) and not budget_exhausted.is_set()
+        if resolve_mapseed and scored and (go != rust or known):
+            oracle = getattr(args, "mapseed_oracle", None)
+
+            def seeded(seed):
+                shutil.rmtree(directory); directory.mkdir()
+                return run(oracle.path, source, options, timeout, directory, epoch, fixtures, seed)
+            resolution = mapseed.resolve([go], [rust], seeded, oracle,
+                                         getattr(args, "mapseed_seeds", mapseed.DEFAULT_SEEDS), known, usable)
     row["go"], row["rust"] = ({key: value.decode(errors="backslashreplace") if isinstance(value, bytes) else value
                                   for key, value in result.items() if key != "text_files"} for result in (go, rust))
+    if resolution is not None:
+        row.update(mapseed=resolution.record(), source=source, fixtures=fixtures)
     if "budget-exceeded" in (go["exit"], rust["exit"]):
         row["outcome"] = "budget-exceeded"
     elif go["exit"] == "timeout" or isinstance(go["exit"], int) and (go["exit"] < 0 or b"panic:" in go.get("stderr", b"")):
@@ -278,10 +316,12 @@ def compare(job, args):
         row.update(outcome="invalid-output")
     elif rust["exit"] == "timeout":
         row.update(outcome="timeout", cluster="rust timeout")
-    elif go == rust:
+    elif go == rust and resolution is None:
         row["outcome"] = "match"
+    elif resolution is not None and resolution.passed:
+        row["outcome"] = resolution.classification
     else:
-        row["outcome"] = "mismatch"
+        row["outcome"] = resolution.classification if resolution else "mismatch"
         if go["exit"] != rust["exit"]:
             row["cluster"] = f"exit {go['exit']} vs {rust['exit']}"
         elif go.get("stderr") != rust.get("stderr"):
@@ -836,13 +876,33 @@ def rendering_detail_jobs(seed, cap):
     yield from jobs[:cap]
 
 
+def stamped(metadata):
+    """Build info shows the v0.9.0 version stamp (reference-manifest.json source_builds).
+
+    The pinned source reports v0.8.1-HEAD (lib/version), so a clean build at the
+    pin prints v0.9.0 only through `-ldflags -X ...Version=v0.9.0`. Go records
+    -ldflags in build info except under -trimpath (cmd/go/internal/load/pkg.go,
+    `if !cfg.BuildTrimpath { appendSetting("-ldflags", ldflags) }`), so for a
+    trimpath build the caller's `--version == v0.9.0` check, together with
+    vcs.modified=false, is the stamp's evidence. Any recorded -ldflags must
+    still carry the stamp.
+    """
+    lines = [line.split(None, 2) for line in metadata.splitlines()]
+    settings = {parts[1].split("=", 1)[0]: line for line, parts in zip(metadata.splitlines(), lines)
+                if len(parts) >= 2 and parts[0] == "build"}
+    if "-ldflags" in settings:
+        return "Version=v0.9.0" in settings["-ldflags"]
+    return ("-trimpath" in settings and "-trimpath=true" in settings["-trimpath"]
+            and "vcs.modified" in settings and "vcs.modified=false" in settings["vcs.modified"])
+
+
 def provenance(binary, oracle=False, clock=False):
     version = subprocess.check_output([str(binary), "--version"], text=True, timeout=10).strip()
     record = {"path": str(binary), "version": version, "sha256": references.digest(binary)}
     if oracle:
         metadata = subprocess.check_output(["go", "version", "-m", str(binary)], text=True, timeout=10)
         arch = {"x86_64": "amd64", "aarch64": "arm64"}[platform.machine()]
-        if version != "v0.9.0" or references.MANIFEST["d2"]["go_toolchain"] not in metadata.splitlines()[0] or f"vcs.revision={references.SOURCE_COMMIT}" not in metadata or f"GOARCH={arch}" not in metadata or "Version=v0.9.0" not in metadata:
+        if version != "v0.9.0" or references.MANIFEST["d2"]["go_toolchain"] not in metadata.splitlines()[0] or f"vcs.revision={references.SOURCE_COMMIT}" not in metadata or f"GOARCH={arch}" not in metadata or not stamped(metadata):
             raise ValueError("Go oracle must be the pinned, v0.9.0-stamped host build")
         if not clock and "vcs.modified=false" not in metadata:
             raise ValueError("Go oracle must be a clean pinned build")
@@ -850,9 +910,17 @@ def provenance(binary, oracle=False, clock=False):
     return record
 
 
+# Outcomes that differ from Go and carry a cluster.
+DIFFERING = ("mismatch", mapseed.NO_RUST_MATCH, mapseed.ORACLE_MISSING)
+
+
+def cluster_label(row):
+    return row["cluster"] if row["outcome"] == "mismatch" else f"{row['outcome']}: {row['cluster']}"
+
+
 def failed(row):
     rust = row.get("rust", {})
-    return (row["outcome"] not in ("match", "go-crash-or-timeout") or bool(rust.get("invalid_output")) or
+    return (row["outcome"] not in ("match", "go-crash-or-timeout", *sorted(mapseed.PASSING)) or bool(rust.get("invalid_output")) or
             isinstance(rust.get("exit"), int) and rust["exit"] < 0 or any(
                 row.get(engine, {}).get("exit") in ("timeout", "process-failure", "budget-exceeded") for engine in ("go", "rust")))
 
@@ -878,6 +946,8 @@ def main():
     p.add_argument("--rendering-detail-matrix", action="store_true", help="seeded shape, style and text combinations")
     p.add_argument("--minimize-seconds", type=float, default=15)
     p.add_argument("--minimize", type=int, default=8, help="maximum clusters to minimize with at most 40 attempts each")
+    mapseed.add_arguments(p, "seedable-map Go oracle; with --epoch a clock+mapseed build is required "
+                             "(default without --epoch: the --go path plus -mapseed)")
     args = p.parse_args()
     if min(args.cap, args.jobs, args.timeout, args.render_timeout, args.tala_timeout, args.png_timeout) <= 0 or args.minimize < 0: p.error("budgets must be positive")
     if sum((args.expanded_matrix, args.baseline_matrix, args.language_matrix, args.rendering_matrix, args.rendering_detail_matrix)) > 1: p.error("matrix modes are mutually exclusive")
@@ -894,6 +964,22 @@ def main():
                 "source_head": references.command("git", "rev-parse", "HEAD", cwd=ROOT),
                 "upstream_commit": references.command("git", "rev-parse", "HEAD", cwd=UPSTREAM)}
     if args.epoch is not None and args.go == references.GO_ORACLE.resolve(): p.error("--epoch requires a clock-instrumented oracle")
+    seeded_path = args.go_mapseed.resolve() if args.go_mapseed else None if args.epoch is not None else mapseed.default_oracle(args.go)
+
+    def probe(binary):
+        # A render, and with --epoch fmt --check, whose warning carries the
+        # log clock: a stock seeded build cannot pass for a clock oracle's
+        # partner. Without --epoch that timestamp is the wall clock.
+        results = []
+        for options in (["--layout=dagre"], *([["fmt-check"]] if args.epoch is not None else [])):
+            with tempfile.TemporaryDirectory(prefix="d2-mapseed-probe-") as temp:
+                results.append(run(binary, "a->b\n", options, args.timeout, Path(temp), args.epoch))
+        return results
+    args.mapseed_oracle = mapseed.Oracle(seeded_path, args.go, probe,
+                                         mapseed.CLOCK_BUILD_COMMAND if args.epoch is not None else mapseed.BUILD_COMMAND)
+    args.mapseed_registry_entries = mapseed.Registry(args.mapseed_registry)
+    if seeded_path is not None and seeded_path.is_file():
+        identity["go_mapseed"] = {"path": str(seeded_path), "sha256": references.digest(seeded_path)}
     rng = random.Random(args.seed)
     option_rng = random.Random(args.seed ^ 0xD2)
     corpus = list(inputs()); rng.shuffle(corpus)
@@ -944,10 +1030,11 @@ def main():
     for row in rows:
         family = next((option for option in row.get("options", ()) if option in ("fmt", "fmt-check", "validate")), row.get("mutation", "unknown"))
         families[family][row["outcome"]] += 1
-    clusters = collections.Counter(row["cluster"] for row in rows if row["outcome"] == "mismatch")
+    clusters = collections.Counter(cluster_label(row) for row in rows if row["outcome"] in DIFFERING)
     witnesses = []
-    for cluster, _ in clusters.most_common(args.minimize):
-        row = next(row for row in rows if row.get("cluster") == cluster)
+    for label, _ in clusters.most_common(args.minimize):
+        row = next(row for row in rows if row["outcome"] in DIFFERING and cluster_label(row) == label)
+        cluster = row["cluster"]
         source = row["source"]
         lines = source.splitlines(keepends=True)
         attempts = 0
@@ -960,13 +1047,16 @@ def main():
             changed = False
             for i in range(0, len(lines), width):
                 candidate = lines[:i] + lines[i + width:]
-                result = compare((row["input"], "".join(candidate), "minimized", row["options"], row.get("fixtures", {})), args)
+                # Without map-seed resampling: the witness reproduces the same
+                # stock Go difference; its own row keeps the classification.
+                result = compare((row["input"], "".join(candidate), "minimized", row["options"], row.get("fixtures", {})), args,
+                                 resolve_mapseed=False)
                 attempts += 1
                 if result.get("cluster") == cluster and result["outcome"] == "mismatch":
                     lines = candidate; changed = True; break
                 if attempts >= 40 or time.monotonic() >= deadline: break
             if not changed: width //= 2
-        witnesses.append({"cluster": cluster, "input": row["input"], "options": row["options"],
+        witnesses.append({"cluster": label, "input": row["input"], "options": row["options"],
                           "source": "".join(lines), "fixtures": row.get("fixtures", {}), "attempts": attempts})
     args.output.parent.mkdir(parents=True, exist_ok=True)
     report = {"budget_bytes": BUDGET, "file_limit_bytes": FILE_LIMIT, "captured_bytes": budget_used,
@@ -979,7 +1069,20 @@ def main():
         raise RuntimeError("report exceeds capture budget")
     args.output.write_text(encoded)
     print(dict(summary))
+    seeds = sorted({seed for row in rows if row["outcome"] in mapseed.PASSING for seed in row.get("mapseed", {}).get("mapseed_seeds", [])})
+    if seeds: print(f"map seeds matched by mapseed-match/known-mapseed rows: {','.join(map(str, seeds))}")
     for cluster, count in clusters.most_common(): print(count, cluster)
+    for row in rows:
+        if row["outcome"] == mapseed.NO_RUST_MATCH:
+            print(f"FAIL {mapseed.NO_RUST_MATCH}: {row['input']} ({row['mutation']}) {' '.join(row['options'])}")
+    if summary.get(mapseed.ORACLE_MISSING): print(f"error: {args.mapseed_oracle.message()}", file=sys.stderr)
+    if args.record_mapseed:
+        added = mapseed.record_cases(args.mapseed_registry_entries, (
+            (job_identity(row["source"], row["options"], row.get("fixtures", {})), row["source"],
+             row["options"], f"differential-scoreboard.py --seed {args.seed}: {row['input']} ({row['mutation']})",
+             mapseed.Resolution(row["outcome"], row["mapseed"]["mapseed_seeds"], row["mapseed"]["go_variants"]))
+            for row in rows if row.get("mapseed", {}).get("go_variants", 1) > 1 and "source" in row), "differential-scoreboard")
+        print(f"recorded {added} new map-order-dependent inputs in {args.mapseed_registry_entries.path}")
     return int(any(failed(row) for row in rows))
 
 

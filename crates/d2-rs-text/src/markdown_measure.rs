@@ -26,6 +26,18 @@ pub struct MarkdownMeasurer<'a> {
     pub mono_bold_font: &'a TrueTypeFont,
     pub mono_semibold_font: &'a TrueTypeFont,
     pub mono_italic_font: &'a TrueTypeFont,
+    /// The `monoFontFamily` faces Go's measureMarkdownNode selects inside
+    /// `pre`/`code` (lib/textmeasure/markdown.go:463-471): a custom
+    /// `--font-mono` family, whose missing styles d2fonts.AddFontFamily fills
+    /// from Source Sans Pro. The `mono_*` faces are the bundled Source Code
+    /// Pro family that a mono theme or `style.font: mono` selects for body
+    /// text (d2graph.go:1527-1530) and that textmeasure's Unicode fallback
+    /// always uses (textmeasure.go:468). Without a custom mono family both
+    /// sets are the same faces.
+    pub code_font: &'a TrueTypeFont,
+    pub code_bold_font: &'a TrueTypeFont,
+    pub code_semibold_font: &'a TrueTypeFont,
+    pub code_italic_font: &'a TrueTypeFont,
 }
 
 fn is_markdown_thematic_break(line: &str) -> bool {
@@ -121,14 +133,18 @@ impl MarkdownMeasurer<'_> {
             size: f64,
             style: u8,
             mono: bool,
+            in_code: bool,
         ) -> f64 {
-            let font = match (mono, style) {
-                (true, 1) => measurer.mono_bold_font,
-                (true, 2) => measurer.mono_italic_font,
-                (true, _) => measurer.mono_font,
-                (false, 1) => measurer.bold_font,
-                (false, 2) => measurer.italic_font,
-                (false, _) => measurer.font,
+            let font = match (in_code, mono, style) {
+                (true, _, 1) => measurer.code_bold_font,
+                (true, _, 2) => measurer.code_italic_font,
+                (true, _, _) => measurer.code_font,
+                (false, true, 1) => measurer.mono_bold_font,
+                (false, true, 2) => measurer.mono_italic_font,
+                (false, true, _) => measurer.mono_font,
+                (false, false, 1) => measurer.bold_font,
+                (false, false, 2) => measurer.italic_font,
+                (false, false, _) => measurer.font,
             };
             if node.is_text() {
                 let mut text = node.text().unwrap_or_default().to_owned();
@@ -183,7 +199,7 @@ impl MarkdownMeasurer<'_> {
                 "code" | "pre" => 0,
                 _ => style,
             };
-            let mono = mono || matches!(tag, "code" | "pre");
+            let in_code = in_code || matches!(tag, "code" | "pre");
             let mut widest: f64 = 0.0;
             let mut line = 0.0;
             for child in node.children() {
@@ -191,7 +207,7 @@ impl MarkdownMeasurer<'_> {
                     widest = widest.max(line);
                     line = 0.0;
                 } else {
-                    line += measure(measurer, child, size, style, mono);
+                    line += measure(measurer, child, size, style, mono, in_code);
                 }
             }
             let width = widest.max(line);
@@ -207,6 +223,7 @@ impl MarkdownMeasurer<'_> {
             f64::from(font_size),
             0,
             mono_default,
+            false,
         ))
     }
 
@@ -265,7 +282,7 @@ impl MarkdownMeasurer<'_> {
                 // Original measureMarkdownNode keeps base-size mono ink bounds,
                 // scales the content by 85%, then adds unscaled legacy padding.
                 let size = f64::from(font_size);
-                let content_width = self.mono_font.measure_markdown_raw(&run, size).width * 0.85;
+                let content_width = self.code_font.measure_markdown_raw(&run, size).width * 0.85;
                 *width += content_width + 2.0 * 0.4 * size;
             } else {
                 *width +=
@@ -472,7 +489,7 @@ impl MarkdownMeasurer<'_> {
             let text = String::from_utf8_lossy(&unescape_html(&markup.as_bytes()[start..end]))
                 .into_owned();
             let font = if code {
-                &self.mono_font
+                &self.code_font
             } else {
                 match (mono_default, bold, italic) {
                     (true, true, _) => &self.mono_bold_font,
@@ -519,7 +536,7 @@ impl MarkdownMeasurer<'_> {
                         if code {
                             width += 2.0 * 0.4 * size;
                             height = height.max(
-                                self.mono_font.measure_markdown_raw("", size).height * 0.85
+                                self.code_font.measure_markdown_raw("", size).height * 0.85
                                     + 2.0 * 0.2 * size,
                             )
                         }
@@ -546,7 +563,7 @@ impl MarkdownMeasurer<'_> {
         // content. The CSS paint path deliberately has a different heading box.
         if markup.contains('`') {
             let code_height =
-                self.mono_font.measure_markdown_raw("x", size).height * 0.85 + 2.0 * 0.2 * size;
+                self.code_font.measure_markdown_raw("x", size).height * 0.85 + 2.0 * 0.2 * size;
             height = height.max(code_height);
         }
         Size { width, height }
@@ -712,7 +729,7 @@ impl MarkdownMeasurer<'_> {
                 let code_size = f64::from(font_size) * 0.85;
                 let width = code_lines
                     .iter()
-                    .map(|line| self.mono_font.measure_markdown_raw(line, code_size).width + 32.0)
+                    .map(|line| self.code_font.measure_markdown_raw(line, code_size).width + 32.0)
                     .fold(0.0, f64::max);
                 let raw_height = if code_lines.is_empty() {
                     32.0

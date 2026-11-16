@@ -3,7 +3,8 @@
 
 usage: graph-differential.py <d2-rs> [--go GO] [--family wide|shapes]
        [--cases 400] [--seed 1] [--layouts dagre,elk,tala] [--jobs 8]
-       [--minimize] [--out DIR]
+       [--minimize] [--out DIR] [--go-mapseed PATH] [--mapseed-seeds 1-16]
+       [--record-mapseed]
 
 `shapes` is shape-trace-differential.py's family: non-rectangular shapes at
 sizes around the wedge thresholds with parallel, reversed and labeled edges.
@@ -15,12 +16,16 @@ diagrams, and the --sketch and --theme render flags. Every case renders with
 both binaries for each layout; complete output inventories are compared byte
 for byte. With --minimize, each mismatch is also reduced line by line to a
 smaller input with the same kind of divergence. Before an output difference
-counts, Go renders the case again up to GO_RESAMPLES times; when one of those
-outputs equals d2-rs's, the case is reported as `oracle-nondeterministic`
-instead (Go's random map order reaches a few layouts). When
-scripts/build-mapseed-oracle.py has built the seedable oracle, the resamples
-are its map seeds 1..GO_RESAMPLES, so the classification is reproducible. The exit status is 1
-when any case differs otherwise.
+counts, the seedable-map oracle (scripts/build-mapseed-oracle.py; --go-mapseed,
+default the --go path plus -mapseed) renders it under map seeds 1..16
+(--mapseed-seeds) and scripts/mapseed.py classifies it: mapseed-match (d2-rs
+equals a seeded Go output; the seeds are recorded), known-mapseed (the same,
+for an input in the registry), go-nondeterministic-no-rust-match (Go varies
+but d2-rs equals none of its outputs) or mismatch. Without the seeded oracle a
+differing case is mapseed-oracle-missing, never a pass. findings.jsonl has one
+record per case that did not plainly match; the summary prints counts per
+classification and every failing input. --record-mapseed adds the inputs whose
+Go output varied to the registry. The exit status is 1 when any case fails.
 """
 import argparse
 import concurrent.futures
@@ -33,7 +38,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 import references  # noqa: E402
-from fuzz_common import run  # noqa: E402
+import mapseed  # noqa: E402
+from fuzz_common import first_error, run  # noqa: E402
 
 _spec = importlib.util.spec_from_file_location(
     "shape_trace_differential", Path(__file__).with_name("shape-trace-differential.py"))
@@ -202,6 +208,7 @@ def flags_for(rng):
     return tuple(flags)
 
 
+
 def outcome(binary, source, layout, flags, root, tag, extra_env=None):
     directory = root / tag
     directory.mkdir()
@@ -209,45 +216,86 @@ def outcome(binary, source, layout, flags, root, tag, extra_env=None):
     return run(binary, directory, layout, "out", "svg", flags, extra_env)
 
 
-# Go resamples before an output difference counts: Go's map iteration order is
-# random (dagre's shiftReachableDown ranges over a map), so a few inputs have
-# more than one Go output. With the seedable oracle (build-mapseed-oracle.py)
-# the resamples are map seeds 1..GO_RESAMPLES, reproducible; otherwise they
-# are reruns of the stock oracle.
-GO_RESAMPLES = 16
-MAPSEED_ORACLE = references.GO_MAPSEED_ORACLE
-NONDETERMINISTIC = "oracle-nondeterministic"
+GO_FAILED = "go-failed"
+PROBE_SOURCE = "a -> b\n"
 
 
-def diverges(source, layout, flags, rust, go):
-    """None (match or no oracle) or the kind of divergence.
+def outcome_key(result, directory):
+    """Comparable outcome: the inventory digest, or the exit code and masked first error line."""
+    code, stderr, digest = result
+    if code == 0:
+        return ("ok", digest)
+    if code in ("timeout", "invalid-output") or isinstance(code, int) and code < 0 or "panic:" in stderr:
+        return ("unusable", code)
+    return ("error", code, first_error(stderr, directory))
 
-    `oracle-nondeterministic` means the pinned Go produced several outputs and
-    d2-rs matches one of them; it is reported but is not a d2-rs mismatch.
+
+def usable_key(key):
+    """A seeded run that timed out, crashed or wrote invalid output is not a Go variant."""
+    return key[0] != "unusable"
+
+
+class Resampler:
+    """The seeded oracle, seed list and registry of one harness run."""
+
+    def __init__(self, go, oracle=None, seeds=mapseed.DEFAULT_SEEDS, registry=None):
+        self.go = go
+        self.oracle = mapseed.Oracle(oracle or mapseed.default_oracle(go), go, self.probe)
+        self.seeds = tuple(seeds)
+        self.registry = registry
+
+    @staticmethod
+    def probe(binary):
+        with tempfile.TemporaryDirectory(prefix="graph-probe-") as tmp:
+            return outcome_key(outcome(binary, PROBE_SOURCE, "dagre", (), Path(tmp), "probe"), Path(tmp) / "probe")
+
+    @staticmethod
+    def args(layout, flags):
+        return [f"--layout={layout}", *flags, "svg"]
+
+    @staticmethod
+    def identity(source, layout, flags):
+        return mapseed.identity(source, Resampler.args(layout, flags))
+
+    def known(self, source, layout, flags):
+        return bool(self.registry and self.registry.known(self.identity(source, layout, flags)))
+
+    def resolve(self, source, layout, flags, root, go_key, rust_key):
+        """Classifies one case from its stock Go and d2-rs keys; seeded runs go under root."""
+        def seeded(seed):
+            tag = f"go-mapseed-{seed}"
+            result = outcome(self.oracle.path, source, layout, flags, root, tag, {mapseed.ENV: str(seed)})
+            return outcome_key(result, root / tag)
+        return mapseed.resolve([go_key], [rust_key], seeded, self.oracle, self.seeds,
+                               self.known(source, layout, flags), usable_key)
+
+
+def diverges(source, layout, flags, rust, go, resampler):
+    """(kind, record): kind is None when the case passes or has no oracle result.
+
+    record carries the classification, and for resolved cases the matching
+    map seeds and the number of distinct Go variants seen.
     """
     with tempfile.TemporaryDirectory(prefix="graph-diff-") as tmp:
         root = Path(tmp)
-        go_code, _, go_digest = outcome(go, source, layout, flags, root, "go")
-        rust_code, _, rust_digest = outcome(rust, source, layout, flags, root, "rust")
-        if go_code != 0:
-            return None
-        if rust_code != 0:
-            return f"rust-exit-{rust_code}"
-        if go_digest == rust_digest:
-            return None
-        seeded = MAPSEED_ORACLE.is_file()
-        for attempt in range(GO_RESAMPLES):
-            if seeded:
-                code, _, digest = outcome(MAPSEED_ORACLE, source, layout, flags, root, f"go-{attempt}",
-                                          {"D2RS_GO_MAPSEED": str(attempt + 1)})
-            else:
-                code, _, digest = outcome(go, source, layout, flags, root, f"go-{attempt}")
-            if code == 0 and digest == rust_digest:
-                return "oracle-nondeterministic"
-    return "output-diff"
+        go_result = outcome(go, source, layout, flags, root, "go")
+        rust_result = outcome(rust, source, layout, flags, root, "rust")
+        if go_result[0] != 0:
+            return None, {"classification": GO_FAILED}
+        if rust_result[0] != 0:
+            kind = f"rust-exit-{rust_result[0]}"
+            return kind, {"classification": kind}
+        go_key, rust_key = outcome_key(go_result, root / "go"), outcome_key(rust_result, root / "rust")
+        if go_key == rust_key and not resampler.known(source, layout, flags):
+            return None, {"classification": mapseed.MATCH}
+        resolution = resampler.resolve(source, layout, flags, root, go_key, rust_key)
+    record = resolution.record()
+    if resolution.passed:
+        return None, record
+    return ("output-diff" if resolution.classification == mapseed.MISMATCH else resolution.classification), record
 
 
-def minimize(source, layout, flags, rust, go, want):
+def minimize(source, layout, flags, rust, go, want, resampler):
     """Drops whole lines (keeping braces balanced) while the divergence persists."""
     lines = source.rstrip("\n").split("\n")
     changed = True
@@ -258,24 +306,27 @@ def minimize(source, layout, flags, rust, go, want):
             if line.rstrip().endswith("{") or line.strip() == "}" or line.strip().startswith("|"):
                 continue
             trial = lines[:i] + lines[i + 1:]
-            if trial and diverges("\n".join(trial) + "\n", layout, flags, rust, go) == want:
+            if trial and diverges("\n".join(trial) + "\n", layout, flags, rust, go, resampler)[0] == want:
                 lines, changed = trial, True
                 break
     return "\n".join(lines) + "\n"
 
 
-def compare(case, rust, go, layouts, do_minimize):
+def compare(case, rust, go, layouts, do_minimize, resampler):
     index, source, flags = case
-    findings = []
+    records = []
     for layout in layouts:
-        kind = diverges(source, layout, flags, rust, go)
-        if kind:
-            small = None
-            if do_minimize and kind != NONDETERMINISTIC:
-                small = minimize(source, layout, flags, rust, go, kind)
-            findings.append({"case": index, "layout": layout, "flags": list(flags), "kind": kind,
-                             "minimized": small})
-    return index, source, findings
+        kind, record = diverges(source, layout, flags, rust, go, resampler)
+        small = None
+        if kind and do_minimize and kind != mapseed.ORACLE_MISSING:
+            small = minimize(source, layout, flags, rust, go, kind, resampler)
+        records.append({"case": index, "layout": layout, "flags": list(flags), "kind": kind,
+                        "minimized": small, **record})
+    return index, source, records
+
+
+def failing(record):
+    return record["classification"] not in mapseed.PASSING | {GO_FAILED}
 
 
 def main(argv=None):
@@ -289,8 +340,11 @@ def main(argv=None):
     parser.add_argument("--jobs", type=int, default=8)
     parser.add_argument("--minimize", action="store_true")
     parser.add_argument("--out", default=str(references.REPORTS / "graph-differential"))
+    mapseed.add_arguments(parser)
     args = parser.parse_args(argv)
     layouts = [layout for layout in args.layouts.split(",") if layout]
+    registry = mapseed.Registry(args.mapseed_registry)
+    resampler = Resampler(args.go, args.go_mapseed, args.mapseed_seeds, registry)
     rng = random.Random(args.seed)
     generate = generate_wide if args.family == "wide" else shape_trace.generate
     cases = []
@@ -299,26 +353,40 @@ def main(argv=None):
         cases.append((i, source, flags_for(rng) if args.family == "wide" else ()))
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    findings = []
+    records, sources = [], {}
     with concurrent.futures.ThreadPoolExecutor(args.jobs) as pool:
-        work = lambda c: compare(c, args.rust, args.go, layouts, args.minimize)  # noqa: E731
+        work = lambda c: compare(c, args.rust, args.go, layouts, args.minimize, resampler)  # noqa: E731
         for index, source, found in pool.map(work, cases):
-            for finding in found:
-                path = out / f"case-{index:05d}-{finding['layout']}.d2"
-                path.write_text(source)
-                if finding["minimized"]:
-                    path.with_suffix(".min.d2").write_text(finding["minimized"])
-                findings.append({**finding, "input": str(path)})
+            sources[index] = source
+            for record in found:
+                if record["classification"] not in (mapseed.MATCH, GO_FAILED):
+                    path = out / f"case-{index:05d}-{record['layout']}.d2"
+                    path.write_text(source)
+                    if record["minimized"]:
+                        path.with_suffix(".min.d2").write_text(record["minimized"])
+                    record["input"] = str(path)
+                records.append(record)
+    findings = sorted((r for r in records if "input" in r), key=lambda r: (r["case"], r["layout"]))
     with open(out / "findings.jsonl", "w") as index_file:
-        for finding in sorted(findings, key=lambda f: (f["case"], f["layout"])):
+        for finding in findings:
             index_file.write(json.dumps(finding) + "\n")
-    mismatches = [f for f in findings if f["kind"] != NONDETERMINISTIC]
     for layout in layouts:
-        bad = sum(1 for f in mismatches if f["layout"] == layout)
-        unstable = sum(1 for f in findings if f["layout"] == layout and f["kind"] == NONDETERMINISTIC)
-        note = f" ({unstable} more where Go itself is nondeterministic)" if unstable else ""
-        print(f"{layout}: {args.cases - bad - unstable}/{args.cases} cases match Go{note}")
-    return 1 if mismatches else 0
+        print(mapseed.summary(layout, args.cases, [r for r in records if r["layout"] == layout]))
+    for finding in findings:
+        if failing(finding):
+            print(f"FAIL {finding['classification']}: {finding['input']} ({finding['layout']}"
+                  f"{' ' + ' '.join(finding['flags']) if finding['flags'] else ''})")
+    if any(r["classification"] == mapseed.ORACLE_MISSING for r in records):
+        print(f"error: {resampler.oracle.message()}", file=sys.stderr)
+    if args.record_mapseed:
+        added = mapseed.record_cases(registry, (
+            (resampler.identity(sources[r["case"]], r["layout"], r["flags"]), sources[r["case"]],
+             Resampler.args(r["layout"], r["flags"]),
+             f"graph-differential.py --family {args.family} --seed {args.seed} case {r['case']} --layouts {r['layout']}",
+             mapseed.Resolution(r["classification"], r.get("mapseed_seeds", []), r.get("go_variants", 1)))
+            for r in findings), "graph-differential")
+        print(f"recorded {added} new map-order-dependent inputs in {registry.path}")
+    return 1 if any(failing(r) for r in records) else 0
 
 
 if __name__ == "__main__":

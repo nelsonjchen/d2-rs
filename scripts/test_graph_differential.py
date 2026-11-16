@@ -1,9 +1,12 @@
 """The wide graph sweep must generate deterministic, balanced, feature-rich D2."""
 import importlib.util
+import io
+import json
 import random
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -42,54 +45,117 @@ class GraphDifferentialTests(unittest.TestCase):
         source = "a: {\n  b\n}\nx -> y\n"
         calls = []
 
-        def fake(text, layout, flags, rust, go):
+        def fake(text, layout, flags, rust, go, resampler):
             calls.append(text)
-            return "output-diff" if "x -> y" in text else None
+            return ("output-diff" if "x -> y" in text else None), {}
 
         original = sweep.diverges
         sweep.diverges = fake
         try:
-            small = sweep.minimize(source, "dagre", (), "rust", "go", "output-diff")
+            small = sweep.minimize(source, "dagre", (), "rust", "go", "output-diff", None)
         finally:
             sweep.diverges = original
         self.assertEqual(small, "a: {\n}\nx -> y\n")
 
-    def diverges_with(self, go_digests, rust_digest, seeded=None, calls=None):
-        """Runs diverges() against a fake Go that returns go_digests in turn."""
-        go_runs = iter(go_digests)
 
-        def fake(binary, source, layout, flags, root, tag, extra_env=None):
-            if calls is not None:
-                calls.append((str(binary), extra_env))
-            return (0, None, rust_digest) if binary == "rust" else (0, None, next(go_runs))
+FAKE_CLI = """#!{python}
+import os, sys
+seed = os.environ.get("D2RS_GO_MAPSEED")
+variants = {variants!r}
+text = variants.get(seed, variants[None])
+open(sys.argv[-1], "w").write('<svg xmlns="http://www.w3.org/2000/svg"><text>' + text + '</text></svg>')
+"""
 
-        original, original_seeded = sweep.outcome, sweep.MAPSEED_ORACLE
-        sweep.outcome = fake
-        sweep.MAPSEED_ORACLE = Path(seeded) if seeded else Path("/nonexistent/mapseed")
-        try:
-            return sweep.diverges("a -> b\n", "dagre", (), "rust", "go")
-        finally:
-            sweep.outcome, sweep.MAPSEED_ORACLE = original, original_seeded
 
-    def test_go_resamples_before_an_output_difference_counts(self):
-        stable_other = ["go-a"] * (1 + sweep.GO_RESAMPLES)
-        self.assertEqual(self.diverges_with(stable_other, "rust-a"), "output-diff")
-        self.assertIsNone(self.diverges_with(["same"], "same"))
-        flips = ["go-b", "go-b", "go-a"] + ["go-b"] * sweep.GO_RESAMPLES
-        self.assertEqual(self.diverges_with(flips, "go-a"), sweep.NONDETERMINISTIC)
-        # Go varying among outputs none of which is d2-rs's is still a mismatch.
-        varied = ["go-a", "go-b"] * sweep.GO_RESAMPLES
-        self.assertEqual(self.diverges_with(varied, "rust-a"), "output-diff")
+class MapSeedClassificationTests(unittest.TestCase):
+    """End to end through fuzz_common.run with fake CLIs whose SVG depends on D2RS_GO_MAPSEED."""
 
-    def test_seedable_oracle_resamples_with_map_seeds(self):
-        with tempfile.NamedTemporaryFile() as seeded:
-            calls = []
-            stable_other = ["go-a"] * (1 + sweep.GO_RESAMPLES)
-            kind = self.diverges_with(stable_other, "rust-a", seeded.name, calls)
-        self.assertEqual(kind, "output-diff")
-        resamples = [env for binary, env in calls if binary == seeded.name]
-        self.assertEqual(resamples, [{"D2RS_GO_MAPSEED": str(seed)}
-                                     for seed in range(1, sweep.GO_RESAMPLES + 1)])
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.root = Path(temp.name)
+
+    def cli(self, name, variants):
+        path = self.root / name
+        path.write_text(FAKE_CLI.format(python=sys.executable, variants=variants))
+        path.chmod(0o755)
+        return path
+
+    def classify(self, go, rust, seeded=None, known=False, seeds=(1, 2, 3, 4)):
+        go_path = self.cli("go", go)
+        seeded_path = self.cli("go-mapseed", seeded) if seeded is not None else self.root / "absent-mapseed"
+        registry = sweep.mapseed.Registry(self.root / "registry.json")
+        if known:
+            registry.add(sweep.Resampler.identity("a -> b\n", "dagre", ()), "a -> b\n",
+                         sweep.Resampler.args("dagre", ()), "test", "test", "test")
+        resampler = sweep.Resampler(go_path, seeded_path, seeds, registry)
+        with redirect_stderr(io.StringIO()):
+            return sweep.diverges("a -> b\n", "dagre", (), self.cli("rust", rust), go_path, resampler)
+
+    # Seeds 2 and 4 take the other map order.
+    SEEDED = {None: "A", "2": "B", "4": "B"}
+
+    def test_match(self):
+        self.assertEqual(self.classify({None: "A"}, {None: "A"}), (None, {"classification": "match"}))
+
+    def test_mapseed_match_lists_the_matching_seeds(self):
+        kind, record = self.classify({None: "A"}, {None: "B"}, self.SEEDED)
+        self.assertIsNone(kind)
+        self.assertEqual((record["classification"], record["mapseed_seeds"], record["go_variants"]),
+                         ("mapseed-match", [2, 4], 2))
+
+    def test_known_mapseed(self):
+        kind, record = self.classify({None: "A"}, {None: "B"}, self.SEEDED, known=True)
+        self.assertEqual((kind, record["classification"]), (None, "known-mapseed"))
+
+    def test_go_nondeterministic_no_rust_match_is_a_failure(self):
+        kind, record = self.classify({None: "A"}, {None: "C"}, self.SEEDED)
+        self.assertEqual((kind, record["go_variants"]), ("go-nondeterministic-no-rust-match", 2))
+
+    def test_mismatch(self):
+        kind, record = self.classify({None: "A"}, {None: "C"}, {None: "A"})
+        self.assertEqual((kind, record["classification"]), ("output-diff", "mismatch"))
+
+    def test_missing_oracle_never_passes(self):
+        kind, record = self.classify({None: "A"}, {None: "B"})
+        self.assertEqual(kind, "mapseed-oracle-missing")
+
+    def test_unpaired_oracle_never_passes(self):
+        # A seeded build that does not reproduce --go with the variable unset.
+        kind, _ = self.classify({None: "A"}, {None: "B"}, {None: "Z", "2": "B"})
+        self.assertEqual(kind, "mapseed-oracle-missing")
+
+    def test_seeded_runs_receive_the_seed(self):
+        _, record = self.classify({None: "A"}, {None: "B"}, self.SEEDED, seeds=(1, 2, 3, 4, 5, 6))
+        self.assertEqual(record["seeds_tried"], [1, 2, 3, 4, 5, 6])
+        self.assertEqual(record["mapseed_seeds"], [2, 4])
+
+    def test_summary_findings_and_exit_status(self):
+        go, rust, seeded = self.cli("go", {None: "A"}), self.cli("rust", {None: "B"}), self.cli("go-mapseed", self.SEEDED)
+        out = self.root / "out"
+        argv = [str(rust), "--go", str(go), "--go-mapseed", str(seeded), "--mapseed-seeds", "1-4",
+                "--cases", "2", "--layouts", "dagre", "--jobs", "1", "--out", str(out),
+                "--mapseed-registry", str(self.root / "registry.json")]
+        printed = io.StringIO()
+        with redirect_stdout(printed):
+            self.assertEqual(sweep.main(argv), 0)
+        self.assertIn("dagre: 0/2 match, 2 mapseed-match (seeds 2,4)", printed.getvalue())
+        findings = [json.loads(line) for line in (out / "findings.jsonl").read_text().splitlines()]
+        self.assertEqual([(f["classification"], f["mapseed_seeds"]) for f in findings],
+                         [("mapseed-match", [2, 4])] * 2)
+        self.assertFalse((self.root / "registry.json").exists())
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(sweep.main(argv + ["--record-mapseed"]), 0)
+        self.assertEqual(len(json.loads((self.root / "registry.json").read_text())["cases"]), 2)
+        printed = io.StringIO()
+        with redirect_stdout(printed):
+            self.assertEqual(sweep.main(argv), 0)
+        self.assertIn("dagre: 0/2 match, 2 known-mapseed (seeds 2,4)", printed.getvalue())
+        bad = self.cli("rust", {None: "C"})
+        printed = io.StringIO()
+        with redirect_stdout(printed):
+            self.assertEqual(sweep.main([str(bad), *argv[1:]]), 1)
+        self.assertIn("FAIL go-nondeterministic-no-rust-match: " + str(out / "case-00000-dagre.d2"), printed.getvalue())
 
 
 if __name__ == "__main__":

@@ -1,6 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2020 Nor Khasyatillah.
 // Translated from pinned csscolorparser v0.1.8; see THIRD_PARTY_NOTICES.md.
+//
+// Arithmetic follows colorparser.go statement by statement: Go's math.Pow,
+// math.Sin and math.Cos come from the shared `gomath` port, and every
+// product-sum that Go's arm64 compiler fuses (ARM64.rules FMADDD/FMSUBD/
+// FNMSUBD) goes through d2-rs-core's go_fmadd/go_fmsub/go_fnmsub, which
+// fuse only on aarch64 as Go does (amd64 Go keeps separate roundings).
+use crate::gomath;
+use d2_rs_core::{go_fmadd, go_fmsub, go_fnmsub};
 use std::{collections::BTreeMap, sync::OnceLock};
 fn floor0(n: f64) -> f64 {
     if n.is_nan() {
@@ -48,14 +56,15 @@ fn normalize(n: f64) -> f64 {
     let n = n % 360.;
     if n < 0. { n + 360. } else { n }
 }
+/// colorparser.go hueToRgb (n1 + ((n2 - n1) * h) fuses on arm64).
 fn hue(a: f64, b: f64, h: f64) -> f64 {
     let h = (h % 6. + 6.) % 6.;
     if h < 1. {
-        (b - a).mul_add(h, a)
+        go_fmadd(b - a, h, a)
     } else if h < 3. {
         b
     } else if h < 4. {
-        (b - a).mul_add(4. - h, a)
+        go_fmadd(b - a, 4. - h, a)
     } else {
         a
     }
@@ -67,68 +76,100 @@ fn hsl(h: f64, s: f64, l: f64) -> [f64; 3] {
     if s == 0. {
         return [l; 3];
     }
+    // hslToRgb: n2 = l + s - (l * s); n1 := 2*l - n2.
     let b = if l < 0.5 {
         l * (1. + s)
     } else {
-        (-l).mul_add(s, l + s)
+        go_fmsub(l, s, l + s)
     };
-    let a = 2_f64.mul_add(l, -b);
+    let a = go_fnmsub(2., l, b);
     [
         clamp(hue(a, b, h + 2.)),
         clamp(hue(a, b, h)),
         clamp(hue(a, b, h - 2.)),
     ]
 }
+/// colorparser.go fromLinear: `1.055*math.Pow(x, 1.0/2.4) - 0.055`.
 fn linear(n: f64) -> f64 {
     if n >= 0.0031308 {
-        1.055_f64.mul_add(n.powf(5. / 12.), -0.055)
+        go_fnmsub(1.055, gomath::pow(n, 1.0 / 2.4), 0.055)
     } else {
         12.92 * n
     }
 }
+/// colorparser.go FromOklab (before FromLinearRGB).
 fn oklab(l: f64, a: f64, b: f64) -> [f64; 3] {
-    let x = 0.2158037573_f64
-        .mul_add(b, 0.3963377774_f64.mul_add(a, l))
-        .powi(3);
-    let y = (-0.0638541728_f64)
-        .mul_add(b, (-0.1055613458_f64).mul_add(a, l))
-        .powi(3);
-    let z = (-1.2914855480_f64)
-        .mul_add(b, (-0.0894841775_f64).mul_add(a, l))
-        .powi(3);
+    let x = gomath::pow(go_fmadd(0.2158037573, b, go_fmadd(0.3963377774, a, l)), 3.);
+    let y = gomath::pow(go_fmsub(0.0638541728, b, go_fmsub(0.1055613458, a, l)), 3.);
+    let z = gomath::pow(go_fmsub(1.2914855480, b, go_fmsub(0.0894841775, a, l)), 3.);
     [
-        linear(0.2309699292_f64.mul_add(z, (-3.3077115913_f64).mul_add(y, 4.0767416621 * x))),
-        linear((-0.3413193965_f64).mul_add(z, 2.6097574011_f64.mul_add(y, -1.2684380046 * x))),
-        linear(1.7076147010_f64.mul_add(z, (-0.7034186147_f64).mul_add(y, -0.0041960863 * x))),
+        linear(go_fmadd(
+            0.2309699292,
+            z,
+            go_fmsub(3.3077115913, y, 4.0767416621 * x),
+        )),
+        linear(go_fmsub(
+            0.3413193965,
+            z,
+            go_fmadd(2.6097574011, y, -1.2684380046 * x),
+        )),
+        linear(go_fmadd(
+            1.7076147010,
+            z,
+            go_fmsub(0.7034186147, y, -0.0041960863 * x),
+        )),
     ]
 }
+/// `math.Max(0, math.Min(1, n))` in xyzToLinearRgb: NaN stays NaN and
+/// Go's Max(0, -0) is +0.
+fn clamp_min_max(n: f64) -> f64 {
+    if n.is_nan() {
+        n
+    } else if n >= 1. {
+        1.
+    } else if n <= 0. {
+        0.
+    } else {
+        n
+    }
+}
+/// colorparser.go labToXyz and xyzToLinearRgb (before FromLinearRGB).
 fn lab(l: f64, a: f64, b: f64) -> [f64; 3] {
+    const E: f64 = 216. / 24389.;
+    const K: f64 = 24389. / 27.;
     let fy = (l + 16.) / 116.;
     let fx = fy + a / 500.;
     let fz = fy - b / 200.;
-    let e = 216. / 24389.;
-    let k = 24389. / 27.;
-    let y = if l > 8. { fy.powi(3) } else { l / k };
-    let x = if fx.powi(3) > e {
-        0.95047 * fx.powi(3)
+    // Yn = 1: `Yn * math.Pow(fy, 3)` and `Yn * (l / k)` are exact.
+    let y = if l > 8. { gomath::pow(fy, 3.) } else { l / K };
+    let fx3 = gomath::pow(fx, 3.);
+    let x = if fx3 > E {
+        0.95047 * fx3
     } else {
-        0.95047 * 116_f64.mul_add(fx, -16.) / k
+        0.95047 * go_fnmsub(116., fx, 16.) / K
     };
-    let z = if fz.powi(3) > e {
-        1.08883 * fz.powi(3)
+    let fz3 = gomath::pow(fz, 3.);
+    let z = if fz3 > E {
+        1.08883 * fz3
     } else {
-        1.08883 * 116_f64.mul_add(fz, -16.) / k
+        1.08883 * go_fnmsub(116., fz, 16.) / K
     };
     [
-        linear(clamp(
-            (-0.498531_f64).mul_add(z, (-1.537177_f64).mul_add(y, 3.2404537 * x)),
-        )),
-        linear(clamp(
-            0.041556_f64.mul_add(z, 1.876010_f64.mul_add(y, -0.969266 * x)),
-        )),
-        linear(clamp(
-            1.057225_f64.mul_add(z, (-0.204025_f64).mul_add(y, 0.055643 * x)),
-        )),
+        linear(clamp_min_max(go_fmsub(
+            0.498531,
+            z,
+            go_fmsub(1.537177, y, 3.2404537 * x),
+        ))),
+        linear(clamp_min_max(go_fmadd(
+            0.041556,
+            z,
+            go_fmadd(1.876010, y, -0.969266 * x),
+        ))),
+        linear(clamp_min_max(go_fmadd(
+            1.057225,
+            z,
+            go_fmsub(0.204025, y, 0.055643 * x),
+        ))),
     ]
 }
 fn hex(s: &str) -> Option<[f64; 4]> {
@@ -252,7 +293,7 @@ fn function_rgb(name: &str, fields: &[&str]) -> Option<[f64; 3]> {
             } else {
                 let mut rgb = hsl(h, 1., 0.5);
                 for n in &mut rgb {
-                    *n = n.mul_add(1. - w - b, w);
+                    *n = go_fmadd(*n, 1. - w - b, w);
                 }
                 rgb
             }
@@ -269,7 +310,7 @@ fn function_rgb(name: &str, fields: &[&str]) -> Option<[f64; 3]> {
             } else if l < 0.5 {
                 s * v / (l * 2.)
             } else {
-                s * v / (-2_f64).mul_add(l, 2.)
+                s * v / go_fmsub(l, 2., 2.)
             };
             hsl(h, sat, l)
         }
@@ -278,11 +319,12 @@ fn function_rgb(name: &str, fields: &[&str]) -> Option<[f64; 3]> {
             let (mut a, ap) = percent(fields[1], 1.)?;
             let (mut b, bp) = percent(fields[2], 1.)?;
             let limit = if name == "lab" { 125. } else { 0.4 };
+            // remap(t, -1, 1, -limit, limit) = (t+1)*limit - limit.
             if ap {
-                a = (a + 1.).mul_add(limit, -limit);
+                a = go_fmadd(a + 1., limit, -limit);
             }
             if bp {
-                b = (b + 1.).mul_add(limit, -limit);
+                b = go_fmadd(b + 1., limit, -limit);
             }
             if name == "lab" && lp {
                 l *= 100.;
@@ -304,7 +346,8 @@ fn function_rgb(name: &str, fields: &[&str]) -> Option<[f64; 3]> {
                 l *= 100.;
             }
             let c = floor0(c);
-            let (sn, cs) = h.sin_cos();
+            // FromLch/FromOklch: c*math.Cos(h), c*math.Sin(h).
+            let (cs, sn) = (gomath::cos(h), gomath::sin(h));
             if name == "lch" {
                 lab(floor0(l), c * cs, c * sn)
             } else {
@@ -394,6 +437,89 @@ mod tests {
             if let Ok(color) = result {
                 assert_eq!(serde_json::to_value(color).unwrap(), row["rgba"], "{row}");
             }
+        }
+    }
+}
+/// Bit-exact values of pinned csscolorparser v0.1.8 `Parse` built by Go 1.27
+/// for linux/arm64 (a probe over the pinned module). Each row differed from
+/// the earlier libm/`powi` arithmetic by at least one ulp. amd64 Go does not
+/// fuse multiply-adds, so these bits hold for the arm64 build only.
+#[cfg(all(test, target_arch = "aarch64"))]
+mod go_arm64_values {
+    use super::parse_result;
+    #[test]
+    fn lab_lch_oklab_oklch_match_go_bits() {
+        for (input, bits) in [
+            (
+                "lab(0 -200 12.5%)",
+                [0, 0x3fceb02014f66e6f, 0, 0x3ff0000000000000],
+            ),
+            (
+                "lab(1,2,3)",
+                [
+                    0x3fa86ff1ab5a6631,
+                    0x3f7cee10ab1dbc70,
+                    0,
+                    0x3ff0000000000000,
+                ],
+            ),
+            (
+                "lch(0 150 270)",
+                [
+                    0,
+                    0x3fc901694f1a65b3,
+                    0x3fed18b26a94193f,
+                    0x3ff0000000000000,
+                ],
+            ),
+            (
+                "lch(5 50% 180)",
+                [
+                    0,
+                    0x3fc525a09e28e931,
+                    0x3facc5ae829daf61,
+                    0x3ff0000000000000,
+                ],
+            ),
+            (
+                "oklab(0 0.1 0.25)",
+                [
+                    0xbfb0a78fb785c027,
+                    0x3fbbc23ffdd13d9d,
+                    0xbfe9ca18ac83ace6,
+                    0x3ff0000000000000,
+                ],
+            ),
+            (
+                "oklab(1e2,2,3)",
+                [
+                    0x40766d56966fa138,
+                    0x40746eb3fa73bdbc,
+                    0x407315abf20b0969,
+                    0x3ff0000000000000,
+                ],
+            ),
+            (
+                "oklch(0.1 100% 1e3)",
+                [
+                    0x3fce332ed46d3ca7,
+                    0xbfed24c9750a555f,
+                    0x3fe49be8c369ae42,
+                    0x3ff0000000000000,
+                ],
+            ),
+            (
+                "oklch(1e2,2,3)",
+                [
+                    0x4075daa52ab092e2,
+                    0x4074738efc9f7a47,
+                    0x4074bf42c486d44d,
+                    0x3ff0000000000000,
+                ],
+            ),
+        ] {
+            let color = parse_result(input).unwrap();
+            assert_eq!(color.map(f64::to_bits), bits, "{input}");
         }
     }
 }

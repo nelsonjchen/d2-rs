@@ -3418,6 +3418,14 @@ impl ArenaGraph {
         self.sync_clusters_from_positions_filtered_impl(&positions, false, true, false, true);
     }
 
+    /// `sync_clusters_with_descendants` for a committed AffectContainers
+    /// transaction: Cluster.SyncGeometry resizes the vessel from the refitted
+    /// members before arranging them (layoutgraph/cluster.go:188-202).
+    pub(super) fn sync_clusters_with_descendants_after_container_refit(&mut self) {
+        let positions = self.cluster_vessel_positions();
+        self.sync_clusters_from_positions_filtered_impl(&positions, false, true, true, true);
+    }
+
     /// Synchronize clusters from a direct transaction in the owning graph.
     /// The Go engine's live pointers make `MoveNodeWithChildren` walk each
     /// member's source descendants during this boundary; induced placement

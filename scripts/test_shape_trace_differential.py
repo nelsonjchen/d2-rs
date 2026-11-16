@@ -3,6 +3,7 @@ import importlib.util
 import random
 import re
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -42,6 +43,31 @@ class ShapeTraceDifferentialTests(unittest.TestCase):
             for left, right in re.findall(r"^((?:box\.)?n\d+) \S+ ((?:box\.)?n\d+)", source, re.M):
                 self.assertIn(left.removeprefix("box."), declared)
                 self.assertIn(right.removeprefix("box."), declared)
+
+
+class ShapeTraceMapSeedTests(unittest.TestCase):
+    def test_differences_are_classified_with_map_seeds(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+
+            def cli(name, variants):
+                path = root / name
+                path.write_text(f"#!{sys.executable}\nimport os, sys\nvariants = {variants!r}\n"
+                                "text = variants.get(os.environ.get('D2RS_GO_MAPSEED'), variants[None])\n"
+                                "open(sys.argv[-1], 'w').write('<svg xmlns=\"http://www.w3.org/2000/svg\"><text>'"
+                                " + text + '</text></svg>')\n")
+                path.chmod(0o755)
+                return path
+            go = cli("go", {None: "A"})
+            oracle = sweep.mapseed_oracle(go, cli("go-mapseed", {None: "A", "2": "B"}))
+            registry = sweep.mapseed.Registry(root / "registry.json")
+            results = {}
+            for rust_text in ("A", "B", "C"):
+                _, _, found = sweep.compare((0, "a -> b\n"), cli(f"rust-{rust_text}", {None: rust_text}), go,
+                                            ["dagre"], oracle, (1, 2, 3), registry)
+                results[rust_text] = [(f["classification"], f.get("mapseed_seeds")) for f in found]
+        self.assertEqual(results, {"A": [], "B": [("mapseed-match", [2])],
+                                   "C": [("go-nondeterministic-no-rust-match", [])]})
 
 
 if __name__ == "__main__":

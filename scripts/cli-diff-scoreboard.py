@@ -23,6 +23,13 @@ same UTC clock for warnings and PDFs without changing compared bytes. Build
 that oracle with scripts/build-cli-clock-oracle.py. Ordinary runs remove any
 inherited SOURCE_DATE_EPOCH.
 
+A mismatching invocation is rerun by the seedable-map Go oracle (also under
+Go's basename) under map seeds 1-16 and classified by scripts/mapseed.py
+(--go-mapseed, --mapseed-seeds, --record-mapseed): mapseed-match and
+known-mapseed pass; go-nondeterministic-no-rust-match and
+mapseed-oracle-missing fail. With --epoch the seeded oracle must be a
+clock+mapseed build (build-cli-clock-oracle.py --mapseed) given as --go-mapseed.
+
 usage: cli-diff-scoreboard.py <report.json> [rust-binary]
 """
 import argparse
@@ -33,10 +40,12 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import threading
 from pathlib import Path
 
+import mapseed
 import references
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -127,13 +136,15 @@ def normalize_version(stdout, version):
     return re.sub(r"\A(\S+) " + re.escape(version) + r"\nUsage:\n", r"\1 VERSION\nUsage:\n", stdout, count=1)
 
 
-def run(binary, case, directory, epoch=None):
+def run(binary, case, directory, epoch=None, map_seed=None):
     words = case.split()
-    environment = {key: value for key, value in os.environ.items() if key != "D2_ALLOW_PRIVATE_NETWORK"}
+    environment = {key: value for key, value in os.environ.items() if key not in ("D2_ALLOW_PRIVATE_NETWORK", mapseed.ENV)}
     # Clock profiles are explicit; ordinary runs never inherit one silently.
     environment.pop("SOURCE_DATE_EPOCH", None)
     if epoch is not None:
         environment["SOURCE_DATE_EPOCH"] = str(epoch)
+    if map_seed is not None:
+        environment[mapseed.ENV] = str(map_seed)
     while words and re.fullmatch(r"[A-Z0-9_]+=.*", words[0]):
         key, value = words.pop(0).split("=", 1)
         environment[key] = value
@@ -156,6 +167,8 @@ def main():
     parser.add_argument("rust", type=Path, nargs="?", default=ROOT / "target/diagnostic/d2-rs")
     parser.add_argument("--go", type=Path, default=GO)
     parser.add_argument("--epoch", type=int, help="explicit shared UTC log/PDF clock; requires a clock-instrumented trace oracle")
+    mapseed.add_arguments(parser, "seedable-map Go oracle; with --epoch a clock+mapseed build is required "
+                                  "(default without --epoch: the --go path plus -mapseed)")
     args = parser.parse_args()
     if args.epoch is not None and not 0 <= args.epoch <= 253402300799:
         parser.error("--epoch must be in 0..=253402300799")
@@ -174,32 +187,80 @@ def main():
         versions = {name: subprocess.run([str(binary), "--version"], check=True, capture_output=True,
                                          text=True, timeout=60).stdout.strip()
                     for name, binary in (("go", oracle), ("rust", program))}
-        rows = []
-        for case in CASES:
-            results = {}
-            for name, binary in (("go", oracle), ("rust", program)):
-                directory = work / name
+        seeded_source = (args.go_mapseed.resolve() if args.go_mapseed else
+                          None if args.epoch is not None else mapseed.default_oracle(oracle))
+        seeded_program = None
+        if seeded_source is not None and seeded_source.is_file():
+            # Under Go's basename too: argv[0] appears in help and usage text.
+            seeded_program = work / "seeded-bin" / oracle.name
+            seeded_program.parent.mkdir()
+            shutil.copy2(seeded_source, seeded_program)
+            versions["go-mapseed"] = subprocess.run([str(seeded_program), "--version"], check=True, capture_output=True,
+                                                    text=True, timeout=60).stdout.strip()
+
+        def capture(name, binary, case, map_seed=None):
+            directory = work / name
+            shutil.rmtree(directory, ignore_errors=True)
+            directory.mkdir()
+            for file, text in FILES.items():
+                (directory / file).write_text(text.replace("{PORT}", port))
+            (directory / "ok.svg").write_text(SVG_ASSET)
+            (directory / "dir.svg").mkdir()
+            result = run(binary, case, directory, args.epoch, map_seed)
+            if "stdout" in result:
+                result["stdout"] = normalize_version(result["stdout"], versions[name if map_seed is None else "go-mapseed"])
+            # The scratch directory name differs per engine; compare it as one token.
+            for key in ("stdout", "stderr"):
+                if key in result:
+                    result[key] = result[key].replace(str(directory.resolve()), "DIR")
+            return result
+
+        def probe(binary):
+            """Map seed unset: a render, a PDF (dates follow the PDF clock) and a
+            fmt --check warning on an unformatted file (its timestamp follows
+            the log clock). Stdin is already formatted, so the file is needed.
+            Without --epoch both clocks are the wall clock, so only the render runs."""
+            results = []
+            clocked = ("--stdout-format=pdf - -", "fmt --check probe.d2") if args.epoch is not None else ()
+            for case in ("--layout=dagre - -", *clocked):
+                directory = work / "probe"
                 shutil.rmtree(directory, ignore_errors=True)
                 directory.mkdir()
-                for file, text in FILES.items():
-                    (directory / file).write_text(text.replace("{PORT}", port))
-                (directory / "ok.svg").write_text(SVG_ASSET)
-                (directory / "dir.svg").mkdir()
-                results[name] = run(binary, case, directory, args.epoch)
-                if "stdout" in results[name]:
-                    results[name]["stdout"] = normalize_version(results[name]["stdout"], versions[name])
-                # The scratch directory name differs per engine; compare it as one token.
+                (directory / "probe.d2").write_text("a->b\n")
+                result = run(binary, case, directory, args.epoch)
                 for key in ("stdout", "stderr"):
-                    if key in results[name]:
-                        results[name][key] = results[name][key].replace(str(directory.resolve()), "DIR")
+                    if key in result:
+                        result[key] = result[key].replace(str(directory.resolve()), "DIR")
+                results.append(result)
+            return results
+
+        mapseed_oracle = mapseed.Oracle(seeded_program or seeded_source, oracle, probe,
+                                        mapseed.CLOCK_BUILD_COMMAND if args.epoch is not None else mapseed.BUILD_COMMAND)
+        registry, recorded = mapseed.Registry(args.mapseed_registry), []
+        rows = []
+        for case in CASES:
+            results = {name: capture(name, binary, case) for name, binary in (("go", oracle), ("rust", program))}
+            known = registry.known(mapseed.identity(case, ["cli-diff-scoreboard"]))
             row = {"args": case, "outcome": "match" if results["go"] == results["rust"] else "mismatch"}
-            if row["outcome"] == "mismatch":
+            if (row["outcome"] == "mismatch" or known) and results["go"].get("exit") != "timeout":
+                resolution = mapseed.resolve(
+                    [results["go"]], [results["rust"]],
+                    lambda seed: capture("go-mapseed", mapseed_oracle.path, case, seed), mapseed_oracle,
+                    args.mapseed_seeds, known, usable=lambda result: result.get("exit") != "timeout")
+                row["outcome"] = resolution.classification
+                row["mapseed"] = resolution.record()
+                if resolution.go_variants > 1:
+                    recorded.append((mapseed.identity(case, ["cli-diff-scoreboard"]), case, ["cli-diff-scoreboard"],
+                                     f"cli-diff-scoreboard.py case {case!r}", resolution))
+            if row["outcome"] not in mapseed.PASSING:
                 row.update(results)
             rows.append(row)
     finally:
         server.shutdown()
         shutil.rmtree(work, ignore_errors=True)
-    summary = {outcome: sum(row["outcome"] == outcome for row in rows) for outcome in ("match", "mismatch")}
+    summary = mapseed.counts(dict(row, classification=row["outcome"]) for row in rows)
+    summary.setdefault("match", 0)
+    summary.setdefault("mismatch", 0)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps({"go": str(oracle), "rust": str(rust),
                                  "go_sha256": hashlib.sha256(oracle.read_bytes()).hexdigest(),
@@ -208,8 +269,16 @@ def main():
                                  "summary": summary, "rows": rows}, indent=1) + "\n")
     print(summary)
     for row in rows:
-        if row["outcome"] != "match":
-            print("mismatch:", row["args"])
+        if row["outcome"] not in mapseed.PASSING:
+            print(f"{row['outcome']}:", row["args"])
+        elif row["outcome"] != "match":
+            print(f"{row['outcome']} (seeds {','.join(map(str, row['mapseed']['mapseed_seeds']))}):", row["args"])
+    if summary.get(mapseed.ORACLE_MISSING):
+        print(f"error: {mapseed_oracle.message()}", file=sys.stderr)
+    if args.record_mapseed:
+        added = mapseed.record_cases(registry, recorded, "cli-diff-scoreboard")
+        print(f"recorded {added} new map-order-dependent inputs in {registry.path}")
+    return int(any(row["outcome"] not in mapseed.PASSING for row in rows))
 
 
 if __name__ == "__main__":

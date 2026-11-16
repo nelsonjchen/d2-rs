@@ -12089,6 +12089,7 @@ impl Pipeline {
             #[cfg(feature = "diagnostic-traces")]
             let trace_before_direct = scope.graph.clone();
             let prior_tree_mirrors = directed.projected_tree_mirrors.len();
+            let prior_sequence_mirrors = directed.projected_sequence_mirrors.len();
             let (mirrors, projected_mirror_refits) =
                 directed.direct_with_reachable(false, Some(&directed_reachable_containers));
             // The scope graph publishes Tree orientations for its owner;
@@ -12097,6 +12098,10 @@ impl Pipeline {
                 .graph
                 .projected_tree_mirrors
                 .extend_from_slice(&directed.projected_tree_mirrors[prior_tree_mirrors..]);
+            scope
+                .graph
+                .projected_sequence_mirrors
+                .extend_from_slice(&directed.projected_sequence_mirrors[prior_sequence_mirrors..]);
             if crate::internal::trace_env_enabled("TALA_TRACE_DIRECT_204") && root_scope {
                 eprintln!(
                     "DIRECT_204_RUST mirrors={:?} children_before_copy={:?}",

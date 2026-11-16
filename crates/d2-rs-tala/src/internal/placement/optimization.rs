@@ -1038,10 +1038,19 @@ impl ArenaGraph {
                         .get(sequence)
                         .is_some_and(|sequence| sequence.has_edge_abductions)
                 })
-        }) || self
-            .sized_edge_abductions
-            .iter()
-            .any(|abduction| abduction.sequence_abduction)
+        }) || self.sized_edge_abductions.iter().any(|abduction| {
+            // Go tests only the sequences of the nodes being directed
+            // (direct.go:279-284). The abduction slice is the parent's
+            // AbductEdges result, shared unchanged by every split component,
+            // so a sequence abduction counts only when its current endpoint
+            // is a node of this graph.
+            abduction.sequence_abduction
+                && [abduction.current_from, abduction.current_to]
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|endpoint| endpoint.local_node())
+                    .any(|node| self.node_order.contains(&node))
+        })
             // placement/direct.go also tests Graph.Sequences[node] for each
             // node: the vessel itself is in Graph.Nodes (AddSequences adds
             // it there), and Rust allocates it as its own node without a
@@ -1574,6 +1583,15 @@ impl ArenaGraph {
             match node {
                 ActiveMirrorNode::Stable(stable) => {
                     self.mirror_stable_node_box(stable, mirror_x, mirror_y);
+                    let tala_id = self.nodes[stable.0 as usize].tala_id;
+                    if self
+                        .sequences
+                        .iter()
+                        .any(|sequence| sequence.vessel_tala_id == tala_id)
+                    {
+                        self.projected_sequence_mirrors
+                            .push((tala_id, mirror_x, mirror_y));
+                    }
                     // Source mirrorNode mutates the shared NodeToTree entry
                     // once, in the same reachable-container branch as its box.
                     self.mirror_tree_routing_orientation(stable, mirror_x, mirror_y);
@@ -1591,6 +1609,11 @@ impl ArenaGraph {
                     }
                 }
                 ActiveMirrorNode::SequenceVessel(sequence_index) => {
+                    self.projected_sequence_mirrors.push((
+                        self.sequences[sequence_index].vessel_tala_id,
+                        mirror_x,
+                        mirror_y,
+                    ));
                     if let Some((mut position, size)) = synthetic_box {
                         let owner = self.sequences[sequence_index].members.first().copied();
                         let first_member_position = owner.and_then(|owner| self.position(owner));
@@ -1834,6 +1857,10 @@ impl ArenaGraph {
         // an unreachable container only receive PositionContainerChildren.
         if node_reachable && projected_mirrored.insert(tala_id) {
             self.mirror_projected_node_box(tala_id, mirror_x, mirror_y);
+            if self.projected_node_is_sequence_vessel(tala_id) {
+                self.projected_sequence_mirrors
+                    .push((tala_id, mirror_x, mirror_y));
+            }
             // Source mirrorNode also flips this pointer's NodeToTree entry.
             // A tree member restored below a nested container is a
             // projection here, so the stable-node branch never sees it.
@@ -1903,6 +1930,19 @@ impl ArenaGraph {
             }
             self.nodes[index].position = Some(position);
             self.nodes[index].rect.origin = position;
+        } else if let Some(mut position) = self.position(node) {
+            // An allocated sequence vessel keeps its TopLeft only in its
+            // owner-bound point. Go's mirrorNode reflects that pointer like
+            // any other Graph.Nodes entry (placement/direct.go:225-227).
+            let size = self.nodes[index].rect.size;
+            let [top, right, bottom, left] = self.loop_spacing_extents(node).unwrap_or([0.0; 4]);
+            if mirror_x {
+                position.x = -position.x - size.width + left - right;
+            }
+            if mirror_y {
+                position.y = -position.y - size.height + top - bottom;
+            }
+            self.set_position(node, position);
         }
     }
 
@@ -2533,7 +2573,9 @@ impl ArenaGraph {
     /// those descendants before scoring or committing the trial.
     fn reposition_swap_transaction_containers(&mut self) {
         self.reposition_ordinary_containers_without_sync();
-        self.sync_clusters_with_descendants();
+        // swap.go commits an AffectContainers transaction, whose cluster sync
+        // resizes each vessel from its refitted members.
+        self.sync_clusters_with_descendants_after_container_refit();
         self.sync_sequences();
     }
 

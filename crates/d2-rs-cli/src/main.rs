@@ -61,6 +61,7 @@ mod http_asset;
 mod imgbundler_cli;
 mod layout_features;
 mod layout_resolver;
+mod layout_trace;
 mod pptx_properties;
 use pptx_properties::pptx_document_properties;
 mod isometric_cli;
@@ -987,6 +988,7 @@ struct FontGraphMeasurer {
     unicode_mono_font: TrueTypeFont,
     unicode_mono_bold_font: TrueTypeFont,
     unicode_mono_italic_font: TrueTypeFont,
+    unicode_mono_semibold_font: TrueTypeFont,
 }
 
 /// Font files selected by the D2 v0.9.0 command boundary.
@@ -1140,10 +1142,18 @@ impl FontGraphMeasurer {
             bold_font: &self.bold_font,
             italic_font: &self.italic_font,
             semibold_font: &self.semibold_font,
-            mono_font: &self.mono_font,
-            mono_bold_font: &self.mono_bold_font,
-            mono_semibold_font: &self.mono_semibold_font,
-            mono_italic_font: &self.mono_italic_font,
+            // A mono theme or `style.font: mono` measures Markdown body text
+            // with the bundled Source Code Pro family (d2graph.go:1527-1530,
+            // d2fonts.D2_FONT_TO_FAMILY); only `pre`/`code` use the
+            // --font-mono family (textmeasure/markdown.go:463-471).
+            mono_font: &self.unicode_mono_font,
+            mono_bold_font: &self.unicode_mono_bold_font,
+            mono_semibold_font: &self.unicode_mono_semibold_font,
+            mono_italic_font: &self.unicode_mono_italic_font,
+            code_font: &self.mono_font,
+            code_bold_font: &self.mono_bold_font,
+            code_semibold_font: &self.mono_semibold_font,
+            code_italic_font: &self.mono_italic_font,
         }
         .markdown_dimensions(source, font_size, bold, italic, mono_default)
     }
@@ -1579,6 +1589,11 @@ fn load_graph_measurer_with_mode(
     } else {
         mono_italic_font.clone()
     };
+    let unicode_mono_semibold_font = if custom_mono {
+        d2_rs_text::measure::bundled_source_code_pro_semibold().map_err(|e| e.to_string())?
+    } else {
+        mono_semibold_font.clone()
+    };
     Ok(Some(FontGraphMeasurer {
         font,
         bold_font,
@@ -1591,6 +1606,7 @@ fn load_graph_measurer_with_mode(
         unicode_mono_font,
         unicode_mono_bold_font,
         unicode_mono_italic_font,
+        unicode_mono_semibold_font,
     }))
 }
 
@@ -3290,6 +3306,37 @@ fn render_source_format_with_pptx_properties(
         )
         .map_err(|error| error.to_string()),
         _ => match format {
+            ExportFormat::Ascii => {
+                match ASCII_NESTED_BOUNDS.with(|slot| slot.replace(AsciiNestedBounds::None)) {
+                    AsciiNestedBounds::Measure => d2_rs_export::ascii_board_bounding_box(
+                        &graph,
+                        &result,
+                        &labels,
+                        &styles,
+                        &render_options,
+                        sketch,
+                    )
+                    .map(|bounds| {
+                        bounds
+                            .iter()
+                            .flat_map(|value| value.to_le_bytes())
+                            .collect()
+                    }),
+                    nested => d2_rs_export::render_ascii_with_nested_bounds(
+                        &graph,
+                        &result,
+                        &labels,
+                        &styles,
+                        &render_options,
+                        sketch,
+                        match nested {
+                            AsciiNestedBounds::Bounds(bounds) => Some(bounds),
+                            _ => None,
+                        },
+                    ),
+                }
+                .map_err(|error| error.to_string())
+            }
             // PLAN S6: the byte-identical d2svg port.
             ExportFormat::Svg => d2_rs_render::render_d2svg(
                 &graph,
@@ -3570,17 +3617,28 @@ fn render_source_gif_frames(
 // d2cli/main.go writeWithStatus and util-go/xmain.State.AtomicWritePath.
 // Successful publication replaces the destination with a private temporary
 // file (including existing symlinks); callers retain the non-atomic fallback.
-fn atomic_write_file(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+// Errors carry Go's os.PathError/LinkError text for the --debug log.
+fn atomic_write_file(path: &Path, bytes: &[u8]) -> Result<(), String> {
     use ring::rand::SecureRandom as _;
-    let mut nonce = [0; 16];
+    let mut nonce = [0; 4];
     ring::rand::SystemRandom::new()
         .fill(&mut nonce)
-        .map_err(|_| std::io::Error::other("failed to generate temporary output name"))?;
+        .map_err(|_| "failed to generate temporary output name".to_owned())?;
+    // os.CreateTemp(dir, "tmp-"+base+"-"): prefix + decimal uint32 random.
     let temporary = path.with_file_name(format!(
         "tmp-{}-{}",
         path.file_name().unwrap_or_default().to_string_lossy(),
-        nonce.iter().map(|b| format!("{b:02x}")).collect::<String>()
+        u32::from_ne_bytes(nonce)
     ));
+    let go_error = |operation: &str, error: std::io::Error| {
+        let message = error.to_string();
+        let message = message
+            .split(" (os error ")
+            .next()
+            .unwrap_or(&message)
+            .to_ascii_lowercase();
+        format!("{operation} {}: {message}", temporary.display())
+    };
     let mut options = std::fs::OpenOptions::new();
     options.write(true).create_new(true);
     #[cfg(unix)]
@@ -3588,20 +3646,28 @@ fn atomic_write_file(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
         use std::os::unix::fs::OpenOptionsExt;
         options.mode(0o600);
     }
-    let mut file = options.open(&temporary)?;
+    let mut file = options
+        .open(&temporary)
+        .map_err(|error| go_error("open", error))?;
     let result = (|| {
-        file.write_all(bytes)?;
+        file.write_all(bytes)
+            .map_err(|error| go_error("write", error))?;
         #[cfg(unix)]
         {
             use std::os::fd::IntoRawFd;
             // Go checks Close before Rename; dropping File alone loses it.
             if unsafe { libc::close(file.into_raw_fd()) } != 0 {
-                return Err(std::io::Error::last_os_error());
+                return Err(go_error("close", std::io::Error::last_os_error()));
             }
         }
         #[cfg(not(unix))]
         drop(file);
-        std::fs::rename(&temporary, path)
+        std::fs::rename(&temporary, path).map_err(|error| {
+            let message = go_error("rename", error);
+            // os.LinkError: "rename <old> <new>: <err>".
+            let (head, tail) = message.split_once(": ").unwrap_or((&message, ""));
+            format!("{head} {}: {tail}", path.display())
+        })
     })();
     if result.is_err() {
         let _ = std::fs::remove_file(temporary);
@@ -3609,13 +3675,24 @@ fn atomic_write_file(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     result
 }
 
+/// d2cli writeWithStatus (main.go:1210-1219): a failed atomic write is
+/// logged before the non-atomic fallback.
+fn log_atomic_write_failure(error: &str) {
+    cli_log::command_debug(&format!(
+        "atomic write failed: {error}, trying non-atomic write"
+    ));
+}
+
 // d2cli writeWithStatus and writePNGWithStatus publish private staged files.
 // PDF and PPTX instead use os.Create, retaining an existing destination's mode.
 fn write_document_file(path: &Path, bytes: &[u8], format: ExportFormat) -> std::io::Result<()> {
-    if !matches!(format, ExportFormat::Pdf | ExportFormat::Pptx)
-        && atomic_write_file(path, bytes).is_ok()
-    {
-        return Ok(());
+    if !matches!(format, ExportFormat::Pdf | ExportFormat::Pptx) {
+        match atomic_write_file(path, bytes) {
+            Ok(()) => return Ok(()),
+            // PNG and GIF use their own staged writers without this log.
+            Err(error) if format == ExportFormat::Svg => log_atomic_write_failure(&error),
+            Err(_) => {}
+        }
     }
     let mut options = std::fs::OpenOptions::new();
     options.write(true).create(true).truncate(true);
@@ -3634,8 +3711,9 @@ fn write_document_file(path: &Path, bytes: &[u8], format: ExportFormat) -> std::
 // d2cli's text branch returns before SVG's MkdirAll and falls back from an
 // atomic write to OpenFile(O_WRONLY|O_CREATE|O_TRUNC, 0644).
 fn write_ascii_file(path: &Path, bytes: &[u8]) -> Result<(), String> {
-    if atomic_write_file(path, bytes).is_ok() {
-        return Ok(());
+    match atomic_write_file(path, bytes) {
+        Ok(()) => return Ok(()),
+        Err(error) => log_atomic_write_failure(&error),
     }
     let error_text = |operation: &str, error: std::io::Error| {
         let message = error.to_string();
@@ -4700,6 +4778,38 @@ fn run_multiboard_document(
     for target in targets {
         let render_started = std::time::Instant::now();
         let render_args = board_render_args(&target);
+        if output_format == ExportFormat::Ascii {
+            // The multi-board render keeps each board's descendants attached,
+            // and d2ascii sizes its canvas from Diagram.NestedBoundingBox
+            // (d2ascii.go:134, d2target.go:424-448): every descendant board,
+            // drawable or not (an empty board's box is the origin), joins it.
+            let mut nested: Option<[f64; 4]> = None;
+            for descendant in hash_targets.iter().filter(|candidate| {
+                target.is_empty() || candidate.starts_with(&format!("{target}."))
+            }) {
+                let bounds = if renderable_targets.contains(descendant) {
+                    ASCII_NESTED_BOUNDS.with(|slot| slot.set(AsciiNestedBounds::Measure));
+                    let measured =
+                        render_source_format(input, &board_render_args(descendant), output_format);
+                    ASCII_NESTED_BOUNDS.with(|slot| slot.set(AsciiNestedBounds::None));
+                    decode_ascii_bounds(&measured?)
+                } else {
+                    [0.0; 4]
+                };
+                nested = Some(match nested {
+                    None => bounds,
+                    Some(current) => [
+                        current[0].min(bounds[0]),
+                        current[1].min(bounds[1]),
+                        current[2].max(bounds[2]),
+                        current[3].max(bounds[3]),
+                    ],
+                });
+            }
+            if let Some(bounds) = nested {
+                ASCII_NESTED_BOUNDS.with(|slot| slot.set(AsciiNestedBounds::Bounds(bounds)));
+            }
+        }
         let (rendered, asset_failures) = if output_format == ExportFormat::Svg {
             render_source_partial(input, &render_args)?
         } else {
@@ -4934,9 +5044,11 @@ fn run_document_with_stdout(
             || argument.starts_with("--img-cache=")
         {
             // These options only affect the watch preview.
-        } else if argument.starts_with("--check=") || argument == "--debug=false" {
-            // d2cli.Run consults --check only for `fmt`. A false --debug
-            // leaves ms.Log.Debug silent; debug logging is not ported.
+        } else if argument.starts_with("--check=") {
+            // d2cli.Run consults --check only for `fmt`.
+        } else if let Some(value) = argument.strip_prefix("--debug=") {
+            // main.go:224-227 levels the slog context and sets $DEBUG=1.
+            cli_log::set_debug(parse_bool_flag(value, "debug")?);
         } else if let Some(value) = argument.strip_prefix("--layout=") {
             layout = value.to_owned();
             layout_explicit = true;
@@ -5259,6 +5371,12 @@ fn run_document_with_stdout(
             "--animate-interval can only be used when exporting to SVG or GIF.\nYou provided: {extension}"
         )));
     }
+    // main.go:318 and :360 log the flag/environment themes (unset is 0)
+    // before source configuration is read.
+    // Watch mode logged them once in Run, before the watcher started.
+    if !WATCH_THEMES_LOGGED.load(std::sync::atomic::Ordering::Relaxed) {
+        log_themes(theme_id, dark_theme_id);
+    }
     if dark_theme_id.is_some() && output_format != ExportFormat::Svg {
         eprintln!(
             "warn: --dark-theme cannot be used while exporting to another format other than .svg"
@@ -5279,6 +5397,21 @@ fn run_document_with_stdout(
             .into_owned();
     }
     let _deadline_scope = deadline::Scope::document(timeout.and_then(deadline::duration));
+    // d2cli.compile (main.go:453-463) logs the ASCII engine substitution
+    // before reading the input. A nil layout is neither flag nor $D2_LAYOUT.
+    if output_format == ExportFormat::Ascii
+        && isometric != Some(true)
+        && (!layout_explicit || layout == "dagre")
+    {
+        cli_log::command_debug(&format!(
+            "switching layout engine to ELK for ASCII format (was {})",
+            if layout_explicit {
+                layout.as_str()
+            } else {
+                "unspecified"
+            }
+        ));
+    }
     let compile_started = std::time::Instant::now();
     let input = if input_path == "-" {
         read_stdin()?
@@ -5408,6 +5541,42 @@ fn run_document_with_stdout(
             "tala" => EngineKind::Tala,
             _ => return Err(layout_not_found(&layout)),
         };
+        // d2lib.Compile lays out every board before d2cli.compile selects
+        // the target; replay its LayoutNested debug records in that order.
+        let target_found = if let Some(compiled) = compiled_source.as_ref() {
+            // A board whose layout fails ends Go's compile before d2cli logs
+            // the engine, so the replay also runs for `$DEBUG` alone.
+            let compiled_ok = !cli_log::command_debug_active()
+                || emit_layout_trace(
+                    compiled,
+                    &layout,
+                    &source_adapter_args,
+                    sketch == Some(true),
+                    theme_id,
+                    seeds.as_deref(),
+                );
+            compiled_ok
+                && match target.as_deref() {
+                    None | Some("") | Some("*") => true,
+                    Some(value) => compiler::resolve_board_target(
+                        &compiled.compiler,
+                        compiled.root,
+                        value.strip_suffix(".*").unwrap_or(value),
+                    )
+                    .is_ok(),
+                }
+        } else {
+            true
+        };
+        // main.go:568-571: after GetBoard, before d2layoutfeatures.Check.
+        let log_layout_engine = || {
+            if target_found {
+                cli_log::command_debug(&format!(
+                    "using layout engine {} (built-in)",
+                    layout.to_lowercase()
+                ));
+            }
+        };
         if isometric == Some(true) {
             drop(compiled_source);
             isometric_cli::validate_source_format(output_format)?;
@@ -5419,6 +5588,7 @@ fn run_document_with_stdout(
                 raw_scale,
                 raw_interval,
             )?;
+            log_layout_engine();
             return isometric_cli::run(
                 &input,
                 &input_path,
@@ -5444,6 +5614,12 @@ fn run_document_with_stdout(
         if !raw_scale.is_finite() {
             return Err("scale must be finite".into());
         }
+        if output_format == ExportFormat::Gif && raw_interval == 0 {
+            cli_log::command_debug(
+                "GIF export: animate-interval not specified, defaulting to 1000ms",
+            );
+        }
+        log_layout_engine();
         let preview_boards =
             watch_preview && output_format == ExportFormat::Svg && animate_interval.is_none();
         let package_all_boards =
@@ -5852,6 +6028,144 @@ fn run_document_with_stdout(
         }
     })
 }
+
+/// d2lib.Compile's per-board layout records for `--debug` (stdout).
+fn emit_layout_trace(
+    compiled: &CompiledSource,
+    layout: &str,
+    source_adapter_args: &[String],
+    sketch: bool,
+    theme_id: Option<i64>,
+    seeds: Option<&str>,
+) -> bool {
+    let mut font_paths = font_paths_from_environment();
+    if let Ok((_, explicit)) = extract_font_option(source_adapter_args) {
+        for (slot, value) in [
+            (&mut font_paths.regular, explicit.regular),
+            (&mut font_paths.italic, explicit.italic),
+            (&mut font_paths.bold, explicit.bold),
+            (&mut font_paths.semibold, explicit.semibold),
+            (&mut font_paths.mono, explicit.mono),
+            (&mut font_paths.mono_bold, explicit.mono_bold),
+            (&mut font_paths.mono_italic, explicit.mono_italic),
+            (&mut font_paths.mono_semibold, explicit.mono_semibold),
+        ] {
+            if value.is_some() {
+                *slot = value;
+            }
+        }
+    }
+    let Ok(measurer) = load_graph_measurer_with_mode(&font_paths, sketch) else {
+        return true;
+    };
+    let rules = theme_id
+        .and_then(theme::palette)
+        .map(|palette| palette.special_rules);
+    let caps_lock = rules.is_some_and(|rules| rules.caps_lock);
+    let theme_mono = rules.is_some_and(|rules| rules.mono);
+    let compiler = &compiled.compiler;
+    let engine = layout.to_lowercase();
+    // The same options the real layout receives (source_render_layout).
+    let mut engine_options = d2_rs_core::LayoutEngineOptions::default();
+    let mut index = 0;
+    while index < source_adapter_args.len() {
+        if let Ok(Some((name, value))) =
+            command_line::engine_option(source_adapter_args, &mut index)
+        {
+            command_line::set_engine_option(&mut engine_options, &name, value);
+        }
+        index += 1;
+    }
+    let tala_seed_data = (engine == "tala")
+        .then(|| {
+            compiler::extract_config_checked(compiler, compiled.root)
+                .ok()
+                .flatten()
+        })
+        .flatten()
+        .and_then(|config| config.tala_seeds().transpose());
+    let checks = layout_trace::CoreChecks {
+        engine,
+        elk_algorithm: engine_options.elk_algorithm,
+        tala: d2_rs_tala::LayoutOptions {
+            seeds: seeds
+                .map(|value| {
+                    value
+                        .split(',')
+                        .filter_map(|seed| seed.trim().parse().ok())
+                        .collect()
+                })
+                .unwrap_or_else(|| DEFAULT_SEEDS.to_vec()),
+            max_concurrency: 0,
+        },
+    };
+    let mut lower = |board| {
+        let used = compiler.variable_expansion_usage().1;
+        // The source projection keeps the d2graph-shaped object records the
+        // layout-reuse signature reads.
+        let lowered = match measurer.as_ref() {
+            Some(measurer) => compiler::lower_graph_with_measurer_and_labels_theme_options(
+                compiler, board, measurer, caps_lock, theme_mono,
+            ),
+            None => compiler::lower_graph_with_measurer_and_labels_theme_options(
+                compiler,
+                board,
+                &FallbackGraphMeasurer,
+                caps_lock,
+                theme_mono,
+            ),
+        };
+        compiler.restore_variable_expansion_used(used);
+        lowered
+            .map(|(mut graph, _, _)| {
+                graph.tala_seed_data = tala_seed_data.clone();
+                graph
+            })
+            .map_err(|error| error.to_string())
+    };
+    layout_trace::emit_compile_trace(compiler, compiled.root, layout, &checks, &mut lower)
+}
+
+/// Multi-board TXT: the descendant boards' bounding box for the next ASCII
+/// render of this thread, or a request to measure one board instead.
+#[derive(Clone, Copy)]
+enum AsciiNestedBounds {
+    None,
+    Bounds([f64; 4]),
+    Measure,
+}
+
+thread_local! {
+    static ASCII_NESTED_BOUNDS: std::cell::Cell<AsciiNestedBounds> =
+        const { std::cell::Cell::new(AsciiNestedBounds::None) };
+}
+
+fn decode_ascii_bounds(bytes: &[u8]) -> [f64; 4] {
+    let mut bounds = [0.0; 4];
+    for (index, chunk) in bytes.chunks_exact(8).take(4).enumerate() {
+        bounds[index] = f64::from_le_bytes(chunk.try_into().expect("8-byte chunk"));
+    }
+    bounds
+}
+
+/// d2cli.Run (main.go:318, :360): the flag/environment theme (0 when unset)
+/// and the dark theme unless it is the -1 sentinel.
+fn log_themes(theme_id: Option<i64>, dark_theme_id: Option<i64>) {
+    let flag_theme_id = theme_id.unwrap_or(0);
+    if let Some(theme) = d2_rs_core::theme::find(flag_theme_id) {
+        cli_log::command_debug(&format!("using theme {} (ID: {flag_theme_id})", theme.name));
+    }
+    if let Some(theme) = dark_theme_id.and_then(d2_rs_core::theme::find) {
+        cli_log::command_debug(&format!(
+            "using dark theme {} (ID: {})",
+            theme.name, theme.id
+        ));
+    }
+}
+
+/// Set once watch mode has logged the themes; its compiles do not repeat them.
+static WATCH_THEMES_LOGGED: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
 
 fn log_compile_success(input: &Path, output: &Path, elapsed: std::time::Duration) {
     eprintln!(
@@ -6517,6 +6831,23 @@ fn dispatch_without_version(args: &[String]) -> Result<Vec<u8>, CommandError> {
 }
 
 fn run_watch(args: &[String]) -> Result<Vec<u8>, String> {
+    // d2cli.Run logs the themes before newWatcher (main.go:318-361); each
+    // watch compile then logs only d2cli.compile's lines.
+    let last_value = |flag: &str| {
+        args.iter()
+            .rev()
+            .find_map(|argument| argument.strip_prefix(flag))
+            .map(str::to_owned)
+    };
+    let theme_id = last_value("--theme=")
+        .or_else(|| go_env("D2_THEME"))
+        .and_then(|value| value.parse::<i64>().ok());
+    let dark_theme_id = last_value("--dark-theme=")
+        .or_else(|| go_env("D2_DARK_THEME"))
+        .and_then(|value| value.parse::<i64>().ok())
+        .filter(|value| *value >= 0);
+    log_themes(theme_id, dark_theme_id);
+    WATCH_THEMES_LOGGED.store(true, std::sync::atomic::Ordering::Relaxed);
     watch::run(args, |render_args| {
         let dependencies = Arc::new(Mutex::new(BTreeSet::new()));
         let _tracking = watch::track_dependencies(Arc::clone(&dependencies));
@@ -7068,6 +7399,44 @@ mod tests {
         }
         let ordinary = render_source(b"a: custom\n", &[]).unwrap();
         assert!(!String::from_utf8(ordinary).unwrap().contains(&expected));
+    }
+
+    #[test]
+    fn custom_mono_font_sizes_only_markdown_code_under_mono_families() {
+        // A mono theme or `style.font: mono` measures Markdown body text with
+        // the bundled Source Code Pro family (d2graph.go:1527-1530,
+        // D2_FONT_TO_FAMILY); only pre/code switch to the --font-mono family
+        // (lib/textmeasure/markdown.go:463-471), whose missing styles
+        // AddFontFamily fills from Source Sans Pro.
+        let custom = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../d2-rs-text/assets/FuzzyBubbles-Regular.ttf");
+        let mono = format!("--font-mono={}", custom.display());
+        let view_box = |source: &str, args: &[String]| {
+            let svg = String::from_utf8(render_source(source.as_bytes(), args).unwrap()).unwrap();
+            let start = svg.find("viewBox=\"").unwrap();
+            svg[start..start + svg[start..].find("\">").unwrap()].to_owned()
+        };
+        for body in ["**bold**", "*italic*", "# Head", "plain λ 雪"] {
+            for (source, theme) in [
+                (format!("a: |md\n  {body}\n|\n"), "--theme=301"),
+                (
+                    format!("a: |md\n  {body}\n| {{style.font: mono}}\n"),
+                    "--theme=0",
+                ),
+            ] {
+                let theme = theme.to_owned();
+                assert_eq!(
+                    view_box(&source, &[theme.clone(), mono.clone()]),
+                    view_box(&source, &[theme]),
+                    "{source:?}"
+                );
+            }
+        }
+        let code = "a: |md\n  `code`\n|\n";
+        assert_ne!(
+            view_box(code, &["--theme=301".into(), mono.clone()]),
+            view_box(code, &["--theme=301".into()])
+        );
     }
 
     #[test]

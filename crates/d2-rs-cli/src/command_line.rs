@@ -746,6 +746,11 @@ pub fn version_boundary(args: &[String]) -> Result<Boundary, String> {
             },
         ));
     }
+    // d2cli.Run (main.go:224-227): the parsed --debug, defaulting to a valid
+    // $DEBUG, levels the slog context. An invalid $DEBUG left it undeclared.
+    if let Some(slot) = flags.iter().position(|flag| flag.name == "debug") {
+        super::cli_log::set_debug(boolean(&values[slot]) == Some(true));
+    }
     Ok(Boundary::Document(remaining))
 }
 
