@@ -158,7 +158,25 @@ pub(super) fn route_tree_edge(
 ) -> Option<RoutedTreeEdge> {
     let tree = graph.tree_routing_nodes.get(&node)?;
     let edge = &graph.edge_records[tree.sentinel_edge.0 as usize];
-    let parent_rect = boxes.get(&tree.parent).copied()?;
+    // treeEdgePath reads Tree.sentinelNode(), the sentinel edge's other
+    // endpoint (layoutgraph/tree.go:80-86). A tree hung on a sequence vessel
+    // records the sequence owner as its parent, but after CleanupStuff its
+    // sentinel edge is reconnected to the original step.
+    let sentinel = if edge.from == node {
+        edge.to
+    } else {
+        edge.from
+    };
+    let tree_parent = if sentinel != tree.parent
+        && graph.nodes[tree.parent.0 as usize].sequence.is_some()
+        && graph.nodes[tree.parent.0 as usize].sequence == graph.nodes[sentinel.0 as usize].sequence
+        && boxes.contains_key(&sentinel)
+    {
+        sentinel
+    } else {
+        tree.parent
+    };
+    let parent_rect = boxes.get(&tree_parent).copied()?;
     let child_rect = boxes.get(&node).copied()?;
     // Tree.Orientation selects the parent-side port and its opposite child
     // port. `getTreeEdgePath` keeps that orientation for the geometry, then
@@ -176,8 +194,8 @@ pub(super) fn route_tree_edge(
     };
     let mut parent_port = center_port_for_side_with_table_column_count(
         parent_rect,
-        graph.nodes[tree.parent.0 as usize].shape,
-        graph.nodes[tree.parent.0 as usize].table_column_count,
+        graph.nodes[tree_parent.0 as usize].shape,
+        graph.nodes[tree_parent.0 as usize].table_column_count,
         parent_side,
     )?;
     let child_port = center_port_for_side_with_table_column_count(
@@ -190,7 +208,7 @@ pub(super) fn route_tree_edge(
     // endpoint arrowheads from previously routed trees. The OVG construction
     // pass records only parent arrowheads and cannot supply this state.
     if !parent_port_available(parent_port) {
-        let parent = &graph.nodes[tree.parent.0 as usize];
+        let parent = &graph.nodes[tree_parent.0 as usize];
         let ports =
             ports_with_table_column_count(parent_rect, parent.shape, parent.table_column_count);
         let mut closest_distance = f64::INFINITY;

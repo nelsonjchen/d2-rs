@@ -22,13 +22,19 @@ default the --go path plus -mapseed) renders it under map seeds 1..16
 equals a seeded Go output; the seeds are recorded), known-mapseed (the same,
 for an input in the registry), go-nondeterministic-no-rust-match (Go varies
 but d2-rs equals none of its outputs) or mismatch. Without the seeded oracle a
-differing case is mapseed-oracle-missing, never a pass. findings.jsonl has one
+differing case is mapseed-oracle-missing, never a pass. When Go exits nonzero,
+d2-rs must exit with the same code, print the same complete stderr (run
+directory masked) and leave the same files (none): error-match passes,
+error-mismatch fails, and a differing Go error is resampled like an output.
+Only a Go signal, panic, timeout or invalid output is unscored (go-crash,
+listed as UNSCORED). findings.jsonl has one
 record per case that did not plainly match; the summary prints counts per
 classification and every failing input. --record-mapseed adds the inputs whose
 Go output varied to the registry. The exit status is 1 when any case fails.
 """
 import argparse
 import concurrent.futures
+import hashlib
 import importlib.util
 import json
 import random
@@ -39,7 +45,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 import references  # noqa: E402
 import mapseed  # noqa: E402
-from fuzz_common import first_error, run  # noqa: E402
+from fuzz_common import run  # noqa: E402
 
 _spec = importlib.util.spec_from_file_location(
     "shape_trace_differential", Path(__file__).with_name("shape-trace-differential.py"))
@@ -216,18 +222,35 @@ def outcome(binary, source, layout, flags, root, tag, extra_env=None):
     return run(binary, directory, layout, "out", "svg", flags, extra_env)
 
 
-GO_FAILED = "go-failed"
+GO_CRASH = "go-crash"
+ERROR_MATCH = "error-match"
+ERROR_MISMATCH = "error-mismatch"
 PROBE_SOURCE = "a -> b\n"
 
 
+def written_files(directory):
+    """Every file a failed run left in its output directory (the input copy excluded)."""
+    output = Path(directory) / "out"
+    if not output.is_dir():
+        return ()
+    return tuple((path.relative_to(output).as_posix(), hashlib.sha256(path.read_bytes()).hexdigest())
+                 for path in sorted(output.rglob("*")) if path.is_file() and path != output / "input.d2")
+
+
 def outcome_key(result, directory):
-    """Comparable outcome: the inventory digest, or the exit code and masked first error line."""
+    """Comparable outcome.
+
+    Success: the complete output inventory digest. Failure: the exit code,
+    the complete stderr with the run directory masked, and every file the run
+    left behind (Go writes none when it fails, so d2-rs must write none).
+    A signal, panic, timeout or invalid output is "unusable": no oracle result.
+    """
     code, stderr, digest = result
     if code == 0:
         return ("ok", digest)
     if code in ("timeout", "invalid-output") or isinstance(code, int) and code < 0 or "panic:" in stderr:
         return ("unusable", code)
-    return ("error", code, first_error(stderr, directory))
+    return ("error", code, stderr.replace(str(directory), "<dir>"), written_files(directory))
 
 
 def usable_key(key):
@@ -280,19 +303,29 @@ def diverges(source, layout, flags, rust, go, resampler):
         root = Path(tmp)
         go_result = outcome(go, source, layout, flags, root, "go")
         rust_result = outcome(rust, source, layout, flags, root, "rust")
-        if go_result[0] != 0:
-            return None, {"classification": GO_FAILED}
-        if rust_result[0] != 0:
+        go_key, rust_key = outcome_key(go_result, root / "go"), outcome_key(rust_result, root / "rust")
+        if go_key[0] == "unusable":
+            # Go crashed, timed out or wrote invalid output: no oracle result.
+            return None, {"classification": GO_CRASH, "go_exit": go_result[0], "rust_exit": rust_result[0]}
+        if go_key[0] == "ok" and rust_result[0] != 0:
             kind = f"rust-exit-{rust_result[0]}"
             return kind, {"classification": kind}
-        go_key, rust_key = outcome_key(go_result, root / "go"), outcome_key(rust_result, root / "rust")
-        if go_key == rust_key and not resampler.known(source, layout, flags):
-            return None, {"classification": mapseed.MATCH}
+        known = resampler.known(source, layout, flags)
+        if go_key == rust_key and not known:
+            return None, {"classification": mapseed.MATCH if go_key[0] == "ok" else ERROR_MATCH}
+        # Go's error text, like its output, may follow map order: resample both.
         resolution = resampler.resolve(source, layout, flags, root, go_key, rust_key)
     record = resolution.record()
-    if resolution.passed:
+    record.update(go_exit=go_result[0], rust_exit=rust_result[0])
+    if go_key[0] == "error":
+        if resolution.classification == mapseed.MATCH:
+            record["classification"] = ERROR_MATCH
+        elif resolution.classification == mapseed.MISMATCH:
+            record["classification"] = ERROR_MISMATCH
+    if record["classification"] in PASSING:
         return None, record
-    return ("output-diff" if resolution.classification == mapseed.MISMATCH else resolution.classification), record
+    kind = {mapseed.MISMATCH: "output-diff"}.get(record["classification"], record["classification"])
+    return kind, record
 
 
 def minimize(source, layout, flags, rust, go, want, resampler):
@@ -325,8 +358,12 @@ def compare(case, rust, go, layouts, do_minimize, resampler):
     return index, source, records
 
 
+PASSING = mapseed.PASSING | {ERROR_MATCH}
+
+
 def failing(record):
-    return record["classification"] not in mapseed.PASSING | {GO_FAILED}
+    """go-crash is unscored (listed, not a failure); everything else must pass."""
+    return record["classification"] not in PASSING | {GO_CRASH}
 
 
 def main(argv=None):
@@ -359,7 +396,7 @@ def main(argv=None):
         for index, source, found in pool.map(work, cases):
             sources[index] = source
             for record in found:
-                if record["classification"] not in (mapseed.MATCH, GO_FAILED):
+                if record["classification"] not in (mapseed.MATCH, ERROR_MATCH):
                     path = out / f"case-{index:05d}-{record['layout']}.d2"
                     path.write_text(source)
                     if record["minimized"]:
@@ -373,8 +410,9 @@ def main(argv=None):
     for layout in layouts:
         print(mapseed.summary(layout, args.cases, [r for r in records if r["layout"] == layout]))
     for finding in findings:
-        if failing(finding):
-            print(f"FAIL {finding['classification']}: {finding['input']} ({finding['layout']}"
+        label = "FAIL" if failing(finding) else "UNSCORED" if finding["classification"] == GO_CRASH else None
+        if label:
+            print(f"{label} {finding['classification']}: {finding['input']} ({finding['layout']}"
                   f"{' ' + ' '.join(finding['flags']) if finding['flags'] else ''})")
     if any(r["classification"] == mapseed.ORACLE_MISSING for r in records):
         print(f"error: {resampler.oracle.message()}", file=sys.stderr)

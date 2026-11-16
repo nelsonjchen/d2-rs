@@ -1203,6 +1203,15 @@ impl ArenaGraph {
         if self.nodes[sentinel.0 as usize].is_container {
             return false;
         }
+        // A sequence owner stands for the vessel sentinel. Once CleanupStuff
+        // has reconnected every abduction, the vessel has no Node.Edges left,
+        // so isIsolatedTree (layoutgraph/tree.go:41-58) holds vacuously.
+        if let Some(index) = self.nodes[sentinel.0 as usize].sequence
+            && self.sequences[index].members.first() == Some(&sentinel)
+            && !self.sequence_is_active(&self.sequences[index])
+        {
+            return true;
+        }
         let root_edges = self
             .tree_routing_nodes
             .values()
@@ -1689,6 +1698,22 @@ impl ArenaGraph {
         );
         #[cfg(feature = "diagnostic-traces")]
         let trace_publish = crate::internal::trace_env_enabled("TALA_TRACE_TREE_PUBLISH");
+        // Trees whose sentinel is a sequence vessel record the sequence owner
+        // as their parent. An activated owner graph lists the allocated
+        // vessel in Containers instead, which is the same Go sentinel pointer
+        // (node_placement.go:183-191 reads g.Trees[vessel]).
+        let component = component
+            .iter()
+            .map(|&node| {
+                (0..self.sequences.len())
+                    .find(|&index| {
+                        self.topology_vessel_node(TopologyVessel::Sequence(index)) == Some(node)
+                    })
+                    .and_then(|index| self.sequences[index].members.first().copied())
+                    .unwrap_or(node)
+            })
+            .collect::<Vec<_>>();
+        let component = component.as_slice();
         let (reconnect_nodes, reconnect_edges) =
             self.placement_tree_reconnect_nodes_and_edges(component);
         let (published_nodes, published_edges) = if reconnects_in_owner {
@@ -2405,7 +2430,19 @@ impl ArenaGraph {
     }
 
     pub(super) fn is_tree_sentinel(&self, node: NodeId) -> bool {
-        self.tree_sentinels.contains(&node)
+        if self.tree_sentinels.contains(&node) {
+            return true;
+        }
+        // A tree hung on a sequence vessel records the sequence owner as its
+        // sentinel; Go's Graph.Trees is keyed by the vessel itself
+        // (graph.IsTreeSentinel(vessel)).
+        (0..self.sequences.len()).any(|index| {
+            self.topology_vessel_node(TopologyVessel::Sequence(index)) == Some(node)
+                && self.sequences[index]
+                    .members
+                    .first()
+                    .is_some_and(|owner| self.tree_sentinels.contains(owner))
+        })
     }
 }
 

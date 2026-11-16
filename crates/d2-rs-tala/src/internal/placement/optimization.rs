@@ -1063,6 +1063,13 @@ impl ArenaGraph {
                         .iter()
                         .any(|node| self.nodes[node.0 as usize].tala_id == sequence.vessel_tala_id)
             })
+            // An induced placement graph keeps the vessel as a plain node;
+            // the shared Graph.Sequences entry still carries its abductions.
+            || (!self.abducting_sequence_vessels.is_empty()
+                && self.node_order.iter().any(|node| {
+                    self.abducting_sequence_vessels
+                        .contains(&self.nodes[node.0 as usize].tala_id)
+                }))
         {
             return ((false, false), BTreeSet::new());
         }
@@ -2112,8 +2119,12 @@ impl ArenaGraph {
     }
 
     pub(super) fn swap_local_edge_length(&mut self, node: NodeId) -> f64 {
+        // Swap's NodeEdgeLength reads the same restored tree children as
+        // its global EdgeLength (see global_swap_edge_length): restored
+        // tree nodes obstruct the node's edges in both measurements.
         self.with_unprojected_swap_state(|graph| {
-            graph.sized_edge_length(node, true) + graph.column_to_column_crossing_cost(node, false)
+            graph.sized_edge_length_with_cache_mode(node, true, None, false, false, true)
+                + graph.column_to_column_crossing_cost(node, false)
                 - graph.sized_symmetry(node, true)
                     * graph.cell_size
                     * graph.active_edge_count(node) as f64

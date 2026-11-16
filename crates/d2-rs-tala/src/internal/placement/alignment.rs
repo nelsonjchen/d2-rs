@@ -36,7 +36,6 @@ pub(super) struct AlignmentTrialSnapshot {
     nodes: Vec<super::owner_score_session::OwnerNodeGeometry>,
     existing_overlaps: BTreeSet<(NodeId, NodeId)>,
     existing_exact_overlaps: BTreeSet<(NodeId, NodeId)>,
-    hierarchy_materialized: bool,
     projected_transaction_state: Option<ProjectedTransactionState>,
 }
 
@@ -46,46 +45,44 @@ impl AlignmentTrialSnapshot {
         existing_overlaps: BTreeSet<(NodeId, NodeId)>,
         existing_exact_overlaps: BTreeSet<(NodeId, NodeId)>,
     ) -> Self {
-        let hierarchy_materialized = graph.transaction_containment_is_valid();
         let has_active_aggregate_vessel = graph
             .graph_node_order()
             .iter()
             .any(|node| graph.active_node_tala_id(*node) != graph.nodes[node.0 as usize].tala_id);
-        let projected_transaction_state = (hierarchy_materialized && has_active_aggregate_vessel)
-            .then(|| {
-                let mut state = Self::projected_geometry(graph);
-                // Go creates one GraphState when AlignAxes creates its reusable
-                // transaction. Every speculative edge trial reuses that
-                // state's existing-overlap exceptions after rollback. The
-                // projected Rust carrier is rebuilt from live geometry, so
-                // translate the stable NodeId pairs into its snapshot indices
-                // instead of recomputing the baseline after each trial.
-                // Lookup-only; collecting keeps the last index per Tala ID,
-                // exactly as the ordered map did.
-                let index_by_tala = state
-                    .nodes
-                    .iter()
-                    .enumerate()
-                    .map(|(index, entry)| (entry.node.tala_id, index))
-                    .collect::<crate::internal::IdHashMap<_, _>>();
-                state.existing_overlaps = existing_overlaps
-                    .iter()
-                    .filter_map(|(left, right)| {
-                        let left = index_by_tala.get(&graph.active_node_tala_id(*left))?;
-                        let right = index_by_tala.get(&graph.active_node_tala_id(*right))?;
-                        Some(((*left).min(*right), (*left).max(*right)))
-                    })
-                    .collect();
-                state.existing_exact_overlaps = existing_exact_overlaps
-                    .iter()
-                    .filter_map(|(left, right)| {
-                        let left = index_by_tala.get(&graph.active_node_tala_id(*left))?;
-                        let right = index_by_tala.get(&graph.active_node_tala_id(*right))?;
-                        Some(((*left).min(*right), (*left).max(*right)))
-                    })
-                    .collect();
-                state
-            });
+        let projected_transaction_state = has_active_aggregate_vessel.then(|| {
+            let mut state = Self::projected_geometry(graph);
+            // Go creates one GraphState when AlignAxes creates its reusable
+            // transaction. Every speculative edge trial reuses that
+            // state's existing-overlap exceptions after rollback. The
+            // projected Rust carrier is rebuilt from live geometry, so
+            // translate the stable NodeId pairs into its snapshot indices
+            // instead of recomputing the baseline after each trial.
+            // Lookup-only; collecting keeps the last index per Tala ID,
+            // exactly as the ordered map did.
+            let index_by_tala = state
+                .nodes
+                .iter()
+                .enumerate()
+                .map(|(index, entry)| (entry.node.tala_id, index))
+                .collect::<crate::internal::IdHashMap<_, _>>();
+            state.existing_overlaps = existing_overlaps
+                .iter()
+                .filter_map(|(left, right)| {
+                    let left = index_by_tala.get(&graph.active_node_tala_id(*left))?;
+                    let right = index_by_tala.get(&graph.active_node_tala_id(*right))?;
+                    Some(((*left).min(*right), (*left).max(*right)))
+                })
+                .collect();
+            state.existing_exact_overlaps = existing_exact_overlaps
+                .iter()
+                .filter_map(|(left, right)| {
+                    let left = index_by_tala.get(&graph.active_node_tala_id(*left))?;
+                    let right = index_by_tala.get(&graph.active_node_tala_id(*right))?;
+                    Some(((*left).min(*right), (*left).max(*right)))
+                })
+                .collect();
+            state
+        });
 
         Self {
             geometry: graph.trial_geometry_snapshot(),
@@ -100,7 +97,6 @@ impl AlignmentTrialSnapshot {
             // spacing overlaps (notably self-edge layouts) as exceptions.
             existing_overlaps,
             existing_exact_overlaps,
-            hierarchy_materialized,
             projected_transaction_state,
         }
     }
@@ -799,25 +795,6 @@ impl ArenaGraph {
         })
     }
 
-    pub(super) fn flat_aligning_edge_intersects_other_node(&self, edge: EdgeId) -> bool {
-        let edge_ref = &self.edge_records[edge.0 as usize];
-        let from = self.active_aggregate_owner(edge_ref.from);
-        let to = self.active_aggregate_owner(edge_ref.to);
-        let start = self.center(from);
-        let end = self.center(to);
-        let mut seen = BTreeSet::new();
-        self.node_order.iter().copied().any(|raw_node| {
-            let node = self.active_aggregate_owner(raw_node);
-            if !seen.insert(node) {
-                return false;
-            }
-            node != from
-                && node != to
-                && self.active_node_position(node).is_some()
-                && self.segment_intersects_rect(start, end, node)
-        })
-    }
-
     pub(super) fn try_alignment_move(
         &mut self,
         edge: EdgeId,
@@ -886,7 +863,6 @@ impl ArenaGraph {
         // TALA updates one transaction state and reuses it for both endpoint
         // directions. AlignmentTrialSnapshot owns that same immutable
         // validation baseline; rebuilding it here doubled the pair scans.
-        let hierarchy_materialized = original_state.hierarchy_materialized;
         let mut best: Option<(f64, Point)> = None;
         for attempt in attempts.into_iter().flatten() {
             if crate::internal::trace_env_enabled("TALA_TRACE_ALIGN_TARGET_NODES") {
@@ -978,13 +954,16 @@ impl ArenaGraph {
             // materialized-hierarchy branch below cannot accept this attempt.
             // Keep detailed diagnostics on their original full-validation path.
             if !cfg!(feature = "diagnostic-traces")
-                && hierarchy_materialized
                 && (intersects_before_reposition || !within_max_size_before_reposition)
             {
                 original_state.restore(self);
                 continue;
             }
-            let valid = if hierarchy_materialized {
+            // Go's Align commits every trial through one AffectContainers
+            // transaction (stages.go Align), so containers are always refit
+            // before validation, even when NodePlacement left a child outside
+            // its container.
+            let valid = {
                 // Transaction.Commit validates refitted ordinary containers
                 // before synchronizing cluster/sequence aggregates.  Keep
                 // that phase boundary here; syncing first can restore stale
@@ -1160,7 +1139,7 @@ impl ArenaGraph {
                         ] == [to.unwrap_or(0), from.unwrap_or(0)];
                     if edge_matches {
                         eprintln!(
-                            "ALIGN_VALIDATION_RUST edge={}>{} attempt={},{} within={} intersects={} new_overlap=omitted bad_state={} spacing_exact={} fixed_moved={} fixed_origin={} containment={} external={} hierarchy={}",
+                            "ALIGN_VALIDATION_RUST edge={}>{} attempt={},{} within={} intersects={} new_overlap=omitted bad_state={} spacing_exact={} fixed_moved={} fixed_origin={} containment={} external={}",
                             self.nodes[edge_ref.from.0 as usize].tala_id,
                             self.nodes[edge_ref.to.0 as usize].tala_id,
                             attempt.x,
@@ -1173,7 +1152,6 @@ impl ArenaGraph {
                             fixed_origin_valid,
                             containment_valid,
                             external_containers_valid,
-                            hierarchy_materialized,
                         );
                         for node in self
                             .nodes
@@ -1212,23 +1190,6 @@ impl ArenaGraph {
                     && fixed_origin_valid
                     && containment_valid
                     && external_containers_valid
-            } else {
-                // Transaction.Commit uses AffectContainers=true for AlignAxes
-                // even on aggregate-only graphs. With no ordinary hierarchy
-                // to refit, the commit still publishes the active cluster
-                // and sequence vessels before validation. Omitting this sync
-                // leaves half-pixel row/column members in the opposite phase
-                // from the Go transaction and changes later placement costs.
-                self.sync_clusters();
-                self.sync_sequences();
-                !self.has_node_overlaps()
-                    && !self.flat_aligning_edge_intersects_other_node(edge)
-                    && self.transaction_fixed_origin_is_valid()
-                    && nodes.iter().all(|node| {
-                        let node = node.arena_node();
-                        let point = self.position(node).unwrap();
-                        !self.sized_point_overlaps(node, point)
-                    })
             };
             if valid {
                 let global_edge_length = self.global_sized_edge_length_for_alignment_candidate();
@@ -1680,13 +1641,6 @@ impl ArenaGraph {
                 transaction_existing_exact_overlaps.clone(),
             );
             let delta = self.alignment_deltas(edge);
-            // The capture above evaluated this pure predicate on the same,
-            // unmodified graph. Diagnostic builds re-run it so its failure
-            // trace is emitted exactly as before.
-            #[cfg(feature = "diagnostic-traces")]
-            let hierarchy_materialized = self.transaction_containment_is_valid();
-            #[cfg(not(feature = "diagnostic-traces"))]
-            let hierarchy_materialized = original_state.hierarchy_materialized;
             if crate::internal::trace_env_enabled("TALA_TRACE_ALIGN_SNAPSHOTS") {
                 let cluster_member = self
                     .clusters
@@ -1873,7 +1827,7 @@ impl ArenaGraph {
                     eprintln!();
                 }
                 self.translate_connected_node_boxes(&nodes, attempt);
-                if hierarchy_materialized {
+                {
                     // Keep the transaction phases separate. The Go commit
                     // refits ordinary containers first and then publishes
                     // clusters/sequences exactly once; the public helper
@@ -1889,11 +1843,7 @@ impl ArenaGraph {
                 // stage-level compatibility parameter for callers that need
                 // the historical lazy frame; the transaction boundary itself
                 // must always be complete.
-                if hierarchy_materialized {
-                    self.sync_clusters_after_container_refit();
-                } else {
-                    self.sync_clusters();
-                }
+                self.sync_clusters_after_container_refit();
                 self.sync_sequences();
                 // Go's Transaction.UpdateState snapshots live boxes before
                 // each later edge. Refresh the projected carrier geometry at
@@ -2778,7 +2728,6 @@ mod tests {
             graph.overlap_pairs(false),
             graph.exact_overlap_pairs(),
         );
-        assert!(snapshot.hierarchy_materialized);
         let geometry = |graph: &ArenaGraph| {
             [from, to, blocker].map(|node| (graph.position(node), graph.active_node_size(node)))
         };

@@ -961,7 +961,14 @@ Round 2 (Opus agents on the leftovers above, same rules):
   edge-length obstruction and direction terms follow active aggregates,
   cluster vessels resize before arranging, tree routes leave from the source
   port, grid-internal edges route inside the grid's own LayoutNested call.
-  Fresh flip/nested/steps runs match on 317-320 of 320.
+  Two follow-up rounds fixed trees hung on sequence vessels (a Rust-only
+  BinPack invariant error), split components that ignored abducting vessels,
+  GapNormalization visiting a vessel twice, AlignAxes trials that skipped
+  Go's container refit, swap scores without restored tree children,
+  mirrored container children without expandForLabels, and common-uncle
+  siblings of sequence vessels. Fresh flip, nested, steps, swap, outside and
+  texticon runs (seeds 70101-70108) match on 319-320 of 320 apart from
+  matching errors, and wide/shapes/grid sweeps on every case.
 - **Rendering:** a custom `--font-mono` measures only Markdown code; body
   text under mono themes uses bundled Source Code Pro as Go does. lab/lch/
   oklab/oklch and hsl/hwb/hsv use Go's math and fuse multiply-adds only on
@@ -973,8 +980,11 @@ Round 2 (Opus agents on the leftovers above, same rules):
   their canvas from the nested bounding box as Go does. `DEBUG_ASCII`
   per-cell records are not ported.
 
-Open: TALA long-tail cases (about 1 in 320 in the flip, nested and steps
-families), and the raw ELK API with explicit port model order (not reachable
+Open: three TALA sweep cases that no Go map seed (1-32) reproduces:
+steps-69302 case 304 (Go's second AlignAxes moves a container with its
+step vessel), outside-69408 case 297 (Go's SwapStuff swaps a cluster vessel
+and a node), and swap-69107 case 95 (stage geometry matches; the
+difference comes after layout). Also the raw ELK API with explicit port model order (not reachable
 from D2).
 
 ## Verification

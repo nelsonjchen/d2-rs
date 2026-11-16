@@ -1607,12 +1607,17 @@ impl ArenaGraph {
         // vessel's members, so deduplicate them by their canonical owner
         // before the observable sort-and-attempt loop. Keep the first stable
         // member as the transaction carrier; processing a later member as the
-        // same vessel repeats a stateful gap transaction.
+        // same vessel repeats a stateful gap transaction. A container's
+        // descendant walk can return both an allocated sequence vessel and
+        // its owning step; Go holds one pointer per TALA identity there, so
+        // the published identity is the deduplication key.
         let mut seen = BTreeSet::new();
         let mut nodes = nodes
             .iter()
             .copied()
-            .filter(|node| seen.insert(self.active_aggregate_owner(*node)))
+            .filter(|node| {
+                seen.insert(self.active_node_tala_id(self.active_aggregate_owner(*node)))
+            })
             .collect::<Vec<_>>();
         nodes.sort_by(|left, right| {
             self.active_edge_count(*right)

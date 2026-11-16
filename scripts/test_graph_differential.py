@@ -130,6 +130,61 @@ class MapSeedClassificationTests(unittest.TestCase):
         self.assertEqual(record["seeds_tried"], [1, 2, 3, 4, 5, 6])
         self.assertEqual(record["mapseed_seeds"], [2, 4])
 
+    ERR_CLI = """#!{python}
+import os, sys
+table = {table!r}
+code, text, write = table.get(os.environ.get("D2RS_GO_MAPSEED"), table[None])
+if write:
+    open(sys.argv[-1], "w").write('<svg xmlns="http://www.w3.org/2000/svg"/>')
+if code == "kill":
+    os.kill(os.getpid(), 9)
+sys.stderr.write(text)
+sys.exit(code)
+"""
+
+    def err_cli(self, name, table):
+        path = self.root / name
+        path.write_text(self.ERR_CLI.format(python=sys.executable, table=table))
+        path.chmod(0o755)
+        return path
+
+    def classify_errors(self, go, rust, seeded=None):
+        go_path = self.err_cli("go", go)
+        seeded_path = self.err_cli("go-mapseed", seeded) if seeded else self.root / "absent-mapseed"
+        resampler = sweep.Resampler(go_path, seeded_path, (1, 2, 3), sweep.mapseed.Registry(self.root / "r.json"))
+        with redirect_stderr(io.StringIO()):
+            return sweep.diverges("a -> b\n", "dagre", (), self.err_cli("rust", rust), go_path, resampler)
+
+    ERROR = (1, "err: failed to compile input.d2: bad key\n", False)
+
+    def test_go_errors_are_scored_against_rust(self):
+        self.assertEqual(self.classify_errors({None: self.ERROR}, {None: self.ERROR}),
+                         (None, {"classification": "error-match"}))
+        # Different text, exit code, or any file left behind: error-mismatch (Go stable under the seeds).
+        for rust in ((1, "err: other\n", False), (2, self.ERROR[1], False), (1, self.ERROR[1], True), (0, "", True)):
+            kind, record = self.classify_errors({None: self.ERROR}, {None: rust}, {None: self.ERROR})
+            self.assertEqual((kind, record["classification"]), ("error-mismatch", "error-mismatch"), rust)
+        # The full stderr counts, not only the first error line.
+        two = (1, self.ERROR[1] + "err: second\n", False)
+        self.assertEqual(self.classify_errors({None: two}, {None: self.ERROR}, {None: two})[0], "error-mismatch")
+
+    def test_go_error_text_varying_with_map_order_is_resampled(self):
+        other = (1, "err: failed to compile input.d2: other key\n", False)
+        kind, record = self.classify_errors({None: self.ERROR}, {None: other}, {None: self.ERROR, "2": other})
+        self.assertEqual((kind, record["classification"], record["mapseed_seeds"]), (None, "mapseed-match", [2]))
+        kind, _ = self.classify_errors({None: self.ERROR}, {None: (1, "err: x\n", False)},
+                                       {None: self.ERROR, "2": other})
+        self.assertEqual(kind, "go-nondeterministic-no-rust-match")
+        self.assertEqual(self.classify_errors({None: self.ERROR}, {None: other})[0], "mapseed-oracle-missing")
+
+    def test_only_go_crashes_are_unscored(self):
+        for crash in (("kill", "", False), (2, "panic: runtime error\n", False)):
+            kind, record = self.classify_errors({None: crash}, {None: self.ERROR})
+            self.assertEqual((kind, record["classification"]), (None, "go-crash"), crash)
+        self.assertFalse(sweep.failing({"classification": "go-crash"}))
+        self.assertFalse(sweep.failing({"classification": "error-match"}))
+        self.assertTrue(sweep.failing({"classification": "error-mismatch"}))
+
     def test_summary_findings_and_exit_status(self):
         go, rust, seeded = self.cli("go", {None: "A"}), self.cli("rust", {None: "B"}), self.cli("go-mapseed", self.SEEDED)
         out = self.root / "out"

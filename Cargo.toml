@@ -96,6 +96,14 @@ lto = "fat"
 codegen-units = 1
 strip = "symbols"
 
+# The @d2-rs/wasm payload (crates/d2-rs-wasm/scripts/build-wasm.mjs) also
+# uses this profile; wasm32-unknown-unknown always aborts on panic. Measured
+# in Node 22 (2026-11-16): opt-level "s" makes the payload 19% smaller (brotli
+# 17%) but compile+render 1.4x-1.7x slower, "z" 2.3x-3.1x slower, 2 is 3%
+# smaller and about 1.5% slower; "s" for rarely used crates only saves 1.5%
+# brotli yet slows code blocks and sketch by 6-9%. wasm-opt -O shrinks the
+# raw file 5.5% but compresses worse. Keep opt-level 3 for both builds.
+
 # Keep the everyday edit/build loop cheap while retaining source locations in
 # panics and backtraces.
 [profile.dev]

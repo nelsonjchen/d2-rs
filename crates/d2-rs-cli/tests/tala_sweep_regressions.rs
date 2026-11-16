@@ -896,3 +896,262 @@ fn node_placement_mirror_leaves_sequence_steps_reflected_until_a_sync() {
         ]
     );
 }
+
+#[test]
+fn trees_hung_on_a_sequence_vessel_return_to_the_owner_graph() {
+    // n2, n3 and peer are tree nodes whose root sentinel is the sequence
+    // vessel. node_placement.go:183-191 restores them (and their edges) into
+    // the owner graph via g.Trees[vessel]; the tree route then starts at the
+    // reconnected step n1 (Tree.sentinelNode). Previously every seed failed
+    // the BinPack edge-inventory invariant.
+    let svg = render_tala(
+        "c: {\nn0: {shape: step; label: \"processing step 0\"}\nn1: {shape: step; label: \"s 1\"}\n\
+         n0 -> n1: next\nn1 -> n2\nn2 -> n3\nn2 -> peer\n}\n",
+        "1",
+    );
+    let actual = geometry(&svg);
+    assert_eq!(actual.view_box, "0 0 597 755");
+    assert_eq!(
+        actual.routes,
+        [
+            "M 265 163 L 265 201 S 265 211 255 211 L 208 211 S 198 211 198 221 L 198 257",
+            "M 198 329 L 198 367 S 198 377 188 377 L 148 377 S 138 377 138 387 L 138 423",
+            "M 198 329 L 198 367 S 198 377 208 377 L 248 377 S 258 377 258 387 L 258 423",
+        ]
+    );
+}
+
+#[test]
+fn sequence_vessel_edges_keep_graph_edge_order_before_restored_tree_edges() {
+    // addSequence reconnects member edges while walking Graph.Edges and
+    // putBackNonBranchingTrees appends the restored peer edge, so
+    // InitializeNodes' BFS reaches n3 and n4 before peer.
+    let svg = render_tala(
+        "direction: right\nc: {\ndirection: left\n\
+         n0: {shape: rectangle; label: \"processing step 0\"; width: 50}\n\
+         n1: {shape: step; label: \"processing step 1\"}\nn2: {shape: step; label: \"stage 2\"}\n\
+         n3: {shape: rectangle; label: \"stage 3\"}\nn4: {shape: step; label: \"processing step 4\"}\n\
+         n0 -> n1\nn1 -> n2: next\nn2 -> n3\nn3 -> n4: next\nn4 -> n1: retry\npeer\nn2 -> peer\n}\n\
+         outside -> c.n0\nc.n4 -> done\noutside -> c.n2\ndone -> c\n",
+        "1",
+    );
+    let actual = geometry(&svg);
+    assert_eq!(actual.view_box, "0 0 1122 683");
+    assert_rectangles(
+        &actual.rectangles,
+        &[
+            ["189", "0", "731", "441"],
+            ["0", "1", "98", "66"],
+            ["9", "374", "81", "66"],
+            ["774", "80", "50", "61"],
+            ["590", "298", "95", "66"],
+            ["249", "77", "77", "66"],
+        ],
+    );
+}
+
+#[test]
+fn split_component_direct_sees_an_abducting_sequence_vessel() {
+    // The l0 component [hub0, leaf cluster, step vessel] is an induced graph
+    // without sequence records. Go's subgraph shares Graph.Sequences, and the
+    // vessel's ext <-> s0_0 abduction stops direct() (direct.go:279-284).
+    let svg = render_tala(
+        "l0: {\ndirection: down\ns0_0: {shape: step}\ns0_1: {shape: step}\ns0_2: {shape: step}\n\
+         s0_0 -> s0_1\ns0_1 -> s0_2\nhub0\nhub0 -> leaf0_0\nhub0 -> leaf0_1\nhub0 -> leaf0_2\n\
+         l1: {\ndirection: right\ns1_0: {shape: rectangle}\ns1_1: {shape: step}\ns1_0 -> s1_1\n}\n}\n\
+         ext <-> l0.s0_0\next <-> l0.hub0\nsrc <-> l0\n",
+        "1",
+    );
+    let actual = geometry(&svg);
+    assert_eq!(actual.view_box, "0 0 963 1047");
+    assert_rectangles(
+        &actual.rectangles,
+        &[
+            ["0", "0", "599", "647"],
+            ["693", "185", "68", "66"],
+            ["266", "779", "67", "66"],
+            ["258", "146", "80", "66"],
+            ["60", "60", "96", "66"],
+            ["60", "146", "96", "66"],
+            ["60", "232", "96", "66"],
+            ["60", "366", "464", "221"],
+            ["120", "444", "77", "66"],
+        ],
+    );
+}
+
+#[test]
+fn equidistance_moves_a_step_vessel_hung_with_a_tree() {
+    // Equidistance and AlignAxes see the vessel with its restored tree; the
+    // vessel settles at Go y=163 (it moved to 159 when the tree root was not
+    // recognised as a sentinel of the vessel).
+    let svg = render_tala(
+        "c: {\nn0: {shape: step; label: \"processing step 0\"}\nn1: {shape: step; label: \"s 1\"}\nn0 -> n1: next\nn1 -> n2\nn2 -> n3\nn2 -> peer\n}\noutside -> c.n0\n",
+        "1",
+    );
+    let actual = geometry(&svg);
+    assert_eq!(actual.view_box, "0 0 597 854");
+    assert_rectangles(
+        &actual.rectangles,
+        &[
+            ["0", "99", "395", "553"],
+            ["114", "0", "98", "66"],
+            ["167", "360", "62", "66"],
+            ["107", "526", "62", "66"],
+            ["219", "526", "77", "66"],
+        ],
+    );
+}
+
+#[test]
+fn root_grid_cell_edges_route_inside_their_own_cell() {
+    // n2.c0 -> n2.c1.c0 has both endpoints inside root grid cell n2, so it is
+    // routed with that cell rather than deferred to the root (y 156, not 146).
+    let svg = render_tala(
+        "grid-rows: 2\nn1: {\n}\nn2: {\n  c1: {\n    grid-columns: 1\n  }\n}\nn3: {\n}\nlegend: log { near: center-left }\nn2.c1.c0 -> n4\nn2.c0 -> n2.c1.c0: admin { target-arrowhead.shape: circle }\nn0 -> n2.c1.c0: store { target-arrowhead.shape: diamond }\n",
+        "1",
+    );
+    let actual = geometry(&svg);
+    assert_eq!(actual.view_box, "0 0 773 614");
+    assert_rectangles(
+        &actual.rectangles,
+        &[
+            ["0", "0", "62", "306"],
+            ["102", "0", "382", "306"],
+            ["0", "346", "134", "66"],
+            ["-87", "173", "67", "66"],
+            ["174", "346", "134", "66"],
+            ["349", "346", "134", "66"],
+            ["162", "60", "181", "186"],
+            ["363", "60", "61", "66"],
+            ["222", "120", "61", "66"],
+        ],
+    );
+    assert_eq!(
+        actual.routes,
+        [
+            "M 252 188 L 252 342",
+            "M 393 128 L 393 146 S 393 156 383 156 L 287 156",
+            "M 370.333008 344 L 370.333008 181 S 370.333008 171 360.333008 171 L 287 171",
+        ]
+    );
+}
+
+#[test]
+fn align_axes_refits_a_container_whose_child_escaped_after_placement() {
+    // NodePlacement leaves n1.c1 outside n1; Go Align commits every trial with
+    // AffectContainers, so the first trial refits n1 instead of rejecting all moves.
+    let svg = render_tala(
+        "n1: {\n  c0: { label: \"api admin queue\"; label.near: outside-left-bottom; style.3d: true; width: 80 }\n}\nn2: {\n}\nn3: { shape: person; label: \"auth mail admin\" }\nn4: {\n}\nn5: { shape: oval; label: \"worker user\" }\nn3 -> n5\nn3 -- n4.c0: web { target-arrowhead.shape: cf-many-required }\nn4.c0 <- n1.c0\nn5 -> n1.c1: api { target-arrowhead.shape: arrow; label.near: bottom-right; style.shadow: true }\n",
+        "1",
+    );
+    let actual = geometry(&svg);
+    assert_eq!(actual.view_box, "0 0 808 654");
+    assert_rectangles(
+        &actual.rectangles,
+        &[
+            ["204", "160", "342", "267"],
+            ["544", "13", "62", "66"],
+            ["0", "237", "181", "186"],
+            ["391", "306", "80", "61"],
+            ["60", "297", "61", "66"],
+            ["401", "220", "61", "66"],
+        ],
+    );
+}
+
+#[test]
+fn gap_normalization_visits_a_sequence_vessel_once_per_pass() {
+    // A container descendant walk returned both the step vessel and its owning
+    // step; processing both moved the vessel twice (everything 36px higher).
+    let svg = render_tala(
+        "direction: down\nw: {\ndirection: down\nc: {\ndirection: right\nn0: {shape: step}\nn1: {shape: rectangle}\nn2: {shape: step; width: 150}\nn3: {shape: step}\nn0 -> n1\nn1 -> n2\nn2 -> n3\nn3 -> n2: retry\n}\n}\noutside -> w.c.n0\nw.c.n3 -> done\noutside -> w.c.n2\ndone -> w.c\n",
+        "1",
+    );
+    let actual = geometry(&svg);
+    assert_eq!(actual.view_box, "0 0 1057 928");
+    assert_rectangles(
+        &actual.rectangles,
+        &[
+            ["0", "164", "855", "368"],
+            ["146", "0", "98", "66"],
+            ["259", "660", "81", "66"],
+            ["60", "224", "735", "248"],
+            ["467", "315", "62", "66"],
+        ],
+    );
+}
+
+#[test]
+fn mirrored_container_children_keep_label_overhang() {
+    // Graph.syncNested positions children with expandForLabels: s0 keeps the
+    // 46px overhang of its wide label after the root mirror (x 106, not 60).
+    let svg = render_tala(
+        "l0: {\ndirection: right\ns0: {shape: rectangle; label: \"processing step 0\"; width: 30}\ns1: {shape: step; label: \"processing step 1\"}\ns2: {shape: step; label: \"s 2\"}\ns3: {shape: step; label: \"s 3\"}\ns0 -> s1\ns1 -> s2: next\ns2 -> s3\n}\nx0 -> l0\nx1 <- l0\nx2 -> l0\nl0.s3 -> dst\n",
+        "2",
+    );
+    let actual = geometry(&svg);
+    assert_eq!(actual.view_box, "0 0 899 589");
+    assert_rectangles(
+        &actual.rectangles,
+        &[
+            ["0", "0", "600", "221"],
+            ["228", "321", "62", "66"],
+            ["465", "321", "62", "66"],
+            ["310", "321", "62", "66"],
+            ["629", "78", "68", "66"],
+            ["106", "80", "30", "61"],
+        ],
+    );
+}
+
+#[test]
+fn swap_local_score_counts_restored_tree_obstacles() {
+    // Swap NodeEdgeLength sees the restored hub leaves between src and s1_0, like
+    // the global score; without them the s1_0 <-> l2 swap was not taken.
+    let svg = render_tala(
+        "direction: right\nl0: {\ndirection: left\ns0_0: {shape: step}\ns0_1: {shape: step}\ns0_0 -> s0_1\nl1: {\nhub1\nhub1 -> leaf1_0\nhub1 -> leaf1_1\nhub1 -> leaf1_2\nhub1 -> leaf1_3\nl2: {\ndirection: left\ns2_0: {shape: step; label: \"processing step 0\"}\ns2_1: {shape: step; label: \"stage 1\"}\ns2_2: {shape: step; label: \"processing step 2\"}\ns2_0 -> s2_1\ns2_1 -> s2_2: next\n}\n}\n}\nsrc -> l0.l1.s1_0\nsink -> l0.l1\n",
+        "1",
+    );
+    let actual = geometry(&svg);
+    assert_eq!(actual.view_box, "0 0 1533 1218");
+    assert_rectangles(
+        &actual.rectangles,
+        &[
+            ["198", "0", "1133", "1016"],
+            ["0", "830", "67", "66"],
+            ["0", "535", "75", "66"],
+            ["258", "181", "1013", "775"],
+            ["318", "415", "80", "66"],
+            ["498", "241", "96", "66"],
+            ["498", "357", "96", "66"],
+            ["498", "473", "96", "66"],
+            ["498", "589", "96", "66"],
+            ["614", "434", "597", "221"],
+            ["318", "830", "77", "66"],
+        ],
+    );
+}
+
+#[test]
+fn common_uncle_siblings_include_a_sequence_vessel() {
+    // src connects to hub0 and (through the step vessel) to s0_0, so both are
+    // common-uncle siblings; the vessel edges are exposed through the owner step.
+    let svg = render_tala(
+        "l0: {\ns0_0: {shape: step}\ns0_1: {shape: step}\ns0_2: {shape: step}\ns0_0 -> s0_1\ns0_1 -> s0_2\nhub0\nhub0 -> leaf0_0\nhub0 -> leaf0_1\nhub0 -> leaf0_2\n}\nsrc -> l0.hub0\nsrc <- l0.s0_0\n",
+        "1",
+    );
+    let actual = geometry(&svg);
+    assert_eq!(actual.view_box, "0 0 1012 608");
+    assert_rectangles(
+        &actual.rectangles,
+        &[
+            ["198", "0", "612", "406"],
+            ["0", "185", "67", "66"],
+            ["456", "146", "80", "66"],
+            ["654", "60", "96", "66"],
+            ["654", "146", "96", "66"],
+            ["654", "232", "96", "66"],
+        ],
+    );
+}

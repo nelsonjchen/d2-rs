@@ -2004,6 +2004,9 @@ pub(super) struct PlacementScope {
     /// or scoring children of the temporary graph.
     pub(super) transaction_external_aggregate_children: BTreeMap<i64, Vec<ArenaNode>>,
     pub(super) transaction_external_cluster_layouts: BTreeMap<i64, ExternalClusterLayout>,
+    /// Sequence vessels with Sequence.EdgeAbductions, shared by every
+    /// placement subgraph as Go shares Graph.Sequences.
+    pub(super) abducting_sequence_vessels: BTreeSet<i64>,
     /// Full current owning-graph `Graph.Nodes` state used by projected
     /// `Transaction.Commit`. Unlike the external Containers projections,
     /// membership in this vector means the node was actually snapshotted by
@@ -3338,6 +3341,11 @@ pub(super) struct ArenaGraph {
     /// reflected individually (placement/direct.go:225-236 walks
     /// Sequence.Nodes through rdfsWalk), recorded by the graph that mirrored.
     pub(super) projected_sequence_mirrors: Vec<(i64, bool, bool)>,
+    /// TALA IDs of sequence vessels whose Sequence.EdgeAbductions is
+    /// non-empty. Induced placement graphs drop `sequences`, but Go's split
+    /// subgraphs share Graph.Sequences, which direct() consults
+    /// (placement/direct.go:279-284).
+    pub(super) abducting_sequence_vessels: BTreeSet<i64>,
     /// Accumulated step reflection per sequence vessel since the last
     /// sequence sync, replayed from placed scopes into the pipeline graph.
     pub(super) sequence_reflections: BTreeMap<i64, (bool, bool)>,

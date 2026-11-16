@@ -1066,6 +1066,19 @@ impl LayoutDispatcher {
                 if source_grid.is_some() && source_grid == target_grid {
                     return false;
                 }
+                // A document-root grid extracts each container cell as its own
+                // nested graph; an edge with both endpoints inside one cell
+                // is restored and routed by that cell's LayoutNested call.
+                if graph.root_grid_rows.is_some() || graph.root_grid_columns.is_some() {
+                    let source_cell = root_grid_cell(graph, edge.source);
+                    if source_cell.is_some()
+                        && source_cell == root_grid_cell(graph, edge.target)
+                        && source_cell != Some(edge.source)
+                        && source_cell != Some(edge.target)
+                    {
+                        return false;
+                    }
+                }
                 source != target && (source.is_some() || target.is_some())
                     || source_grid != target_grid
                         && (source_grid.is_some() || target_grid.is_some())

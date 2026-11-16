@@ -56,6 +56,17 @@ impl ArenaGraph {
                             == Some(child)
                     })
                     .and_then(|index| self.clusters[index].members.first().copied())
+                    .or_else(|| {
+                        // A sequence vessel's Node.Edges are likewise the
+                        // abducted step edges, exposed through its owner step.
+                        (0..self.sequences.len())
+                            .find(|&index| {
+                                self.topology_vessel_node(super::super::TopologyVessel::Sequence(
+                                    index,
+                                )) == Some(child)
+                            })
+                            .and_then(|index| self.sequences[index].members.first().copied())
+                    })
                     .unwrap_or(child);
                 for edge in self.active_edge_ids(edge_owner) {
                     let adjacent = self.active_adjacent(edge_owner, edge);

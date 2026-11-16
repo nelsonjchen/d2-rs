@@ -660,6 +660,7 @@ impl ArenaGraph {
             projected_transaction_nodes: Vec::new(),
             projected_tree_mirrors: Vec::new(),
             projected_sequence_mirrors: Vec::new(),
+            abducting_sequence_vessels: BTreeSet::new(),
             sequence_reflections: BTreeMap::new(),
             root_grid_bin_pack_completed: false,
             sequences: Vec::new(),
@@ -2504,6 +2505,13 @@ impl ArenaGraph {
             projected_transaction_nodes,
             projected_tree_mirrors: Vec::new(),
             projected_sequence_mirrors: Vec::new(),
+            abducting_sequence_vessels: self
+                .sequences
+                .iter()
+                .filter(|sequence| sequence.has_edge_abductions)
+                .map(|sequence| sequence.vessel_tala_id)
+                .chain(self.abducting_sequence_vessels.iter().copied())
+                .collect(),
             sequence_reflections: BTreeMap::new(),
             root_grid_bin_pack_completed: false,
             sequences: Vec::new(),

@@ -4488,6 +4488,19 @@ impl Pipeline {
                         incident.push(edge);
                     }
                 }
+            } else {
+                // addSequence/addCluster reconnect each member edge to the
+                // vessel while visiting Graph.Edges, so the vessel's retained
+                // entries keep edge order; tree edges a later putBack
+                // reconnected follow them (trees/layout.go putBackNonBranchingTrees).
+                for &(edge, source, target) in &projected_edges {
+                    if (source == child || target == child)
+                        && !self.graph.restored_tree_edges.contains(&edge)
+                        && !incident.contains(&edge)
+                    {
+                        incident.push(edge);
+                    }
+                }
             }
             // Disconnect removes a tree edge from both endpoint slices;
             // reconnectTree appends it. Recovered Graph.Edges has the same
@@ -7563,6 +7576,14 @@ impl Pipeline {
             transaction_external_container_children,
             transaction_external_aggregate_children,
             transaction_external_cluster_layouts,
+            abducting_sequence_vessels: self
+                .graph
+                .sequences
+                .iter()
+                .filter(|sequence| sequence.has_edge_abductions)
+                .map(|sequence| sequence.vessel_tala_id)
+                .chain(self.graph.abducting_sequence_vessels.iter().copied())
+                .collect(),
             projected_transaction_nodes,
         })
     }
@@ -7588,10 +7609,14 @@ impl Pipeline {
             child.position = Some(position);
             child.rect.origin = position;
         }
-        let Some((top_left, bottom_right)) = ArenaGraph::fixed_external_node_bounds(&mirrored)
+        let Some((mut top_left, mut bottom_right)) =
+            ArenaGraph::fixed_external_node_bounds(&mirrored)
         else {
             return mirrored;
         };
+        // Graph.syncNested calls positionContainerChildren(true), which
+        // widens the child bounds by expandForLabels before InsidePlacement.
+        ArenaGraph::expand_for_child_labels(&mut top_left, &mut bottom_right, mirrored.iter());
         let content = Size {
             width: bottom_right.x - top_left.x,
             height: bottom_right.y - top_left.y,
@@ -9083,6 +9108,9 @@ impl Pipeline {
         self.graph
             .transaction_external_cluster_layouts
             .clone_from(&placement.transaction_external_cluster_layouts);
+        self.graph
+            .abducting_sequence_vessels
+            .clone_from(&placement.abducting_sequence_vessels);
         self.graph
             .projected_transaction_nodes
             .clone_from(&placement.projected_transaction_nodes);
