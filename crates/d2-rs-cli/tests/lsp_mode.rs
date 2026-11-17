@@ -74,6 +74,12 @@ fn lsp_mode_returns_partial_ast_before_compilation() {
 fn lsp_mode_uses_absolute_file_ranges_without_writing_outputs() {
     let root = std::env::temp_dir().join(format!("d2-lsp-{}", std::process::id()));
     fs::create_dir_all(&root).unwrap();
+    // The child inherits a $PWD that is not its working directory, so Go's
+    // os.Getwd (and filepath.Abs) fall back to getcwd, which resolves
+    // symlinks such as macOS's /var -> /private/var. (Windows canonical
+    // paths gain a \\?\ prefix that getcwd does not report.)
+    #[cfg(unix)]
+    let root = root.canonicalize().unwrap();
     fs::write(root.join("input.d2"), "...@missing").unwrap();
     let output = Command::new(env!("CARGO_BIN_EXE_d2-rs"))
         .current_dir(&root)
