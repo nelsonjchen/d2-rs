@@ -10,6 +10,11 @@ Each release names the upstream Go D2 commit it matches, from
 
 ## [Unreleased]
 
+## [0.1.11] - 2026-11-17
+
+Matches Go D2 `master` at 6a7b48378, as 0.1.0 does. Crates, the npm
+package, prebuilt binaries and Windows installers.
+
 ### Fixed
 
 - Sequence actors declared in several maps merge classes, styles and labels
@@ -35,8 +40,9 @@ Each release names the upstream Go D2 commit it matches, from
 
 ## [0.1.10] - 2026-11-15
 
-Matches Go D2 `master` at 6a7b48378, as 0.1.0 does. Crates, the npm
-package, prebuilt binaries and Windows installers.
+Matches Go D2 `master` at 6a7b48378, as 0.1.0 does. Prebuilt binaries and
+Windows installers on GitHub only; crates and the npm package went from
+0.1.9 to 0.1.11.
 
 ### Fixed
 
@@ -348,7 +354,8 @@ Matches Go D2 `master` at 6a7b48378, as 0.1.0 does.
   path separators in diagnostics and one TALA layout differ in tests.
 
 [Unreleased]: https://github.com/nelsonjchen/d2-rs/commits/main
-[0.1.10]: https://crates.io/crates/d2-rs/0.1.10
+[0.1.11]: https://crates.io/crates/d2-rs/0.1.11
+[0.1.10]: https://github.com/nelsonjchen/d2-rs/releases/tag/v0.1.10
 [0.1.9]: https://crates.io/crates/d2-rs/0.1.9
 [0.1.8]: https://crates.io/crates/d2-rs/0.1.8
 [0.1.7]: https://crates.io/crates/d2-rs/0.1.7
