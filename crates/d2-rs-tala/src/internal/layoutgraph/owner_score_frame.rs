@@ -546,9 +546,24 @@ impl<'a> OwnerScoreFrame<'a> {
                 return Err(OwnerScoreError::AncestryCycle(node));
             }
             depth += 1;
-            current = self.checked_parent(self.node(node)?.container)?;
+            current = self.checked_parent(self.raw_container(node)?)?;
         }
         Ok(depth)
+    }
+
+    /// The raw Node.Container field. AddCluster and AddSequence clear it for
+    /// every member while the group is installed (grouping/clusters.go:122,
+    /// grouping/sequences.go:418); the owner arena keeps a cluster member's
+    /// input container, so read the installed group instead.
+    fn raw_container(&self, canonical: NodeId) -> Result<Option<NodeId>, OwnerScoreError> {
+        if self
+            .owner
+            .owner_node_group_vessel(canonical, super::owner_groups::OwnerGroupKind::Cluster)?
+            .is_some()
+        {
+            return Ok(None);
+        }
+        Ok(self.node(canonical)?.container)
     }
 
     /// edge_length.go1188–1194 chooses one outer replacement by raw Container
@@ -559,7 +574,7 @@ impl<'a> OwnerScoreFrame<'a> {
         adjacent_replacement: NodeId,
     ) -> Result<bool, OwnerScoreError> {
         let mut outer = node_replacement;
-        if self.node(node_replacement)?.container != self.node(adjacent_replacement)?.container
+        if self.raw_container(node_replacement)? != self.raw_container(adjacent_replacement)?
             && self.raw_container_depth(node_replacement)?
                 > self.raw_container_depth(adjacent_replacement)?
         {

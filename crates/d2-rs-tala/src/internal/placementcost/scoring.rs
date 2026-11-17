@@ -5661,7 +5661,23 @@ impl ArenaGraph {
             self.spacing_edge_metrics(node, active_other);
         let first = &self.nodes[node.0 as usize];
         let second = &self.nodes[other.0 as usize];
-        let table = first.shape == ShapeKind::SqlTable || second.shape == ShapeKind::SqlTable;
+        // An active aggregate stands for its temporary vessel, a fresh
+        // NewNode (grouping/clusters.go:91, sequences.go:395) with an empty
+        // shape and no label, so deltaToGuarded reads a rectangle with zero
+        // margins rather than the owner step's own label margin.
+        let first_is_vessel = self.active_node_is_aggregate(node);
+        let second_is_vessel = self.active_node_is_aggregate(other);
+        let vessel_margins = |is_vessel: bool, margins: Insets| {
+            if is_vessel {
+                Insets::uniform(0.0)
+            } else {
+                margins
+            }
+        };
+        let first_margins = vessel_margins(first_is_vessel, first.layout_margins);
+        let second_margins = vessel_margins(second_is_vessel, second.layout_margins);
+        let table = (!first_is_vessel && first.shape == ShapeKind::SqlTable)
+            || (!second_is_vessel && second.shape == ShapeKind::SqlTable);
         // node.go deltaToGuarded keeps the incident scan above, then returns
         // an isotropic gap before reading geometry when loops and margins
         // cannot affect it. Compaction's numerical view has the same branch.
@@ -5670,8 +5686,8 @@ impl ArenaGraph {
                 .loop_offsets
                 .as_ref()
                 .is_none_or(|map| map.is_empty())
-            && first.layout_margins == Insets::uniform(0.0)
-            && second.layout_margins == Insets::uniform(0.0)
+            && first_margins == Insets::uniform(0.0)
+            && second_margins == Insets::uniform(0.0)
         {
             let (horizontal, vertical) =
                 Self::spacing_axis_deltas(table, (connected, max_edge_width, max_edge_height));
@@ -5685,8 +5701,8 @@ impl ArenaGraph {
             self.active_node_position(other).unwrap(),
             self.active_node_size(other),
             table,
-            first.layout_margins,
-            second.layout_margins,
+            first_margins,
+            second_margins,
             (connected, max_edge_width, max_edge_height),
         )
     }
@@ -6726,10 +6742,11 @@ impl ArenaGraph {
                     .scoring_container_ancestors
                     .len()
             });
-        // An active sequence step's Container is nil in TALA
-        // (grouping/sequences.go:418), so depth() counts only the step itself
-        // and the raw-container comparison sees nil, while
-        // ContainerDirection reads the vessel's container (node.go:2344).
+        // An active sequence step's or cluster member's Container is nil in
+        // TALA (grouping/sequences.go:418, grouping/clusters.go:122), so
+        // depth() counts only the member itself and the raw-container
+        // comparison sees nil, while ContainerDirection reads the vessel's
+        // container (node.go:2344).
         let sequence_step_container = |tala_id: i64| {
             self.sequences
                 .iter()
@@ -6744,6 +6761,23 @@ impl ArenaGraph {
                     sequence
                         .container
                         .map(|container| self.nodes[container.0 as usize].tala_id)
+                })
+                .or_else(|| {
+                    // A cluster vessel shares its members' container.
+                    self.clusters
+                        .iter()
+                        .filter(|cluster| self.cluster_is_active(cluster))
+                        .find_map(|cluster| {
+                            cluster
+                                .members
+                                .iter()
+                                .find(|member| self.nodes[member.0 as usize].tala_id == tala_id)
+                        })
+                        .map(|member| {
+                            self.nodes[member.0 as usize]
+                                .container
+                                .map(|container| self.nodes[container.0 as usize].tala_id)
+                        })
                 })
         };
         let node_step = sequence_step_container(

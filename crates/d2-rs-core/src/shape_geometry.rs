@@ -587,10 +587,12 @@ fn cubic_line_intersections<A: GeoArith>(curve: [Point; 4], line: (Point, Point)
     const PRECISION: f64 = 0.0001;
     let line_a = line.1.y - line.0.y;
     let line_b = line.0.x - line.1.x;
+    // `lx[0]*(ly[0]-ly[1]) + ly[0]*(lx[1]-lx[0])`: arm64 Go fuses the first
+    // product into the addition (as in the P coefficients below).
     let line_c = A::fma(
-        line.0.y,
-        line.1.x - line.0.x,
-        line.0.x * (line.0.y - line.1.y),
+        line.0.x,
+        line.0.y - line.1.y,
+        line.0.y * (line.1.x - line.0.x),
     );
     let x = bezier_coefficients::<A>(curve[0].x, curve[1].x, curve[2].x, curve[3].x);
     let y = bezier_coefficients::<A>(curve[0].y, curve[1].y, curve[2].y, curve[3].y);

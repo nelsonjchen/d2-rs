@@ -1220,7 +1220,16 @@ impl ArenaGraph {
                     .then_some(root.sentinel_edge)
             })
             .collect::<BTreeSet<_>>();
-        self.nodes[sentinel.0 as usize]
+        // Graph.Trees is keyed by the sequence vessel, and isIsolatedTree
+        // (layoutgraph/tree.go:42-60) reads the vessel's Node.Edges: the
+        // abducted edges of an active sequence. The owner step's own
+        // incidence list is empty while its sequence is active.
+        let incident = self.nodes[sentinel.0 as usize]
+            .sequence
+            .filter(|&index| self.sequences[index].members.first() == Some(&sentinel))
+            .and_then(|index| self.topology_vessel_node(TopologyVessel::Sequence(index)))
+            .unwrap_or(sentinel);
+        self.nodes[incident.0 as usize]
             .edges
             .read()
             .iter()

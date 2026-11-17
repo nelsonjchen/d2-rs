@@ -980,11 +980,16 @@ Round 2 (Opus agents on the leftovers above, same rules):
   their canvas from the nested bounding box as Go does. `DEBUG_ASCII`
   per-cell records are not ported.
 
-Open: three TALA sweep cases that no Go map seed (1-32) reproduces:
-steps-69302 case 304 (Go's second AlignAxes moves a container with its
-step vessel), outside-69408 case 297 (Go's SwapStuff swaps a cluster vessel
-and a node), and swap-69107 case 95 (stage geometry matches; the
-difference comes after layout). Also the raw ELK API with explicit port model order (not reachable
+Later TALA rounds ported isIsolatedTree's vessel edge list, zero margins
+for cluster vessels in spacing deltas, vessel-sized cluster-discovery
+estimates, a nil raw container for installed cluster members in the
+direction penalty, and arm64 Go's fused term in lib/geo cubic-line
+intersections (diamond corners).
+
+Open: the TALA long tail (a new deterministic case turns up about once per
+300-400 generated diagrams; witnesses in the supervisor notes), swap-69107
+case 95 (plain Go itself varies there: Rust's output in 3 of 80 runs, not
+reproducible by map seed), and the raw ELK API with explicit port model order (not reachable
 from D2).
 
 ## Verification

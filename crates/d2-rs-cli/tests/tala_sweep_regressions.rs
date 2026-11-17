@@ -1155,3 +1155,174 @@ fn common_uncle_siblings_include_a_sequence_vessel() {
         ],
     );
 }
+
+fn render_tala_unbundled(source: &str, seed: &str) -> String {
+    let mut process = Command::new(env!("CARGO_BIN_EXE_d2-rs"))
+        .args([
+            "--layout=tala",
+            "--bundle=false",
+            "--tala-seeds",
+            seed,
+            "-",
+            "-",
+        ])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    process
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(source.as_bytes())
+        .unwrap();
+    let output = process.wait_with_output().unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8(output.stdout).unwrap()
+}
+
+#[test]
+fn align_axes_moves_a_step_vessel_whose_tree_is_not_isolated() {
+    // The tree n2 -> n3 -> {n4, peer} hangs on the step vessel, which also
+    // carries the abducted `outside -> c.n0` edge. isIsolatedTree reads the
+    // vessel's Node.Edges, so the vessel -> n2 sentinel edge is not a tree
+    // edge and AlignAxes moves the vessel together with `outside`.
+    let svg = render_tala(
+        "direction: right\nc: {\nn0: {shape: step; label: \"s 0\"}\nn1: {shape: step; label: \"s 1\"}\n\
+         n0 -> n1: next\nn1 -> n2\nn2 -> n3: next\nn3 -> n4\nn3 -> peer\n}\noutside -> c.n0\n",
+        "1",
+    );
+    let actual = geometry(&svg);
+    assert_eq!(actual.view_box, "0 0 739 899");
+    assert_rectangles(
+        &actual.rectangles,
+        &[
+            ["198", "0", "339", "697"],
+            ["0", "77", "98", "66"],
+            ["348", "239", "62", "66"],
+            ["348", "405", "62", "66"],
+            ["287", "571", "63", "66"],
+            ["400", "571", "77", "66"],
+        ],
+    );
+}
+
+#[test]
+fn cluster_vessel_spacing_ignores_member_label_margins() {
+    // n2 and n5 form a row cluster. The vessel is a fresh NewNode without a
+    // label, so deltaToGuarded reads zero margins for it; n2's outside label
+    // margin must not block the smart swap of the vessel with n6.
+    let svg = render_tala_unbundled(
+        "n0: { shape: sql_table; id: int {constraint: primary_key}; name: string }\n\
+         n1: { label: \"auth queue log\" }\n\
+         n2: { label: \"x\"; label.near: outside-bottom-right; icon: https://example.com/icon.svg; icon.near: center-center; width: 80 }\n\
+         n3: { shape: class; \"+field\": int; \"-method(a int)\": bool }\n\
+         n4: { label: \"mail\"; label.near: outside-top-left; height: 100; shape: hexagon }\n\
+         n5: { label: \"a much longer label here\"; label.near: outside-right-bottom; width: 80 }\n\
+         n6: { width: 40 }\nn0 <- n1: mail\nn4 -> n3\nn3 -> n0: db\n\
+         n5 <- n6: a much longer label here\nn6 -> n2\nn1 <- n0\n",
+        "2",
+    );
+    let actual = geometry(&svg);
+    assert_eq!(actual.view_box, "0 0 893 1125");
+    assert_rectangles(
+        &actual.rectangles,
+        &[
+            ["57", "558", "188", "108"],
+            ["57", "558", "188", "36"],
+            ["76", "778", "151", "120"],
+            ["322", "425", "80", "87"],
+            ["0", "237", "302", "184"],
+            ["0", "237", "302", "92"],
+            ["433", "425", "80", "87"],
+            ["398", "237", "40", "61"],
+        ],
+    );
+}
+
+#[test]
+fn cluster_discovery_estimates_a_step_container_by_its_vessel() {
+    // l2's only child is its step vessel (363 wide), so its discovery estimate
+    // exceeds 4x hub1's width and l2 and hub1 are not clustered. Estimating
+    // the vessel by its owner step (117 wide) clustered them.
+    let svg = render_tala(
+        "l0: {\nl1: {\nl2: {\ns2_0: {shape: step}\ns2_1: {shape: step}\ns2_2: {shape: step}\n\
+         s2_3: {shape: step}\ns2_0 -> s2_1\ns2_1 -> s2_2\ns2_2 -> s2_3\n}\n}\n}\n\
+         src -> l0.l1.l2\nsrc -> l0.l1.hub1\n",
+        "1",
+    );
+    let actual = geometry(&svg);
+    assert_eq!(actual.view_box, "0 0 1123 749");
+    assert_rectangles(
+        &actual.rectangles,
+        &[
+            ["198", "0", "723", "547"],
+            ["0", "297", "67", "66"],
+            ["258", "60", "603", "427"],
+            ["318", "120", "483", "221"],
+            ["318", "361", "80", "66"],
+        ],
+    );
+    assert_eq!(
+        actual.routes,
+        [
+            "M 69 319 L 314 319",
+            "M 33 365 L 33 385 S 33 395 43 395 L 314 395"
+        ]
+    );
+}
+
+#[test]
+fn edge_direction_reads_a_cluster_member_container_as_nil() {
+    // box.n0 and box.n2 form a cluster. AddCluster clears their Container,
+    // so edgeLength's outer replacement for `box.n2 -- n1` is box.n2 and its
+    // ContainerDirection is box's (unset): the undirected edges carry no
+    // direction penalty and n1 is placed above box.
+    let svg = render_tala(
+        "direction: down\nn1: { shape: c4-person; width: 52 }\nbox: {\n}\n\
+         box.n2 -- n1: e45\nbox.n0 -- n1\n",
+        "1",
+    );
+    let actual = geometry(&svg);
+    assert_eq!(actual.view_box, "0 0 462 474");
+    assert_rectangles(
+        &actual.rectangles,
+        &[
+            ["78", "0", "182", "272"],
+            ["138", "60", "62", "66"],
+            ["138", "146", "62", "66"],
+        ],
+    );
+}
+
+#[test]
+fn diamond_border_trace_keeps_the_rounded_top_corner() {
+    // The routed segment ends at the diamond's top corner (91,686). The
+    // rounded corner is a flat cubic; Go's line coefficient fuses its first
+    // product on arm64, which keeps the double root at t=1 inside the curve.
+    let svg = render_tala(
+        "grid-rows: 3\nn0: { label: \"cdn auth\"; label.near: outside-right-bottom }\n\
+         n1: {\n  c0: {\n    c0: { shape: queue; label: \"cdn\" }\n  }\n}\nn2: {\n}\n\
+         n3: {\n  c0\n}\nn4: {\n  c0: { shape: diamond }\n  c2: {\n  }\n}\n\
+         n0 -> n4.c1\nn4.c2.c0 -> n1.c0.c0: user\n\
+         n3.c1 <-> n4.c0: store { source-arrowhead.shape: box; label.near: center-center }\n\
+         n1.c0.c0 <- n1.c0.c1 { source-arrowhead.shape: box }\n\
+         n1.c0.c0 -> n1.c0.c1: cache { source-arrowhead.shape: box; label.near: bottom-right }\n",
+        "1",
+    );
+    let actual = geometry(&svg);
+    assert_eq!(actual.view_box, "0 0 1105 1134");
+    assert!(
+        actual
+            .routes
+            .iter()
+            .any(|route| route == "M 599.681749 527.192039 L 94.818251 684.807961"),
+        "{:?}",
+        actual.routes
+    );
+}

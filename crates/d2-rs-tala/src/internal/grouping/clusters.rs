@@ -1993,6 +1993,21 @@ impl ArenaGraph {
             .iter()
             .map(|node| node.rect.size)
             .collect::<Vec<_>>();
+        // An active sequence is a container child through its vessel
+        // (grouping/sequences.go AddNewNodeToContainer), and the discovery
+        // index estimates every Graph.Nodes entry by its own size
+        // (cluster_discovery.go:318): the vessel, not the owner step.
+        for (index, sequence) in self.sequences.iter().enumerate() {
+            if !self.sequence_is_active(sequence) {
+                continue;
+            }
+            if let (Some(owner), Some(vessel)) = (
+                sequence.members.first(),
+                self.topology_vessel_node(TopologyVessel::Sequence(index)),
+            ) {
+                estimates[owner.0 as usize] = self.nodes[vessel.0 as usize].rect.size;
+            }
+        }
 
         for scope in scopes {
             let first_cluster = self.clusters.len();
