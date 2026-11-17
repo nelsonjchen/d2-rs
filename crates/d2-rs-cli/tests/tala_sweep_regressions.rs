@@ -1326,3 +1326,53 @@ fn diamond_border_trace_keeps_the_rounded_top_corner() {
         actual.routes
     );
 }
+
+#[test]
+fn tree_copyback_keeps_the_container_child_frame_under_a_label_overhang() {
+    // s2_0's label is wider than its 30px box, so expandForLabels widens the
+    // fit bounds to x=-1. The restored tree leaves share the ordinary
+    // children's frame; positionContainerChildren then moves all of them by
+    // one delta, keeping the leaves centred under hub2.
+    let svg = render_tala(
+        "l2: {\ns2_0: {shape: rectangle; width: 30}\ns2_0 -> s2_1\nhub2 -> leaf2_1\nhub2 -> leaf2_2\n}\n",
+        "1",
+    );
+    let actual = geometry(&svg);
+    assert_eq!(actual.view_box, "0 0 588 635");
+    assert_rectangles(
+        &actual.rectangles,
+        &[
+            ["0", "0", "386", "433"],
+            ["84", "60", "30", "61"],
+            ["60", "188", "77", "66"],
+            ["165", "141", "80", "66"],
+            ["84", "307", "96", "66"],
+            ["230", "307", "96", "66"],
+        ],
+    );
+}
+
+#[test]
+fn container_orientation_skips_an_interior_with_a_step_vessel() {
+    // l0's three boundary edges leave it toward two destinations under
+    // `direction: up`, but its interior holds the s0 step vessel, so
+    // orientSourceInterior (g.IsSequenceVessel) leaves the interior unturned.
+    let svg = render_tala(
+        "direction: up\nl0: {\ns0_0: {shape: step}\ns0_1: {shape: step}\ns0_0 -> s0_1\n\
+         s0_2 -> s0_3\n}\nsink <- l0.s0_0\next <- l0.s0_0\next <- l0.hub0\n",
+        "1",
+    );
+    let actual = geometry(&svg);
+    assert_eq!(actual.view_box, "0 0 553 806");
+    assert_rectangles(
+        &actual.rectangles,
+        &[
+            ["0", "198", "351", "406"],
+            ["0", "0", "75", "66"],
+            ["99", "0", "68", "66"],
+            ["60", "478", "77", "66"],
+            ["214", "478", "77", "66"],
+            ["159", "258", "80", "66"],
+        ],
+    );
+}

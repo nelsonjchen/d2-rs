@@ -479,11 +479,18 @@ impl ArenaGraph {
         let local = nodes.iter().copied().collect::<BTreeSet<_>>();
         for &node_id in &nodes {
             let node = &self.nodes[node_id.0 as usize];
+            // g.IsSequenceVessel (container_orientation.go:72). In the
+            // temporary direct-child graph an active sequence is a projected
+            // aggregate vessel with no SequenceState of its own; its stable
+            // name carries the vessel kind (as in pipeline.rs).
+            let projected_sequence_vessel =
+                node.scoring_is_aggregate_vessel && node.external_id.ends_with("#sequence-vessel");
             if node.is_container
                 || node.hierarchy.is_some()
                 || node.fixed_top_left.is_some()
                 || node.sequence.is_some()
                 || self.active_sequence_index(node_id).is_some()
+                || projected_sequence_vessel
                 || self.is_tree_sentinel(node_id)
                 || node.force_hierarchy
                 || self.has_herd_assignment(node_id)
@@ -503,7 +510,8 @@ impl ArenaGraph {
                         "hierarchy": node.hierarchy.is_some(),
                         "fixed": node.fixed_top_left.is_some(),
                         "sequence": node.sequence.is_some(),
-                        "sequence_vessel": self.active_sequence_index(node_id).is_some(),
+                        "sequence_vessel": self.active_sequence_index(node_id).is_some()
+                            || projected_sequence_vessel,
                         "tree_sentinel": self.is_tree_sentinel(node_id),
                         "force_hierarchy": node.force_hierarchy,
                         "herd": node.herd_assignment.is_some(),

@@ -2818,11 +2818,12 @@ impl Pipeline {
                 if !self.graph.node_order.contains(&old) {
                     self.graph.node_order.push(old);
                 }
-                let target = Point {
-                    x: position.x - top_left.x,
-                    y: position.y - top_left.y,
-                };
-                self.graph.move_node_abs_with_children(old, target);
+                // ReconnectTree restores the retained tree pointers in the
+                // same temporary-graph frame as the ordinary children copied
+                // above (positionContainerChildren later moves them all by
+                // one delta). The fit bounds' label expansion (expandForLabels)
+                // widens only the container box; it is not a frame offset.
+                self.graph.move_node_abs_with_children(old, position);
                 if let Some(projected) = scope.tree_routing_nodes.get(&local)
                     && let Some(state) = self.graph.tree_routing_nodes.get_mut(&old)
                 {
