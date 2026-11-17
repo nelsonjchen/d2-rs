@@ -63,7 +63,13 @@ fn play_reads_theme_and_sketch_from_flags_or_environment() {
             .contains("isometric images are local exports; use an output filename instead of play")
     );
     // xbrowser.Open runs `sh -sc '<BROWSER> "$1"'`; a failure only warns.
-    let result = d2(&root, &[("BROWSER", "exit 3")], &["play", "input.d2"]);
+    // A function keeps the URL argument away from `exit`: bash (macOS's sh)
+    // rejects `exit 3 <url>` as too many arguments, dash ignores the extra.
+    let result = d2(
+        &root,
+        &[("BROWSER", "fail() { exit 3; }; fail")],
+        &["play", "input.d2"],
+    );
     assert!(result.status.success(), "{result:?}");
     let stderr = String::from_utf8(result.stderr).unwrap();
     assert!(stderr.contains("warn: failed to open browser to https://play.d2lang.com/"));

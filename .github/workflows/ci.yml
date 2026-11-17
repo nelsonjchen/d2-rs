@@ -49,7 +49,7 @@ jobs:
       # The oracle tier (--all-features) reads regenerated Go output from
       # oracle-cache/ and runs on the arm64 and x86-64 qualification hosts
       # (docs/FIXTURES.md). Clippy still compiles it here.
-      - run: cargo test --workspace --locked
+      - run: cargo test --workspace --locked --no-fail-fast
         if: runner.os != 'Windows'
       # Windows passes the default tier and matches Go on every e2e board
       # natively (MSVC) and under Wine, but those runs happen outside CI; here
