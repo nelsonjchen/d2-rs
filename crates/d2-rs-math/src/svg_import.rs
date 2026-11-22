@@ -124,6 +124,7 @@ pub fn import_labeled_with_decoded_limit(
             opacity: 1.,
             clip: None,
             mask: None,
+            filters: Vec::new(),
             primitive: None,
             children: Vec::new(),
         });

@@ -176,6 +176,16 @@ pub(crate) fn root(scene: d2_rs_math::svg_scene::Scene) -> Node {
             },
             transform: matrix(c.transform),
         });
+        out.filters = (!n.filters.is_empty()).then(|| {
+            n.filters
+                .iter()
+                .map(|b| Filter::GaussianBlur {
+                    sigma_x: b.sigma_x,
+                    sigma_y: b.sigma_y,
+                    linear_rgb: b.linear_rgb,
+                })
+                .collect()
+        });
         out.mask = n.mask.as_ref().map(|m| Mask {
             r#type: MaskType(m.kind),
             transform: Matrix::identity(),
@@ -484,6 +494,71 @@ mod icon_effect_tests {
             assert_eq!(pixel(&f, 16, 8)[3], alpha);
             assert_eq!(pixel(&f, 18, 8)[3], 0);
         }
+    }
+    // Upstream icon_test.go TestIconGaussianBlurColorSpaceAndRegion.
+    #[test]
+    fn gaussian_blur_color_space_and_region() {
+        let mut colors = Vec::new();
+        for space in ["", " color-interpolation-filters=\"sRGB\""] {
+            let svg = format!(
+                r##"<svg viewBox="0 0 36 24"><filter id="blur" x="0" y="-50%" width="1" height="200%"{space}><feGaussianBlur stdDeviation="2"/></filter><g filter="url(#blur)"><rect x="6" y="6" width="12" height="12" fill="red"/><rect x="18" y="6" width="12" height="12" fill="blue"/></g></svg>"##
+            );
+            let f = frame(&svg);
+            let edge = pixel(&f, 12, 4);
+            assert!(edge[0] >= 240 && edge[3] > 0 && edge[3] < 255, "{edge:?}");
+            assert_eq!(pixel(&f, 5, 12)[3], 0);
+            colors.push(pixel(&f, 17, 12));
+        }
+        assert!(
+            colors[0][0] > colors[1][0] + 20 && colors[0][2] > colors[1][2] + 20,
+            "{colors:?}"
+        );
+    }
+    #[test]
+    fn gaussian_filter_admission_and_primitive_units() {
+        for (body, expected) in [
+            (
+                r##"<filter id="f"><feGaussianBlur in="BackgroundImage"/></filter>"##,
+                "SourceGraphic",
+            ),
+            (
+                r##"<filter id="f"><feGaussianBlur stdDeviation="-1"/></filter>"##,
+                "deviation",
+            ),
+            (
+                r##"<filter id="f"><feGaussianBlur/><feGaussianBlur/></filter>"##,
+                "one feGaussianBlur",
+            ),
+            (
+                r##"<filter id="f" style="opacity:1"><feGaussianBlur/></filter>"##,
+                "unsupported attribute",
+            ),
+        ] {
+            let svg = format!("<svg width=\"8\" height=\"8\">{body}</svg>");
+            let error = d2_rs_math::svg_import::import_labeled(
+                "icon.svg",
+                svg.as_bytes(),
+                [10000, 100, 1000, 1000, 10000, 10000, 1000, 100, 1000],
+                None,
+                None,
+            )
+            .err()
+            .expect("rejected filter");
+            assert!(error.contains(expected), "{error}");
+        }
+        let out = imported(
+            r##"<svg width="40" height="20"><filter id="f" primitiveUnits="objectBoundingBox" color-interpolation-filters="sRGB"><feGaussianBlur stdDeviation=".1 .2" color-interpolation-filters="inherit"/></filter><rect width="30" height="10" filter="url(#f)"/></svg>"##,
+        );
+        let blur = out
+            .scene
+            .nodes
+            .iter()
+            .find_map(|n| n.filters.first())
+            .unwrap();
+        assert_eq!(
+            (blur.sigma_x, blur.sigma_y, blur.linear_rgb),
+            (3., 2., false)
+        );
     }
     #[test]
     fn mask_definition_inherits_its_ancestors() {

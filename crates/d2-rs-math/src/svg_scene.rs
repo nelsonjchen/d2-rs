@@ -29,6 +29,8 @@ pub struct Node {
     pub clip: Option<Clip>,
     #[serde(default)]
     pub mask: Option<Mask>,
+    #[serde(default)]
+    pub filters: Vec<super::svg_effects::Blur>,
     pub primitive: Option<Primitive>,
     pub children: Vec<usize>,
 }
@@ -68,6 +70,7 @@ pub(crate) fn node(
         opacity: 1.,
         clip: None,
         mask: None,
+        filters: Vec::new(),
         primitive,
         children: Vec::new(),
     });
@@ -149,7 +152,7 @@ fn apply_effects(
     work: &mut Work,
     cancel: Option<&d2_rs_core::CancellationToken>,
 ) -> Result<usize, String> {
-    let index = super::svg_effects::apply(
+    let (index, apply_clips) = super::svg_effects::apply(
         source,
         document,
         compiled,
@@ -161,6 +164,9 @@ fn apply_effects(
         work,
         cancel,
     )?;
+    if !apply_clips {
+        return Ok(index);
+    }
     apply_clip_paths(
         scene,
         index,
@@ -347,7 +353,12 @@ pub(crate) fn instantiate_effects(
                 if super::svg_compile::non_rendering(name)
                     || matches!(
                         name,
-                        "linearGradient" | "radialGradient" | "stop" | "clipPath"
+                        "linearGradient"
+                            | "radialGradient"
+                            | "stop"
+                            | "clipPath"
+                            | "filter"
+                            | "feGaussianBlur"
                     )
                 {
                     stack.pop();

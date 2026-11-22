@@ -192,9 +192,38 @@ pub fn apply(
     building_mask: bool,
     work: &mut Work,
     cancel: Option<&d2_rs_core::CancellationToken>,
-) -> Result<usize, String> {
+) -> Result<(usize, bool), String> {
+    let mut index = index;
+    if !style.filter.is_empty() {
+        let resource = document.ids[&style.filter];
+        let spec = compiled.states[resource]
+            .filter_region
+            .as_ref()
+            .expect("compiled filter region");
+        let bounds = object_bounds(source, scene, index, cancel)?;
+        let region = spec.bounds(bounds, style.viewport);
+        if region[2] <= 0. || region[3] <= 0. {
+            scene.nodes[index].opacity = 0.;
+            return Ok((index, false));
+        }
+        let mut blur = compiled.states[resource].blur;
+        if spec.content_units == 0 {
+            blur.sigma_x *= bounds[2];
+            blur.sigma_y *= bounds[3];
+        }
+        let wrapper = super::svg_scene::node(scene, work, source, None, 0)?;
+        scene.nodes[wrapper].clip = Some(region_clip(source, region, work)?);
+        scene.nodes[wrapper].opacity = scene.nodes[index].opacity;
+        scene.nodes[index].opacity = 1.;
+        scene.nodes[wrapper].id = std::mem::take(&mut scene.nodes[index].id);
+        scene.nodes[wrapper].transform = scene.nodes[index].transform;
+        scene.nodes[index].transform = IDENTITY;
+        scene.nodes[index].filters = vec![blur];
+        scene.nodes[wrapper].children.push(index);
+        index = wrapper;
+    }
     if style.mask.is_empty() {
-        return Ok(index);
+        return Ok((index, true));
     }
     if building_mask {
         return Err(format!(
@@ -210,7 +239,7 @@ pub fn apply(
     let region = spec.bounds(object, style.viewport);
     if region[2] <= 0. || region[3] <= 0. {
         scene.nodes[index].opacity = 0.;
-        return Ok(index);
+        return Ok((index, false));
     }
     let resources = document
         .ids
@@ -272,7 +301,7 @@ pub fn apply(
     scene.root = old_root;
     let Some(content) = content else {
         scene.nodes[index].opacity = 0.;
-        return Ok(index);
+        return Ok((index, false));
     };
     if spec.content_units == 0 {
         scene.nodes[content].transform = super::svg_transform::mul(
@@ -296,5 +325,99 @@ pub fn apply(
         kind,
         root: wrapper,
     });
-    Ok(index)
+    Ok((index, true))
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct Blur {
+    pub sigma_x: f64,
+    pub sigma_y: f64,
+    pub linear_rgb: bool,
+}
+pub fn compile_filter(
+    source: &str,
+    document: &Document,
+    elements: &[Element],
+    states: &mut [super::svg_element::State],
+    index: usize,
+    cancel: Option<&d2_rs_core::CancellationToken>,
+) -> Result<(), String> {
+    let el = &elements[index];
+    let parent = document.elements[index]
+        .parent
+        .map(|i| elements[i].name.as_str());
+    let error = |reason: &str| format!("d2svgimport: {source}: {reason}");
+    if el.name == "feGaussianBlur" {
+        if parent != Some("filter") || !el.children.is_empty() {
+            return Err(error("<feGaussianBlur> must be a leaf inside a filter"));
+        }
+        return Ok(());
+    }
+    if !matches!(parent, Some("svg" | "g" | "defs")) {
+        return Err(error(
+            "element <filter> must be inside <svg>, <g> or <defs>",
+        ));
+    }
+    if el.children.len() != 1 || elements[el.children[0]].name != "feGaussianBlur" {
+        return Err(error(
+            "element <filter> supports one feGaussianBlur of SourceGraphic",
+        ));
+    }
+    let primitive = &elements[el.children[0]];
+    if primitive
+        .attrs
+        .get("in")
+        .is_some_and(|v| v != "SourceGraphic")
+    {
+        return Err(error(
+            "element <feGaussianBlur> supports only SourceGraphic",
+        ));
+    }
+    let mut blur = Blur {
+        linear_rgb: true,
+        ..Default::default()
+    };
+    for resource in [el, primitive] {
+        if let Some(value) = resource.attrs.get("color-interpolation-filters") {
+            match value.as_str() {
+                "linearRGB" => blur.linear_rgb = true,
+                "sRGB" => blur.linear_rgb = false,
+                "inherit" => {}
+                _ => {
+                    return Err(error(&format!(
+                        "unsupported color-interpolation-filters on <{}>",
+                        resource.name
+                    )));
+                }
+            }
+        }
+    }
+    if let Some(raw) = primitive.attrs.get("stdDeviation") {
+        let values = super::svg_geometry::list(raw, 2, cancel)
+            .map_err(|_| error("feGaussianBlur requires one or two deviations"))?;
+        if values.is_empty() {
+            return Err(error("feGaussianBlur requires one or two deviations"));
+        }
+        for (n, value) in values.iter().enumerate() {
+            let sigma = super::svg_length::number(value)
+                .map_err(|_| error("feGaussianBlur requires nonnegative finite deviations"))?;
+            if sigma < 0. {
+                return Err(error(
+                    "feGaussianBlur requires nonnegative finite deviations",
+                ));
+            }
+            if n == 0 {
+                blur.sigma_x = sigma;
+            }
+            blur.sigma_y = sigma;
+        }
+    }
+    states[index].blur = blur;
+    states[index].filter_region = Some(Region::compile(
+        source,
+        el,
+        "filterUnits",
+        "primitiveUnits",
+    )?);
+    Ok(())
 }

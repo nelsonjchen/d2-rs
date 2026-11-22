@@ -682,6 +682,8 @@ mod imported_tests {
                 transform,
                 opacity: 0.,
                 clip: None,
+                mask: None,
+                filters: Vec::new(),
                 primitive: None,
                 children: Vec::new(),
             };

@@ -19,6 +19,7 @@ pub(crate) const PROPERTIES: &[&str] = &[
     "clip-rule",
     "clip-path",
     "mask",
+    "filter",
     "color",
     "display",
     "visibility",

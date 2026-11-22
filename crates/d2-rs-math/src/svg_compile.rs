@@ -331,6 +331,19 @@ pub fn compile_elements(
             &mut output.work,
             cancel,
         )?;
+        if matches!(
+            output.elements[index].name.as_str(),
+            "filter" | "feGaussianBlur"
+        ) {
+            super::svg_effects::compile_filter(
+                source,
+                document,
+                &output.elements,
+                &mut output.states,
+                index,
+                cancel,
+            )?;
+        }
         if next == super::svg_element::Continuation::Geometry {
             let name = output.elements[index].name.as_str();
             if name == "mask" {
@@ -642,7 +655,12 @@ fn validate_style_tree(
         if non_rendering(name)
             || matches!(
                 name,
-                "linearGradient" | "radialGradient" | "stop" | "clipPath"
+                "linearGradient"
+                    | "radialGradient"
+                    | "stop"
+                    | "clipPath"
+                    | "filter"
+                    | "feGaussianBlur"
             )
         {
             continue;

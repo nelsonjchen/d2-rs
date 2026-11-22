@@ -23,6 +23,9 @@ area does not move the pin or run scoreboards.
 - 8558856dc (masks): mask region/content coordinate systems, alpha and luminance
   modes, definition-side inheritance, region clipping, nested-reference rejection,
   and emitted-node/path budget accounting.
+- 8558856dc (filters): single-primitive SourceGraphic Gaussian blur, independent
+  region/primitive coordinate systems, filter-region clipping before element
+  clip/mask/opacity, and premultiplied linear-light interpolation by default.
 - b43d0c44f: data-only image resolver API classifies local paths and enforces
   denied local-file policy before rejecting external loading.
 - 6012a84bd and 1c7d0204e: raster watch previews use acquired resource snapshots
@@ -34,7 +37,6 @@ area does not move the pin or run scoreboards.
 This is a partial port of the catalog commit. The following output-affecting
 work is still required:
 
-- Single-primitive Gaussian filters, including linear-light interpolation.
 - Positioned text/tspan shaping with bundled fonts and shared glyph outlines.
 
 

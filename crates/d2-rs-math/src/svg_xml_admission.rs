@@ -68,7 +68,7 @@ impl State {
                     "svg" | "g" | "defs" | "style" | "path" | "rect" | "circle" | "ellipse"
                     | "line" | "polyline" | "polygon" | "image" | "text" | "use" | "clipPath"
                     | "linearGradient" | "radialGradient" | "stop" | "title" | "desc"
-                    | "metadata" | "mask" => {
+                    | "metadata" | "mask" | "filter" | "feGaussianBlur" => {
                         return Ok(name.into());
                     }
                     "script" | "foreignObject" => {

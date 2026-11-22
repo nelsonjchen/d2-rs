@@ -13,6 +13,10 @@ use super::{
 pub struct State {
     #[serde(default)]
     pub mask_region: Option<super::svg_effects::Region>,
+    #[serde(default)]
+    pub filter_region: Option<super::svg_effects::Region>,
+    #[serde(default)]
+    pub blur: super::svg_effects::Blur,
     pub transform: [f64; 6],
     pub viewport: Option<Viewport>,
 }
@@ -72,6 +76,17 @@ fn allowed(name: &str) -> Option<&'static [&'static str]> {
         "image" => &["x", "y", "width", "height", "href", "preserveAspectRatio"],
         "text" => &["font-size", "font-family"],
         "use" => &["href", "x", "y", "overflow"],
+        "filter" => &[
+            "id",
+            "x",
+            "y",
+            "width",
+            "height",
+            "filterUnits",
+            "primitiveUnits",
+            "color-interpolation-filters",
+        ],
+        "feGaussianBlur" => &["stdDeviation", "in", "color-interpolation-filters"],
         "mask" => &[
             "maskUnits",
             "maskContentUnits",
@@ -127,6 +142,16 @@ pub fn admit(
     let name = element.name.as_str();
     let specific =
         allowed(name).ok_or_else(|| error(format!("internal unsupported element <{name}>")))?;
+    if matches!(name, "filter" | "feGaussianBlur") {
+        for key in &element.order {
+            if !specific.contains(&key.as_str()) {
+                return Err(error(format!(
+                    "element <{name}> has unsupported attribute {key:?}"
+                )));
+            }
+        }
+        return Ok(Continuation::Complete);
+    }
     if matches!(name, "linearGradient" | "radialGradient" | "stop") {
         svg_gradient_tree::compile(
             source,

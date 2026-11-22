@@ -51,6 +51,8 @@ pub fn resolve(
         "svg"
             | "defs"
             | "mask"
+            | "filter"
+            | "feGaussianBlur"
             | "title"
             | "metadata"
             | "rdf:RDF"
