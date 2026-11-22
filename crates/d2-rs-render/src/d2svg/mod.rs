@@ -12,6 +12,7 @@ pub(crate) mod shape;
 pub(crate) mod svgpath;
 
 pub(crate) mod animate;
+pub(crate) mod svgframe;
 pub mod color;
 pub(crate) mod element;
 pub(crate) mod fonts;
@@ -168,7 +169,7 @@ pub fn render_cli_animated_with(
     let mut opts = cli_opts(options, sketch);
     target_validation::validate(&diagram)?;
     opts.master_id = diagram.hash_id(opts.salt.as_deref())?;
-    let boards = render::render_multiboard_with(&diagram, &opts, process)?;
+    let boards = render::render_multiboard_with(&diagram, &opts, options.force_appendix, process)?;
     animate::wrap(&diagram, &boards, &opts, interval_ms)
 }
 

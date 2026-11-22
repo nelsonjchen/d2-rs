@@ -59,21 +59,23 @@ pub(crate) fn render_multiboard(
     opts: &RenderOpts,
 ) -> Result<Vec<Vec<u8>>, String> {
     super::target_validation::validate(diagram)?;
-    render_multiboard_validated(diagram, opts, &mut Ok)
+    render_multiboard_validated(diagram, opts, false, &mut Ok)
 }
 
 pub(crate) fn render_multiboard_with(
     diagram: &TargetDiagram,
     opts: &RenderOpts,
+    force_appendix: bool,
     process: &mut impl FnMut(Vec<u8>) -> Result<Vec<u8>, String>,
 ) -> Result<Vec<Vec<u8>>, String> {
     super::target_validation::validate(diagram)?;
-    render_multiboard_validated(diagram, opts, process)
+    render_multiboard_validated(diagram, opts, force_appendix, process)
 }
 
 fn render_multiboard_validated(
     diagram: &TargetDiagram,
     opts: &RenderOpts,
+    force_appendix: bool,
     process: &mut impl FnMut(Vec<u8>) -> Result<Vec<u8>, String>,
 ) -> Result<Vec<Vec<u8>>, String> {
     let mut boards = Vec::new();
@@ -85,11 +87,20 @@ fn render_multiboard_validated(
         .chain(diagram.steps.iter().flatten())
         .flatten()
     {
-        boards.extend(render_multiboard_validated(child, opts, process)?);
+        boards.extend(render_multiboard_validated(
+            child,
+            opts,
+            force_appendix,
+            process,
+        )?);
     }
     if !diagram.is_folder_only {
         super::paint_validation::links(diagram)?;
-        boards.insert(0, process(render_validated(diagram, opts)?)?);
+        let mut svg = process(render_validated(diagram, opts)?)?;
+        if force_appendix {
+            svg = super::appendix::append(diagram, &opts.master_id, &svg)?;
+        }
+        boards.insert(0, svg);
     }
     Ok(boards)
 }

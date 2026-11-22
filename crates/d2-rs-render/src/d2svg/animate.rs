@@ -40,8 +40,29 @@ pub(crate) fn wrap(
     super::target_validation::validate(root)?;
     let ((tlx, tly), (brx, bry)) = root.nested_go_bounding_box()?;
     let pad = opts.pad.unwrap_or(super::render::DEFAULT_PADDING);
-    let (left, top) = (tlx - pad, tly - pad);
-    let (width, height) = (brx - tlx + pad * 2, bry - tly + pad * 2);
+    let (mut left, mut top) = (tlx - pad, tly - pad);
+    let (mut right, mut bottom) = (brx + pad, bry + pad);
+    for svg in svgs {
+        if let Some(frame) = super::svgframe::read(&String::from_utf8_lossy(svg)) {
+            if frame.left >= frame.right || frame.top >= frame.bottom {
+                continue;
+            }
+            if left >= right || top >= bottom {
+                (left, top, right, bottom) = (frame.left, frame.top, frame.right, frame.bottom);
+            } else {
+                left = left.min(frame.left);
+                top = top.min(frame.top);
+                right = right.max(frame.right);
+                bottom = bottom.max(frame.bottom);
+            }
+        }
+    }
+    let dimensions_error = || "animation viewport dimensions exceed the supported range".to_owned();
+    let width = right.checked_sub(left).ok_or_else(dimensions_error)?;
+    let height = bottom.checked_sub(top).ok_or_else(dimensions_error)?;
+    if width < 0 || height < 0 {
+        return Err(dimensions_error());
+    }
     let dimensions = opts
         .scale
         .map(|scale| {
