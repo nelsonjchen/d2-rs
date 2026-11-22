@@ -42,15 +42,17 @@ pub fn validate(
         let parent = parent.map(|i: usize| elements[i].name.as_str());
         if matches!(element.name.as_str(), "linearGradient" | "radialGradient") {
             if !matches!(parent, Some("defs" | "g" | "svg")) {
-                return Err(error(
-                    "element <linearGradient> must be inside <svg>, <g> or <defs>".into(),
-                ));
+                return Err(error(format!(
+                    "element <{}> must be inside <svg>, <g> or <defs>",
+                    element.name
+                )));
             }
             for &child in &element.children {
                 let name = &elements[child].name;
                 if name != "stop" {
                     return Err(error(format!(
-                        "element <linearGradient> has unsupported child <{}>",
+                        "element <{}> has unsupported child <{}>",
+                        element.name,
                         if name.len() > 64 {
                             "<oversized-name>"
                         } else {
@@ -62,7 +64,7 @@ pub fn validate(
         } else if element.name == "stop" {
             if !matches!(parent, Some("linearGradient" | "radialGradient")) {
                 return Err(error(
-                    "element <stop> is only supported inside <linearGradient>".into(),
+                    "element <stop> is only supported inside a gradient".into(),
                 ));
             }
             if !element.children.is_empty() {

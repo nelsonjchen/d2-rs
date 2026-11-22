@@ -644,6 +644,16 @@ fn catalog_embedded_raster_whitespace_and_independent_decoded_budget() {
 fn catalog_radial_gradient_pixels() {
     // Upstream 8558856dc TestIconGradientCoordinatesAndPixels radial case.
     let source = r##"<svg viewBox="0 0 40 40"><radialGradient id="r"><stop stop-color="red"/><stop offset="100%" stop-color="blue"/></radialGradient><rect x="4" y="4" width="32" height="32" fill="url(#r)"/></svg>"##;
+    let frame = render_catalog_svg(source);
+    let pixel =
+        |x: usize, y: usize| &frame.pix[y * frame.stride + x * 4..y * frame.stride + x * 4 + 4];
+    let center = pixel(20, 20);
+    let rim = pixel(35, 20);
+    assert!(center[0] > 235 && center[3] == 255, "{center:?}");
+    assert!(rim[2] > 240 && rim[3] == 255, "{rim:?}");
+}
+
+fn render_catalog_svg(source: &str) -> d2_rs_raster::NrgbaImage {
     let d2_rs_math::svg_import::Outcome::Imported(imported) =
         d2_rs_math::svg_import::import_labeled(
             "icon",
@@ -686,9 +696,24 @@ fn catalog_radial_gradient_pixels() {
         },
     )
     .unwrap();
-    let pixel = |x: usize, y: usize| &frame.pix[y * frame.stride + x * 4..y * frame.stride + x * 4 + 4];
-    let center = pixel(20, 20);
-    let rim = pixel(35, 20);
-    assert!(center[0] > 235 && center[3] == 255, "{center:?}");
-    assert!(rim[2] > 240 && rim[3] == 255, "{rim:?}");
+    frame
+}
+
+#[test]
+fn catalog_chained_clip_transforms_intersect() {
+    // Upstream 8558856dc TestIconNestedClipTransformsIntersect.
+    let frame = render_catalog_svg(
+        r##"<svg viewBox="0 0 24 24"><clipPath id="upper"><rect width="20" height="7"/></clipPath><clipPath id="both" transform="translate(3 4)" clip-path="url(#upper)"><rect width="9" height="18"/></clipPath><rect transform="translate(2 1)" width="20" height="20" clip-path="url(#both)" fill="red"/></svg>"##,
+    );
+    let alpha = |x: usize, y: usize| frame.pix[y * frame.stride + x * 4 + 3];
+    assert_eq!(
+        (
+            alpha(6, 6),
+            alpha(13, 11),
+            alpha(4, 7),
+            alpha(8, 12),
+            alpha(14, 6)
+        ),
+        (255, 255, 0, 0, 0)
+    );
 }

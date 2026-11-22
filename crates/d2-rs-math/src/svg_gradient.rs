@@ -438,7 +438,8 @@ pub fn resolve(paint: &mut Option<Paint>, viewport: [f64; 4]) -> Result<(), Stri
         } else {
             [viewport[2], viewport[3]]
         };
-        let diagonal = (w / std::f64::consts::SQRT_2).hypot(h / std::f64::consts::SQRT_2);
+        let diagonal =
+            crate::gomath::hypot(w / std::f64::consts::SQRT_2, h / std::f64::consts::SQRT_2);
         for (index, coordinate) in focal
             .iter_mut()
             .chain(center.iter_mut())
@@ -451,6 +452,9 @@ pub fn resolve(paint: &mut Option<Paint>, viewport: [f64; 4]) -> Result<(), Stri
             if !coordinate.is_finite() {
                 return Err("invalid radial gradient coordinates or radius".into());
             }
+        }
+        if !(focal[0] - center[0]).is_finite() || !(focal[1] - center[1]).is_finite() {
+            return Err("invalid gradient coordinates".into());
         }
         *percentages = [false; 6];
         return Ok(());

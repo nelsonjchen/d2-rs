@@ -8,6 +8,8 @@ use super::{
 use std::collections::BTreeMap;
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
 pub struct Template {
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub parent_id: String,
     pub commands: Vec<Command>,
     pub fill_rule: u8,
     pub transform: [f64; 6],
@@ -189,6 +191,7 @@ pub fn instantiate(
     *used_uses += template.uses;
     *used_commands += template.commands.len();
     Ok(Some(Template {
+        parent_id: template.parent_id.clone(),
         commands: copied,
         fill_rule: template.fill_rule,
         transform: template.transform,
@@ -218,6 +221,7 @@ fn validate_declarations(
         if property != "transform"
             && property != "clip-rule"
             && !(element.name == "use" && property == "overflow")
+            && !(element.name == "clipPath" && property == "clip-path")
         {
             return Err(format!(
                 "d2svgimport: {source}: element <{}> has unsupported clipping-resource property {property:?}",
@@ -257,7 +261,21 @@ pub fn compile(
     use super::{svg_style, svg_transform::mul};
     let error = |reason: String| format!("d2svgimport: {source}: {reason}");
     // The declaration gate permits only transform/clip-rule; neither reads paints.
-    let resources = BTreeMap::new();
+    let resources = ids
+        .iter()
+        .map(|(id, &index)| {
+            (
+                id.clone(),
+                super::svg_resources::Resource {
+                    name: elements
+                        .get(index)
+                        .map(|e| e.name.clone())
+                        .unwrap_or_default(),
+                    gradient: None,
+                },
+            )
+        })
+        .collect();
     let element = &elements[root];
     validate_declarations(source, element, cancel)?;
     let mut inherited = svg_style::compute(
@@ -268,9 +286,7 @@ pub fn compile(
         &resources,
         cancel,
     )?;
-    if !inherited.clip_path.is_empty() {
-        return Err(error("nested clip-path resources are unsupported".into()));
-    }
+    let parent_id = inherited.clip_path.clone();
     let mut current = element.children[0];
     let mut transform = element.transform;
     let mut active = std::collections::HashSet::new();
@@ -321,6 +337,7 @@ pub fn compile(
                 return Err(error("clip-path has invalid or non-finite geometry".into()));
             }
             return Ok(Template {
+                parent_id,
                 commands,
                 fill_rule: style.clip_rule,
                 transform,
@@ -514,6 +531,7 @@ mod tests {
         let templates = BTreeMap::from([(
             "c".into(),
             Template {
+                parent_id: String::new(),
                 commands: vec![command(0, [1., 2.]), command(1, [3., 4.])],
                 fill_rule: 1,
                 transform: [1., 0., 0., 1., 0., 0.],

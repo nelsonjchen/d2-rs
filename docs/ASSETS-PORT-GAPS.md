@@ -18,7 +18,8 @@ area does not move the pin or run scoreboards.
   local path metadata hrefs, enable-background on graphics containers, isolation,
   normal blending, vector-effect=none, visible overflow on use/image, and
   unreferenced clip paths without IDs, ambiguous duplicate IDs with per-declaration
-  resource accounting, and hidden external-image sentinels.
+  resource accounting, hidden external-image sentinels, and transformed chained
+  clipping paths with bounded expansion.
 - b43d0c44f: data-only image resolver API classifies local paths and enforces
   denied local-file policy before rejecting external loading.
 - 6012a84bd and 1c7d0204e: raster watch previews use acquired resource snapshots
@@ -30,7 +31,7 @@ area does not move the pin or run scoreboards.
 This is a partial port of the catalog commit. The following output-affecting
 work is still required:
 
-- SVG mask regions/content coordinate systems, chained clipping paths, and
+- SVG mask regions/content coordinate systems and
   single-primitive Gaussian filters, including linear-light interpolation.
 - Positioned text/tspan shaping with bundled fonts and shared glyph outlines.
 

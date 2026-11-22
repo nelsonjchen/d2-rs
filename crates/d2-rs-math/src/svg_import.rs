@@ -328,7 +328,8 @@ mod catalog_contracts {
             };
             assert_eq!(*center, [w * 0.25, h * 0.5]);
             assert_eq!(center, focal);
-            let diagonal = (w / std::f64::consts::SQRT_2).hypot(h / std::f64::consts::SQRT_2);
+            let diagonal =
+                crate::gomath::hypot(w / std::f64::consts::SQRT_2, h / std::f64::consts::SQRT_2);
             assert_eq!(*radius, diagonal * 0.5);
             assert_eq!(*focal_radius, diagonal * 0.1);
             assert_eq!((*units, *spread), (1, 2));
@@ -439,6 +440,27 @@ mod catalog_contracts {
             stops.iter().map(|s| s.offset).collect::<Vec<_>>(),
             [0., 0.75, 0.75, 1.]
         );
+    }
+    #[test]
+    fn clip_chain_cycles_and_work_are_bounded() {
+        for body in [
+            r##"<clipPath id="a" clip-path="url(#a)"><rect width="8" height="8"/></clipPath><rect width="8" height="8" clip-path="url(#a)"/>"##,
+            r##"<clipPath id="a" clip-path="url(#b)"><rect width="8" height="8"/></clipPath><clipPath id="b" clip-path="url(#a)"><rect width="8" height="8"/></clipPath><rect width="8" height="8" clip-path="url(#a)"/>"##,
+        ] {
+            let source = format!("<svg width=\"8\" height=\"8\">{body}</svg>");
+            assert!(
+                import_labeled(
+                    "icon",
+                    source.as_bytes(),
+                    [262144, 32, 2048, 4096, 262144, 16384, 512, 8, 512],
+                    None,
+                    None
+                )
+                .err()
+                .unwrap()
+                .contains("clip-path chain exceeds depth limit 8 or contains a cycle")
+            );
+        }
     }
     #[test]
     fn ambiguous_ids_and_hidden_external_image_sentinels() {

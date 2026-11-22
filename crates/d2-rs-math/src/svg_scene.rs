@@ -90,6 +90,43 @@ fn clip(
         })
     })
 }
+/// Intersect chained clip resources through nested clipped groups, as in
+/// upstream 8558856dc clip.go applyClipPaths.
+fn apply_clip_paths(
+    scene: &mut Scene,
+    mut index: usize,
+    source: &str,
+    mut id: String,
+    templates: &std::collections::BTreeMap<String, Template>,
+    transforms: &std::collections::BTreeMap<String, [f64; 6]>,
+    work: &mut Work,
+    cancel: Option<&d2_rs_core::CancellationToken>,
+) -> Result<usize, String> {
+    let mut transform = [1., 0., 0., 1., 0., 0.];
+    let mut depth = 0;
+    while !id.is_empty() {
+        if depth >= work.max_depth {
+            return Err(format!(
+                "d2svgimport: {source}: clip-path chain exceeds depth limit {} or contains a cycle",
+                work.max_depth
+            ));
+        }
+        depth += 1;
+        let mut clip = clip(source, &id, templates, work, cancel)?.unwrap();
+        clip.transform = super::svg_transform::mul(transform, clip.transform);
+        if scene.nodes[index].clip.is_some() {
+            let group = node(scene, work, source, None, 0)?;
+            scene.nodes[group].transform = scene.nodes[index].transform;
+            scene.nodes[index].transform = [1., 0., 0., 1., 0., 0.];
+            scene.nodes[group].children.push(index);
+            index = group;
+        }
+        scene.nodes[index].clip = Some(clip);
+        transform = super::svg_transform::mul(transform, transforms[&id]);
+        id = templates[&id].parent_id.clone();
+    }
+    Ok(index)
+}
 struct Frame {
     index: usize,
     inherited: Style,
@@ -167,6 +204,16 @@ pub fn instantiate(
                 .map(|template| (id.clone(), template.clone()))
         })
         .collect();
+    let clip_transforms = document
+        .ids
+        .iter()
+        .filter_map(|(id, &index)| {
+            compiled
+                .states
+                .get(index)
+                .map(|state| (id.clone(), state.transform))
+        })
+        .collect();
     let mut stack = vec![Frame::new(root, inherited, prefix, depth, referenced)];
     let mut active = std::collections::HashSet::new();
     let mut returned = None;
@@ -204,10 +251,17 @@ pub fn instantiate(
                             ],
                         );
                         target.opacity = frame.style.opacity;
-                        target.clip =
-                            clip(source, &frame.style.clip_path, &templates, work, cancel)?;
                         target.children.push(child);
-                        returned = Some(index);
+                        returned = Some(apply_clip_paths(
+                            scene,
+                            index,
+                            source,
+                            frame.style.clip_path.clone(),
+                            &templates,
+                            &clip_transforms,
+                            work,
+                            cancel,
+                        )?);
                     }
                     stack.pop();
                     continue;
@@ -349,8 +403,6 @@ pub fn instantiate(
                     frame.child_node = Some(content);
                 } else {
                     scene.nodes[node_index].transform = compiled.states[index].transform;
-                    scene.nodes[node_index].clip =
-                        clip(source, &style.clip_path, &templates, work, cancel)?;
                     frame.child_node = Some(node_index);
                 }
                 frame.node = Some(node_index);
@@ -358,7 +410,16 @@ pub fn instantiate(
             }
             1 => {
                 if frame.next == element.children.len() {
-                    returned = frame.node;
+                    returned = Some(apply_clip_paths(
+                        scene,
+                        frame.node.unwrap(),
+                        source,
+                        frame.style.clip_path.clone(),
+                        &templates,
+                        &clip_transforms,
+                        work,
+                        cancel,
+                    )?);
                     stack.pop();
                     returning = true;
                     continue;
