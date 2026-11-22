@@ -2011,6 +2011,7 @@ fn run_root_scope_pipeline(
     // ELK inserts long-edge dummies before node ordering. The dummies must
     // participate in the barycenter sweep; appending them after ordering
     // leaves the source graph order stale and changes BK's conflict window.
+    layered::wrapping::insert_breaking_points(arena, root);
     layered::split_long_edges_for_layout(arena, root)?;
     trace_phase!("hierarchy", "split_long_edges");
     trace_arena!("hierarchy", "split_long_edges", arena);
@@ -2053,9 +2054,9 @@ fn run_root_scope_pipeline(
     trace_phase!("hierarchy", "finish_nested_graphs");
     trace_arena!("hierarchy", "finish_nested_graphs", arena);
     if includes_children {
-        layered::wrapping::wrap_single_edge(arena, root)?;
+        layered::wrapping::before_placement(arena, root)?;
     } else {
-        layered::for_each_separate_component(arena, root, layered::wrapping::wrap_single_edge)?;
+        layered::for_each_separate_component(arena, root, layered::wrapping::before_placement)?;
     }
     layered::redistribute_ordered_implicit_ports(arena, root);
     trace_phase!("ports", "redistribute_after_ordering");
@@ -2162,6 +2163,10 @@ fn run_root_scope_pipeline(
     layered::restore_self_loop_edges_after_routing(arena, root);
     trace_phase!("self_loops", "restore_edges_after_routing");
     trace_arena!("self_loops", "restore_edges_after_routing", arena);
+    if layered::wrapping::is_multi_edge(arena, root) {
+        join_long_edges(arena, root)?;
+        layered::wrapping::remove_breaking_points(arena, root);
+    }
     postprocess_north_south_ports(arena, root);
     trace_phase!("routing", "north_south_port_postprocessor");
     trace_arena!("routing", "north_south_port_postprocessor", arena);
@@ -2232,6 +2237,7 @@ fn prepare_nested_graph_scope(
     trace_arena!("nested", "insert_center_edge_dummies", arena);
     layered::assign_layers_for_layout(arena, graph_id)?;
     trace_rank_phase!("nested", arena, graph_id);
+    layered::wrapping::insert_breaking_points(arena, graph_id);
     split_long_edges(arena, graph_id)?;
     layered::process_inverted_ports_for_layout(arena, graph_id);
     trace_phase!("nested", "inverted_port_preprocessor");
@@ -2285,7 +2291,7 @@ fn finish_nested_graph_scope(
     // processors; their external-port constraints are not the flat graph's
     // balanced-median case.
     layered::restore_pure_loop_port_areas_for_graph(arena, graph_id);
-    layered::wrapping::wrap_single_edge(arena, graph_id)?;
+    layered::wrapping::before_placement(arena, graph_id)?;
     layered::redistribute_ordered_implicit_ports(arena, graph_id);
     trace_phase!("nested", "redistribute_after_ordering");
     trace_arena!("nested", "redistribute_after_ordering", arena);
@@ -2322,6 +2328,10 @@ fn finish_nested_graph_scope(
     layered::restore_self_loop_edges_after_routing(arena, graph_id);
     trace_phase!("self_loops", "restore_edges_after_routing");
     trace_arena!("self_loops", "restore_edges_after_routing", arena);
+    if layered::wrapping::is_multi_edge(arena, graph_id) {
+        join_long_edges(arena, graph_id)?;
+        layered::wrapping::remove_breaking_points(arena, graph_id);
+    }
     postprocess_north_south_ports(arena, graph_id);
     trace_phase!("nested", "north_south_port_postprocessor");
     trace_arena!("nested", "north_south_port_postprocessor", arena);
@@ -3930,12 +3940,6 @@ pub fn layout_with_options(
 }
 
 fn validate_options(options: ElkOptions) -> Result<(), LayoutError> {
-    // MULTI_EDGE still requires its paired breaking-point processor chain.
-    if options.layered.wrapping_strategy == Some("MULTI_EDGE") {
-        return Err(LayoutError::EngineValidation(
-            "elk-wrappingStrategy: native layered processor support is not yet ported".into(),
-        ));
-    }
     for (name, value) in [
         ("edge_edge_spacing", options.edge_edge_spacing),
         ("node_spacing", options.node_spacing),

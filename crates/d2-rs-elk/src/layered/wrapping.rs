@@ -4,6 +4,22 @@
 // Port of intermediate/wrapping/{stats,cuts,single_edge,cutting}.go,
 // elk-go 8b285820520e (ELK 0.8.1).
 use super::*;
+pub(crate) mod multi_edge;
+pub(crate) use multi_edge::{
+    insert_breaking_points, process_breaking_points, remove_breaking_points,
+};
+
+pub(crate) fn is_multi_edge(arena: &LayeredArena, graph: LGraphId) -> bool {
+    arena.graphs[graph as usize].wrapping.strategy == "MULTI_EDGE"
+}
+
+pub(crate) fn before_placement(
+    arena: &mut LayeredArena,
+    graph: LGraphId,
+) -> Result<(), LayeringError> {
+    process_breaking_points(arena, graph)?;
+    wrap_single_edge(arena, graph)
+}
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct Options {
@@ -15,17 +31,25 @@ pub(crate) struct Options {
     forbidden: Option<Vec<i32>>,
     correction: f64,
     additional_spacing: f64,
+    improve_cuts: bool,
+    distance_penalty: f64,
+    improve_wrapped: bool,
 }
 
 impl Options {
     pub fn parse(options: &Value) -> Self {
         let property =
             |key: &str| model_order_barycenter::property(options, &format!("wrapping.{key}"));
+        let boolean = |key: &str| {
+            property(key)
+                .and_then(|v| v.as_bool().or_else(|| v.as_str()?.parse().ok()))
+                .unwrap_or(true)
+        };
         let string = |key: &str, default: &str| {
             property(key)
                 .and_then(Value::as_str)
                 .unwrap_or(default)
-                .to_owned()
+                .to_ascii_uppercase()
         };
         let indexes = |key: &str| {
             property(key).and_then(Value::as_array).map(|a| {
@@ -36,6 +60,11 @@ impl Options {
             })
         };
         Self {
+            improve_cuts: boolean("multiEdge.improveCuts"),
+            distance_penalty: property("multiEdge.distancePenalty")
+                .and_then(parse_option_double)
+                .unwrap_or(2.),
+            improve_wrapped: boolean("multiEdge.improveWrappedEdges"),
             strategy: string("strategy", "OFF"),
             cutting: string("cutting.strategy", "MSD"),
             cuts: indexes("cutting.cuts").unwrap_or_default(),
@@ -44,7 +73,7 @@ impl Options {
                 .unwrap_or(1) as i32,
             validify: property("validify.strategy")
                 .and_then(Value::as_str)
-                .map(str::to_owned),
+                .map(str::to_ascii_uppercase),
             forbidden: indexes("validify.forbiddenIndices"),
             correction: property("correctionFactor")
                 .and_then(parse_option_double)
@@ -257,7 +286,15 @@ fn move_node(arena: &mut LayeredArena, node: LNodeId, layer: LayerId, index: usi
         arena.layers[old as usize].nodes.retain(|&n| n != node);
     }
     let nodes = &mut arena.layers[layer as usize].nodes;
-    nodes.insert(index.min(nodes.len()), node);
+    nodes.insert(index, node);
+    arena.nodes[node as usize].layer = Some(layer);
+}
+
+fn append_node(arena: &mut LayeredArena, node: LNodeId, layer: LayerId) {
+    if let Some(old) = arena.nodes[node as usize].layer {
+        arena.layers[old as usize].nodes.retain(|&n| n != node);
+    }
+    arena.layers[layer as usize].nodes.push(node);
     arena.nodes[node as usize].layer = Some(layer);
 }
 
@@ -381,7 +418,7 @@ mod tests {
     use super::*;
     use serde_json::json;
 
-    fn path(count: usize, options: Value) -> (LayeredArena, LGraphId) {
+    pub(super) fn path(count: usize, options: Value) -> (LayeredArena, LGraphId) {
         let graph = serde_json::from_value(json!({
             "id": "root", "layoutOptions": options,
             "children": (0..count).map(|i| json!({"id": i.to_string(), "width": 30., "height": 20.})).collect::<Vec<_>>(),

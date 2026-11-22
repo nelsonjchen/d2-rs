@@ -22,10 +22,10 @@ to the first, direction RIGHT, algorithm layered, model-order strategy
 NODES_AND_EDGES, cycle breaking GREEDY_MODEL_ORDER, thoroughness 8. Each
 option was enabled separately; other settings used provider defaults.
 
-| Option | Go result dimensions | Required native work |
+| Option | Go result dimensions | Native implementation |
 | --- | --- | --- |
 | `elk.layered.wrapping.strategy=SINGLE_EDGE` | 964x75 | Ported: graph statistics, MSD/ARD/manual cuts, greedy/look-back validation, layer folding and return-route dummy chains before node placement. |
-| `elk.layered.wrapping.strategy=MULTI_EDGE` | 394x258 | Port breaking-point insertion before node ordering, processing before node placement, and removal after edge routing, including dummy/edge restoration and cutting/statistics helpers. |
+| `elk.layered.wrapping.strategy=MULTI_EDGE` | 394x258 | Ported for graphs without center edge labels: paired breaking-point insertion, cut improvement, folding and chain shortening, and orthogonal edge restoration. Center labels remain explicitly unsupported. |
 
 SINGLE_EDGE now runs in root/component and nested scopes before node sizing
 and placement. Wrapping dummies retain individual edge/node spacing,
@@ -36,11 +36,38 @@ source's explicit-forbidden-indices behavior, and exercise D2 paths in all
 four directions. This targets the SINGLE_EDGE differential mismatch cluster;
 no dimension-only special case or oracle regeneration was used.
 
-MULTI_EDGE remains unsupported until its complete breaking-point insertion,
-processing, improvement and removal chain is translated. Its unsupported
-error remains in place. Relevant dispatch is in
-`internal/layered/{properties,configurator}.go`,
-`p5edges/orthogonal_edge_router.go` and `p3order/graph_info_holder.go`.
+MULTI_EDGE now inserts paired breaking-point layers before LongEdgeSplitter
+and node ordering; folds chunks before placement (and before the flat greedy
+switch processors); and rejoins the original edges after long-edge joining,
+before north/south port restoration. The port includes distance-penalized cut
+improvement, linked multi-cut metadata, both dummy-chain shortening passes,
+and bend/junction restoration. Detached chains are excluded from Rust's
+active-edge scans, matching Go's traversal through layered nodes.
+
+Tests port `TestMultiEdgeInserterCreatesPairedBreakingPoints` and
+`TestMultiEdgeManualWithoutCutsDoesNotFallThroughToARD`; a two-cut spanning
+edge checks original endpoint and edge identities with chain improvement
+both enabled and disabled. D2-input paths cover both strategies and all
+four directions. The documented 12-node loop is now also a Rust contract:
+both dimensions above match, with 12 nodes and 12 complete orthogonal routes.
+Nested cycles exercise both strategies in all four directions.
+
+**Remaining gap:** MULTI_EDGE combined with center edge labels is rejected
+with `elk-wrappingStrategy=MULTI_EDGE: center-label edge restoration is not
+yet ported`. Native label switching can retire the `NodeStartEdge` segment
+recorded in breaking-point metadata before the remover uses it. Faithful
+interaction with the label processors still needs source comparison and
+qualification; the native path must not panic or silently ignore wrapping.
+The nested-cycle contract checks this explicit error for MULTI_EDGE and
+checks successful labeled routing for SINGLE_EDGE in all four directions.
+Spline-specific compaction-segment restoration from the upstream unit test
+is not ported: this D2 layered pipeline uses the orthogonal router.
+
+These changes target the SINGLE_EDGE and MULTI_EDGE differential mismatch
+clusters. No oracle artifacts, fixture regeneration or broad scoreboards
+were run. Validation: `cargo build -p d2-rs-elk` and
+`cargo test -p d2-rs-elk` (183 unit and 8 integration tests passed, one
+pre-existing ignored unit test, zero doc tests).
 
 ## Forced model order
 

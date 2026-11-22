@@ -1565,8 +1565,9 @@ Inc., respectively. For further information, contact: fonts at gnome dot
 org.
 
 The layered wrapping implementation in
-`crates/d2-rs-elk/src/layered/wrapping.rs` is translated from elk-go
-8b285820520e `internal/layered/intermediate/wrapping/{stats,cuts,single_edge,cutting}.go`.
+`crates/d2-rs-elk/src/layered/wrapping.rs` and
+`crates/d2-rs-elk/src/layered/wrapping/multi_edge.rs` is translated from elk-go
+8b285820520e `internal/layered/intermediate/wrapping/{stats,cuts,single_edge,cutting,breaking_point_inserter,breaking_point_processor,breaking_point_remover}.go`.
 Copyright (c) 2016 Kiel University and others; Copyright (c) 2026 The elk-go
 Authors. These portions retain EPL-2.0; complete terms are reproduced in
 `crates/d2-rs-elk/ELK-EPL-2.0.txt`.

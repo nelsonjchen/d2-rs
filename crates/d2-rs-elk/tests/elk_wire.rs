@@ -209,50 +209,183 @@ fn feedback_edges_keep_forward_endpoint_approaches() {
 }
 
 #[test]
-fn single_edge_wrapping_routes_d2_paths_in_all_directions() {
-    for direction in ["right", "left", "down", "up"] {
-        let body = (0..11)
-            .map(|i| format!("n{i} -> n{}\n", i + 1))
-            .collect::<String>();
-        let ordinary = compile(&format!("direction: {direction}\n{body}"));
-        let wrapped = compile(&format!(
-            "direction: {direction}\nvars: {{d2-config: {{data: {{elk-wrappingStrategy: single_edge}}}}}}\n{body}"
-        ));
-        let baseline = layout(&ordinary, &LayoutOptions::default()).unwrap();
-        let result = layout(&wrapped, &LayoutOptions::default()).unwrap();
-        assert_eq!(result.boxes.len(), 12);
-        assert_eq!(result.routes.len(), 11);
-        let first = wrapped
-            .nodes()
-            .find(|(_, n)| n.external_id == "n0")
-            .unwrap()
-            .0;
-        let last = wrapped
-            .nodes()
-            .find(|(_, n)| n.external_id == "n11")
-            .unwrap()
-            .0;
-        let distance = |boxes: &std::collections::BTreeMap<_, Rect>| {
-            let a = boxes[&first].origin;
-            let b = boxes[&last].origin;
-            if matches!(direction, "right" | "left") {
-                (a.x - b.x).abs()
-            } else {
-                (a.y - b.y).abs()
+fn layered_wrapping_routes_d2_paths_in_all_directions() {
+    for strategy in ["single_edge", "multi_edge"] {
+        for direction in ["right", "left", "down", "up"] {
+            let body = (0..11)
+                .map(|i| format!("n{i} -> n{}\n", i + 1))
+                .collect::<String>();
+            let ordinary = compile(&format!("direction: {direction}\n{body}"));
+            let wrapped = compile(&format!(
+                "direction: {direction}\nvars: {{d2-config: {{data: {{elk-wrappingStrategy: {strategy}}}}}}}\n{body}"
+            ));
+            let baseline = layout(&ordinary, &LayoutOptions::default()).unwrap();
+            let result = layout(&wrapped, &LayoutOptions::default()).unwrap();
+            assert_eq!(result.boxes.len(), 12);
+            assert_eq!(result.routes.len(), 11);
+            let first = wrapped
+                .nodes()
+                .find(|(_, n)| n.external_id == "n0")
+                .unwrap()
+                .0;
+            let last = wrapped
+                .nodes()
+                .find(|(_, n)| n.external_id == "n11")
+                .unwrap()
+                .0;
+            let distance = |boxes: &std::collections::BTreeMap<_, Rect>| {
+                let a = boxes[&first].origin;
+                let b = boxes[&last].origin;
+                if matches!(direction, "right" | "left") {
+                    (a.x - b.x).abs()
+                } else {
+                    (a.y - b.y).abs()
+                }
+            };
+            assert!(
+                distance(&result.boxes) < distance(&baseline.boxes),
+                "{direction}"
+            );
+            for route in result.routes.values() {
+                assert!(route.len() >= 2);
+                assert!(route.iter().all(|p| p.x.is_finite() && p.y.is_finite()));
+                for pair in route.windows(2) {
+                    assert!(
+                        pair[0].x == pair[1].x || pair[0].y == pair[1].y,
+                        "{direction}: {pair:?}"
+                    );
+                }
             }
-        };
-        assert!(
-            distance(&result.boxes) < distance(&baseline.boxes),
-            "{direction}"
+        }
+    }
+}
+
+// The public LayoutJSON loop probe documented in ELK-WIRE.md. Dimensions are
+// from pinned elk-go 8b285820520e; inventories and every route are also checked.
+#[test]
+fn wrapping_loop_probe_matches_pinned_go_dimensions() {
+    use d2_rs_elk::{ElkGraph, layout_elk_graph_with_layered_pipeline};
+    use serde_json::json;
+    for (strategy, expected) in [("SINGLE_EDGE", (964., 75.)), ("MULTI_EDGE", (394., 258.))] {
+        let mut graph: ElkGraph = serde_json::from_value(json!({
+            "id": "root",
+            "layoutOptions": {
+                "elk.algorithm": "layered", "elk.direction": "RIGHT",
+                "elk.layered.wrapping.strategy": strategy,
+                "elk.layered.considerModelOrder.strategy": "NODES_AND_EDGES",
+                "elk.layered.cycleBreaking.strategy": "GREEDY_MODEL_ORDER",
+                "elk.layered.thoroughness": 8
+            },
+            "children": (0..12).map(|i| json!({"id": format!("n{i}"), "width": 60., "height": 40.})).collect::<Vec<_>>(),
+            "edges": (0..12).map(|i| json!({"id": format!("e{i}"), "sources": [format!("n{i}")], "targets": [format!("n{}", (i+1)%12)]})).collect::<Vec<_>>()
+        })).unwrap();
+        layout_elk_graph_with_layered_pipeline(
+            &mut graph,
+            ElkOptions {
+                node_spacing: 20.,
+                edge_node_spacing: 10.,
+                ..ElkOptions::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            (graph.width.unwrap(), graph.height.unwrap()),
+            expected,
+            "{strategy}"
         );
-        for route in result.routes.values() {
-            assert!(route.len() >= 2);
-            assert!(route.iter().all(|p| p.x.is_finite() && p.y.is_finite()));
-            for pair in route.windows(2) {
-                assert!(
-                    pair[0].x == pair[1].x || pair[0].y == pair[1].y,
-                    "{direction}: {pair:?}"
-                );
+        assert_eq!(graph.children.len(), 12);
+        assert_eq!(graph.edges.len(), 12);
+        for edge in graph.edges {
+            assert!(!edge.sections.is_empty(), "{strategy}/{}", edge.id);
+            for section in edge.sections {
+                let mut points = vec![section.start];
+                points.extend(section.bends);
+                points.push(section.end);
+                for pair in points.windows(2) {
+                    assert!(pair[0].x.is_finite() && pair[0].y.is_finite());
+                    assert!(
+                        pair[0].x == pair[1].x || pair[0].y == pair[1].y,
+                        "{strategy}/{}: {pair:?}",
+                        edge.id
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn wrapping_nested_scopes_restore_cycle_and_label_routes() {
+    use d2_rs_elk::layout_elk_graph_with_layered_pipeline;
+    for with_labels in [false, true] {
+        for strategy in ["SINGLE_EDGE", "MULTI_EDGE"] {
+            for direction in ["right", "left", "down", "up"] {
+                let chain = (0..11)
+                    .map(|i| format!("n{i} -> n{}: step\n", i + 1))
+                    .collect::<String>();
+                let source =
+                    format!("direction: {direction}\ng: {{\n{chain}\nn11 -> n0: return\n}}\n");
+                let source = if with_labels {
+                    source
+                } else {
+                    source.replace(": step", "").replace(": return", "")
+                };
+                let d2_graph = compile(&source);
+                let mut graph =
+                    graph_to_elk_graph(&d2_graph, &d2_graph.node_labels, ElkOptions::default());
+                let container = graph
+                    .children
+                    .iter_mut()
+                    .find(|n| !n.children.is_empty())
+                    .unwrap();
+                container
+                    .layout_options
+                    .get_or_insert_with(|| serde_json::json!({}))["elk.layered.wrapping.strategy"] =
+                    strategy.into();
+                let result =
+                    layout_elk_graph_with_layered_pipeline(&mut graph, ElkOptions::default());
+                if strategy == "MULTI_EDGE" && with_labels {
+                    assert!(
+                        result
+                            .unwrap_err()
+                            .to_string()
+                            .contains("center-label edge restoration is not yet ported")
+                    );
+                    continue;
+                }
+                result.unwrap();
+                let container = graph
+                    .children
+                    .iter()
+                    .find(|n| !n.children.is_empty())
+                    .unwrap();
+                assert_eq!(container.children.len(), 12);
+                let edges = graph
+                    .edges
+                    .iter()
+                    .chain(container.edges.iter())
+                    .collect::<Vec<_>>();
+                assert_eq!(edges.len(), 12);
+                for edge in edges {
+                    assert!(
+                        !edge.sections.is_empty(),
+                        "{strategy}/{direction}/{}",
+                        edge.id
+                    );
+                    for section in &edge.sections {
+                        let mut points = vec![section.start];
+                        points.extend(section.bends.iter().copied());
+                        points.push(section.end);
+                        assert!(points.iter().all(|p| p.x.is_finite() && p.y.is_finite()));
+                        assert!(
+                            points
+                                .windows(2)
+                                .all(|p| p[0].x == p[1].x || p[0].y == p[1].y),
+                            "{strategy}/{direction}/{}",
+                            edge.id
+                        );
+                    }
+                }
             }
         }
     }

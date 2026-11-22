@@ -638,6 +638,7 @@ pub struct LayeredArena {
     wrapping_edge_node_spacing: BTreeMap<LNodeId, f64>,
     /// OriginalElement edge identity on wrapping dummies.
     wrapping_original_edges: BTreeMap<LNodeId, LEdgeId>,
+    breaking_points: wrapping::multi_edge::State,
     /// Optional source/target property presence retained by HyperedgeDummyMerger.
     long_edge_merge_ends: BTreeMap<LNodeId, (Option<LPortId>, Option<LPortId>)>,
     /// LongEdgeHasLabelDummies propagated by the source splitter.
@@ -1406,6 +1407,12 @@ impl LayeredArena {
             ));
         }
 
+        if !pending.is_empty() && wrapping::is_multi_edge(self, graph_id) {
+            return Err(LayeringError::Import(
+                "elk-wrappingStrategy=MULTI_EDGE: center-label edge restoration is not yet ported"
+                    .into(),
+            ));
+        }
         pending.stable_sort_by_key(|entry| edge_visit_order[&entry.1]);
         for (
             edge_id,
@@ -11583,6 +11590,7 @@ fn order_flat_component_with_shared_random(
     #[cfg(feature = "diagnostic-traces")]
     crate::trace::emit_value("ordering", "p3_phase", "pipeline", "end");
     if result.is_ok() {
+        wrapping::process_breaking_points(arena, graph_id)?;
         run_greedy_switch_component(arena, graph_id, random);
     }
     result
