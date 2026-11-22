@@ -636,7 +636,7 @@ fn text_event(
             }
         }
         context(cancel)?;
-    } else if name == "title" {
+    } else if matches!(name, "title" | "desc" | "dc:title") {
         for _ in value.chunks(4096) {
             context(cancel)?;
         }

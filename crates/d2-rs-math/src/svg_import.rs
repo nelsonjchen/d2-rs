@@ -55,9 +55,23 @@ pub fn import_labeled(
     current_color: Option<[u8; 4]>,
     cancel: Option<&d2_rs_core::CancellationToken>,
 ) -> Result<Outcome, String> {
+    import_labeled_with_decoded_limit(source, data, limits, current_color, 0, cancel)
+}
+
+/// Import with an independent embedded-raster decoded-pixel ceiling.
+/// Zero retains the original source-byte fallback.
+pub fn import_labeled_with_decoded_limit(
+    source: &str,
+    data: &[u8],
+    limits: [usize; 9],
+    current_color: Option<[u8; 4]>,
+    decoded_limit: usize,
+    cancel: Option<&d2_rs_core::CancellationToken>,
+) -> Result<Outcome, String> {
     let color = current_color.unwrap_or([0, 0, 0, 255]);
     let document = super::svg_xml_document::parse_bytes(source, data, limits, cancel)?;
     let mut compiled = Compilation::with_images(&document);
+    compiled.image_assets.as_mut().unwrap().decoded_limit = decoded_limit;
     if let super::svg_compile::Progress::Image(index) =
         super::svg_compile::compile(source, &document, &mut compiled, limits, color, cancel)?
     {
@@ -76,6 +90,7 @@ pub fn import_labeled(
     )?;
     let mut inherited = super::svg_style::Style::default();
     inherited.paint.color = color;
+    inherited.viewport = viewport.view_box;
     let mut scene = Scene::default();
     let mut work = Work {
         budget: super::svg_primitive::Budget {
@@ -260,5 +275,131 @@ mod image_tests {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod catalog_contracts {
+    use super::*;
+    use crate::svg_primitive::Paint;
+    fn import(source: &str) -> Imported {
+        match import_labeled(
+            "icon",
+            source.as_bytes(),
+            [262144, 32, 2048, 4096, 262144, 16384, 512, 8, 512],
+            None,
+            None,
+        )
+        .unwrap()
+        {
+            Outcome::Imported(imported) => imported,
+            _ => panic!("image unexpectedly pending"),
+        }
+    }
+    #[test]
+    fn gradient_defaults_and_referencing_viewports() {
+        // Upstream 8558856dc TestIconGradientCoordinatesAndPixels.
+        let imported = import(
+            r##"<svg viewBox="0 0 40 20"><linearGradient id="g" gradientUnits="userSpaceOnUse" x1="25%" spreadMethod="reflect"><stop stop-color="red"/><stop offset="100%" stop-color="blue"/></linearGradient><rect width="40" height="20" fill="url(#g)"/><svg width="10" height="10" viewBox="0 0 8 4"><rect width="8" height="4" fill="url(#g)"/></svg></svg>"##,
+        );
+        let paints: Vec<_> = imported
+            .scene
+            .nodes
+            .iter()
+            .filter_map(|n| n.primitive.as_ref())
+            .filter_map(|p| p.fill.as_ref())
+            .collect();
+        assert_eq!(paints.len(), 2);
+        for (paint, expected) in paints.into_iter().zip([(10., 40.), (2., 8.)]) {
+            let Paint::Linear {
+                start,
+                end,
+                units,
+                spread,
+                stops,
+                ..
+            } = paint
+            else {
+                panic!("linear")
+            };
+            assert_eq!((start[0], end[0]), expected);
+            assert_eq!((*units, *spread), (1, 1));
+            assert_eq!(stops[0].color, [255, 0, 0, 255]);
+            assert_eq!(stops[1].color, [0, 0, 255, 255]);
+        }
+        let imported = import(
+            r##"<svg viewBox="0 0 40 20"><linearGradient id="g"><stop/><stop offset="100%"/></linearGradient><rect width="40" height="20" fill="url(#g)"/></svg>"##,
+        );
+        let paint = imported
+            .scene
+            .nodes
+            .iter()
+            .find_map(|n| n.primitive.as_ref().and_then(|p| p.fill.as_ref()))
+            .unwrap();
+        assert!(matches!(
+            paint,
+            Paint::Linear {
+                start: [0., 0.],
+                end: [1., 0.],
+                units: 0,
+                ..
+            }
+        ));
+    }
+    #[test]
+    fn empty_degenerate_gradients_and_clamped_stops() {
+        // Upstream 8558856dc TestIconGradientStopDefaultsAndDegeneratePaint.
+        let imported = import(
+            r##"<svg viewBox="0 0 4 2"><defs><linearGradient/><linearGradient id="empty"/><linearGradient id="step" x2="0" spreadMethod="repeat"><stop offset="-20%"/><stop offset=".75"/><stop offset=".25"/><stop offset="150%" stop-color="red"/></linearGradient></defs><rect width="2" height="2" fill="url(#empty)"/><rect x="2" width="2" height="2" fill="url(#step)"/></svg>"##,
+        );
+        let primitives: Vec<_> = imported
+            .scene
+            .nodes
+            .iter()
+            .filter_map(|n| n.primitive.as_ref())
+            .collect();
+        // compile.go svgGeometry.primitive omits an unpainted rectangle.
+        assert_eq!(primitives.len(), 1);
+        assert_eq!(primitives[0].geometry.bounds[0], 2.);
+        let Some(Paint::Linear {
+            start,
+            end,
+            stops,
+            spread,
+            ..
+        }) = &primitives[0].fill
+        else {
+            panic!("linear")
+        };
+        assert_eq!(start, end);
+        assert_eq!(*spread, 2);
+        assert_eq!(
+            stops.iter().map(|s| s.offset).collect::<Vec<_>>(),
+            [0., 0.75, 0.75, 1.]
+        );
+    }
+    #[test]
+    fn editor_descriptions_optional_metadata_and_class_lists() {
+        let imported = import(
+            r##"<svg viewBox="0 0 48 24" version="1.2" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/"><desc>Editor description</desc><metadata><rdf:RDF><cc:Work><dc:format>image/svg+xml</dc:format><dc:title>Logo</dc:title></cc:Work></rdf:RDF></metadata><style>.one,.two{fill:red}.two{fill:blue}</style><rect width="4" height="4" class="one"/><rect x="4" width="4" height="4" class="two"/></svg>"##,
+        );
+        let colors: Vec<_> = imported
+            .scene
+            .nodes
+            .iter()
+            .filter_map(|n| n.primitive.as_ref())
+            .map(|p| p.fill.clone())
+            .collect();
+        assert_eq!(
+            colors,
+            [
+                Some(Paint::Solid {
+                    color: [255, 0, 0, 255]
+                }),
+                Some(Paint::Solid {
+                    color: [0, 0, 255, 255]
+                })
+            ]
+        );
     }
 }

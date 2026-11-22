@@ -130,6 +130,8 @@ impl AssetOptions {
 /// d2svgimport.Limits (the fields d2scenebuild checks).
 #[derive(Clone, Copy, Debug, Default)]
 pub struct SvgImportLimits {
+    /// Zero uses max_bytes, matching upstream Limits.MaxDecodedRasterBytes.
+    pub max_decoded_raster_bytes: i64,
     pub max_bytes: i64,
     pub max_depth: i64,
     pub max_elements: i64,
@@ -1576,3 +1578,5 @@ fn expand_dimensions(
         checked_add(height, double_amount, MIN_INT, MAX_INT)?,
     ))
 }
+
+pub use assets::UNAVAILABLE_IMAGE_SVG;

@@ -67,7 +67,9 @@ impl State {
                 match name {
                     "svg" | "g" | "defs" | "style" | "path" | "rect" | "circle" | "ellipse"
                     | "line" | "polyline" | "polygon" | "image" | "text" | "use" | "clipPath"
-                    | "linearGradient" | "stop" | "title" | "metadata" => return Ok(name.into()),
+                    | "linearGradient" | "stop" | "title" | "desc" | "metadata" => {
+                        return Ok(name.into());
+                    }
                     "script" | "foreignObject" => {
                         return Err(error(format!("forbidden element <{name}>")));
                     }
@@ -79,7 +81,9 @@ impl State {
             }
             RDF if name == "RDF" => return Ok("rdf:RDF".into()),
             CC if name == "Work" => return Ok("cc:Work".into()),
-            DC if name == "format" || name == "type" => return Ok(format!("dc:{name}")),
+            DC if name == "format" || name == "type" || name == "title" => {
+                return Ok(format!("dc:{name}"));
+            }
             SODIPODI if name == "namedview" => return Ok("sodipodi:namedview".into()),
             _ => {}
         }

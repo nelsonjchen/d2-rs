@@ -102,7 +102,7 @@ fn display_source(source: &str) -> String {
 
 /// imageasset's MIME type for a probed resource (probe.go mimeForFormat and
 /// svgResource).
-fn resource_mime(bytes: &[u8]) -> &'static str {
+pub(super) fn resource_mime(bytes: &[u8]) -> &'static str {
     if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
         "image/png"
     } else if bytes.starts_with(&[0xff, 0xd8, 0xff]) {
@@ -394,7 +394,7 @@ fn inline_image_resolver(
             max_fetched_bytes: MAX_ASSET_BYTES as i64,
             max_encoded_bytes: MAX_ASSET_BYTES as i64,
             max_decompressed_bytes: MAX_ASSET_BYTES as i64,
-            max_svg_bytes: 64 << 10,
+            max_svg_bytes: 256 << 10,
             max_decoded_width: MAX_DECODED_ASSET_DIMENSION as i64,
             max_decoded_height: MAX_DECODED_ASSET_DIMENSION as i64,
             max_decoded_pixels: max_decoded_pixels.unwrap_or(MAX_DECODED_ASSET_PIXELS as u64)

@@ -587,3 +587,55 @@ fn sketch_admission_accounts_for_rough_sets_and_shared_streak_commands() {
     options.sketch_budget.max_operation_sets = 4;
     build(&d, &options).unwrap();
 }
+
+#[test]
+fn catalog_embedded_raster_whitespace_and_independent_decoded_budget() {
+    // Upstream 8558856dc TestIconResourceLimitsAndVisibility.
+    use base64::Engine as _;
+    let bitmap = d2_rs_raster::NrgbaImage {
+        rect: d2_rs_raster::Rect::new(0, 0, 16, 16),
+        stride: 64,
+        pix: [0, 255, 0, 255].repeat(256),
+    };
+    let png = d2_rs_raster::encode_png_default(&bitmap).unwrap();
+    let encoded = base64::engine::general_purpose::STANDARD.encode(png);
+    let source = format!(
+        r#"<svg width="8" height="8"><image width="8" height="8" href="data:image/png;base64,{}
+{}"/></svg>"#,
+        &encoded[..4],
+        &encoded[4..]
+    );
+    let limits = [
+        source.len(),
+        32,
+        2048,
+        4096,
+        source.len(),
+        16384,
+        512,
+        8,
+        512,
+    ];
+    let import = |decoded| {
+        d2_rs_math::svg_import::import_labeled_with_decoded_limit(
+            "icon",
+            source.as_bytes(),
+            limits,
+            None,
+            decoded,
+            None,
+        )
+    };
+    assert!(matches!(
+        import(1024).unwrap(),
+        d2_rs_math::svg_import::Outcome::Imported(_)
+    ));
+    assert!(
+        import(1023)
+            .err()
+            .unwrap()
+            .contains("embedded raster decoded bytes exceed limit 1023")
+    );
+    assert!(source.len() < 1024);
+    assert!(import(0).is_err(), "zero retains the source-byte fallback");
+}

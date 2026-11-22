@@ -563,7 +563,7 @@ pub(crate) fn validate_shape_effects(object: &str, s: &Shape) -> Result<()> {
         && s.multiple
         && matches!(
             s.type_.as_str(),
-            SHAPE_TEXT | SHAPE_CODE | SHAPE_CLASS | SHAPE_SQL_TABLE | SHAPE_IMAGE
+            SHAPE_TEXT | SHAPE_CODE | SHAPE_CLASS | SHAPE_SQL_TABLE
         )
     {
         return Err(unsupported(

@@ -222,7 +222,7 @@ pub fn instantiate(
                     returning = true;
                     continue;
                 }
-                let style = super::svg_style::compute(
+                let mut style = super::svg_style::compute(
                     source,
                     name,
                     &frame.inherited,
@@ -230,6 +230,9 @@ pub fn instantiate(
                     &resources,
                     cancel,
                 )?;
+                if let Some(viewport) = &compiled.states[index].viewport {
+                    style.viewport = viewport.view_box;
+                }
                 super::svg_compile::validate_stroke_caps(
                     source,
                     name,
@@ -280,8 +283,11 @@ pub fn instantiate(
                 if name == "svg" && frame.referenced {
                     return Err(error("referenced <svg> resources are unsupported".into()));
                 }
+                let mut paint = style.paint.clone();
+                super::svg_gradient::resolve(&mut paint.fill, style.viewport)?;
+                super::svg_gradient::resolve(&mut paint.stroke, style.viewport)?;
                 let (primitive, commands) =
-                    super::svg_primitive::emit(&compiled.geometry[index], &style.paint, cancel)?;
+                    super::svg_primitive::emit(&compiled.geometry[index], &paint, cancel)?;
                 if !matches!(name, "svg" | "g") && primitive.is_none() {
                     stack.pop();
                     returned = None;

@@ -45,8 +45,8 @@ fn allowed(name: &str) -> Option<&'static [&'static str]> {
         ],
         "g" | "defs" => &[],
         "style" => &["type"],
-        "title" | "metadata" => &["id"],
-        "rdf:RDF" | "cc:Work" | "dc:format" | "dc:type" => &[],
+        "title" | "desc" | "metadata" => &["id"],
+        "rdf:RDF" | "cc:Work" | "dc:format" | "dc:type" | "dc:title" => &[],
         "sodipodi:namedview" => &[
             "id",
             "pagecolor",
@@ -152,7 +152,7 @@ pub fn admit(
     if name == "svg" {
         if root {
             if let Some(raw) = element.attrs.get("version") {
-                if !matches!(trim_space(raw, cancel)?, "1.0" | "1.1") {
+                if !matches!(trim_space(raw, cancel)?, "1.0" | "1.1" | "1.2") {
                     return Err(error("root <svg> has unsupported version".into()));
                 }
             }

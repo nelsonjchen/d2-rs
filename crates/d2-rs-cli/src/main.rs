@@ -3419,7 +3419,7 @@ fn render_source_format_with_pptx_properties(
                 &preview_options,
                 sketch,
             )?;
-            let svg = imgbundle_d2svg(&source_args, true, svg);
+            let svg = imgbundler_cli::raster_preview(&svg, &preview_options)?;
             Some(if preview_appendix {
                 d2_rs_render::d2svg_append_appendix(
                     &graph,
@@ -10813,6 +10813,125 @@ layers: {
                 .contains("data:image/svg+xml;base64,")
         );
         let _ = std::fs::remove_dir_all(base);
+    }
+
+    #[test]
+    fn png_watch_preview_embeds_local_snapshot_and_retries_missing_image() {
+        // Upstream 6012a84bd and 1c7d0204e PNG watch contracts.
+        let root = std::env::temp_dir().join(format!("d2-port-watch-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let args = [
+            "--engine=dagre".into(),
+            format!("--path={}", root.join("input.d2").display()),
+        ];
+        let source = b"x: {shape: image; icon: missing&image.svg; width: 64; height: 64}";
+        let render = || {
+            render_source_format_with_preview(
+                source,
+                &args,
+                ExportFormat::Png,
+                Some(1),
+                None,
+                true,
+                false,
+            )
+            .unwrap()
+        };
+        let (png, preview) = render();
+        assert!(png.starts_with(b"\x89PNG"));
+        let placeholder = format!(
+            "data:image/svg+xml;base64,{}",
+            base64::engine::general_purpose::STANDARD
+                .encode(d2_rs_scenebuild::UNAVAILABLE_IMAGE_SVG)
+        );
+        assert!(
+            String::from_utf8(preview.unwrap())
+                .unwrap()
+                .contains(&placeholder)
+        );
+        let asset =
+            br#"<svg width="64" height="64"><rect width="64" height="64" fill="red"/></svg>"#;
+        std::fs::write(root.join("missing&image.svg"), asset).unwrap();
+        let (next_png, next_preview) = render();
+        assert_ne!(png, next_png);
+        let expected = format!(
+            "data:image/svg+xml;base64,{}",
+            base64::engine::general_purpose::STANDARD.encode(asset)
+        );
+        let next_preview = String::from_utf8(next_preview.unwrap()).unwrap();
+        assert!(next_preview.contains(&expected));
+        assert!(!next_preview.contains(&placeholder));
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn catalog_gradient_image_multiple_exports_png_and_gif_pixels() {
+        // Upstream 8558856dc TestSVGIconAcrossNativeExports, pixel contract.
+        let root = std::env::temp_dir().join(format!("d2-port-catalog-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("icon.svg"), br##"<svg viewBox="0 0 40 20"><linearGradient id="g"><stop stop-color="red"/><stop offset="100%" stop-color="blue"/></linearGradient><rect width="40" height="20" fill="url(#g)"/></svg>"##).unwrap();
+        let source = b"x: {shape: image; icon: ./icon.svg; style.multiple: true}";
+        let args = [
+            "--engine=dagre".into(),
+            "--pad=0".into(),
+            "--scale=1".into(),
+            format!("--path={}", root.join("input.d2").display()),
+        ];
+        let (png, _) = render_source_format_with_preview(
+            source,
+            &args,
+            ExportFormat::Png,
+            Some(1),
+            None,
+            false,
+            false,
+        )
+        .unwrap();
+        let mut reader = png::Decoder::new(std::io::Cursor::new(png))
+            .read_info()
+            .unwrap();
+        let mut pixels = vec![0; reader.output_buffer_size().unwrap()];
+        let info = reader.next_frame(&mut pixels).unwrap();
+        let check = |pixel: &[u8], red: bool| {
+            assert!(pixel[1] < 32, "{pixel:?}");
+            if red {
+                assert!(
+                    pixel[0] > 144 && pixel[0] as u16 > pixel[2] as u16 * 2,
+                    "{pixel:?}"
+                );
+            } else {
+                assert!(
+                    pixel[2] > 144 && pixel[2] as u16 > pixel[0] as u16 * 2,
+                    "{pixel:?}"
+                );
+            }
+        };
+        for (fraction, red) in [(2, true), (8, false)] {
+            let offset = ((info.height / 2 * info.width + info.width * fraction / 10)
+                * info.color_type.samples() as u32) as usize;
+            check(&pixels[offset..offset + 3], red);
+        }
+        let (gif, _) = render_source_format_with_preview(
+            source,
+            &args,
+            ExportFormat::Gif,
+            None,
+            Some(100),
+            false,
+            false,
+        )
+        .unwrap();
+        let mut options = gif::DecodeOptions::new();
+        options.set_color_output(gif::ColorOutput::RGBA);
+        let mut reader = options.read_info(std::io::Cursor::new(gif)).unwrap();
+        let frame = reader.read_next_frame().unwrap().unwrap();
+        for (fraction, red) in [(2, true), (8, false)] {
+            let offset = (frame.height as usize / 2 * frame.width as usize
+                + frame.width as usize * fraction / 10)
+                * 4;
+            check(&frame.buffer[offset..offset + 3], red);
+        }
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

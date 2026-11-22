@@ -275,6 +275,7 @@ struct Session {
 /// The serial session lock also coalesces simultaneous canonical requests.
 #[derive(Debug)]
 pub struct RasterImageResolver {
+    data_only: bool,
     base_dir: PathBuf,
     limits: ImageAssetLimits,
     files: Arc<dyn ImageFileReader>,
@@ -302,6 +303,7 @@ impl RasterImageResolver {
             current_dir()?.join(base_dir)
         };
         Ok(Self {
+            data_only: false,
             base_dir: clean(&base_dir),
             limits,
             files,
@@ -313,6 +315,16 @@ impl RasterImageResolver {
             session: Mutex::default(),
             cache: None,
         })
+    }
+
+    /// imageasset.NewDataOnly: classify and apply local policy before rejecting
+    /// external loading (upstream b43d0c44f). No external transport is used.
+    pub fn new_data_only(limits: ImageAssetLimits) -> Result<Self, ImageResolveError> {
+        let mut resolver = Self::new(Path::new("."), limits, Arc::new(ImageLocalFiles::Denied))?;
+        resolver.data_only = true;
+        resolver.http = None;
+        resolver.owns_http_transport = false;
+        Ok(resolver)
     }
 
     /// Install a caller-owned client, preserving its redirect/network policy.
@@ -552,6 +564,8 @@ impl RasterImageResolver {
         let loaded = if data_uri {
             self.load_data(source, cancel)
                 .map(|(bytes, len)| (bytes, len, String::new()))
+        } else if self.data_only {
+            Err(error("data-only resolver requires a data URI"))
         } else if let Some(bytes) = acquired {
             let admit = || {
                 let len = bytes.len() as i64;

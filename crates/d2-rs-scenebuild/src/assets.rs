@@ -4,8 +4,7 @@
 //! SVG imports use the bounded native importer through svgimport.rs.
 
 use d2_rs_scene::{
-    AspectAlign, AspectFit, AspectRatio, Asset, Box as SceneBox, Ellipse, Image, LineCap, LineJoin,
-    Node, Nrgba, Paint, Path, PathCommand, Point, Primitive, Rect, Stroke,
+    AspectAlign, AspectFit, AspectRatio, Asset, Box as SceneBox, Image, Node, Primitive,
 };
 use d2_rs_target::{Connection, Shape};
 use sha2::{Digest, Sha256};
@@ -362,120 +361,47 @@ impl Builder<'_> {
 }
 
 /// newUnavailableImageAsset: one document-owned 64x64 vector placeholder.
+/// Built-in missing-image icon shared by native exports and watch previews.
+/// Source: d2scenebuild/assets.go at upstream 1c7d0204e.
+pub const UNAVAILABLE_IMAGE_SVG: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" id="image-unavailable" width="64" height="64" viewBox="0 0 64 64">
+  <path id="image-unavailable:page" d="M7 3H42L57 18V61H7Z" fill="#f7f8fa" stroke="#7b838c" stroke-width="2" stroke-linejoin="round"/>
+  <rect id="image-unavailable:sky" x="13" y="23" width="38" height="30" fill="#b8d7f2"/>
+  <circle id="image-unavailable:sun" cx="23" cy="31" r="4" fill="#fff"/>
+  <path id="image-unavailable:hills" d="M13 49L24 37L32 45L39 39L51 49V53H13Z" fill="#55b94b"/>
+  <path id="image-unavailable:break" d="M37 54L51 40" fill="none" stroke="#f7f8fa" stroke-width="5" stroke-linecap="square"/>
+  <rect id="image-unavailable:image-outline" x="13" y="23" width="38" height="30" fill="none" stroke="#7b838c" stroke-linejoin="round"/>
+  <path id="image-unavailable:fold" d="M42 3V18H57" fill="none" stroke="#7b838c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>"##;
+
 fn unavailable_image_asset() -> Asset {
-    let page_fill = Paint::solid(Nrgba::new(0xf7, 0xf8, 0xfa, 0xff));
-    let outline_paint = Paint::solid(Nrgba::new(0x7b, 0x83, 0x8c, 0xff));
-    let outline = |width| Stroke {
-        paint: Some(outline_paint.clone()),
-        width,
-        cap: LineCap::ROUND,
-        join: LineJoin::ROUND,
-        ..Default::default()
-    };
-    let path = |id, commands, fill, stroke| {
-        node(
-            id,
-            Some(Primitive::Path(Path {
-                commands,
-                fill,
-                stroke,
-                ..Default::default()
-            })),
-        )
-    };
-    let m = PathCommand::move_to;
-    let l = PathCommand::line_to;
-    let c = PathCommand::close;
-    let page = path(
-        "image-unavailable:page",
-        vec![
-            m(7., 3.),
-            l(42., 3.),
-            l(57., 18.),
-            l(57., 61.),
-            l(7., 61.),
-            c(),
+    // The fixed icon has its own budget, independent of user SVG imports.
+    let imported = d2_rs_math::svg_import::import_labeled(
+        "image:unavailable",
+        UNAVAILABLE_IMAGE_SVG.as_bytes(),
+        [
+            UNAVAILABLE_IMAGE_SVG.len(),
+            4,
+            32,
+            64,
+            UNAVAILABLE_IMAGE_SVG.len(),
+            128,
+            1,
+            1,
+            8,
         ],
-        Some(page_fill.clone()),
-        Some(outline(2.)),
-    );
-    let sky = node(
-        "image-unavailable:sky",
-        Some(Primitive::Rect(Rect {
-            r#box: SceneBox {
-                x: 13.,
-                y: 23.,
-                width: 38.,
-                height: 30.,
-            },
-            fill: Some(Paint::solid(Nrgba::new(0xb8, 0xd7, 0xf2, 0xff))),
-            ..Default::default()
-        })),
-    );
-    let sun = node(
-        "image-unavailable:sun",
-        Some(Primitive::Ellipse(Ellipse {
-            center: Point::new(23., 31.),
-            radius_x: 4.,
-            radius_y: 4.,
-            fill: Some(Paint::solid(Nrgba::new(255, 255, 255, 255))),
-            ..Default::default()
-        })),
-    );
-    let hills = path(
-        "image-unavailable:hills",
-        vec![
-            m(13., 49.),
-            l(24., 37.),
-            l(32., 45.),
-            l(39., 39.),
-            l(51., 49.),
-            l(51., 53.),
-            l(13., 53.),
-            c(),
-        ],
-        Some(Paint::solid(Nrgba::new(0x55, 0xb9, 0x4b, 255))),
         None,
-    );
-    let break_mark = path(
-        "image-unavailable:break",
-        vec![m(37., 54.), l(51., 40.)],
         None,
-        Some(Stroke {
-            paint: Some(page_fill),
-            width: 5.,
-            cap: LineCap::SQUARE,
-            join: LineJoin::ROUND,
-            ..Default::default()
-        }),
-    );
-    let image_outline = node(
-        "image-unavailable:image-outline",
-        Some(Primitive::Rect(Rect {
-            r#box: SceneBox {
-                x: 13.,
-                y: 23.,
-                width: 38.,
-                height: 30.,
-            },
-            stroke: Some(outline(1.)),
-            ..Default::default()
-        })),
-    );
-    let fold = path(
-        "image-unavailable:fold",
-        vec![m(42., 3.), l(42., 18.), l(57., 18.)],
-        None,
-        Some(outline(2.)),
-    );
-    let mut root = node("image-unavailable", None);
-    root.children = Some(vec![page, sky, sun, hills, break_mark, image_outline, fold]);
+    )
+    .expect("built-in unavailable image is valid SVG");
+    let d2_rs_math::svg_import::Outcome::Imported(imported) = imported else {
+        unreachable!("built-in icon has no raster resources")
+    };
     Asset::VectorAsset {
         view_box: SceneBox {
             width: 64.,
             height: 64.,
             ..Default::default()
         },
-        root: Some(Box::new(root)),
+        root: Some(Box::new(crate::svgimport::root(imported.scene))),
     }
 }

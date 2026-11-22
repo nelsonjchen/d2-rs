@@ -65,6 +65,7 @@ pub fn paint(
         .get(id)
         .ok_or_else(|| "paint server references an unknown local id".to_owned())?;
     let Some(Paint::Linear {
+        percentages,
         start,
         end,
         stops,
@@ -88,6 +89,7 @@ pub fn paint(
     }
     Ok((
         Some(Paint::Linear {
+            percentages: *percentages,
             start: *start,
             end: *end,
             stops: owned,
@@ -163,6 +165,7 @@ mod tests {
                         .into(),
                         gradient: if kind == "linearGradient" {
                             Some(Paint::Linear {
+                                percentages: [false; 4],
                                 start: [0.; 2],
                                 end: [0.; 2],
                                 stops: Vec::new(),

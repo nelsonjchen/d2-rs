@@ -16,6 +16,8 @@ pub fn non_rendering(name: &str) -> bool {
     matches!(
         name,
         "title"
+            | "desc"
+            | "dc:title"
             | "metadata"
             | "rdf:RDF"
             | "cc:Work"
@@ -58,13 +60,15 @@ pub fn validate_metadata(
                         display(&element.name)
                     )));
                 }
-                "cc:Work" if !matches!(element.name.as_str(), "dc:format" | "dc:type") => {
+                "cc:Work"
+                    if !matches!(element.name.as_str(), "dc:format" | "dc:type" | "dc:title") =>
+                {
                     return Err(error(format!(
                         "element <cc:Work> has unsupported child <{}>",
                         display(&element.name)
                     )));
                 }
-                "title" | "dc:format" | "dc:type" | "sodipodi:namedview" => {
+                "title" | "desc" | "dc:format" | "dc:type" | "dc:title" | "sodipodi:namedview" => {
                     return Err(error(format!(
                         "non-rendering element <{name}> cannot contain child elements"
                     )));
@@ -89,7 +93,7 @@ pub fn validate_metadata(
                     "element <cc:Work> is only supported inside <rdf:RDF>".into(),
                 ));
             }
-            "dc:format" | "dc:type" if parent_name != Some("cc:Work") => {
+            "dc:format" | "dc:type" | "dc:title" if parent_name != Some("cc:Work") => {
                 return Err(error(format!(
                     "element <{}> is only supported inside <cc:Work>",
                     element.name
@@ -129,17 +133,16 @@ pub fn validate_metadata(
                     "element <rdf:RDF> must contain exactly one <cc:Work>".into(),
                 ));
             }
-            "cc:Work"
-                if element.children.len() != 2
-                    || !matches!(
-                        (name(0), name(1)),
-                        ("dc:format", "dc:type") | ("dc:type", "dc:format")
-                    ) =>
-            {
-                return Err(error(
-                    "element <cc:Work> must contain exactly one <dc:format> and one <dc:type>"
-                        .into(),
-                ));
+            "cc:Work" => {
+                let mut seen = std::collections::HashSet::new();
+                for &child in &element.children {
+                    let name = &document.elements[child].name;
+                    if !seen.insert(name) {
+                        return Err(error(format!(
+                            "element <cc:Work> contains duplicate <{name}>"
+                        )));
+                    }
+                }
             }
             _ => {}
         }

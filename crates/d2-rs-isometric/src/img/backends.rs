@@ -310,6 +310,7 @@ mod svg_ownership {
                 units,
                 transform,
                 spread,
+                ..
             } => Paint::LinearGradient(LinearGradient {
                 start: point(*start),
                 end: point(*end),

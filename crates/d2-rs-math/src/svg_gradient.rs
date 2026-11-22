@@ -50,37 +50,45 @@ pub fn compile(
             "element <linearGradient> has invalid {name}: {reason}"
         ))
     };
-    for name in ["x1", "y1", "x2", "y2", "gradientUnits"] {
-        if !attrs.contains_key(name) {
-            return Err(error(format!(
-                "element <linearGradient> is missing required attribute {name:?}"
-            )));
+    let units = match attrs.get("gradientUnits").map(|v| v.trim()).unwrap_or("") {
+        "" | "objectBoundingBox" => 0,
+        "userSpaceOnUse" => 1,
+        _ => {
+            return Err(error(
+                "element <linearGradient> has invalid gradientUnits".into(),
+            ));
         }
-    }
-    if trim_space(&attrs["gradientUnits"], cancel)? != "userSpaceOnUse" {
-        return Err(error(
-            "element <linearGradient> supports only gradientUnits=\"userSpaceOnUse\"".into(),
-        ));
-    }
-    let mut coordinates = [0.; 4];
+    };
+    let spread = match attrs.get("spreadMethod").map(|v| v.trim()).unwrap_or("") {
+        "" | "pad" => 0,
+        "reflect" => 1,
+        "repeat" => 2,
+        _ => {
+            return Err(error(
+                "element <linearGradient> has invalid spreadMethod".into(),
+            ));
+        }
+    };
+    let mut coordinates = [0., 0., 1., 0.];
+    let mut percentages = [false, false, true, false];
     for (index, name) in ["x1", "y1", "x2", "y2"].iter().enumerate() {
-        coordinates[index] =
-            svg_length::length(&attrs[*name], true).map_err(|e| property(name, e))?;
+        if let Some(raw) = attrs.get(*name) {
+            let raw = raw.trim();
+            let (number, percent) = raw.strip_suffix('%').map_or((raw, false), |n| (n, true));
+            if percent && number.trim() != number {
+                return Err(property(
+                    name,
+                    "percentage sign must follow its number".into(),
+                ));
+            }
+            let value = svg_length::length(number, !percent && units == 1)
+                .map_err(|e| property(name, e))?;
+            coordinates[index] = if percent { value / 100. } else { value };
+            percentages[index] = percent;
+        }
     }
     let start = [coordinates[0], coordinates[1]];
     let end = [coordinates[2], coordinates[3]];
-    if start == end {
-        return Err(error(
-            "element <linearGradient> has a zero-length gradient vector".into(),
-        ));
-    }
-    if let Some(raw) = attrs.get("spreadMethod") {
-        if trim_space(raw, cancel)? != "pad" {
-            return Err(error(
-                "element <linearGradient> supports only the pad spread method".into(),
-            ));
-        }
-    }
     let mut transform = [1., 0., 0., 1., 0., 0.];
     if let Some(raw) = attrs.get("gradientTransform") {
         let raw = trim_space(raw, cancel)?;
@@ -109,23 +117,14 @@ pub fn compile(
             "element <linearGradient> has a singular or unrepresentable gradientTransform".into(),
         ));
     }
-    let delta = [end[0] - start[0], end[1] - start[1]];
-    let direction = [
-        transform[0].mul_add(delta[0], transform[2] * delta[1]),
-        transform[1].mul_add(delta[0], transform[3] * delta[1]),
-    ];
-    if !direction.iter().all(|v| v.is_finite()) || direction == [0., 0.] {
-        return Err(error(
-            "element <linearGradient> has invalid transformed gradient geometry".into(),
-        ));
-    }
     Ok(Paint::Linear {
+        percentages,
         start,
         end,
         stops: Vec::new(),
-        units: 1,
+        units,
         transform,
-        spread: 0,
+        spread,
     })
 }
 pub fn attach_stops(
@@ -164,13 +163,10 @@ pub fn attach_stops(
         let stop = stop
             .as_ref()
             .ok_or_else(|| error("internal uncompiled gradient stop".into()))?;
-        if stop.offset < previous {
-            return Err(error(
-                "element <linearGradient> has decreasing stop offsets".into(),
-            ));
-        }
-        compiled.push(stop.clone());
+        let mut stop = stop.clone();
+        stop.offset = stop.offset.max(previous);
         previous = stop.offset;
+        compiled.push(stop);
     }
     if let Paint::Linear { stops, .. } = paint {
         *stops = compiled;
@@ -204,6 +200,7 @@ mod tests {
                 _ => None,
             };
             let mut paint = Paint::Linear {
+                percentages: [false; 4],
                 start: [0.; 2],
                 end: [0.; 2],
                 stops: vec![Stop {
@@ -364,4 +361,54 @@ mod raster_inverse_tests {
             }
         }
     }
+}
+
+/// Resolve a retained paint template in the referencing element's viewport.
+pub fn resolve(paint: &mut Option<Paint>, viewport: [f64; 4]) -> Result<(), String> {
+    let Some(Paint::Linear {
+        start,
+        end,
+        percentages,
+        units,
+        transform,
+        stops,
+        ..
+    }) = paint
+    else {
+        return Ok(());
+    };
+    if stops.is_empty() {
+        *paint = None;
+        return Ok(());
+    }
+    let extent = if *units == 0 {
+        [1., 1.]
+    } else {
+        [viewport[2], viewport[3]]
+    };
+    for (index, coordinate) in start.iter_mut().chain(end.iter_mut()).enumerate() {
+        if percentages[index] {
+            *coordinate *= extent[index % 2];
+        }
+        if !coordinate.is_finite() {
+            return Err("invalid gradient coordinates".into());
+        }
+    }
+    *percentages = [false; 4];
+    let delta = [end[0] - start[0], end[1] - start[1]];
+    let direction = if cfg!(target_arch = "aarch64") {
+        [
+            transform[0].mul_add(delta[0], transform[2] * delta[1]),
+            transform[1].mul_add(delta[0], transform[3] * delta[1]),
+        ]
+    } else {
+        [
+            transform[0] * delta[0] + transform[2] * delta[1],
+            transform[1] * delta[0] + transform[3] * delta[1],
+        ]
+    };
+    if !direction.iter().all(|v| v.is_finite()) {
+        return Err("invalid transformed gradient geometry".into());
+    }
+    Ok(())
 }

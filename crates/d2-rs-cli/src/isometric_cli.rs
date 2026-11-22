@@ -123,6 +123,7 @@ fn resources(
     let mut assets = img::surface_document::surface_assets();
     assets.resolver_impl = Some(Arc::new(resolver));
     assets.svg_import_limits = foundation::SvgImportLimits {
+        max_decoded_raster_bytes: 0,
         max_bytes: 65536,
         max_depth: 32,
         max_elements: 256,

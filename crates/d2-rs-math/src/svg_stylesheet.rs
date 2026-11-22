@@ -131,28 +131,33 @@ pub fn parse(
             ));
         }
         let selector = trim_space(&input[start..offset], cancel)?;
-        if selector.len() < 2 || !selector.starts_with('.') {
-            return Err(error(
-                if selector.starts_with('@') {
-                    "CSS at-rules in <style> are unsupported"
-                } else {
-                    "unsupported stylesheet selector"
-                }
-                .into(),
-            ));
-        }
-        let class = &selector[1..];
-        for (index, byte) in class.bytes().enumerate() {
-            if index & 4095 == 0 {
-                context(cancel)?;
+        let mut classes = Vec::new();
+        for selector in selector.split(',') {
+            let selector = trim_space(selector, cancel)?;
+            if selector.len() < 2 || !selector.starts_with('.') {
+                return Err(error(
+                    if selector.starts_with('@') {
+                        "CSS at-rules in <style> are unsupported"
+                    } else {
+                        "unsupported stylesheet selector"
+                    }
+                    .into(),
+                ));
             }
-            if index == 0 {
-                if !byte.is_ascii_alphabetic() && byte != b'_' {
+            let class = &selector[1..];
+            for (index, byte) in class.bytes().enumerate() {
+                if index & 4095 == 0 {
+                    context(cancel)?;
+                }
+                if index == 0 {
+                    if !byte.is_ascii_alphabetic() && byte != b'_' {
+                        return Err(error("unsupported stylesheet selector".into()));
+                    }
+                } else if !byte.is_ascii_alphanumeric() && !b"_-".contains(&byte) {
                     return Err(error("unsupported stylesheet selector".into()));
                 }
-            } else if !byte.is_ascii_alphanumeric() && !b"_-".contains(&byte) {
-                return Err(error("unsupported stylesheet selector".into()));
             }
+            classes.push(class.to_owned());
         }
         context(cancel)?;
         offset += 1;
@@ -242,10 +247,12 @@ pub fn parse(
             declarations.insert(property, value.into());
         }
         context(cancel)?;
-        rules.push(Rule {
-            class: class.into(),
-            declarations,
-        });
+        for class in classes {
+            rules.push(Rule {
+                class,
+                declarations: declarations.clone(),
+            });
+        }
         offset += 1;
     }
 }

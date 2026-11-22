@@ -14,6 +14,8 @@ pub enum Paint {
     Solid { color: [u8; 4] },
     #[serde(rename = "linear")]
     Linear {
+        #[serde(default, skip_serializing_if = "no_percentages")]
+        percentages: [bool; 4],
         start: [f64; 2],
         end: [f64; 2],
         stops: Vec<Stop>,
@@ -21,6 +23,9 @@ pub enum Paint {
         transform: [f64; 6],
         spread: u8,
     },
+}
+fn no_percentages(value: &[bool; 4]) -> bool {
+    !value.iter().any(|v| *v)
 }
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Style {
@@ -111,6 +116,7 @@ pub fn opacity(
             Ok(Some(Paint::Solid { color }))
         }
         Paint::Linear {
+            percentages,
             start,
             end,
             stops,
@@ -133,6 +139,7 @@ pub fn opacity(
                 stop.color[3] = (f64::from(stop.color[3]) * value).round() as u8;
             }
             Ok(Some(Paint::Linear {
+                percentages: *percentages,
                 start: *start,
                 end: *end,
                 stops: copied,

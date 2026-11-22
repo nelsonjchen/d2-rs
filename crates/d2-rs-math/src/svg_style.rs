@@ -8,6 +8,8 @@ use super::{
 use std::collections::BTreeMap;
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Style {
+    #[serde(default)]
+    pub viewport: [f64; 4],
     pub paint: PaintStyle,
     pub opacity: f64,
     pub display: bool,
@@ -17,6 +19,7 @@ pub struct Style {
 impl Default for Style {
     fn default() -> Self {
         Self {
+            viewport: [0.; 4],
             paint: PaintStyle {
                 visible: true,
                 fill: Some(Paint::Solid {
@@ -242,6 +245,7 @@ mod tests {
                 Resource {
                     name: "linearGradient".into(),
                     gradient: Some(Paint::Linear {
+                        percentages: [false; 4],
                         start: [0., 0.],
                         end: [1., 0.],
                         stops: vec![

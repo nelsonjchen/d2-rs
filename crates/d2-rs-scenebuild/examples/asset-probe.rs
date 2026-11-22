@@ -78,6 +78,7 @@ fn options(request: &Value, resolver: &Arc<CapturedResolver>, legacy: bool) -> O
                     let limits = &request["assets"]["SVGImportLimits"];
                     let n = |key: &str| limits[key].as_i64().unwrap();
                     SvgImportLimits {
+                        max_decoded_raster_bytes: 0,
                         max_bytes: n("MaxBytes"),
                         max_depth: n("MaxDepth"),
                         max_elements: n("MaxElements"),

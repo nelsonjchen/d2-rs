@@ -44,6 +44,7 @@ fn paint(p: &svg_primitive::Paint) -> Paint {
             units,
             transform,
             spread,
+            ..
         } => Paint::LinearGradient(LinearGradient {
             start: point(*start),
             end: point(*end),
@@ -122,7 +123,7 @@ fn primitive(p: &svg_primitive::Primitive) -> Primitive {
 
 /// Consume the arena iteratively. Reverse traversal guarantees children are
 /// moved exactly once, without recursive cloning or a source-depth stack.
-fn root(scene: d2_rs_math::svg_scene::Scene) -> Node {
+pub(crate) fn root(scene: d2_rs_math::svg_scene::Scene) -> Node {
     let mut mapped: Vec<Option<Node>> = (0..scene.nodes.len()).map(|_| None).collect();
     let root = scene.root.expect("importer always emits a root");
     let mut stack = vec![(root, false)];
@@ -265,8 +266,26 @@ impl Builder<'_> {
             object.to_owned()
         };
         let limits = self.remaining_svg_limits(&budget_object)?;
-        let outcome = d2_rs_math::svg_import::import_labeled(source, data, limits, current, None)
-            .map_err(|e| {
+        let decoded_limit = self
+            .options
+            .assets
+            .as_ref()
+            .unwrap()
+            .svg_import_limits
+            .max_decoded_raster_bytes;
+        let outcome = if decoded_limit < 0 {
+            Err("d2svgimport: all import limits must be positive".to_owned())
+        } else {
+            d2_rs_math::svg_import::import_labeled_with_decoded_limit(
+                source,
+                data,
+                limits,
+                current,
+                decoded_limit as usize,
+                None,
+            )
+        }
+        .map_err(|e| {
             Error(if latex {
                 format!("scene: {object} latex SVG: {e}")
             } else {

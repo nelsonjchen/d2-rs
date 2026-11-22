@@ -54,3 +54,40 @@ fn limits() -> ImageAssetLimits {
         max_cumulative_decoded_bytes: 1 << 24,
     }
 }
+
+#[test]
+fn data_only_preserves_local_policy_errors_before_external_load() {
+    // Upstream b43d0c44f lib/imageasset TestDataOnlyResolver.
+    let resolver = RasterImageResolver::new_data_only(limits()).unwrap();
+    let local = resolver.resolve_with_context("icon.png", None).unwrap_err();
+    assert!(!local.unavailable);
+    assert!(
+        local.message.contains("localfile: access denied"),
+        "{local}"
+    );
+    let remote = resolver
+        .resolve_with_context("https://example.invalid/icon.png", None)
+        .unwrap_err();
+    assert!(
+        remote
+            .message
+            .contains("data-only resolver requires a data URI"),
+        "{remote}"
+    );
+    assert!(
+        resolver
+            .resolve_with_context("//example.invalid/icon.png", None)
+            .unwrap_err()
+            .message
+            .contains("network-path references")
+    );
+    assert_eq!(resolver.usage().assets, 0);
+    let embedded = resolver
+        .resolve_with_context(
+            "data:image/svg+xml,%3Csvg%20width=%221%22%20height=%221%22/%3E",
+            None,
+        )
+        .unwrap();
+    assert_eq!(embedded.resource.mime_type, "image/svg+xml");
+    assert_eq!(resolver.usage().assets, 1);
+}

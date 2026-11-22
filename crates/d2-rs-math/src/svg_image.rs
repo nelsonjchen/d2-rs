@@ -22,7 +22,7 @@ pub fn data_uri<'a>(
     source: &str,
     raw: &'a str,
     cancel: Option<&d2_rs_core::CancellationToken>,
-) -> Result<(&'a str, &'a str), String> {
+) -> Result<(&'a str, std::borrow::Cow<'a, str>), String> {
     let error = |reason: &str| format!("d2svgimport: {source}: {reason}");
     let remainder=raw.strip_prefix("data:").ok_or_else(||error("element <image> href must be one embedded data: raster; external, file, network, blob, and local references are forbidden"))?;
     let mut comma = None;
@@ -58,6 +58,23 @@ pub fn data_uri<'a>(
             "element <image> has unsupported data URI MIME type; expected image/png, image/jpeg, image/gif, or image/webp",
         ));
     }
+    let payload = if payload
+        .bytes()
+        .any(|b| matches!(b, b' ' | b'\t' | b'\r' | b'\n' | 12))
+    {
+        let mut compact = String::with_capacity(payload.len());
+        for (index, byte) in payload.bytes().enumerate() {
+            if index & 4095 == 0 {
+                context(cancel)?;
+            }
+            if !matches!(byte, b' ' | b'\t' | b'\r' | b'\n' | 12) {
+                compact.push(byte as char);
+            }
+        }
+        std::borrow::Cow::Owned(compact)
+    } else {
+        std::borrow::Cow::Borrowed(payload)
+    };
     if payload.is_empty() {
         return Err(error("element <image> data payload is empty"));
     }
@@ -198,7 +215,7 @@ pub fn prepare(
         "embedded image",
     )?;
     let (mime, payload) = data_uri(source, raw, cancel)?;
-    let data = decode(payload, cancel).map_err(|_| {
+    let data = decode(&payload, cancel).map_err(|_| {
         context(cancel)
             .err()
             .unwrap_or_else(|| error("element <image> has malformed canonical base64 data".into()))
@@ -287,6 +304,8 @@ pub struct RasterAsset {
 /// None represents a preexisting asset with a different source asset type.
 #[derive(Debug, Default, serde::Serialize, serde::Deserialize, PartialEq)]
 pub struct Assets {
+    #[serde(skip)]
+    pub decoded_limit: usize,
     pub entries: BTreeMap<String, Option<RasterAsset>>,
     pub encoded_bytes: i64,
     pub decoded_bytes: i64,
@@ -361,9 +380,14 @@ pub fn compile(
                 ))
             })
         })?;
-    if config.decoded_bytes as i128 > max_bytes as i128 - assets.decoded_bytes as i128 {
+    let decoded_limit = if assets.decoded_limit == 0 {
+        max_bytes
+    } else {
+        assets.decoded_limit
+    };
+    if config.decoded_bytes as i128 > decoded_limit as i128 - assets.decoded_bytes as i128 {
         return Err(error(format!(
-            "embedded raster decoded bytes exceed limit {max_bytes}"
+            "embedded raster decoded bytes exceed limit {decoded_limit}"
         )));
     }
     context(cancel)?;
