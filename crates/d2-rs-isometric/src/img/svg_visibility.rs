@@ -808,7 +808,13 @@ pub fn svg_visible_faces_with_context(
                 ));
             }
         }
-        let valid = valid_fragment(face.points.clone()).unwrap_or_default();
+        let valid = valid_fragment(
+            face.points
+                .iter()
+                .map(|p| svg_projected_point(p.x, p.y, p.z))
+                .collect(),
+        )
+        .unwrap_or_default();
         let Some(plane) = polygon_plane(&valid) else {
             continue;
         };

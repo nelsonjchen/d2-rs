@@ -73,6 +73,11 @@ pub struct Board {
 
 #[derive(Clone, Debug, Default, Serialize)]
 pub struct NodeMetadata {
+    #[serde(
+        rename = "explicitDefaultStrokeWidth",
+        skip_serializing_if = "std::ops::Not::not"
+    )]
+    pub explicit_default_stroke_width: bool,
     pub original: Shape,
 }
 
@@ -330,6 +335,8 @@ pub fn build_scene(diagram: &Diagram, opts: Option<&RenderOpts>) -> Result<Scene
                 .map(|icon| icon.string())
                 .unwrap_or_default(),
             metadata: NodeMetadata {
+                explicit_default_stroke_width: diagram.explicit_default_stroke_widths.get(&s.id)
+                    == Some(&true),
                 original: s.clone(),
             },
             ..Default::default()

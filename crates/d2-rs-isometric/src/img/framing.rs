@@ -4,7 +4,7 @@
 //! by powers of two are exact.
 
 use super::math as gomath;
-use d2_rs_render::go_float::{go_fmadd, go_fmsub};
+use d2_rs_render::go_float::go_fmadd;
 use d2_rs_scene::{go_max, go_min};
 
 use super::geometry_routes::PacketRoute;
@@ -197,20 +197,25 @@ impl ProjectedExtent {
             light.up,
             nmul(light.direction, light.up.y / light.direction.y),
         );
-        let (radius, camera) = (1.5 / light.scale, native_camera_axes());
-        let expand = |axis: Vec| ndot(u, axis).abs() + ndot(v, axis).abs();
-        let (ex, ey, ez) = (
+        let radius =
+            3.0 * go_max(
+                super::raster::ground_shadow::LAYERS[0].1,
+                (2.0f64 / 3.0).sqrt() / light.scale,
+            ) + 1.0 / light.scale;
+        let camera = native_camera_axes();
+        // Upstream explicitly rounds the footprint products before adding bounds.
+        let expand = |axis: Vec| radius * (ndot(u, axis).abs() + ndot(v, axis).abs());
+        let (dx, dy, dz) = (
             expand(camera.right),
             expand(camera.up),
             expand(camera.direction),
         );
-        // ARM64 framing.go:135–137: radius*(...) fuses into each bound.
-        shadow.min_x = go_fmsub(radius, ex, shadow.min_x);
-        shadow.max_x = go_fmadd(radius, ex, shadow.max_x);
-        shadow.min_y = go_fmsub(radius, ey, shadow.min_y);
-        shadow.max_y = go_fmadd(radius, ey, shadow.max_y);
-        shadow.min_z = go_fmsub(radius, ez, shadow.min_z);
-        shadow.max_z = go_fmadd(radius, ez, shadow.max_z);
+        shadow.min_x -= dx;
+        shadow.max_x += dx;
+        shadow.min_y -= dy;
+        shadow.max_y += dy;
+        shadow.min_z -= dz;
+        shadow.max_z += dz;
         self.union(&shadow);
     }
 

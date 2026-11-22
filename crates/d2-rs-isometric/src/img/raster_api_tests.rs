@@ -498,7 +498,7 @@ pub(crate) fn replay_residual(v: &Value, directory: &Path) -> Value {
     let raster = Raster {
         camera: camera(&v["camera"]).unwrap(),
         shadow: &shadow,
-        ground_shadow: &shadow,
+        ground_shadow: &ground_shadow::GroundShadow::default(),
         ground: 0.,
         ground_bounds: Bounds::default(),
         background: Nrgba::default(),

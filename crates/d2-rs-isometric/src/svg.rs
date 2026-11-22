@@ -77,9 +77,10 @@ fn render_isometric_validated(
         &diagram.hash_input().map_err(|error| error.to_string())?,
         options.salt.as_deref(),
     );
-    document::wrap_svg(
+    document::wrap_svg_with_suffix(
         &svg,
         &hash,
+        &diagram.isometric_resource_suffix(),
         options.pad.unwrap_or(100),
         options.scale,
         options.center == Some(true),

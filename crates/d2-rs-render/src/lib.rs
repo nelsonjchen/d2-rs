@@ -4509,9 +4509,16 @@ pub fn target_diagram_json(
             None => return Err("d2svg target export: legend without its source graph".into()),
         },
     };
+    let mut explicit_default_stroke_widths = BTreeMap::new();
     let shapes = target_node_ids(graph)
         .into_iter()
-        .filter_map(|id| target_hash_shape(graph, result, labels, styles, id))
+        .filter_map(|id| {
+            let shape = target_hash_shape(graph, result, labels, styles, id)?;
+            if shape.stroke_width == 2 && styles.get(&id).is_some_and(|s| s.stroke_width.is_some()) {
+                explicit_default_stroke_widths.insert(shape.id.clone(), true);
+            }
+            Some(shape)
+        })
         .collect::<Vec<_>>();
     let mut connections = graph
         .edges()
@@ -4537,6 +4544,12 @@ pub fn target_diagram_json(
         diagram.insert(
             "config".into(),
             serde_json::to_value(&config).map_err(|e| e.to_string())?,
+        );
+    }
+    if !explicit_default_stroke_widths.is_empty() {
+        diagram.insert(
+            "explicitDefaultStrokeWidths".into(),
+            serde_json::to_value(&explicit_default_stroke_widths).map_err(|e| e.to_string())?,
         );
     }
     diagram.insert("isFolderOnly".into(), Value::Bool(false));

@@ -213,10 +213,18 @@ pub(crate) fn export(
             None => return Err("d2svg target export: legend without its source graph".into()),
         },
     };
+    let mut explicit_default_stroke_widths = BTreeMap::new();
     let shapes = crate::target_node_ids(graph)
         .into_iter()
-        .filter_map(|id| crate::target_hash_shape(graph, result, labels, styles, id))
-        .map(shape)
+        .filter_map(|id| {
+            let exported = crate::target_hash_shape(graph, result, labels, styles, id)?;
+            if exported.stroke_width == 2
+                && styles.get(&id).is_some_and(|s| s.stroke_width.is_some())
+            {
+                explicit_default_stroke_widths.insert(exported.id.clone(), true);
+            }
+            Some(shape(exported))
+        })
         .collect::<Vec<_>>();
     let mut connections = graph
         .edges()
@@ -261,6 +269,7 @@ pub(crate) fn export(
         connections: Some(connections.into()),
         root,
         legend,
+        explicit_default_stroke_widths,
         ..Default::default()
     })
 }
@@ -285,5 +294,70 @@ mod tests {
         assert!(json.get("classes").is_none());
         assert_eq!(json["fields"], serde_json::json!([]));
         assert!(json.get("contentAspectRatio").is_none());
+    }
+}
+
+#[cfg(test)]
+mod crease_metadata_contract {
+    use super::*;
+    use d2_rs_core::{LayoutReport, Score, ast::Shared};
+    use d2_rs_language::{
+        compiler::{compile_ir, lower_graph_with_measurer_and_labels},
+        parse,
+    };
+    #[test]
+    fn authored_and_class_inherited_default_widths_survive_both_export_paths() {
+        // ee46aaeba d2exporter.TestAuthoredDefaultStrokeWidth.
+        let parsed = parse("width.d2",b"classes: { pen: { style.stroke-width: 2 } }\nplain\nauthored.style.stroke-width: 2\ninherited.class: pen\nwide.style.stroke-width: 5\n",None);
+        assert!(parsed.error.is_none());
+        let (compiler, root) = compile_ir(Shared::new(parsed.map)).unwrap();
+        let (graph, labels, styles) =
+            lower_graph_with_measurer_and_labels(&compiler, root, &|_: &str| Size {
+                width: 100.0,
+                height: 70.0,
+            })
+            .unwrap();
+        let result = LayoutResult {
+            removed_edges: Default::default(),
+            source_edge_storage: Default::default(),
+            synthetic_root: None,
+            route_curves: Default::default(),
+            sequence_lifelines: vec![],
+            boxes: graph
+                .nodes()
+                .map(|(id, node)| {
+                    (
+                        id,
+                        d2_rs_core::Rect {
+                            origin: d2_rs_core::Point::default(),
+                            size: node.size,
+                        },
+                    )
+                })
+                .collect(),
+            routes: Default::default(),
+            edge_labels: Default::default(),
+            edge_label_percentage_commits: Default::default(),
+            node_labels: Default::default(),
+            report: LayoutReport {
+                selected_seed: 0,
+                selected_pass: 0,
+                score: Score::default(),
+                improvement_passes: 0,
+                candidates: vec![],
+                warnings: vec![],
+            },
+        };
+        let opts = RenderOptions::default();
+        let typed = export(&graph, &result, &labels, &styles, &opts, false).unwrap();
+        let raw =
+            crate::target_diagram_json(&graph, &result, &labels, &styles, &opts, false).unwrap();
+        let decoded = TargetDiagram::decode_json(&raw).unwrap().unwrap();
+        let want = BTreeMap::from([
+            ("authored".to_owned(), true),
+            ("inherited".to_owned(), true),
+        ]);
+        assert_eq!(typed.explicit_default_stroke_widths, want);
+        assert_eq!(decoded.explicit_default_stroke_widths, want);
     }
 }

@@ -241,6 +241,7 @@ fn headings_find_top_strip_between_visible_wires() {
     };
     let owner = Node {
         metadata: NodeMetadata {
+            explicit_default_stroke_width: false,
             original: Shape {
                 label_position: "INSIDE_TOP_CENTER".into(),
                 ..Default::default()
@@ -299,17 +300,175 @@ fn adjacent_fill_fragments_cancel_shared_edges() {
 
 #[test]
 fn split_paint_groups_have_one_keyboard_stop_per_object() {
-    use d2_rs_isometric::img::{mesh::*, svg::{NativeScene,NativeLink,native_scene_svg}};
+    use d2_rs_isometric::img::{
+        mesh::*,
+        svg::{NativeLink, NativeScene, native_scene_svg},
+    };
     let mut geometry = d2_rs_isometric::img::geometry_core::MeshGeometry::default();
-    for x in [0.0,2.0] {
-        let mat = material(Material { color: d2_rs_scene::Nrgba::new(100,150,200,255), unlit: true, ..Default::default() });
-        let v = |x,z| Vertex { position:nv(x,0.0,z),normal:nv(0.0,1.0,0.0),..Default::default() };
-        geometry.triangle(v(x,0.0),v(x+1.0,0.0),v(x,1.0),&mat,false);
+    for x in [0.0, 2.0] {
+        let mat = material(Material {
+            color: d2_rs_scene::Nrgba::new(100, 150, 200, 255),
+            unlit: true,
+            ..Default::default()
+        });
+        let v = |x, z| Vertex {
+            position: nv(x, 0.0, z),
+            normal: nv(0.0, 1.0, 0.0),
+            ..Default::default()
+        };
+        geometry.triangle(v(x, 0.0), v(x + 1.0, 0.0), v(x, 1.0), &mat, false);
     }
-    let camera = raster_fit(&geometry.triangles,native_view_direction(),400,250,1.08);
-    let mut scene = NativeScene { triangles:geometry.triangles, camera,width:400,height:250,
-        links:vec![NativeLink { mesh_start:0, mesh_end:2, url:"https://example.test/object".into(), ..Default::default() }],..Default::default() };
-    let svg = native_scene_svg(&mut scene,&|_,_| Ok(String::new())).unwrap();
-    assert_eq!(svg.matches("<a xlink:href=").count(),2);
-    assert_eq!(svg.matches(r#"tabindex="-1""#).count(),1);
+    let camera = raster_fit(&geometry.triangles, native_view_direction(), 400, 250, 1.08);
+    let mut scene = NativeScene {
+        triangles: geometry.triangles,
+        camera,
+        width: 400,
+        height: 250,
+        links: vec![NativeLink {
+            mesh_start: 0,
+            mesh_end: 2,
+            url: "https://example.test/object".into(),
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    let svg = native_scene_svg(&mut scene, &|_, _| Ok(String::new())).unwrap();
+    assert_eq!(svg.matches("<a xlink:href=").count(), 2);
+    assert_eq!(svg.matches(r#"tabindex="-1""#).count(), 1);
+}
+
+#[test]
+fn default_creases_are_finer_and_authored_ink_keeps_its_weight() {
+    use d2_rs_isometric::{
+        img::{geometry_core::MeshGeometry, mesh::*, native_edges::classic_ink_segments},
+        scene::{Node, NodeMetadata},
+    };
+    let mut b = MeshGeometry::default();
+    let mat = material(Material {
+        color: d2_rs_scene::Nrgba::new(255, 255, 255, 255),
+        unlit: true,
+        ..Default::default()
+    });
+    b.box_(Vec::default(), nv(2.0, 2.0, 2.0), &mat, 0.0);
+    let n = Node {
+        type_: "rectangle".into(),
+        size: nv(2.0, 2.0, 2.0),
+        fill: "#dce5eb".into(),
+        stroke: "#a9235e".into(),
+        stroke_width: 2,
+        opacity: 1.0,
+        metadata: NodeMetadata {
+            original: Shape {
+                width: 200,
+                height: 200,
+                stroke: "#a9235e".into(),
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let segments = classic_ink_segments(&n, &b.triangles, 0.0).unwrap();
+    assert!(segments.iter().any(|s| s.crease));
+    assert!(segments.iter().any(|s| !s.crease));
+    for s in &segments {
+        assert_eq!(s.radius(3.0), if s.crease { 2.0 } else { 3.0 });
+    }
+    for variant in 0..4 {
+        let mut styled = n.clone();
+        match variant {
+            0 => styled.stroke_explicit = true,
+            1 => styled.stroke_width = 3,
+            2 => styled.stroke_dash = 2.0,
+            _ => styled.metadata.explicit_default_stroke_width = true,
+        }
+        assert!(
+            classic_ink_segments(&styled, &b.triangles, 0.0)
+                .unwrap()
+                .iter()
+                .all(|s| !s.crease)
+        );
+    }
+}
+
+#[test]
+fn authored_default_width_survives_target_roundtrip_and_namespaces_resources() {
+    use d2_rs_isometric::scene::build_scene;
+    let mut d = caption_diagram();
+    d.explicit_default_stroke_widths
+        .insert("orders".into(), true);
+    let encoded = serde_json::to_vec(&d).unwrap();
+    let decoded: Diagram = serde_json::from_slice(&encoded).unwrap();
+    assert!(
+        build_scene(&decoded, None).unwrap().nodes[0]
+            .metadata
+            .explicit_default_stroke_width
+    );
+    let target = d2_rs_render::target::TargetDiagram::decode_json(&encoded)
+        .unwrap()
+        .unwrap();
+    // Both representations must retain the provenance while the flat hash ignores it.
+    assert!(!target.isometric_resource_suffix().is_empty());
+    d.explicit_default_stroke_widths.clear();
+    let plain = d2_rs_render::target::TargetDiagram::decode_json(&serde_json::to_vec(&d).unwrap())
+        .unwrap()
+        .unwrap();
+    assert!(plain.isometric_resource_suffix().is_empty());
+    assert_eq!(target.hash_input().unwrap(), plain.hash_input().unwrap());
+    let native =
+        r##"<svg width="100" height="80"><defs><g id="face"/></defs><use href="#face"/></svg>"##;
+    let original = wrap_svg(native, "same", 0, None, false, true, true, "").unwrap();
+    let authored = d2_rs_isometric::document::wrap_svg_with_suffix(
+        native,
+        "same",
+        &target.isometric_resource_suffix(),
+        0,
+        None,
+        false,
+        true,
+        true,
+        "",
+    )
+    .unwrap();
+    assert_ne!(original, authored);
+}
+
+#[test]
+fn shadow_framing_depth_translates_without_fused_residuals() {
+    // 2dfcbc050 TestGroundShadowFramingKeepsDepthUnderTranslation.
+    use d2_rs_isometric::img::{
+        framing::{ProjectedExtent, native_camera_axes},
+        mesh::*,
+    };
+    let light = Camera {
+        right: nv(0.0, 0.0, 1.0),
+        up: nv(1.0, 0.0, 0.0),
+        direction: nv(0.0, 1.0, 0.0),
+        scale: 100.0,
+        ..Default::default()
+    };
+    let depth = |x| {
+        let t = Triangle {
+            cast_shadow: true,
+            v: [
+                Vertex {
+                    position: nv(x, 1.0, 0.0),
+                    ..Default::default()
+                },
+                Vertex {
+                    position: nv(x - 1.0, 1.0, 0.0),
+                    ..Default::default()
+                },
+                Vertex {
+                    position: nv(x, 1.0, -1.0),
+                    ..Default::default()
+                },
+            ],
+            ..Default::default()
+        };
+        let mut extent = ProjectedExtent::default();
+        extent.prepared_ground_shadows(&[t], &[], 0.0, 0.0, Some(&light));
+        extent.max_z
+    };
+    assert_eq!(depth(1.0), depth(0.0) + native_camera_axes().direction.x);
 }

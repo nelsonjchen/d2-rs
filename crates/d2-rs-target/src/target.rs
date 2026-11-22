@@ -6,6 +6,8 @@
 
 use serde::{Deserialize, Serialize};
 
+pub const DEFAULT_SHAPE_STROKE_WIDTH: i64 = 2;
+
 fn is_false(value: &bool) -> bool {
     !*value
 }
@@ -32,6 +34,11 @@ pub struct Diagram {
     pub mono_font_family: Option<String>,
     pub shapes: Option<Vec<Shape>>,
     pub connections: Option<Vec<Connection>>,
+    #[serde(
+        rename = "explicitDefaultStrokeWidths",
+        skip_serializing_if = "std::collections::BTreeMap::is_empty"
+    )]
+    pub explicit_default_stroke_widths: std::collections::BTreeMap<String, bool>,
     pub root: Shape,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub legend: Option<Legend>,

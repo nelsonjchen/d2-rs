@@ -235,6 +235,35 @@ impl<'de> Deserialize<'de> for Dynamic {
     }
 }
 
+impl Merge for BTreeMap<String, bool> {
+    fn merge<'de, D: Deserializer<'de>>(&mut self, d: D) -> Result<(), D::Error> {
+        struct Map<'a>(&'a mut BTreeMap<String, bool>);
+        impl<'de> Visitor<'de> for Map<'_> {
+            type Value = ();
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.write_str("ExplicitDefaultStrokeWidths map")
+            }
+            fn visit_none<E: serde::de::Error>(self) -> Result<(), E> {
+                self.0.clear();
+                Ok(())
+            }
+            fn visit_unit<E: serde::de::Error>(self) -> Result<(), E> {
+                self.visit_none()
+            }
+            fn visit_some<D: Deserializer<'de>>(self, d: D) -> Result<(), D::Error> {
+                d.deserialize_map(self)
+            }
+            fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<(), A::Error> {
+                while let Some(key) = map.next_key::<String>()? {
+                    self.0
+                        .insert(key, map.next_value::<Option<bool>>()?.unwrap_or(false));
+                }
+                Ok(())
+            }
+        }
+        d.deserialize_option(Map(self))
+    }
+}
 impl Merge for BTreeMap<String, Value> {
     fn merge<'de, D: Deserializer<'de>>(&mut self, d: D) -> Result<(), D::Error> {
         struct Map<'a>(&'a mut BTreeMap<String, Value>);
@@ -557,6 +586,7 @@ go_struct!(TargetThemeOverrides {
 });
 
 go_struct!(TargetDiagram{
+    "explicitdefaultstrokewidths" => explicit_default_stroke_widths: normal,
     "name" => name: normal,
     "config" => config: normal,
     "isfolderonly" => is_folder_only: normal,

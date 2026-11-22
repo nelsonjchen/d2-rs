@@ -1038,31 +1038,27 @@ fn ground_caster(
     camera: &Camera,
     light: Vec,
 ) -> Vec2<SvgPoint> {
-    let mut vertices = Vec2::new();
-    for i in 0..3 {
-        let (a, b) = (t.v[i].position, t.v[(i + 1) % 3].position);
-        if a.y >= receiver {
-            vertices.push(a);
-        }
-        if (a.y < receiver) != (b.y < receiver) {
-            vertices.push(nlerp(a, b, (receiver - a.y) / (b.y - a.y)));
-        }
-    }
-    vertices
-        .iter()
-        .map(|&vertex| {
-            let mut p = nsub(
-                vertex,
-                nmul(
-                    light,
-                    (vertex.y - (ground + RASTER_SHADOW_NORMAL_OFFSET)) / light.y,
-                ),
-            );
-            p.y = ground;
-            let q = camera.project(p);
-            svg_projected_point(q.x, q.y, ndot(vertex, light))
-        })
-        .collect()
+    let points =
+        t.v.iter()
+            .map(|v| {
+                let mut p = nsub(
+                    v.position,
+                    nmul(
+                        light,
+                        (v.position.y - (ground + RASTER_SHADOW_NORMAL_OFFSET)) / light.y,
+                    ),
+                );
+                p.y = ground;
+                let q = camera.project(p);
+                let mut point = svg_projected_point(q.x, q.y, 0.0);
+                point.z = v.position.y;
+                point
+            })
+            .collect::<Vec2<_>>();
+    split_polygon(&points, &|p| p.z - receiver)
+        .0
+        .resolve(&points)
+        .unwrap_or_default()
 }
 
 fn write_ground_shadow(w: &mut Writer, scene: &NativeScene) {
@@ -1074,11 +1070,20 @@ fn write_ground_shadow(w: &mut Writer, scene: &NativeScene) {
     let light_camera = raster_fit(&triangles, light, 2048, 2048, 1.08);
     let bias = go_max(0.012, 2.0 / light_camera.scale);
     // ARM64 svg_lighting.go:282.
-    let receiver = go_fmadd(bias, light.y, ground + RASTER_SHADOW_NORMAL_OFFSET);
+    let receiver = go_fmadd(
+        bias,
+        light_camera.direction.y,
+        ground + RASTER_SHADOW_NORMAL_OFFSET,
+    );
     let mut faces = Vec2::new();
-    let mut sources = Vec2::new();
-    let mut opacities = Vec2::new();
+    let mut max_height = f64::NEG_INFINITY;
     for (i, triangle) in triangles.iter().enumerate() {
+        if i % 512 == 0 {
+            if let Err(error) = w.context.check_string() {
+                w.err = Some(error);
+                return;
+            }
+        }
         let opacity = caster_opacity(triangle);
         if opacity == 0 {
             continue;
@@ -1092,18 +1097,86 @@ fn write_ground_shadow(w: &mut Writer, scene: &NativeScene) {
                 .material
                 .as_ref()
                 .is_some_and(|m| m.borrow().texture.is_some());
+        for p in &points {
+            max_height = go_max(max_height, p.z);
+        }
         faces.push(SvgVisibilityFace {
             points,
             opaque: !texture,
             order: -(i as i64),
             ..Default::default()
         });
-        sources.push(i);
-        opacities.push(opacity);
     }
     if faces.is_empty() {
         return;
     }
+    let right = nsub(
+        light_camera.right,
+        nmul(light, light_camera.right.y / light.y),
+    );
+    let up = nsub(light_camera.up, nmul(light, light_camera.up.y / light.y));
+    let x_scale = gomath::hypot(
+        ndot(right, scene.camera.right),
+        ndot(up, scene.camera.right),
+    ) * scene.camera.scale;
+    let y_scale =
+        gomath::hypot(ndot(right, scene.camera.up), ndot(up, scene.camera.up)) * scene.camera.scale;
+    let mut silhouette = None;
+    for (index, (height, sigma, opacity)) in
+        super::raster::ground_shadow::LAYERS.into_iter().enumerate()
+    {
+        let ceiling = ground + RASTER_SHADOW_NORMAL_OFFSET + height;
+        if ceiling < max_height {
+            silhouette = None;
+            max_height = f64::NEG_INFINITY;
+            let mut next = vec![];
+            for (i, mut face) in faces.into_iter().enumerate() {
+                if i % 512 == 0 {
+                    if let Err(error) = w.context.check_string() {
+                        w.err = Some(error);
+                        return;
+                    }
+                }
+                face.points = split_polygon(&face.points, &|p| ceiling - p.z)
+                    .0
+                    .resolve(&face.points)
+                    .unwrap_or_default();
+                if face.points.is_empty() {
+                    continue;
+                }
+                for p in &face.points {
+                    max_height = go_max(max_height, p.z);
+                }
+                next.push(face);
+            }
+            faces = next;
+            if faces.is_empty() {
+                return;
+            }
+        }
+        if silhouette.is_none() {
+            silhouette = Some(index);
+            w.write(&format!(r#"<defs><g id="ground-casters-{index}">"#));
+            write_ground_casters(w, scene, &triangles, &faces, ground, light, index);
+            if w.err.is_some() {
+                return;
+            }
+            w.write("</g></defs>");
+        }
+        let sigma = go_max(sigma, (2.0f64 / 3.0).sqrt() / light_camera.scale);
+        w.write(&format!(r#"<defs><filter id="ground-softness-{index}" filterUnits="userSpaceOnUse" x="0" y="0" width="{}" height="{}" color-interpolation-filters="sRGB"><feGaussianBlur stdDeviation="{} {}"/></filter></defs>"#,scene.width,scene.height,svg_number(sigma*x_scale),svg_number(sigma*y_scale)));
+        w.write(&format!(r##"<use xlink:href="#ground-casters-{}" filter="url(#ground-softness-{index})" opacity="{}"/>"##,silhouette.unwrap(),svg_number(opacity)));
+    }
+}
+fn write_ground_casters(
+    w: &mut Writer,
+    scene: &NativeScene,
+    triangles: &[Triangle],
+    faces: &[SvgVisibilityFace],
+    ground: f64,
+    light: Vec,
+    layer: usize,
+) {
     let mut limits = super::svg_visibility::SVG_DEFAULT_VISIBILITY_LIMITS;
     limits.work = super::svg_visibility::svg_visibility_work_limit(faces.len());
     let visible =
@@ -1114,40 +1187,19 @@ fn write_ground_shadow(w: &mut Writer, scene: &NativeScene) {
                 return;
             }
         };
-    let right = nsub(
-        light_camera.right,
-        nmul(light, light_camera.right.y / light.y),
-    );
-    let up = nsub(light_camera.up, nmul(light, light_camera.up.y / light.y));
-    let scale = scene.camera.scale / light_camera.scale * (2.0f64 / 3.0).sqrt();
-    let sx = gomath::hypot(
-        ndot(right, scene.camera.right),
-        ndot(up, scene.camera.right),
-    ) * scale;
-    let sy = gomath::hypot(ndot(right, scene.camera.up), ndot(up, scene.camera.up)) * scale;
-    w.write(&format!(
-        r#"<defs><filter id="ground-softness" filterUnits="userSpaceOnUse" x="0" y="0" width="{}" height="{}" color-interpolation-filters="sRGB"><feGaussianBlur stdDeviation="{} {}"/></filter></defs><g filter="url(#ground-softness)">"#,
-        scene.width,
-        scene.height,
-        svg_number(sx),
-        svg_number(sy)
-    ));
     let mut merged: BTreeMap<u8, Vec2<Vec2<SvgPoint>>> = BTreeMap::new();
     let mut textured: BTreeMap<u8, Vec2<usize>> = BTreeMap::new();
     for (i, polygons) in visible.iter().enumerate() {
         if polygons.is_empty() {
             continue;
         }
-        let t = &triangles[sources[i]];
-        if t.shadow_fill_alpha.is_none()
-            && t.material
-                .as_ref()
-                .is_some_and(|m| m.borrow().texture.is_some())
-        {
-            textured.entry(opacities[i]).or_default().push(i);
+        let t = &triangles[(-faces[i].order) as usize];
+        let alpha = caster_opacity(t);
+        if !faces[i].opaque {
+            textured.entry(alpha).or_default().push(i);
         } else {
             merged
-                .entry(opacities[i])
+                .entry(alpha)
                 .or_default()
                 .extend(polygons.iter().cloned());
         }
@@ -1160,7 +1212,7 @@ fn write_ground_shadow(w: &mut Writer, scene: &NativeScene) {
         }
         w.write(&format!(
             r#"<g opacity="{}">"#,
-            svg_number(0.11 * alpha as f64 / 255.0)
+            svg_number(alpha as f64 / 255.0)
         ));
         if !polygons.is_empty() {
             w.write(&format!(
@@ -1178,12 +1230,12 @@ fn write_ground_shadow(w: &mut Writer, scene: &NativeScene) {
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
         for i in textures {
-            let t = &triangles[sources[i]];
+            let t = &triangles[(-faces[i].order) as usize];
             let vector = t.material.as_ref().and_then(|m| m.borrow().vector.clone());
             let Some(vector) = vector else {
                 w.err = Some(format!(
                     "native SVG shadow surface {} has no retained vector source",
-                    sources[i]
+                    -faces[i].order
                 ));
                 return;
             };
@@ -1216,11 +1268,11 @@ fn write_ground_shadow(w: &mut Writer, scene: &NativeScene) {
                 }
             };
             w.write(&format!(
-                r#"<defs><clipPath id="shadow-clip-{i}"><path d="{}"/></clipPath><filter id="shadow-ink-{i}" color-interpolation-filters="sRGB"><feColorMatrix values="0 0 0 0 0.14117647 0 0 0 0 0.21568627 0 0 0 0 0.32941176 0 0 0 1 0"/></filter></defs>"#,
+                r#"<defs><clipPath id="shadow-clip-{layer}-{i}"><path d="{}"/></clipPath><filter id="shadow-ink-{layer}-{i}" color-interpolation-filters="sRGB"><feColorMatrix values="0 0 0 0 0.14117647 0 0 0 0 0.21568627 0 0 0 0 0.32941176 0 0 0 1 0"/></filter></defs>"#,
                 svg_fill_path(&visible[i])
             ));
             w.write(&format!(
-                r##"<g clip-path="url(#shadow-clip-{i})"><g transform="matrix({} {} {} {} {} {})" filter="url(#shadow-ink-{i})"><use xlink:href="#{surface_id}"/></g></g>"##,
+                r##"<g clip-path="url(#shadow-clip-{layer}-{i})"><g transform="matrix({} {} {} {} {} {})" filter="url(#shadow-ink-{layer}-{i})"><use xlink:href="#{surface_id}"/></g></g>"##,
                 svg_number(affine[0]),
                 svg_number(affine[1]),
                 svg_number(affine[2]),
@@ -1231,7 +1283,6 @@ fn write_ground_shadow(w: &mut Writer, scene: &NativeScene) {
         }
         w.write("</g>");
     }
-    w.write("</g>");
 }
 
 /// html.EscapeString.

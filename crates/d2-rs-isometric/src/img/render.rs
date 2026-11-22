@@ -524,11 +524,7 @@ pub(crate) fn build_native_scene_with_options(
             let tint = tints.get(&n.board_id).map_or("", String::as_str);
             b.sequence_node(n, tint);
             captions.avoid_mesh(&b.triangles[first..]);
-            b.add_object_link(
-                &n.metadata.original.link,
-                &n.metadata.original.tooltip,
-                first,
-            );
+            b.add_object_link(&n.link, &n.tooltip, first);
             b.remember_arrow_owner(n, None, first);
             spans.push(HierarchyShadowSpan {
                 first,
