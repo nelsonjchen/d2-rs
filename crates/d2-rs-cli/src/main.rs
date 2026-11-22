@@ -169,6 +169,20 @@ fn document_compile_error(path: &Path, error: String) -> String {
     format!("err: failed to compile {}: {error}", human_path(path))
 }
 
+/// Native providers own path resolution, matching lib/localfile.Policy.
+fn compile_ir_with_native_imports(
+    source: Shared<d2_rs_core::ast::Map>,
+    options: compiler::CompileOptions,
+) -> Result<(compiler::Compiler, d2_rs_core::ir::NodeId), compiler::CompileError> {
+    compiler::compile_ir_with_import_resolver(
+        source,
+        options,
+        compiler::CompileLimits::default(),
+        None,
+        Some(Box::new(compiler::imports::native_import_path)),
+    )
+}
+
 fn filesystem_import_opener() -> ImportOpener {
     Box::new(|path| {
         let file = watch::open_tracked_file(
@@ -1669,7 +1683,7 @@ fn compile_source(input: &[u8], args: &[String]) -> Result<Vec<u8>, String> {
     if let Some(error) = parsed.error {
         return Err(error.to_string());
     }
-    let (compiler, root) = compiler::compile_ir_with_options(
+    let (compiler, root) = compile_ir_with_native_imports(
         Shared::new(parsed.map),
         compiler::CompileOptions {
             import_opener: Some(filesystem_import_opener()),
@@ -1718,7 +1732,7 @@ fn graph_source(input: &[u8], args: &[String]) -> Result<Vec<u8>, String> {
     if let Some(error) = parsed.error {
         return Err(error.to_string());
     }
-    let (compiler, root) = compiler::compile_ir_with_options(
+    let (compiler, root) = compile_ir_with_native_imports(
         Shared::new(parsed.map),
         compiler::CompileOptions {
             import_opener: Some(filesystem_import_opener()),
@@ -2159,7 +2173,7 @@ fn compile_board_source(
     if let Some(error) = parsed.error {
         return Err(error.to_string());
     }
-    let (compiler, root) = compiler::compile_ir_with_options(
+    let (compiler, root) = compile_ir_with_native_imports(
         Shared::new(parsed.map),
         compiler::CompileOptions {
             import_opener: Some(filesystem_import_opener()),
@@ -2263,7 +2277,7 @@ fn source_board_titles(
     if let Some(error) = parsed.error {
         return Err(error.to_string());
     }
-    let (compiler, root) = compiler::compile_ir_with_options(
+    let (compiler, root) = compile_ir_with_native_imports(
         Shared::new(parsed.map),
         compiler::CompileOptions {
             import_opener: Some(filesystem_import_opener()),
@@ -2603,7 +2617,7 @@ fn source_render_layout_uncached(
             if let Some(error) = parsed.error {
                 return Err(error.to_string());
             }
-            let (compiler, root) = compiler::compile_ir_with_options(
+            let (compiler, root) = compile_ir_with_native_imports(
                 Shared::new(parsed.map),
                 compiler::CompileOptions {
                     import_opener: Some(filesystem_import_opener()),
