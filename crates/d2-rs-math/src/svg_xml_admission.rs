@@ -300,6 +300,31 @@ fn ignored_plain(
     cancel: Option<&d2_rs_core::CancellationToken>,
 ) -> Result<bool, String> {
     let error = |reason: &str| format!("d2svgimport: {source}: element <{element}> {reason}");
+    if matches!(
+        element,
+        "path" | "rect" | "circle" | "ellipse" | "line" | "polyline" | "polygon"
+    ) {
+        if matches!(
+            name,
+            "text-indent"
+                | "text-align"
+                | "text-decoration-line"
+                | "text-decoration-style"
+                | "text-decoration-color"
+                | "text-transform"
+                | "block-progression"
+                | "white-space"
+                | "solid-color"
+                | "solid-opacity"
+        ) {
+            return Ok(true);
+        }
+        if element == "path" && name == "href" {
+            if let Some(id) = value.strip_prefix('#') {
+                return valid_paint_id(id, cancel);
+            }
+        }
+    }
     if name.starts_with("data-") {
         if name.len() == 5 {
             return Err(error("has invalid data-* metadata attribute"));
@@ -445,4 +470,26 @@ mod tests {
                 .is_ok()
         );
     }
+}
+
+fn valid_paint_id(
+    id: &str,
+    cancel: Option<&d2_rs_core::CancellationToken>,
+) -> Result<bool, String> {
+    if id.is_empty() {
+        return Ok(false);
+    }
+    for (index, byte) in id.bytes().enumerate() {
+        if index & 4095 == 0 {
+            context(cancel)?;
+        }
+        if index == 0 {
+            if !byte.is_ascii_alphabetic() && byte != b'_' {
+                return Ok(false);
+            }
+        } else if !byte.is_ascii_alphanumeric() && !b"_-.:".contains(&byte) {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }

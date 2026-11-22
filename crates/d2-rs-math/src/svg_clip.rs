@@ -39,9 +39,6 @@ pub fn validate_tree(
         let element = &elements[index];
         let parent = parent.map(|i: usize| elements[i].name.as_str());
         if element.name == "clipPath" {
-            if element.id.is_empty() {
-                return Err(error("element <clipPath> must declare an id".into()));
-            }
             if !matches!(parent, Some("svg" | "g" | "defs")) {
                 return Err(error(
                     "element <clipPath> is only supported under <svg>, <g>, or <defs>".into(),
@@ -71,13 +68,6 @@ pub fn validate_tree(
                     }
                 )));
             }
-        }
-        if element.attrs.contains_key("overflow")
-            && (element.name != "use" || parent != Some("clipPath"))
-        {
-            return Err(error(
-                "overflow metadata is supported only on a direct <use> child of <clipPath>".into(),
-            ));
         }
         for &child in element.children.iter().rev() {
             stack.push((child, Some(index)));
@@ -225,7 +215,10 @@ fn validate_declarations(
 ) -> Result<(), String> {
     for property in element.declarations.keys() {
         context(cancel)?;
-        if property != "transform" && property != "clip-rule" {
+        if property != "transform"
+            && property != "clip-rule"
+            && !(element.name == "use" && property == "overflow")
+        {
             return Err(format!(
                 "d2svgimport: {source}: element <{}> has unsupported clipping-resource property {property:?}",
                 element.name

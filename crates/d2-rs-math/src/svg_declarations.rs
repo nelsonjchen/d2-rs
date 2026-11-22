@@ -24,6 +24,13 @@ pub(crate) const PROPERTIES: &[&str] = &[
     "transform",
     "stop-color",
     "stop-opacity",
+    "overflow",
+    "vector-effect",
+    "enable-background",
+    "font-size",
+    "font-family",
+    "isolation",
+    "mix-blend-mode",
 ];
 #[derive(Debug, serde::Serialize, serde::Deserialize, PartialEq)]
 pub struct Rule {
@@ -42,6 +49,12 @@ pub(crate) fn background(
     cancel: Option<&d2_rs_core::CancellationToken>,
 ) -> Result<(), String> {
     let raw = trim_space(raw, cancel)?;
+    if ["new", "accumulate", "inherit"]
+        .iter()
+        .any(|v| raw.eq_ignore_ascii_case(v))
+    {
+        return Ok(());
+    }
     let data = raw.as_bytes();
     let space = |b: u8| b" \t\n\r\x0c".contains(&b);
     let mut end = 0;
@@ -185,19 +198,6 @@ pub fn collect(
             || value.is_empty()
         {
             return Err(malformed());
-        }
-        if property == "enable-background" {
-            if !root {
-                return Err(error(format!(
-                    "element <{name}> has unsupported enable-background outside the root <svg>"
-                )));
-            }
-            background(value, cancel).map_err(|e| {
-                context(cancel).err().unwrap_or_else(|| {
-                    error(format!("root <svg> has invalid enable-background: {e}"))
-                })
-            })?;
-            continue;
         }
         if property == "vertical-align" {
             if !root {

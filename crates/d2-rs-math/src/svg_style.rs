@@ -75,6 +75,49 @@ pub fn compute(
         format!("d2svgimport: {source}: element <{name}> has invalid {property}: {reason}")
     };
     let inherit = |value: &str| value.eq_ignore_ascii_case("inherit");
+    if let Some(value) = values.get("font-size") {
+        if !value.eq_ignore_ascii_case("inherit") {
+            let size = svg_length::length(value, true).ok();
+            if !size.is_some_and(|size| (0. ..=32767.).contains(&size)) {
+                return Err(error(
+                    "font-size",
+                    "expected a finite absolute length between 0 and 32767px".into(),
+                ));
+            }
+        }
+    }
+    // Upstream 8558856dc style.go: these modes have no backdrop effect.
+    if let Some(value) = values.get("overflow") {
+        if value != "visible" || !matches!(name, "use" | "image" | "style") {
+            return Err(error(
+                "overflow",
+                "only overflow=\"visible\" on <use> or <image> is supported".into(),
+            ));
+        }
+    }
+    for (property, allowed, reason) in [
+        ("vector-effect", &["none"][..], "only none is supported"),
+        (
+            "isolation",
+            &["auto", "isolate", "inherit"][..],
+            "expected auto or isolate",
+        ),
+        (
+            "mix-blend-mode",
+            &["normal", "inherit"][..],
+            "only normal blending is supported",
+        ),
+    ] {
+        if let Some(value) = values.get(property) {
+            if !allowed.iter().any(|v| value.eq_ignore_ascii_case(v)) {
+                return Err(error(property, reason.into()));
+            }
+        }
+    }
+    if let Some(value) = values.get("enable-background") {
+        super::svg_declarations::background(value, cancel)
+            .map_err(|e| error("enable-background", e))?;
+    }
     if let Some(value) = values.get("color") {
         if !inherit(value) && !value.eq_ignore_ascii_case("currentColor") {
             style.paint.color = svg_color::solid(value).map_err(|e| error("color", e))?;

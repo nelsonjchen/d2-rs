@@ -441,6 +441,45 @@ mod catalog_contracts {
         );
     }
     #[test]
+    fn editor_inert_properties_and_unreferenced_clips() {
+        // Upstream 8558856dc style.go/boilerplate.go and TestIconResourceLimitsAndVisibility.
+        let imported = import(
+            r##"<svg width="8" height="8"><style>.one{isolation:isolate;mix-blend-mode:normal;vector-effect:none;enable-background:accumulate}</style><clipPath><rect width="2" height="2"/></clipPath><g class="one" style="enable-background:new 0 0 8 8"><svg width="8" height="8" viewBox="0 0 8 8" enable-background="inherit"><path d="M0 0H8V8Z" href="#editor" text-indent="0" text-align="start" text-decoration-line="none" text-decoration-style="solid" text-decoration-color="black" text-transform="none" block-progression="tb" white-space="normal" font-size="16" font-family="sans-serif" solid-color="red" solid-opacity="1" fill="red"/></svg></g><defs><path id="p" d="M0 0H1V1Z"/></defs><use href="#p" overflow="visible"/></svg>"##,
+        );
+        assert_eq!(
+            imported
+                .scene
+                .nodes
+                .iter()
+                .filter(|n| n.primitive.is_some())
+                .count(),
+            2
+        );
+        for body in [
+            r#"<g isolation="bad"/>"#,
+            r#"<g mix-blend-mode="multiply"/>"#,
+            r#"<path vector-effect="non-scaling-stroke"/>"#,
+            r#"<g overflow="visible"/>"#,
+            r#"<image overflow="hidden"/>"#,
+            r#"<g enable-background="new 0 0 0 8"/>"#,
+            r##"<path href="#bad id"/>"##,
+            r#"<style>.unused{isolation:bad}</style>"#,
+        ] {
+            let source = format!("<svg width=\"8\" height=\"8\">{body}</svg>");
+            assert!(
+                import_labeled(
+                    "icon",
+                    source.as_bytes(),
+                    [262144, 32, 2048, 4096, 262144, 16384, 512, 8, 512],
+                    None,
+                    None
+                )
+                .is_err(),
+                "{body}"
+            );
+        }
+    }
+    #[test]
     fn editor_descriptions_optional_metadata_and_class_lists() {
         let imported = import(
             r##"<svg viewBox="0 0 48 24" version="1.2" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/"><desc>Editor description</desc><metadata><rdf:RDF><cc:Work><dc:format>image/svg+xml</dc:format><dc:title>Logo</dc:title></cc:Work></rdf:RDF></metadata><style>.one,.two{fill:red}.two{fill:blue}</style><rect width="4" height="4" class="one"/><rect x="4" width="4" height="4" class="two"/></svg>"##,

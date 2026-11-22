@@ -14,6 +14,10 @@ area does not move the pin or run scoreboards.
   descriptions and optional Dublin Core metadata, comma-separated simple class
   selectors, ASCII whitespace in embedded base64, separate decoded-raster
   ceilings, native export import ceilings, and image shapes with `multiple`.
+- 8558856dc (continued): inert editor text/solid-color attributes on geometry,
+  local path metadata hrefs, enable-background on graphics containers, isolation,
+  normal blending, vector-effect=none, visible overflow on use/image, and
+  unreferenced clip paths without IDs.
 - b43d0c44f: data-only image resolver API classifies local paths and enforces
   denied local-file policy before rejecting external loading.
 - 6012a84bd and 1c7d0204e: raster watch previews use acquired resource snapshots
@@ -29,11 +33,8 @@ work is still required:
   single-primitive Gaussian filters, including linear-light interpolation.
 - Positioned text/tspan shaping with bundled fonts and shared glyph outlines.
 - Tiled even-odd rasterization and its revised work accounting.
-- Ambiguous duplicate IDs, unreferenced clip paths without IDs, and hidden
-  external-image sentinels.
-- The remaining geometry metadata and inert style-property admission changes
-  (`enable-background`, `isolation`, `mix-blend-mode`, `vector-effect`, overflow
-  and editor text/solid-color metadata on geometry).
+- Ambiguous duplicate IDs and hidden external-image sentinels.
+
 
 Unsupported SVG forms retain the previous importer rejection behavior; they
 are not silently approximated. Complex even-odd geometry retains the previous

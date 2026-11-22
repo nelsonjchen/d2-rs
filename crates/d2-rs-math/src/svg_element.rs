@@ -177,21 +177,8 @@ pub fn admit(
                     }
                 }
             }
-            if let Some(raw) = element.attrs.get("enable-background") {
-                svg_declarations::background(raw, cancel).map_err(|reason| {
-                    context(cancel).err().unwrap_or_else(|| {
-                        error(format!(
-                            "root <svg> has invalid enable-background: {reason}"
-                        ))
-                    })
-                })?;
-            }
         } else if element.attrs.contains_key("version") {
             return Err(error("nested <svg> version is unsupported".into()));
-        } else if element.attrs.contains_key("enable-background") {
-            return Err(error(
-                "nested <svg> enable-background is unsupported".into(),
-            ));
         }
     }
     let (classes, set) =
