@@ -1133,7 +1133,7 @@ impl<'a> Builder<'a> {
                 &format!("shape {}", q(&s.id)),
                 &format!("{}:label:0", s.id),
                 &s.text.label,
-                &s.stroke,
+                &s.font_color(),
                 top_left,
             )?;
             return Ok(vec![node]);
