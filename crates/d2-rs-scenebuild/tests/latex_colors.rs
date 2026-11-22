@@ -20,6 +20,7 @@ fn options() -> Options {
                 max_transform_functions: 10_000,
                 max_use_depth: 100,
                 max_resources: 10_000,
+                max_decoded_raster_bytes: 0,
             },
             svg_import_budget: SvgImportBudget {
                 max_source_bytes: 4_000_000,
