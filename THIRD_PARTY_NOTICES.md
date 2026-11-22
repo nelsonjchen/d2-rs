@@ -1563,3 +1563,10 @@ otherwise to promote the sale, use or other dealings in this Font Software
 without prior written authorization from the Gnome Foundation or Bitstream
 Inc., respectively. For further information, contact: fonts at gnome dot
 org.
+
+The layered wrapping implementation in
+`crates/d2-rs-elk/src/layered/wrapping.rs` is translated from elk-go
+8b285820520e `internal/layered/intermediate/wrapping/{stats,cuts,single_edge,cutting}.go`.
+Copyright (c) 2016 Kiel University and others; Copyright (c) 2026 The elk-go
+Authors. These portions retain EPL-2.0; complete terms are reproduced in
+`crates/d2-rs-elk/ELK-EPL-2.0.txt`.

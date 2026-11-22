@@ -119,6 +119,7 @@ mod coffman_graham;
 mod coordinates;
 mod forster;
 mod model_order_barycenter;
+pub(crate) mod wrapping;
 pub(crate) use coordinates::{
     SourceFlow, change_graph_y, hierarchy_edge_offset_y, hierarchy_reference_graph, source_node_y,
 };
@@ -320,6 +321,7 @@ pub struct LGraph {
     /// GREEDY_MODEL_ORDER uses model ties; the source default GREEDY uses RNG.
     pub cycle_breaking_model_order: bool,
     pub(crate) feedback_edges: bool,
+    pub(crate) wrapping: wrapping::Options,
     /// Whether P1 consumed the graph RNG before P3 initializes its holder.
     cycle_random_consumed: bool,
     /// Whether fixed-side port lists use ELK's degree sorting strategy.
@@ -632,6 +634,10 @@ pub struct LayeredArena {
     /// Source label-side options and LongEdgeSource/LongEdgeTarget ports.
     edge_label_side_modes: BTreeMap<LGraphId, EdgeLabelSideSelection>,
     long_edge_endpoints: BTreeMap<LNodeId, (LPortId, LPortId)>,
+    /// Individual SpacingEdgeNode used by wrapping's return-route dummies.
+    wrapping_edge_node_spacing: BTreeMap<LNodeId, f64>,
+    /// OriginalElement edge identity on wrapping dummies.
+    wrapping_original_edges: BTreeMap<LNodeId, LEdgeId>,
     /// Optional source/target property presence retained by HyperedgeDummyMerger.
     long_edge_merge_ends: BTreeMap<LNodeId, (Option<LPortId>, Option<LPortId>)>,
     /// LongEdgeHasLabelDummies propagated by the source splitter.
@@ -1051,13 +1057,12 @@ impl LayeredArena {
         arena
             .edge_label_side_modes
             .insert(root, parse_edge_label_side_selection(&graph.layout_options));
-        arena.graphs[root as usize].feedback_edges = model_order_barycenter::property(
-            &graph.layout_options,
-            "feedbackEdges",
-        )
-            .is_some_and(|v| v.as_bool() == Some(true) || v.as_str() == Some("true"));
+        arena.graphs[root as usize].feedback_edges =
+            model_order_barycenter::property(&graph.layout_options, "feedbackEdges")
+                .is_some_and(|v| v.as_bool() == Some(true) || v.as_str() == Some("true"));
         arena.graphs[root as usize].forced_model_order =
             model_order_barycenter::Options::parse(&graph.layout_options);
+        arena.graphs[root as usize].wrapping = wrapping::Options::parse(&graph.layout_options);
         arena.graphs[root as usize].merge_edges = parse_merge_edges(&graph.layout_options);
         arena.graphs[root as usize].consider_model_order =
             parse_consider_model_order(&graph.layout_options);
@@ -1840,9 +1845,12 @@ impl LayeredArena {
         let no_order = model_order_barycenter::property(options, "considerModelOrder.noModelOrder")
             .is_some_and(|v| v.as_bool() == Some(true) || v.as_str() == Some("true"));
         if !no_order {
-            let group = model_order_barycenter::property(options,
-                "considerModelOrder.groupModelOrder.crossingMinimizationId")
-                .and_then(Value::as_i64).unwrap_or(0);
+            let group = model_order_barycenter::property(
+                options,
+                "considerModelOrder.groupModelOrder.crossingMinimizationId",
+            )
+            .and_then(Value::as_i64)
+            .unwrap_or(0);
             self.node_model_order.insert(node_id, (0, group));
         }
         if let Some(minimum) = node_size_minimum {
@@ -1933,13 +1941,12 @@ impl LayeredArena {
                 parse_coffman_bound(nested_options);
             self.edge_label_side_modes
                 .insert(nested, parse_edge_label_side_selection(nested_options));
-            self.graphs[nested as usize].feedback_edges = model_order_barycenter::property(
-                nested_options,
-                "feedbackEdges",
-            )
-                .is_some_and(|v| v.as_bool() == Some(true) || v.as_str() == Some("true"));
+            self.graphs[nested as usize].feedback_edges =
+                model_order_barycenter::property(nested_options, "feedbackEdges")
+                    .is_some_and(|v| v.as_bool() == Some(true) || v.as_str() == Some("true"));
             self.graphs[nested as usize].forced_model_order =
                 model_order_barycenter::Options::parse(nested_options);
+            self.graphs[nested as usize].wrapping = wrapping::Options::parse(nested_options);
             self.graphs[nested as usize].merge_edges = parse_merge_edges(nested_options);
             self.graphs[nested as usize].consider_model_order =
                 parse_consider_model_order(nested_options);
@@ -12990,7 +12997,10 @@ fn order_layers_by_barycenter_impl(
         let mut ordered = keyed.iter().map(|entry| entry.0).collect::<Vec<_>>();
         if force_model_order {
             ordered = arena.layers[free_layer as usize].nodes.clone();
-            let values = keyed.iter().filter_map(|&(node, value, _)| value.map(|v| (node, v))).collect();
+            let values = keyed
+                .iter()
+                .filter_map(|&(node, value, _)| value.map(|v| (node, v)))
+                .collect();
             model_order_barycenter::sort(arena, graph_id, &mut ordered, &values);
         }
         if let Some(constraints) = &constraints {
@@ -15918,7 +15928,7 @@ fn bk_vertical_spacing(
 ) -> f64 {
     let first_type = arena.nodes[first as usize].node_type;
     let second_type = arena.nodes[second as usize].node_type;
-    match (first_type, second_type) {
+    let spacing = match (first_type, second_type) {
         // layered/spacings.go uses portPort for external/external. Source
         // nodeSpacing compares both owning graph values in this operand order.
         (LayeredNodeType::ExternalPort, LayeredNodeType::ExternalPort) => {
@@ -15983,6 +15993,32 @@ fn bk_vertical_spacing(
             .get(arena.nodes[first as usize].graph as usize)
             .map(|graph| graph.edge_node_vertical_spacing)
             .unwrap_or(fallback),
+    };
+    // IndividualSpacings overrides the node's graph property; Spacings then
+    // takes the maximum of the two node values. Wrapping sets only edgeNode.
+    if matches!(
+        (first_type, second_type),
+        (
+            LayeredNodeType::LongEdge,
+            LayeredNodeType::Normal | LayeredNodeType::Label | LayeredNodeType::BreakingPoint
+        ) | (
+            LayeredNodeType::Normal | LayeredNodeType::Label | LayeredNodeType::BreakingPoint,
+            LayeredNodeType::LongEdge
+        )
+    ) {
+        let first_spacing = arena
+            .wrapping_edge_node_spacing
+            .get(&first)
+            .copied()
+            .unwrap_or(spacing);
+        let second_spacing = arena
+            .wrapping_edge_node_spacing
+            .get(&second)
+            .copied()
+            .unwrap_or(spacing);
+        first_spacing.max(second_spacing)
+    } else {
+        spacing
     }
 }
 

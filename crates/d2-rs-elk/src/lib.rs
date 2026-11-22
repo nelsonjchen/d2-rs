@@ -2052,6 +2052,11 @@ fn run_root_scope_pipeline(
     finish_nested_graphs(arena, root)?;
     trace_phase!("hierarchy", "finish_nested_graphs");
     trace_arena!("hierarchy", "finish_nested_graphs", arena);
+    if includes_children {
+        layered::wrapping::wrap_single_edge(arena, root)?;
+    } else {
+        layered::for_each_separate_component(arena, root, layered::wrapping::wrap_single_edge)?;
+    }
     layered::redistribute_ordered_implicit_ports(arena, root);
     trace_phase!("ports", "redistribute_after_ordering");
     trace_arena!("ports", "redistribute_after_ordering", arena);
@@ -2280,6 +2285,7 @@ fn finish_nested_graph_scope(
     // processors; their external-port constraints are not the flat graph's
     // balanced-median case.
     layered::restore_pure_loop_port_areas_for_graph(arena, graph_id);
+    layered::wrapping::wrap_single_edge(arena, graph_id)?;
     layered::redistribute_ordered_implicit_ports(arena, graph_id);
     trace_phase!("nested", "redistribute_after_ordering");
     trace_arena!("nested", "redistribute_after_ordering", arena);
@@ -3924,8 +3930,8 @@ pub fn layout_with_options(
 }
 
 fn validate_options(options: ElkOptions) -> Result<(), LayoutError> {
-    // Wrapping's processor chains are not translated yet.
-    if options.layered.wrapping_strategy.is_some_and(|s| s != "OFF") {
+    // MULTI_EDGE still requires its paired breaking-point processor chain.
+    if options.layered.wrapping_strategy == Some("MULTI_EDGE") {
         return Err(LayoutError::EngineValidation(
             "elk-wrappingStrategy: native layered processor support is not yet ported".into(),
         ));

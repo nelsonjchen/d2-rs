@@ -12,7 +12,7 @@ needed disjoint root/style slots: root `elk-layer-constraint` occupied slot 46,
 which was already used for `style.opacity` (26 + 20). Its cache regression
 checks both lookups against the original public IR lookup.
 
-## Accepted upstream options still unsupported in Rust
+## Layered wrapping
 
 Source comparison uses elk-go
 `v0.2.1-0.20261119175052-8b285820520e`. A local public `elk.LayoutJSON` probe
@@ -24,22 +24,23 @@ option was enabled separately; other settings used provider defaults.
 
 | Option | Go result dimensions | Required native work |
 | --- | --- | --- |
-| `elk.layered.wrapping.strategy=SINGLE_EDGE` | 964x75 | Port `intermediate/wrapping/single_edge.go` and its graph statistics, cut selection/validation and layer rearrangement helpers; schedule `SingleEdgeGraphWrapper` before node placement. |
+| `elk.layered.wrapping.strategy=SINGLE_EDGE` | 964x75 | Ported: graph statistics, MSD/ARD/manual cuts, greedy/look-back validation, layer folding and return-route dummy chains before node placement. |
 | `elk.layered.wrapping.strategy=MULTI_EDGE` | 394x258 | Port breaking-point insertion before node ordering, processing before node placement, and removal after edge routing, including dummy/edge restoration and cutting/statistics helpers. |
 
-These are implemented upstream paths, not rejected or ignored options. Relevant
-registration/dispatch is in `internal/layered/{properties,configurator}.go`,
-`p5edges/orthogonal_edge_router.go` and `p3order/graph_info_holder.go`.
-The remaining Rust unsupported errors stay in place until their complete
-processor chains are ported. Matching the probe's dimensions alone would not
-implement those contracts.
+SINGLE_EDGE now runs in root/component and nested scopes before node sizing
+and placement. Wrapping dummies retain individual edge/node spacing,
+OriginalElement edge identity, fixed ports, thickness and long-edge endpoints;
+the existing join/reversal postpasses restore the original edges. Contract
+tests port `TestSingleEdgeManualCutWrapsPath`, verify cut heuristics and the
+source's explicit-forbidden-indices behavior, and exercise D2 paths in all
+four directions. This targets the SINGLE_EDGE differential mismatch cluster;
+no dimension-only special case or oracle regeneration was used.
 
-Wrapping remains unported in this follow-up. In addition to the table's
-phase scheduling, the shared `cutting.go` helper needs per-dummy individual
-edge/node spacing, original-edge properties, and complete long-edge endpoint
-and reversal restoration. SINGLE_EDGE needs these helpers even for a path;
-MULTI_EDGE additionally needs paired breaking-point metadata and post-routing
-edge restoration. Neither strategy's unsupported error has been removed.
+MULTI_EDGE remains unsupported until its complete breaking-point insertion,
+processing, improvement and removal chain is translated. Its unsupported
+error remains in place. Relevant dispatch is in
+`internal/layered/{properties,configurator}.go`,
+`p5edges/orthogonal_edge_router.go` and `p3order/graph_info_holder.go`.
 
 ## Forced model order
 

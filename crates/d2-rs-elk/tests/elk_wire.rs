@@ -207,3 +207,53 @@ fn feedback_edges_keep_forward_endpoint_approaches() {
         }
     }
 }
+
+#[test]
+fn single_edge_wrapping_routes_d2_paths_in_all_directions() {
+    for direction in ["right", "left", "down", "up"] {
+        let body = (0..11)
+            .map(|i| format!("n{i} -> n{}\n", i + 1))
+            .collect::<String>();
+        let ordinary = compile(&format!("direction: {direction}\n{body}"));
+        let wrapped = compile(&format!(
+            "direction: {direction}\nvars: {{d2-config: {{data: {{elk-wrappingStrategy: single_edge}}}}}}\n{body}"
+        ));
+        let baseline = layout(&ordinary, &LayoutOptions::default()).unwrap();
+        let result = layout(&wrapped, &LayoutOptions::default()).unwrap();
+        assert_eq!(result.boxes.len(), 12);
+        assert_eq!(result.routes.len(), 11);
+        let first = wrapped
+            .nodes()
+            .find(|(_, n)| n.external_id == "n0")
+            .unwrap()
+            .0;
+        let last = wrapped
+            .nodes()
+            .find(|(_, n)| n.external_id == "n11")
+            .unwrap()
+            .0;
+        let distance = |boxes: &std::collections::BTreeMap<_, Rect>| {
+            let a = boxes[&first].origin;
+            let b = boxes[&last].origin;
+            if matches!(direction, "right" | "left") {
+                (a.x - b.x).abs()
+            } else {
+                (a.y - b.y).abs()
+            }
+        };
+        assert!(
+            distance(&result.boxes) < distance(&baseline.boxes),
+            "{direction}"
+        );
+        for route in result.routes.values() {
+            assert!(route.len() >= 2);
+            assert!(route.iter().all(|p| p.x.is_finite() && p.y.is_finite()));
+            for pair in route.windows(2) {
+                assert!(
+                    pair[0].x == pair[1].x || pair[0].y == pair[1].y,
+                    "{direction}: {pair:?}"
+                );
+            }
+        }
+    }
+}
