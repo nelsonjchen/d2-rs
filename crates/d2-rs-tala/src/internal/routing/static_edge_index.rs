@@ -247,6 +247,7 @@ impl StaticEdges {
 #[derive(Debug, Default)]
 pub(super) struct StaticEdgeIndex {
     shared: std::sync::Arc<StaticEdges>,
+    pub(super) grid: super::ovg_crossing_index::CrossingIndex,
     pub(super) nearby: EdgeFlags,
     pub(super) overlapping: EdgeLists,
 }
@@ -352,6 +353,7 @@ impl StaticEdgeIndex {
     /// A fresh index (no published routes) over existing static edges.
     pub(super) fn from_shared(shared: std::sync::Arc<StaticEdges>) -> Self {
         Self {
+            grid: super::ovg_crossing_index::CrossingIndex::new(&shared, None).unwrap(),
             shared,
             ..Self::default()
         }
@@ -369,6 +371,7 @@ impl StaticEdgeIndex {
         for segment in segments {
             index.append_value(segment);
         }
+        index.grid = super::ovg_crossing_index::CrossingIndex::new(&index.shared, None).unwrap();
         index
     }
     pub(super) fn append_value(&mut self, segment: [Point; 2]) -> usize {
@@ -388,7 +391,19 @@ impl StaticEdgeIndex {
         } else if segment[0].y == segment[1].y {
             shared.horizontal.append(segment[0].y, id);
         }
+        self.grid = super::ovg_crossing_index::CrossingIndex::new(&self.shared, None).unwrap();
         id
+    }
+    pub(super) fn initialize_grid(&mut self, work: Option<&dyn Work>) -> Result<(), ()> {
+        self.grid = super::ovg_crossing_index::CrossingIndex::new(&self.shared, work)?;
+        Ok(())
+    }
+    pub(super) fn add_crossing(
+        &mut self,
+        segment: [Point; 2],
+        work: Option<&dyn Work>,
+    ) -> Result<(), ()> {
+        self.grid.add(segment, &self.shared, work)
     }
     pub(super) fn mark_route(
         &mut self,
@@ -413,40 +428,33 @@ impl StaticEdgeIndex {
         route: usize,
         work: Option<&dyn Work>,
     ) -> Result<(), ()> {
-        let step = || work.map_or(Ok(()), Work::step);
         let vertical = from.point().x == to.point().x;
-        let along = |point: Point| if vertical { point.y } else { point.x };
-        let across = |point: Point| if vertical { point.x } else { point.y };
-        let (mut low, mut high) = (along(from.point()), along(to.point()));
-        if high < low {
-            std::mem::swap(&mut low, &mut high);
-        }
-        let shared = &*self.shared;
-        let axes = if vertical {
-            &shared.vertical
+        let (axis, a, b) = if vertical {
+            (from.point().x, from.point().y, to.point().y)
         } else {
-            &shared.horizontal
+            (from.point().y, from.point().x, to.point().x)
         };
-        for bucket in axes.buckets.values() {
-            step()?;
-            if (bucket.axis - across(from.point())).abs() > 5.0 {
-                continue;
-            }
-            for &id in &bucket.edges {
-                step()?;
-                let [edge_from, edge_to] = shared.edge_points(id);
-                let (mut start, mut end) = (along(edge_from), along(edge_to));
-                if end < start {
-                    std::mem::swap(&mut start, &mut end);
+        let lines = if vertical {
+            &self.grid.vertical
+        } else {
+            &self.grid.horizontal
+        };
+        lines.visit(
+            (axis - 5.0).next_down(),
+            (axis + 5.0).next_up(),
+            a.min(b),
+            a.max(b),
+            work,
+            |coordinate, interval| {
+                if (coordinate - axis).abs() > 5.0 {
+                    return;
                 }
-                if !(end < low || high < start) {
-                    self.nearby.insert(id);
-                    if bucket.axis == across(from.point()) {
-                        push_pointer(self.overlapping.entry_or_default(id), route);
-                    }
+                self.nearby.insert(interval.edge);
+                if coordinate == axis {
+                    push_pointer(self.overlapping.entry_or_default(interval.edge), route);
                 }
-            }
-        }
+            },
+        )?;
         Ok(())
     }
 }
@@ -462,7 +470,7 @@ mod tests {
     use super::*;
     use crate::internal::owner_points::SharedOwnerPoint;
     #[test]
-    fn captured_axis_and_live_span_keep_distinct_overlap_lists() {
+    fn captured_axis_and_interval_span_survive_later_point_mutation() {
         let mut build = super::super::ovg_ports::PortBuild::default();
         let a = SharedOwnerPoint::new(Point { x: 0.0, y: 0.0 });
         let b = SharedOwnerPoint::new(Point { x: 10.0, y: 0.0 });
@@ -523,7 +531,8 @@ mod tests {
                 None,
             )
             .unwrap();
-        assert_eq!(index.overlapping[&0], vec![0]);
+        // c12b4b1a3 indexGridLines captures the interval at construction.
+        assert_eq!(index.overlapping[&0], vec![0, 1]);
         assert_eq!(index.overlapping[&1], vec![0, 1]);
     }
 

@@ -121,6 +121,52 @@ mod tests {
     use crate::{ContentAlignment, Edge, Node};
 
     #[test]
+    fn count_rank_crossings_matches_geometry() {
+        // 64288a936 crossing_test.go TestCountRankCrossingsMatchesGeometry.
+        let mut placement = HierarchyPlacement {
+            nodes: Vec::new(),
+            roots: Vec::new(),
+            by_level: BTreeMap::new(),
+            node_to_placement: BTreeMap::new(),
+        };
+        for level in 0..3 {
+            for rank in 0..24 {
+                let mut n = HierarchyPlacementNode::dummy(level);
+                n.rank = rank;
+                placement.nodes.push(n);
+            }
+        }
+        for sides in [(true, true), (false, true), (true, false)] {
+            let mut segments = Vec::new();
+            for rank in 0..24 {
+                for offset in 0..5 {
+                    if sides.0 {
+                        segments.push((24 + rank, (rank * 7 + offset) % 24));
+                    }
+                    if sides.1 {
+                        segments.push((24 + rank, 48 + (rank * 11 + offset) % 24));
+                    }
+                }
+            }
+            let mut expected = 0;
+            for (i, &(a, b)) in segments.iter().enumerate() {
+                for &(c, d) in &segments[i + 1..] {
+                    let (a, b, c, d) = (
+                        placement.rank_point(a),
+                        placement.rank_point(b),
+                        placement.rank_point(c),
+                        placement.rank_point(d),
+                    );
+                    if a != c && b != d && HierarchyPlacement::rank_segments_cross(a, b, c, d) {
+                        expected += 1;
+                    }
+                }
+            }
+            assert_eq!(placement.count_rank_crossings(&segments), Some(expected));
+        }
+    }
+
+    #[test]
     fn long_connection_gets_one_dummy_for_each_intermediate_level() {
         // The placement builder needs only container ownership for this
         // recovered long-edge invariant; populate two minimal arena nodes via
@@ -707,21 +753,24 @@ impl HierarchyPlacement {
                 segments.push((node, below));
             }
         }
-        let mut crossings = 0;
-        for (index, &(from, to)) in segments.iter().enumerate() {
-            for &(other_from, other_to) in &segments[index + 1..] {
-                let start = self.rank_point(from);
-                let end = self.rank_point(to);
-                let other_start = self.rank_point(other_from);
-                let other_end = self.rank_point(other_to);
-                if start == other_start || end == other_end {
-                    continue;
-                }
-                if Self::rank_segments_cross(start, end, other_start, other_end) {
-                    crossings += 1;
+        let crossings = self.count_rank_crossings(&segments).unwrap_or_else(|| {
+            let mut crossings = 0;
+            for (index, &(from, to)) in segments.iter().enumerate() {
+                for &(other_from, other_to) in &segments[index + 1..] {
+                    let start = self.rank_point(from);
+                    let end = self.rank_point(to);
+                    let other_start = self.rank_point(other_from);
+                    let other_end = self.rank_point(other_to);
+                    if start == other_start || end == other_end {
+                        continue;
+                    }
+                    if Self::rank_segments_cross(start, end, other_start, other_end) {
+                        crossings += 1;
+                    }
                 }
             }
-        }
+            crossings
+        });
         let length = segments
             .iter()
             .map(|(from, to)| {
@@ -733,6 +782,49 @@ impl HierarchyPlacement {
             })
             .sum();
         (crossings, length)
+    }
+
+    // Upstream 64288a936 crossingScratch.countCrossings. On adjacent levels,
+    // crossings are strict inversions, separately above and below the level.
+    fn count_rank_crossings(&self, segments: &[(usize, usize)]) -> Option<usize> {
+        if segments.len() < 32 {
+            return None;
+        }
+        let level = self.nodes[segments[0].0].level;
+        let mut max_rank = 0;
+        for &(from, to) in segments {
+            let (from, to) = (&self.nodes[from], &self.nodes[to]);
+            if from.level != level || to.level.abs_diff(level) != 1 || to.rank / segments.len() > 4
+            {
+                return None;
+            }
+            max_rank = max_rank.max(to.rank);
+        }
+        let mut ordered = segments.to_vec();
+        ordered.sort_by_key(|&(from, to)| (self.nodes[from].rank, self.nodes[to].rank));
+        let size = max_rank + 2;
+        let mut rank_counts = vec![[0usize; 2]; size];
+        let mut seen = [0usize; 2];
+        let mut crossings = 0;
+        for (_, to) in ordered {
+            let to = &self.nodes[to];
+            let side = usize::from(to.level > level);
+            let index = to.rank + 1;
+            let mut greater = seen[side];
+            let mut i = index;
+            while i > 0 {
+                greater -= rank_counts[i][side];
+                i -= i & i.wrapping_neg();
+            }
+            crossings += greater;
+            let mut i = index;
+            while i < size {
+                rank_counts[i][side] += 1;
+                i += i & i.wrapping_neg();
+            }
+            seen[side] += 1;
+        }
+        Some(crossings)
     }
 
     fn rank_point(&self, node: usize) -> (f64, f64) {

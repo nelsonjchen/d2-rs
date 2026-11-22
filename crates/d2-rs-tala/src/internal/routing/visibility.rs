@@ -79,9 +79,9 @@ fn search_axis(first: Point, second: Point) -> Axis {
     }
 }
 
-/// The three node-indexed arrays initialized at the start of Go search.
-/// Preparing them before port/label setup preserves allocation and work-limit
-/// boundaries while allowing the caller to derive source-shaped options.
+/// Node-indexed state prepared after quickRoute fails. The router charges
+/// four arrays on first allocation, then three resets per previously touched
+/// node, while the numerical storage is recycled by the Rust search pool.
 pub(super) struct PreparedRouteSearch {
     ancestry: Option<(bool, bool)>,
     arrowhead_nodes: Vec<NodeId>,
@@ -2270,7 +2270,19 @@ impl VisibilityGraph {
             }
         }
         let first_edge_node = intersections.members.len();
-        charge(intersections.add_edge_nodes(graph, graph_nodes, budget))?;
+        let lane_membership = hierarchies.map(|groups| {
+            groups
+                .iter()
+                .enumerate()
+                .flat_map(|(i, h)| h.nodes.iter().map(move |&id| (id, i)))
+                .collect::<BTreeMap<_, _>>()
+        });
+        charge(intersections.add_edge_nodes_with_hierarchies(
+            graph,
+            graph_nodes,
+            lane_membership.as_ref(),
+            budget,
+        ))?;
         points.extend(
             intersections.members[first_edge_node..]
                 .iter()
@@ -2535,12 +2547,32 @@ impl VisibilityGraph {
         Ok(result)
     }
 
+    pub(super) fn prepare_route_search_for_router(
+        &self,
+        router: &super::search::RouteInteractionIndex,
+        budget: &LocalRouteSearchWork,
+    ) -> Option<PreparedRouteSearch> {
+        router.prepare_search_scratch(self.member_count(), budget)?;
+        Some(self.empty_prepared_search())
+    }
+    fn empty_prepared_search(&self) -> PreparedRouteSearch {
+        PreparedRouteSearch {
+            ancestry: None,
+            arrowhead_nodes: Vec::new(),
+            blocked_ports_prepared: false,
+            symmetry_prepared: false,
+            fixed_overlaps: None,
+            blocked_source: BTreeSet::new(),
+            blocked_target: BTreeSet::new(),
+            slots: take_search_slots(self.member_count()),
+        }
+    }
     pub(super) fn prepare_route_search(
         &self,
         budget: &LocalRouteSearchWork,
     ) -> Option<PreparedRouteSearch> {
         let node_count = self.member_count();
-        budget.reserve_product(node_count as u64, 3).ok()?;
+        budget.reserve_product(node_count as u64, 4).ok()?;
         let slots = take_search_slots(node_count);
         Some(PreparedRouteSearch {
             ancestry: None,
@@ -2831,6 +2863,7 @@ impl VisibilityGraph {
         // for every turning hop.
         let source_box = boxes.get(&source_node).copied();
         let target_box = boxes.get(&target_node).copied();
+        interaction_index.touched_node_count.set(1);
         let mut reached_target = false;
         let mut best_cost = f64::INFINITY;
         while let Some((entry, entry_cost)) = queue_pop(queue, budget) {
@@ -2869,10 +2902,13 @@ impl VisibilityGraph {
             // The pop's pointToRoute lookup also answers each hop's occupied
             // routes while the entry point's key is unchanged.
             let mut occupied_memo: super::search::OccupiedMemo<'_> = None;
-            interaction_index.charge_occupied_routes_memo(
+            interaction_index.charge_occupied_routes_for_edge(
                 (entry.node != source_index).then_some(self.point(entry.node)),
                 budget,
                 &mut occupied_memo,
+                edge_index.is_some_and(|id| {
+                    graph.edge_records[id].source_arrow != graph.edge_records[id].target_arrow
+                }),
             )?;
             if entry.node == source_index {
                 // `connectPortsToCenter` appends the source center's port
@@ -2960,6 +2996,9 @@ impl VisibilityGraph {
                         }
                         if slots[source_context].distances == INITIAL_SEARCH_SLOT.distances {
                             touched.push(source_context);
+                            interaction_index
+                                .touched_node_count
+                                .set(interaction_index.touched_node_count.get() + 1);
                         }
                         slots[source_context].distances[axis.index()] = cost;
                         slots[source_context].previous[axis.index()] =
@@ -3031,6 +3070,10 @@ impl VisibilityGraph {
                     {
                         continue;
                     }
+                }
+                let next_axis = search_axis(entry_point, next_point);
+                if entry_cost >= slots[next_node.context()].distances[next_axis.index()] {
+                    continue;
                 }
                 if next == target_index {
                     let Some(targets_at_point) = targets.get(&entry.node) else {
@@ -3139,6 +3182,9 @@ impl VisibilityGraph {
                         }
                         if slots[target_context].distances == INITIAL_SEARCH_SLOT.distances {
                             touched.push(target_context);
+                            interaction_index
+                                .touched_node_count
+                                .set(interaction_index.touched_node_count.get() + 1);
                         }
                         slots[target_context].distances[axis.index()] = candidate;
                         slots[target_context].previous[axis.index()] =
@@ -3451,6 +3497,9 @@ impl VisibilityGraph {
                 }
                 if slots[next_context].distances == INITIAL_SEARCH_SLOT.distances {
                     touched.push(next_context);
+                    interaction_index
+                        .touched_node_count
+                        .set(interaction_index.touched_node_count.get() + 1);
                 }
                 slots[next_context].distances[axis.index()] = next_cost;
                 slots[next_context].previous[axis.index()] = Some(predecessor(entry.node));
@@ -3650,7 +3699,7 @@ impl VisibilityGraph {
         overlap: bool,
         budget: &LocalRouteSearchWork,
     ) -> Option<AnyTargetRoute> {
-        let mut prepared = self.prepare_route_search(budget)?;
+        let mut prepared = self.prepare_route_search_for_router(interaction_index, budget)?;
         if let Some(index) = edge_index {
             prepared.prepare_arrowhead_nodes(graph, index, budget)?;
         }
@@ -4158,7 +4207,8 @@ mod tests {
         assert_eq!(visibility.point(center), Point { x: 30.0, y: 40.0 });
         assert!(!visibility.is_node_center(center));
         assert!(!visibility.edges[center].is_empty());
-        let array_units = visibility.member_count() as u64 * 3;
+        // 64288a936 allocates four arrays only after quickRoute fails.
+        let array_units = visibility.member_count() as u64 * 4;
         let limited = LocalRouteSearchWork::new(array_units - 1);
         assert!(visibility.prepare_route_search(&limited).is_none());
         assert_eq!(limited.used(), 0);

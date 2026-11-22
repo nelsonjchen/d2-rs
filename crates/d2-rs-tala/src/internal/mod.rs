@@ -565,6 +565,7 @@ mod tests {
     include!("tests/containers_and_compositions.rs");
     include!("tests/binpack_and_hierarchy.rs");
     include!("tests/routing.rs");
+    include!("tests/large_routing.rs");
 }
 
 mod quality;

@@ -472,10 +472,10 @@ mod tests {
     }
     #[test]
     fn standalone_shared_port_publishes_two_points_before_balancing() {
-        // Pinned source standalone observer: both sizes consume 81 units.
+        // c12b4b1a3: hierarchy classification and grid indexing add eight units.
         for size in [0.0, 80.125] {
             let mut g = graph(size, false, "");
-            assert_eq!(route(&mut g, 81).unwrap(), 81);
+            assert_eq!(route(&mut g, 89).unwrap(), 89);
             let current = &g.edge_records[0].route;
             assert_eq!((current.len(), current.capacity()), (2, 2));
             assert_eq!(
@@ -502,7 +502,7 @@ mod tests {
     }
     #[test]
     fn standalone_every_shared_port_work_failure_restores_the_owner() {
-        for limit in 0..81 {
+        for limit in 0..89 {
             let mut g = graph(80.125, false, "");
             // Spare capacity is observed independently by the differential
             // corpus; this regression keeps the source empty-route input.
@@ -528,7 +528,7 @@ mod tests {
     }
     #[test]
     fn standalone_raw_none_arrowhead_changes_the_guarded_port_selection() {
-        for (arrow, expected) in [("", 281), ("none", 225)] {
+        for (arrow, expected) in [("", 289), ("none", 233)] {
             let mut g = graph(40.0, true, arrow);
             let old = g.edge_records[1].route.clone();
             let values = old.read().clone();
@@ -587,7 +587,8 @@ mod tests {
         );
         // Pinned Go: 3,372 calls through base OVG construction, five fixed-route
         // connections, 18 router-constructor calls, then Err and Cause in WithCancel.
-        assert_eq!(context.0.get(), 3397);
+        // c12b4b1a3 classifies hierarchy lanes and indexes grid lines first.
+        assert_eq!(context.0.get(), 3437);
         assert_eq!(work.used(), 39);
         assert_eq!(g.cell_size, cell);
         assert_eq!(g.raw_routing_costs(), costs);
