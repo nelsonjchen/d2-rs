@@ -122,6 +122,16 @@ pub fn graph_to_elk_graph_with_table_columns(
     }
 }
 
+/// Converts a D2 graph with validated diagram-level ELK options.
+///
+/// Like upstream ConvertGraph, this applies graph data over caller defaults.
+/// Use this fallible entry point for authored option values; the lower-level
+/// `graph_to_elk_graph` accepts already resolved options.
+pub fn try_graph_to_elk_graph(graph: &Graph, options: ElkOptions) -> Result<ElkGraph, LayoutError> {
+    let options = crate::options::graph_options(graph, options)?;
+    Ok(graph_to_elk_graph(graph, &graph.node_labels, options))
+}
+
 /// Applies an ELK result graph to a shared layout result.
 ///
 /// ELK coordinates are relative to the owning container. D2 publishes
@@ -283,7 +293,7 @@ fn direction_name(direction: Direction) -> &'static str {
 }
 
 fn root_layout_options(options: &ElkOptions, direction: &str) -> Value {
-    json!({
+    let mut value = json!({
         "elk.algorithm": algorithm_name(options),
         "spacing.nodeNodeBetweenLayers": options.node_spacing,
         // d2elklayout's newRootLayoutOptions deliberately leaves padding
@@ -303,11 +313,13 @@ fn root_layout_options(options: &ElkOptions, direction: &str) -> Value {
         "elk.layered.cycleBreaking.strategy": "GREEDY_MODEL_ORDER",
         "elk.nodeSize.constraints": "MINIMUM_SIZE",
         "elk.contentAlignment": "H_CENTER V_CENTER",
-    })
+    });
+    crate::options::parent_options(options, true, &mut value);
+    value
 }
 
 fn container_layout_options(options: &ElkOptions, _direction: &str) -> Value {
-    json!({
+    let mut value = json!({
         "spacing.nodeNodeBetweenLayers": options.node_spacing,
         "elk.padding": padding_string(options.padding),
         "spacing.edgeNodeBetweenLayers": options.edge_node_spacing,
@@ -322,7 +334,9 @@ fn container_layout_options(options: &ElkOptions, _direction: &str) -> Value {
         "elk.nodeSize.constraints": "MINIMUM_SIZE",
         "elk.contentAlignment": "H_CENTER V_CENTER",
         "elk.direction": "",
-    })
+    });
+    crate::options::parent_options(options, false, &mut value);
+    value
 }
 
 fn leaf_layout_options() -> Value {
@@ -462,6 +476,7 @@ fn build_node(
             &child_ids,
             node_labels,
             options.padding,
+            options.padding_sides,
         );
         if let Some(object) = value.as_object_mut() {
             object.insert(
@@ -569,6 +584,15 @@ fn build_node(
     elk_node
 }
 
+fn options_padding(graph: &Graph) -> Option<crate::GraphPadding> {
+    graph
+        .d2_config_data
+        .get("elk-padding")
+        .and_then(Value::as_str)
+        .or(graph.layout_engine_options.elk_padding.as_deref())
+        .and_then(|p| crate::options::read_padding(p).ok())
+}
+
 /// Reproduces d2elklayout.adjustPadding at the Rust/ELK wire boundary.
 ///
 /// The Go adapter first resolves an implicit container label position, then
@@ -576,6 +600,7 @@ fn build_node(
 /// shape for the inner box of that estimate. The resulting shape clearance is
 /// merged with ELK's default 50px padding. Doing this before the nested scope
 /// is laid out is what moves children below package/diamond title bands.
+
 fn source_container_padding(
     graph: &Graph,
     source_graph: &Graph,
@@ -583,32 +608,15 @@ fn source_container_padding(
     child_ids: &[NodeId],
     labels: &BTreeMap<NodeId, String>,
     default_padding: f64,
+    padding_sides: Option<crate::GraphPadding>,
 ) -> Insets {
-    // d2elklayout.parsePadding uses case-sensitive `side=(\d+)` searches,
-    // independent of elk-go's more general graph-padding option parser.
-    let configured_padding = graph
-        .layout_engine_options
-        .elk_padding
-        .as_deref()
-        .map(|text| {
-            let side = |name: &str| {
-                let marker = format!("{name}=");
-                let mut remaining = text;
-                while let Some(index) = remaining.find(&marker) {
-                    remaining = &remaining[index + marker.len()..];
-                    let digits = remaining.bytes().take_while(u8::is_ascii_digit).count();
-                    if digits != 0 {
-                        return remaining[..digits].parse::<i64>().ok().unwrap_or(0) as f64;
-                    }
-                }
-                0.0
-            };
-            Insets {
-                top: side("top"),
-                right: side("right"),
-                bottom: side("bottom"),
-                left: side("left"),
-            }
+    let configured_padding = padding_sides
+        .or_else(|| options_padding(graph))
+        .map(|p| Insets {
+            top: p.top,
+            right: p.right,
+            bottom: p.bottom,
+            left: p.left,
         });
     let Some(node) = graph.node(id) else {
         return configured_padding.unwrap_or_else(|| Insets::uniform(default_padding));

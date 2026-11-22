@@ -80,6 +80,7 @@ fn underlying(w: &mut ElkGraph, o: ElkOptions) -> Result<Option<ElkAlgorithm>, L
                 edge_edge_spacing: 10.,
                 padding: 12.,
                 self_loop_spacing: 10.,
+                ..ElkOptions::default()
             },
         ),
         ElkAlgorithm::Fixed => crate::fixed_layout::layout(w, o),

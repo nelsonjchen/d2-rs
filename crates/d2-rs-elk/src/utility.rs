@@ -163,6 +163,7 @@ pub(crate) fn layout_default_children(
             edge_edge_spacing: 10.0,
             padding: 12.0,
             self_loop_spacing: 10.0,
+            ..ElkOptions::default()
         };
         // core.Engine resolves each receiver's own algorithm, falling back
         // to Layered only when that receiver has no explicit selection.

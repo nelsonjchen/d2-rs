@@ -27,7 +27,9 @@ pub mod model;
 #[cfg(test)]
 mod model_order_contract;
 mod mrtree;
+mod options;
 mod orthogonal;
+pub use options::{AlgorithmOptions, LayeredOptions};
 mod property;
 mod radial_layout;
 mod random_layout;
@@ -40,6 +42,7 @@ mod utility;
 
 pub use codec::{
     apply_elk_graph_result, graph_to_elk_graph, graph_to_elk_graph_with_table_columns,
+    try_graph_to_elk_graph,
 };
 pub use layered::{
     BkAlignment, BkFixedAlignment, BkHorizontalDirection, BkVerticalDirection, GraphPadding, LEdge,
@@ -179,6 +182,12 @@ impl ElkAlgorithm {
 /// D2's configurable ELK adapter options.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ElkOptions {
+    /// Controls applied to parent graphs.
+    pub layered: LayeredOptions,
+    /// Controls applied to the selected root algorithm.
+    pub algorithm_options: AlgorithmOptions,
+    /// Named container padding; omitted sides are zero.
+    pub padding_sides: Option<GraphPadding>,
     /// Algorithm selected by the caller.
     pub algorithm: ElkAlgorithm,
     /// Spacing between adjacent layers or packed nodes.
@@ -197,6 +206,9 @@ pub struct ElkOptions {
 impl Default for ElkOptions {
     fn default() -> Self {
         Self {
+            layered: LayeredOptions::default(),
+            algorithm_options: AlgorithmOptions::default(),
+            padding_sides: None,
             algorithm: ElkAlgorithm::Layered,
             node_spacing: 70.0,
             edge_node_spacing: 40.0,
@@ -3765,8 +3777,12 @@ fn layout_with_wire_pipeline(
     // The wire solver already routed to the table's fixed/dynamic ports.
     // d2elklayout preserves these endpoints while removing outside margins;
     // recomputing them from the shrunken table moves column attachments.
+    let keep_routes = options::mr_tree_routes(graph, &elk, elk_options);
+    options::trim_mr_tree_routes(graph, &mut result, &keep_routes);
     shape_trace::trace_routes(graph, &mut result);
-    bends::delete_bends(graph, &mut result);
+    if elk_options.layered.edge_routing != Some("POLYLINE") {
+        bends::delete_bends_with_options(graph, &mut result, elk_options.layered, &keep_routes);
+    }
     deconflict_self_loop_labels(graph, &mut result);
     // Go ELK publishes orthogonal sections without setting Edge.IsCurve.
     // Authored curve flags, if present on an API graph, remain unchanged.
@@ -3811,13 +3827,17 @@ pub fn layout_with_options(
         source: Box::new(error),
     })?;
     let configured = &graph.layout_engine_options;
-    if let Some(value) = configured.elk_algorithm.as_deref() {
+    if let Some(value) = configured
+        .elk_algorithm
+        .as_deref()
+        .filter(|_| !graph.d2_config_data.contains_key("elk-algorithm"))
+    {
         // resolveAlgorithms supplies the default only for an empty option and
         // ignores unresolved algorithms on a scope without layout content.
         elk_options.algorithm = if value.is_empty() || graph.nodes().next().is_none() {
             ElkAlgorithm::Layered
         } else {
-            ElkAlgorithm::parse(value).map_err(|error| {
+            ElkAlgorithm::parse(&options::algorithm_name(value)).map_err(|error| {
                 [
                     "layout ELK graph",
                     "native ELK layout failed",
@@ -3843,6 +3863,7 @@ pub fn layout_with_options(
     if let Some(value) = configured.elk_self_loop_spacing {
         elk_options.self_loop_spacing = value as f64;
     }
+    elk_options = options::graph_options(graph, elk_options)?;
     validate_options(elk_options)?;
     match elk_options.algorithm {
         ElkAlgorithm::Layered => layout_with_layered_pipeline(graph, options, elk_options),
@@ -3901,7 +3922,30 @@ pub fn layout_with_options(
 }
 
 fn validate_options(options: ElkOptions) -> Result<(), LayoutError> {
+    // These processor chains are not translated yet. Never silently accept
+    // an option and publish the default layout in its place.
+    for (name, enabled) in [
+        (
+            "elk-forceNodeModelOrder",
+            options.layered.force_node_model_order,
+        ),
+        ("elk-feedbackEdges", options.layered.feedback_edges),
+        (
+            "elk-wrappingStrategy",
+            options
+                .layered
+                .wrapping_strategy
+                .is_some_and(|s| s != "OFF"),
+        ),
+    ] {
+        if enabled {
+            return Err(LayoutError::EngineValidation(format!(
+                "{name}: native layered processor support is not yet ported"
+            )));
+        }
+    }
     for (name, value) in [
+        ("edge_edge_spacing", options.edge_edge_spacing),
         ("node_spacing", options.node_spacing),
         ("edge_node_spacing", options.edge_node_spacing),
         ("padding", options.padding),
