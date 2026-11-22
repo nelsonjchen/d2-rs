@@ -711,6 +711,9 @@ pub struct Node {
     /// Whether this node forces hierarchical placement independent of shape.
     #[serde(default)]
     pub force_hierarchy: bool,
+    /// ELK layered placement constraint, normalized to FIRST, LAST or NONE.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub elk_layer_constraint: String,
     /// Requested minimum number of grid rows.
     pub grid_rows: Option<usize>,
     /// Requested minimum number of grid columns.
@@ -770,6 +773,7 @@ impl Node {
             fixed_height: false,
             direction: None,
             force_hierarchy: false,
+            elk_layer_constraint: String::new(),
             grid_rows: None,
             grid_columns: None,
             canvas_position: None,

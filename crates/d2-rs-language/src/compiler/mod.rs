@@ -29,6 +29,7 @@ mod late_validation;
 #[cfg(test)]
 mod master_internal;
 mod near_validation;
+mod recursive_edge_selector;
 mod scheduler;
 mod source_graph;
 mod style_colors;

@@ -579,7 +579,7 @@ impl Compiler {
             }
             if let Some(composite) = composite {
                 match self.arena.node_mut(node) {
-                    Node::Field(f) => f.composite = Some(composite),
+                    Node::Field(_) => self.arena.set_composite(node, Some(composite)),
                     Node::Edge(_) => {
                         let Some(map) = self.arena.map(composite) else {
                             self.substitution_error(

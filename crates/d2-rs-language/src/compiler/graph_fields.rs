@@ -68,6 +68,7 @@ fn property_slot(name: &str) -> Option<u32> {
         "3d" => 43,
         "animated" => 44,
         "filled" => 45,
+        "elk-layer-constraint" => 46,
         _ => return None,
     })
 }

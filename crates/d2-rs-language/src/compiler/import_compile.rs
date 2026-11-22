@@ -260,10 +260,8 @@ impl Compiler {
                         )
                     });
                     let composite = self.arena.copy(composite, Some(field));
-                    let Node::Field(f) = self.arena.node_mut(field) else {
-                        unreachable!()
-                    };
-                    f.composite = Some(composite);
+
+                    self.arena.set_composite(field, Some(composite));
                     let after = self.arena.map(field).map_or((0, 0), |m| {
                         (
                             self.arena.field_count_recursive(m),
