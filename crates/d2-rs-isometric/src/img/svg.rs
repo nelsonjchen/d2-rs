@@ -30,6 +30,8 @@ pub const RASTER_SHADOW_NORMAL_OFFSET: f64 = 0.025;
 /// A link hit region in world space (nativeLink).
 #[derive(Clone, Debug, Default)]
 pub struct NativeLink {
+    pub mesh_start: usize,
+    pub mesh_end: usize,
     pub points: Vec2<Vec>,
     pub url: String,
     pub tooltip: String,
@@ -225,6 +227,7 @@ struct Batch {
 }
 
 struct Unit {
+    link: Option<usize>,
     batches: Vec2<usize>,
     depth: f64,
     count: usize,
@@ -852,6 +855,11 @@ fn write_batch_plain(w: &mut Writer, b: &Batch, id: i64, camera: &Camera) {
             return;
         };
         let surface_id = w.surface_definition(vector);
+        let caption_hit = if m.outside_caption {
+            r#"<rect width="1" height="1" fill="transparent" pointer-events="all"/>"#
+        } else {
+            ""
+        };
         if w.err.is_some() {
             return;
         }
@@ -872,7 +880,7 @@ fn write_batch_plain(w: &mut Writer, b: &Batch, id: i64, camera: &Camera) {
         }
         let a = b.affine;
         w.write(&format!(
-            r##"<g clip-path="url(#face-{id})" opacity="{}"{blend}><g transform="matrix({} {} {} {} {} {})"{filter}><use xlink:href="#{surface_id}"/></g></g>"##,
+            r##"<g clip-path="url(#face-{id})" opacity="{}"{blend}><g transform="matrix({} {} {} {} {} {})"{filter}>{caption_hit}<use xlink:href="#{surface_id}"/></g></g>"##,
             svg_number(alpha),
             svg_number(a[0]),
             svg_number(a[1]),
@@ -895,14 +903,18 @@ fn write_batch_plain(w: &mut Writer, b: &Batch, id: i64, camera: &Camera) {
 
 // ------------------------------------------------------ ground shadow (svg_lighting.go)
 
-pub fn raster_shadow_ground(ts: &[Triangle]) -> f64 {
+pub fn native_mesh_floor(ts: &[Triangle]) -> f64 {
     let mut ground = 0.0f64;
     for t in ts {
         for v in &t.v {
             ground = go_min(ground, v.position.y);
         }
     }
-    ground + 0.08
+    ground
+}
+
+pub fn raster_shadow_ground(ts: &[Triangle]) -> f64 {
+    native_mesh_floor(ts) + 0.08
 }
 
 /// ground_receivers.go rasterGroundTriangles.
@@ -1167,6 +1179,7 @@ fn write_links(w: &mut Writer, scene: &NativeScene) {
     let mut links: Vec2<(&NativeLink, Vec2<SvgPoint>, f64)> = scene
         .links
         .iter()
+        .filter(|link| link.mesh_end == 0)
         .map(|link| {
             let points: Vec2<SvgPoint> = link
                 .points
@@ -1182,22 +1195,35 @@ fn write_links(w: &mut Writer, scene: &NativeScene) {
         .collect();
     links.stable_sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal));
     for (link, points, _) in links {
-        let mut destination = link.url.clone();
-        if destination.is_empty() && !link.target.is_empty() {
-            destination = format!("#{}", link.target);
-        }
+        let close = write_link_start(w, link, false);
         w.write(&format!(
-            r#"<a xlink:href="{}">"#,
-            html_escape(&destination)
-        ));
-        if !link.tooltip.is_empty() {
-            w.write(&format!("<title>{}</title>", html_escape(&link.tooltip)));
-        }
-        w.write(&format!(
-            r#"<path d="{}" fill="transparent" pointer-events="all"/></a>"#,
+            r#"<path d="{}" fill="transparent" pointer-events="all"/>{close}"#,
             svg_polygon_path(&[points])
         ));
     }
+}
+
+fn write_link_start(w: &mut Writer, link: &NativeLink, continued: bool) -> &'static str {
+    let destination = if link.url.is_empty() && !link.target.is_empty() {
+        format!("#{}", link.target)
+    } else {
+        link.url.clone()
+    };
+    let close = if destination.is_empty() {
+        w.write("<g>");
+        "</g>"
+    } else {
+        let tab = if continued { r#" tabindex="-1""# } else { "" };
+        w.write(&format!(
+            r#"<a xlink:href="{}"{tab}>"#,
+            html_escape(&destination)
+        ));
+        "</a>"
+    };
+    if !link.tooltip.is_empty() {
+        w.write(&format!("<title>{}</title>", html_escape(&link.tooltip)));
+    }
+    close
 }
 
 /// nativeSceneSVG.
@@ -1258,7 +1284,7 @@ pub fn native_scene_svg_with_context(
     limits.work = super::svg_visibility::svg_visibility_work_limit(faces.len());
     let visible = super::svg_visibility::svg_visible_faces_with_context(&faces, limits, context)?;
     let mut units: Vec2<Unit> = Vec2::new();
-    let mut unit_index: HashMap<(usize, usize, usize), usize> = HashMap::new();
+    let mut unit_index: HashMap<(Option<usize>, usize, usize, usize), usize> = HashMap::new();
     let mut batch_indexes: Vec2<HashMap<(usize, [i64; 6], String, usize), usize>> = Vec2::new();
     let mut batches: Vec2<Batch> = Vec2::new();
     for i in 0..scene.triangles.len() {
@@ -1284,11 +1310,16 @@ pub fn native_scene_svg_with_context(
         } else {
             0
         };
-        let key = (group, owner, material_key);
+        let link = scene
+            .links
+            .iter()
+            .position(|link| link.mesh_end > 0 && i >= link.mesh_start && i < link.mesh_end);
+        let key = (link, group, owner, material_key);
         let unit = match unit_index.get(&key) {
             Some(&unit) => unit,
             None => {
                 let mut u = Unit {
+                    link,
                     batches: Vec2::new(),
                     depth: 0.0,
                     count: 0,
@@ -1447,25 +1478,29 @@ pub fn native_scene_svg_with_context(
         scene.width, scene.height
     ));
     let bg = scene.background;
-    w.write(&format!(
-        r#"<rect width="100%" height="100%" fill="{}"/>"#,
-        svg_color(
-            bg.r as f64 / 255.0,
-            bg.g as f64 / 255.0,
-            bg.b as f64 / 255.0
-        )
-    ));
     if let Some(background) = &scene.background_paint {
-        let fragment = surface_svg(background, "background")?;
+        let mut surface = (**background).clone();
+        surface.cap_background = Some(bg);
+        let fragment = surface_svg(&surface, "background")?;
+        w.write(&format!(r#"<svg width="100%" height="100%" viewBox="0 0 1 1" preserveAspectRatio="none">{fragment}</svg>"#));
+    } else {
         w.write(&format!(
-            r#"<g transform="scale({} {})">{fragment}</g>"#,
-            scene.width, scene.height
+            r#"<rect width="100%" height="100%" fill="{}"/>"#,
+            svg_color(
+                bg.r as f64 / 255.0,
+                bg.g as f64 / 255.0,
+                bg.b as f64 / 255.0
+            )
         ));
     }
     write_ground_shadow(&mut w, scene);
     let mut id = 0i64;
     for &u in &order {
         let unit = &units[u];
+        let close_link = unit
+            .link
+            .map(|i| write_link_start(&mut w, &scene.links[i], false))
+            .unwrap_or("");
         w.write(&format!(r#"<g opacity="{}">"#, svg_number(unit.opacity)));
         for &b in &unit.batches {
             id += 1;
@@ -1479,6 +1514,7 @@ pub fn native_scene_svg_with_context(
             }
         }
         w.write("</g>");
+        w.write(close_link);
     }
     write_links(&mut w, scene);
     w.write("</svg>");

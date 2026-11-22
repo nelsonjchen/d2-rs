@@ -489,7 +489,7 @@ pub(crate) fn build_native_scene_with_options(
                 &mut b.geometry.triangles[first..],
                 owner.metadata.original.shadow,
             );
-            b.add_mesh_link(
+            b.add_object_link(
                 &owner.metadata.original.link,
                 &owner.metadata.original.tooltip,
                 first,
@@ -519,7 +519,7 @@ pub(crate) fn build_native_scene_with_options(
             let tint = tints.get(&n.board_id).map_or("", String::as_str);
             b.sequence_node(n, tint);
             captions.avoid_mesh(&b.triangles[first..]);
-            b.add_mesh_link(
+            b.add_object_link(
                 &n.metadata.original.link,
                 &n.metadata.original.tooltip,
                 first,

@@ -88,6 +88,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 unlit: m["unlit"].as_bool().unwrap_or(false),
                 multiply: m["multiply"].as_bool().unwrap_or(false),
                 svg_contour: m["svgContour"].as_bool().unwrap_or(false),
+                outside_caption: false,
                 svg_solid_texture: m["svgSolidTexture"].as_bool().unwrap_or(false),
                 gradient: m["gradient"].as_str().unwrap_or("").to_owned(),
             })
@@ -165,6 +166,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             links
                 .iter()
                 .map(|l| NativeLink {
+                    mesh_start: 0,
+                    mesh_end: 0,
                     points: l["points"].as_array().unwrap().iter().map(vec3).collect(),
                     url: l["url"].as_str().unwrap_or("").to_owned(),
                     tooltip: l["tooltip"].as_str().unwrap_or("").to_owned(),

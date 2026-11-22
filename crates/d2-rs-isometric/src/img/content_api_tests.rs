@@ -123,6 +123,7 @@ fn mat(v: &Value) -> MaterialRef {
         unlit: flag(&v["unlit"]),
         multiply: flag(&v["multiply"]),
         svg_contour: flag(&v["contour"]),
+        outside_caption: false,
         svg_solid_texture: flag(&v["solid"]),
         gradient: strv(&v["gradient"]),
         vector: surface(&v["vector"]),

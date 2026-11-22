@@ -80,9 +80,9 @@ pub fn wrap_svg(
         body = replacer.replace_all(&body, &values);
     }
     body = body.replacen(
-        "<rect width=\"100%\" height=\"100%\"",
+        " width=\"100%\" height=\"100%\"",
         &format!(
-            "<rect x=\"{}\" y=\"{}\" width=\"{w}\" height=\"{h}\"",
+            " x=\"{}\" y=\"{}\" width=\"{w}\" height=\"{h}\"",
             -pad, -pad
         ),
         1,

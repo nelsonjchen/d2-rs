@@ -58,6 +58,7 @@ pub fn replay(call: &Value) -> Result<Value, String> {
                 unlit: m["unlit"].as_bool().unwrap_or(false),
                 multiply: m["multiply"].as_bool().unwrap_or(false),
                 svg_contour: m["svgContour"].as_bool().unwrap_or(false),
+                outside_caption: false,
                 svg_solid_texture: m["svgSolidTexture"].as_bool().unwrap_or(false),
                 gradient: m["gradient"].as_str().unwrap_or("").into(),
             })

@@ -376,7 +376,8 @@ impl MeshBuilder {
                     c.retain(|n| n.id.starts_with("root:"));
                 }
             }
-            let surface = document_surface(&doc, self.scale, -0.045);
+            let floor = super::svg::native_mesh_floor(&self.triangles);
+            let surface = document_surface(&doc, self.scale, floor - 0.045);
             self.source_panel(doc, surface, panels)?;
         }
         self.err.clone().map_or(Ok(()), Err)
