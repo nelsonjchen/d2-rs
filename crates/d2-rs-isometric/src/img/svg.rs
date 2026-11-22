@@ -903,7 +903,7 @@ fn write_cover(
     };
     w.write(&format!(
         r#"<path d="{}" fill="url(#{name})" fill-opacity="{}"{blend}/>"#,
-        svg_polygon_path(&cover.polygons),
+        svg_fill_path(&cover.polygons),
         svg_number(m.color.a as f64 / 255.0)
     ));
 }

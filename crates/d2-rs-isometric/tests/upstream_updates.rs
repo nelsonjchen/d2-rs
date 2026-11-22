@@ -472,3 +472,28 @@ fn shadow_framing_depth_translates_without_fused_residuals() {
     };
     assert_eq!(depth(1.0), depth(0.0) + native_camera_axes().direction.x);
 }
+
+#[test]
+fn translucent_cylinder_paint_covers_merge_shared_edges() {
+    // 4d19eb5b9, svg_seams.go: triangulated surfaces retain their lighting
+    // pattern, while the final translucent mask has a single outer boundary.
+    let mut diagram = caption_diagram();
+    let shape = &mut diagram.shapes.as_mut().unwrap()[0];
+    shape.opacity = 0.5;
+    shape.text = Text::default();
+    shape.link.clear();
+    let options = Options {
+        width: 400,
+        height: 250,
+        fit_content: true,
+        ..Default::default()
+    };
+    let svg = render_svg_with_context(None, Some(&diagram), Some(&options)).unwrap();
+    let mut covers = 0;
+    for tail in svg.split("</pattern></defs><path d=\"").skip(1) {
+        let path = tail.split('"').next().unwrap();
+        assert_eq!(path.matches('M').count(), 1, "fragmented cover: {path}");
+        covers += 1;
+    }
+    assert!(covers > 0, "cylinder did not exercise a paint cover");
+}
