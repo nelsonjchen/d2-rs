@@ -612,6 +612,20 @@ mod tests {
         }
     }
     #[test]
+    fn merged_edge_attachments_survive_d2_bend_cleanup() {
+        let mut g = graph();
+        g.d2_config_data
+            .insert("elk-mergeEdges".into(), json!(true));
+        let result = crate::layout(&g, &LayoutOptions::default()).unwrap();
+        assert_eq!(result.routes[&EdgeId(0)][0], result.routes[&EdgeId(3)][0]);
+        assert_eq!(result.routes[&EdgeId(0)][0], result.routes[&EdgeId(4)][0]);
+        assert_eq!(
+            result.routes[&EdgeId(2)].last(),
+            result.routes[&EdgeId(3)].last()
+        );
+    }
+
+    #[test]
     fn algorithm_controls_change_geometry() {
         let mut g = graph();
         g.d2_config_data

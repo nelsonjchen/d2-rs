@@ -250,6 +250,8 @@ pub enum LayeringStrategy {
 /// A graph scope in the layered arena.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct LGraph {
+    /// Share unconstrained implicit input/output ports (`elk.layered.mergeEdges`).
+    pub merge_edges: bool,
     /// Original importer GraphPropertyHyperedges, retained across reversals.
     has_hyperedges: bool,
     /// Nodes not assigned to a layer yet, in importer/model order.
@@ -596,6 +598,8 @@ pub struct LayeredArena {
     pub nodes: Vec<LNode>,
     /// Imported ports.
     pub ports: Vec<LPort>,
+    /// Collector-port direction: true for output, false for input.
+    collector_ports: BTreeMap<LPortId, bool>,
     /// Imported edges.
     pub edges: Vec<LEdge>,
     /// Java-compatible per-graph random streams. ELK stores these in graph
@@ -1043,6 +1047,7 @@ impl LayeredArena {
         arena
             .edge_label_side_modes
             .insert(root, parse_edge_label_side_selection(&graph.layout_options));
+        arena.graphs[root as usize].merge_edges = parse_merge_edges(&graph.layout_options);
         arena.graphs[root as usize].consider_model_order =
             parse_consider_model_order(&graph.layout_options);
         arena.graphs[root as usize].cycle_breaking_model_order =
@@ -1907,6 +1912,7 @@ impl LayeredArena {
                 parse_coffman_bound(nested_options);
             self.edge_label_side_modes
                 .insert(nested, parse_edge_label_side_selection(nested_options));
+            self.graphs[nested as usize].merge_edges = parse_merge_edges(nested_options);
             self.graphs[nested as usize].consider_model_order =
                 parse_consider_model_order(nested_options);
             self.graphs[nested as usize].cycle_breaking_model_order =
@@ -1967,6 +1973,46 @@ impl LayeredArena {
     }
 
     fn add_implicit_port(&mut self, node: LNodeId, source: bool) -> LPortId {
+        let owner = &self.nodes[node as usize];
+        let collect = self.graphs[owner.graph as usize].merge_edges
+            && matches!(
+                owner.port_constraints,
+                PortConstraints::Undefined | PortConstraints::Free
+            );
+        if collect {
+            if let Some(port) = owner
+                .ports
+                .iter()
+                .copied()
+                .find(|port| self.collector_ports.get(port) == Some(&source))
+            {
+                return port;
+            }
+        }
+        let port = self.new_implicit_port(node, source);
+        if collect {
+            self.collector_ports.insert(port, source);
+        }
+        port
+    }
+
+    // LGraphArena.ProvideCollectorPort: reversal adapts an input collector
+    // into a distinct output collector, even if that node has no other edges.
+    fn provide_collector_port(&mut self, node: LNodeId, source: bool) -> LPortId {
+        if let Some(port) = self.nodes[node as usize]
+            .ports
+            .iter()
+            .copied()
+            .find(|port| self.collector_ports.get(port) == Some(&source))
+        {
+            return port;
+        }
+        let port = self.new_implicit_port(node, source);
+        self.collector_ports.insert(port, source);
+        port
+    }
+
+    fn new_implicit_port(&mut self, node: LNodeId, source: bool) -> LPortId {
         let owner = &self.nodes[node as usize];
         let port = LPort {
             node,
@@ -2172,7 +2218,7 @@ impl LayeredArena {
         Ok(new_edge_id)
     }
 
-    fn reverse_edge(&mut self, edge_id: LEdgeId) {
+    fn reverse_edge(&mut self, edge_id: LEdgeId, adapt_ports: bool) {
         let (source_port, target_port) = {
             let edge = &self.edges[edge_id as usize];
             (edge.source_port, edge.target_port)
@@ -2187,9 +2233,26 @@ impl LayeredArena {
                 .incoming_edges
                 .retain(|candidate| *candidate != edge_id);
         }
+        let mut new_source_port = target_port;
+        let mut new_target_port = source_port;
+        if adapt_ports {
+            if let Some(port) =
+                target_port.filter(|port| self.collector_ports.get(port) == Some(&false))
+            {
+                new_source_port =
+                    Some(self.provide_collector_port(self.ports[port as usize].node, true));
+            }
+            if let Some(port) =
+                source_port.filter(|port| self.collector_ports.get(port) == Some(&true))
+            {
+                new_target_port =
+                    Some(self.provide_collector_port(self.ports[port as usize].node, false));
+            }
+        }
         let edge = &mut self.edges[edge_id as usize];
         std::mem::swap(&mut edge.source, &mut edge.target);
-        std::mem::swap(&mut edge.source_port, &mut edge.target_port);
+        edge.source_port = new_source_port;
+        edge.target_port = new_target_port;
         edge.reversed = !edge.reversed;
         edge.bend_points.reverse();
         if let Some(port_id) = edge.source_port {
@@ -2337,11 +2400,19 @@ pub(crate) fn materialize_implicit_ports_in_import_order(
             let port = arena.add_implicit_port(source, true);
             arena.edges[edge_id as usize].source_port = Some(port);
             arena.ports[port as usize].outgoing_edges.push(edge_id);
+            if arena.ports[port as usize].outgoing_edges.len() > 1 {
+                let graph = arena.nodes[source as usize].graph;
+                arena.graphs[graph as usize].has_hyperedges = true;
+            }
         }
         if target_port.is_none() {
             let port = arena.add_implicit_port(target, false);
             arena.edges[edge_id as usize].target_port = Some(port);
             arena.ports[port as usize].incoming_edges.push(edge_id);
+            if arena.ports[port as usize].incoming_edges.len() > 1 {
+                let graph = arena.nodes[target as usize].graph;
+                arena.graphs[graph as usize].has_hyperedges = true;
+            }
         }
     }
     assign_implicit_self_loop_sides(arena);
@@ -4506,6 +4577,10 @@ fn parse_random_seed(options: &serde_json::Value) -> i64 {
         .unwrap_or(1)
 }
 
+fn parse_merge_edges(options: &Value) -> bool {
+    crate::property::flag(options, "layered.mergeEdges", false)
+}
+
 fn parse_consider_model_order(options: &serde_json::Value) -> bool {
     options
         .get("elk.layered.considerModelOrder.strategy")
@@ -5187,7 +5262,7 @@ fn break_cycles_greedy_impl(
                 continue;
             };
             if marks[source] > marks[target] {
-                arena.reverse_edge(edge_id);
+                arena.reverse_edge(edge_id, true);
                 reversed.push(edge_id);
             }
         }
@@ -5934,7 +6009,7 @@ fn reverse_node_constraint_edges(
                     && !(constraint == Last
                         && arena.nodes[target as usize].node_type == LayeredNodeType::Label)
                 {
-                    arena.reverse_edge(edge_id);
+                    arena.reverse_edge(edge_id, true);
                 }
             }
         }
@@ -5949,7 +6024,7 @@ fn reverse_node_constraint_edges(
                     && !(constraint == First
                         && arena.nodes[source as usize].node_type == LayeredNodeType::Label)
                 {
-                    arena.reverse_edge(edge_id);
+                    arena.reverse_edge(edge_id, true);
                 }
             }
         }
@@ -6898,7 +6973,7 @@ pub(crate) fn restore_reversed_edges_for_layout(arena: &mut LayeredArena, graph_
             for port in arena.nodes[node as usize].ports.clone() {
                 for edge in arena.ports[port as usize].outgoing_edges.clone() {
                     if arena.edges[edge as usize].active && arena.edges[edge as usize].reversed {
-                        arena.reverse_edge(edge);
+                        arena.reverse_edge(edge, false);
                     }
                 }
             }
@@ -16019,6 +16094,100 @@ mod tests {
     use d2_rs_core::Point;
     use serde_json::json;
     use std::collections::BTreeMap;
+
+    // elk-go 8b285820520e importer_test.go TestImporterMergesImplicitPorts.
+    #[test]
+    fn importer_merges_only_unconstrained_implicit_ports() {
+        for (merge, constraint, shared) in [
+            (false, "FREE", false),
+            (true, "FREE", true),
+            (true, "FIXED_SIDE", false),
+            (true, "FIXED_ORDER", false),
+            (true, "FIXED_RATIO", false),
+            (true, "FIXED_POS", false),
+        ] {
+            let mut elk = graph(vec![node("a")], Vec::new());
+            elk.layout_options = json!({"elk.direction":"UP", "elk.layered.mergeEdges": merge});
+            elk.children[0].layout_options = Some(json!({"elk.portConstraints":constraint}));
+            let (mut arena, _) = LayeredArena::from_elk_graph(&elk).unwrap();
+            let output = arena.add_implicit_port(0, true);
+            let input = arena.add_implicit_port(0, false);
+            assert_ne!(input, output);
+            // Arena coordinates are normalized to RIGHT before phase one.
+            assert_eq!(arena.ports[output as usize].side, PortSide::East);
+            assert_eq!(arena.ports[input as usize].side, PortSide::West);
+            assert_eq!(
+                output == arena.add_implicit_port(0, true),
+                shared,
+                "{merge}/{constraint}"
+            );
+            assert_eq!(
+                input == arena.add_implicit_port(0, false),
+                shared,
+                "{merge}/{constraint}"
+            );
+        }
+    }
+
+    #[test]
+    fn merged_ports_keep_adjacency_and_adapt_during_cycle_reversal() {
+        let mut elk = graph(
+            vec![node("a"), node("b"), node("c")],
+            vec![("a", "b"), ("a", "c"), ("c", "b")],
+        );
+        elk.layout_options = json!({"elk.layered.mergeEdges":true});
+        let (mut arena, root) = LayeredArena::from_elk_graph(&elk).unwrap();
+        materialize_implicit_ports(&mut arena, root).unwrap();
+        let output = arena.edges[0].source_port.unwrap();
+        let input = arena.edges[0].target_port.unwrap();
+        assert_eq!(arena.edges[1].source_port, Some(output));
+        assert_eq!(arena.edges[2].target_port, Some(input));
+        assert_eq!(arena.ports[output as usize].outgoing_edges, vec![0, 1]);
+        assert_eq!(arena.ports[input as usize].incoming_edges, vec![0, 2]);
+        assert!(arena.graphs[root as usize].has_hyperedges);
+        arena.reverse_edge(0, true);
+        let new_source = arena.edges[0].source_port.unwrap();
+        let new_target = arena.edges[0].target_port.unwrap();
+        assert_ne!(new_source, input);
+        assert_ne!(new_target, output);
+        assert_eq!(arena.collector_ports[&new_source], true);
+        assert_eq!(arena.collector_ports[&new_target], false);
+        assert_eq!(arena.ports[output as usize].outgoing_edges, vec![1]);
+        assert_eq!(arena.ports[input as usize].incoming_edges, vec![2]);
+        assert_eq!(arena.ports[new_source as usize].outgoing_edges, vec![0]);
+        assert_eq!(arena.ports[new_target as usize].incoming_edges, vec![0]);
+        arena.reverse_edge(0, false);
+        assert!(!arena.edges[0].reversed);
+        assert_eq!(arena.edges[0].source_port, Some(new_target));
+        assert_eq!(arena.edges[0].target_port, Some(new_source));
+    }
+
+    #[test]
+    fn merged_ports_preserve_explicit_ports_and_nested_profiles() {
+        let mut elk = graph(
+            vec![node("outer"), node("b"), node("c")],
+            vec![("outer.p", "b"), ("outer.p", "c")],
+        );
+        elk.layout_options = json!({"elk.layered.mergeEdges":true});
+        elk.children[0].ports.push(ElkPort {
+            id: "outer.p".into(),
+            x: 0.,
+            y: 0.,
+            width: 0.,
+            height: 0.,
+            layout_options: json!({"elk.port.side":"EAST"}),
+        });
+        elk.children[0].children = vec![node("inner")];
+        elk.children[0].layout_options = Some(json!({"elk.layered.mergeEdges":false}));
+        let (mut arena, root) = LayeredArena::from_elk_graph(&elk).unwrap();
+        let nested = arena.nodes[0].nested_graph.unwrap();
+        assert!(arena.graphs[root as usize].merge_edges);
+        assert!(!arena.graphs[nested as usize].merge_edges);
+        materialize_implicit_ports(&mut arena, root).unwrap();
+        let explicit = arena.edges[0].source_port.unwrap();
+        assert_eq!(arena.edges[1].source_port, Some(explicit));
+        assert!(!arena.collector_ports.contains_key(&explicit));
+    }
 
     #[test]
     fn original_go_model_order_ties_do_not_follow_component_discovery_order() {
