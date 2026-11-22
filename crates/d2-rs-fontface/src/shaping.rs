@@ -17,7 +17,7 @@ use crate::fixed::{Int26_6, Rectangle26_6, ceil};
 use crate::sfnt::Hinting;
 use crate::shaping_tables::{SCRIPTS, UNKNOWN_SCRIPT};
 use crate::unicode::is_default_ignorable_rune;
-use d2_rs_render::go_float::go_fmadd;
+use d2_rs_core::go_fmadd;
 use std::collections::HashMap;
 
 /// Cancellation, standing in for Go's `context.Context`.

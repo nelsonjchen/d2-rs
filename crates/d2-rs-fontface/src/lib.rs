@@ -60,3 +60,6 @@ pub use noto_color_emoji::{
 };
 pub use shaping::{Context, ShapeFace, ShapeLimits, ShapedGlyph, ShapedText, ShapingWorkspace};
 pub use unicode::is_default_ignorable_rune;
+
+mod glyph_path;
+pub use glyph_path::{GlyphPathCommand, glyph_path};

@@ -10,6 +10,10 @@ use std::collections::BTreeMap;
 pub struct Style {
     #[serde(default)]
     pub viewport: [f64; 4],
+    #[serde(default = "default_font_size")]
+    pub font_size: f64,
+    #[serde(default)]
+    pub font_family: String,
     pub paint: PaintStyle,
     pub opacity: f64,
     pub display: bool,
@@ -20,10 +24,15 @@ pub struct Style {
     #[serde(default)]
     pub filter: String,
 }
+fn default_font_size() -> f64 {
+    16.
+}
 impl Default for Style {
     fn default() -> Self {
         Self {
             viewport: [0.; 4],
+            font_size: 16.,
+            font_family: String::new(),
             paint: PaintStyle {
                 visible: true,
                 fill: Some(Paint::Solid {
@@ -92,6 +101,12 @@ pub fn compute(
                     "expected a finite absolute length between 0 and 32767px".into(),
                 ));
             }
+            style.font_size = size.unwrap();
+        }
+    }
+    if let Some(value) = values.get("font-family") {
+        if !value.eq_ignore_ascii_case("inherit") {
+            style.font_family = value.clone();
         }
     }
     // Upstream 8558856dc style.go: these modes have no backdrop effect.

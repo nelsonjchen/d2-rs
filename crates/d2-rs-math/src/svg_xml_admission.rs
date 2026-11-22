@@ -66,9 +66,9 @@ impl State {
                 }
                 match name {
                     "svg" | "g" | "defs" | "style" | "path" | "rect" | "circle" | "ellipse"
-                    | "line" | "polyline" | "polygon" | "image" | "text" | "use" | "clipPath"
-                    | "linearGradient" | "radialGradient" | "stop" | "title" | "desc"
-                    | "metadata" | "mask" | "filter" | "feGaussianBlur" => {
+                    | "line" | "polyline" | "polygon" | "image" | "text" | "tspan" | "use"
+                    | "clipPath" | "linearGradient" | "radialGradient" | "stop" | "title"
+                    | "desc" | "metadata" | "mask" | "filter" | "feGaussianBlur" => {
                         return Ok(name.into());
                     }
                     "script" | "foreignObject" => {
@@ -134,6 +134,9 @@ impl State {
                 continue;
             }
             if ignored_namespaced(source, element, attribute, cancel)? {
+                if attribute.namespace == XML && name == "space" {
+                    output.metadata.insert("xml:space".into(), value.into());
+                }
                 continue;
             }
             match attribute.namespace.as_str() {

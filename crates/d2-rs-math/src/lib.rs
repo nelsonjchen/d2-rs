@@ -10067,3 +10067,5 @@ mod source_nil_child_tests;
 pub mod image_svg;
 
 pub mod svg_effects;
+
+pub mod svg_text;

@@ -406,7 +406,13 @@ pub fn compile_elements(
                     aspect: image.aspect,
                     ..Default::default()
                 }
-            } else if name == "text" {
+            } else if matches!(name, "text" | "tspan") {
+                if !super::svg_text::frozen(document, output.work.mathjax_root, index) {
+                    super::svg_text::validate(source, document, index)?;
+                    output.geometry[index].kind = 5;
+                    stack.extend(document.elements[index].children.iter().rev().copied());
+                    continue;
+                }
                 let commands = super::svg_frozen_text::commands(
                     source,
                     document,
@@ -673,7 +679,7 @@ fn validate_style_tree(
             resources,
             cancel,
         )?;
-        if name == "text" {
+        if name == "text" && super::svg_text::frozen(document, output.work.mathjax_root, index) {
             super::svg_frozen_text::validate_style(source, &style)?;
         }
         validate_stroke_caps(source, name, &output.geometry[index], &style, cancel)?;

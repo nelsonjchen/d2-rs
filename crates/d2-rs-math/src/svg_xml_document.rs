@@ -630,10 +630,10 @@ fn text_event(
     let name = current
         .map(|index| document.elements[index].name.as_str())
         .unwrap_or("");
-    if matches!(name, "style" | "text" | "dc:format") {
+    if matches!(name, "style" | "text" | "tspan" | "dc:format") {
         let kind = match name {
             "style" => "stylesheet",
-            "text" => "painted",
+            "text" | "tspan" => "painted",
             _ => "metadata",
         };
         let stylesheet = name == "style";

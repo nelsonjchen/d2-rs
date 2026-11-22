@@ -45,6 +45,8 @@ pub struct Work {
     pub uses: usize,
     pub max_uses: usize,
     pub max_depth: usize,
+    pub text_fonts: super::svg_text::Fonts,
+    pub shaped_runes: usize,
 }
 fn context(cancel: Option<&d2_rs_core::CancellationToken>) -> Result<(), String> {
     match cancel.and_then(d2_rs_core::CancellationToken::error) {
@@ -430,9 +432,16 @@ pub(crate) fn instantiate_effects(
                 let mut paint = style.paint.clone();
                 super::svg_gradient::resolve(&mut paint.fill, style.viewport)?;
                 super::svg_gradient::resolve(&mut paint.stroke, style.viewport)?;
-                let (primitive, commands) =
-                    super::svg_primitive::emit(&compiled.geometry[index], &paint, cancel)?;
-                if !matches!(name, "svg" | "g" | "mask") && primitive.is_none() {
+                let text_geometry;
+                let geometry = if compiled.geometry[index].kind == 5 {
+                    text_geometry =
+                        super::svg_text::geometry(source, document, index, &style, work, cancel)?;
+                    &text_geometry
+                } else {
+                    &compiled.geometry[index]
+                };
+                let (primitive, commands) = super::svg_primitive::emit(geometry, &paint, cancel)?;
+                if !matches!(name, "svg" | "g" | "mask" | "text") && primitive.is_none() {
                     stack.pop();
                     returned = None;
                     returning = true;
@@ -647,6 +656,7 @@ pub(crate) mod tests {
                 max_uses: maximum[2],
                 max_depth: maximum[3],
                 uses: used,
+                ..Default::default()
             };
             let mut scene = Scene::default();
             let result = super::super::svg_compile::compile(

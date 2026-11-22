@@ -560,6 +560,26 @@ mod icon_effect_tests {
             (3., 2., false)
         );
     }
+    // Upstream icon_test.go TestIconEditorMetadataClassListsAndPositionedText.
+    #[test]
+    fn positioned_text_and_tspan_pixels() {
+        let f = frame(
+            r##"<svg viewBox="0 0 48 24"><style>.one,.two{fill:red;isolation:isolate}.two{fill:blue}</style><g style="enable-background:new 0 0 48 24;mix-blend-mode:normal"><text x="2" y="18" font-size="16" class="one">A</text><text font-size="16"><tspan x="26" y="18" class="two">B</tspan></text></g></svg>"##,
+        );
+        let (mut red, mut blue) = (0, 0);
+        for y in 2..18 {
+            for x in 0..48 {
+                let p = pixel(&f, x, y);
+                if x < 20 && p[0] > 200 && p[3] > 128 {
+                    red += 1;
+                }
+                if x >= 26 && p[2] > 200 && p[3] > 128 {
+                    blue += 1;
+                }
+            }
+        }
+        assert!(red >= 10 && blue >= 10, "red={red}, blue={blue}");
+    }
     #[test]
     fn mask_definition_inherits_its_ancestors() {
         let f = frame(

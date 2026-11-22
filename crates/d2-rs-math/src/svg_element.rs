@@ -74,7 +74,7 @@ fn allowed(name: &str) -> Option<&'static [&'static str]> {
         "line" => &["x1", "y1", "x2", "y2"],
         "polyline" | "polygon" => &["points"],
         "image" => &["x", "y", "width", "height", "href", "preserveAspectRatio"],
-        "text" => &["font-size", "font-family"],
+        "text" | "tspan" => &["x", "y"],
         "use" => &["href", "x", "y", "overflow"],
         "filter" => &[
             "id",
@@ -188,7 +188,7 @@ pub fn admit(
         state.transform = [1., 0., 0., 1., 0., 0.];
         return Ok(Continuation::Complete);
     }
-    if !matches!(name, "svg" | "g" | "defs" | "clipPath" | "mask") && rendering_children {
+    if !matches!(name, "svg" | "g" | "defs" | "clipPath" | "mask" | "text") && rendering_children {
         return Err(error(format!(
             "element <{name}> cannot contain child elements"
         )));

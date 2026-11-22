@@ -23,6 +23,8 @@ base64.workspace = true
 sha2.workspace = true
 regex.workspace = true
 d2-rs-core.workspace = true
+d2-rs-fontface.workspace = true
+d2-rs-text.workspace = true
 roxmltree.workspace = true
 quick-xml = "=0.36.2"
 libm.workspace = true
