@@ -81,6 +81,18 @@ fn allowed(name: &str) -> Option<&'static [&'static str]> {
             "gradientTransform",
             "spreadMethod",
         ],
+        "radialGradient" => &[
+            "id",
+            "cx",
+            "cy",
+            "r",
+            "fx",
+            "fy",
+            "fr",
+            "gradientUnits",
+            "gradientTransform",
+            "spreadMethod",
+        ],
         "stop" => &["offset", "class", "style", "stop-color", "stop-opacity"],
         _ => return None,
     })
@@ -104,7 +116,7 @@ pub fn admit(
     let name = element.name.as_str();
     let specific =
         allowed(name).ok_or_else(|| error(format!("internal unsupported element <{name}>")))?;
-    if matches!(name, "linearGradient" | "stop") {
+    if matches!(name, "linearGradient" | "radialGradient" | "stop") {
         svg_gradient_tree::compile(
             source,
             element,

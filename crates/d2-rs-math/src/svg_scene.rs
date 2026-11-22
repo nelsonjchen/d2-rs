@@ -215,7 +215,10 @@ pub fn instantiate(
         match frame.phase {
             0 => {
                 if super::svg_compile::non_rendering(name)
-                    || matches!(name, "linearGradient" | "stop" | "clipPath")
+                    || matches!(
+                        name,
+                        "linearGradient" | "radialGradient" | "stop" | "clipPath"
+                    )
                 {
                     stack.pop();
                     returned = None;

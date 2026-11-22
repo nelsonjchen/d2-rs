@@ -67,13 +67,14 @@ impl State {
                 match name {
                     "svg" | "g" | "defs" | "style" | "path" | "rect" | "circle" | "ellipse"
                     | "line" | "polyline" | "polygon" | "image" | "text" | "use" | "clipPath"
-                    | "linearGradient" | "stop" | "title" | "desc" | "metadata" => {
+                    | "linearGradient" | "radialGradient" | "stop" | "title" | "desc"
+                    | "metadata" => {
                         return Ok(name.into());
                     }
                     "script" | "foreignObject" => {
                         return Err(error(format!("forbidden element <{name}>")));
                     }
-                    "radialGradient" | "pattern" => {
+                    "pattern" => {
                         return Err(error(format!("unsupported paint server <{name}>")));
                     }
                     _ => return Err(error(format!("unknown element <{}>", display(name)))),

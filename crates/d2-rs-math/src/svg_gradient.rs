@@ -44,19 +44,34 @@ pub fn compile(
     used: &mut usize,
     cancel: Option<&d2_rs_core::CancellationToken>,
 ) -> Result<Paint, String> {
+    compile_kind(
+        source,
+        "linearGradient",
+        attrs,
+        maximum_bytes,
+        maximum_functions,
+        used,
+        cancel,
+    )
+}
+pub fn compile_kind(
+    source: &str,
+    name: &str,
+    attrs: &BTreeMap<String, String>,
+    maximum_bytes: usize,
+    maximum_functions: usize,
+    used: &mut usize,
+    cancel: Option<&d2_rs_core::CancellationToken>,
+) -> Result<Paint, String> {
     let error = |reason: String| format!("d2svgimport: {source}: {reason}");
-    let property = |name: &str, reason: String| {
-        error(format!(
-            "element <linearGradient> has invalid {name}: {reason}"
-        ))
+    let property = |property: &str, reason: String| {
+        error(format!("element <{name}> has invalid {property}: {reason}"))
     };
     let units = match attrs.get("gradientUnits").map(|v| v.trim()).unwrap_or("") {
         "" | "objectBoundingBox" => 0,
         "userSpaceOnUse" => 1,
         _ => {
-            return Err(error(
-                "element <linearGradient> has invalid gradientUnits".into(),
-            ));
+            return Err(error(format!("element <{name}> has invalid gradientUnits")));
         }
     };
     let spread = match attrs.get("spreadMethod").map(|v| v.trim()).unwrap_or("") {
@@ -64,14 +79,26 @@ pub fn compile(
         "reflect" => 1,
         "repeat" => 2,
         _ => {
-            return Err(error(
-                "element <linearGradient> has invalid spreadMethod".into(),
-            ));
+            return Err(error(format!("element <{name}> has invalid spreadMethod")));
         }
     };
-    let mut coordinates = [0., 0., 1., 0.];
-    let mut percentages = [false, false, true, false];
-    for (index, name) in ["x1", "y1", "x2", "y2"].iter().enumerate() {
+    let radial = name == "radialGradient";
+    let mut coordinates = if radial {
+        [0.5, 0.5, 0.5, 0.5, 0.5, 0.]
+    } else {
+        [0., 0., 1., 0., 0., 0.]
+    };
+    let mut percentages = if radial {
+        [true, true, true, true, true, false]
+    } else {
+        [false, false, true, false, false, false]
+    };
+    let names: &[&str] = if radial {
+        &["fx", "fy", "cx", "cy", "r", "fr"]
+    } else {
+        &["x1", "y1", "x2", "y2"]
+    };
+    for (index, name) in names.iter().enumerate() {
         if let Some(raw) = attrs.get(*name) {
             let raw = raw.trim();
             let (number, percent) = raw.strip_suffix('%').map_or((raw, false), |n| (n, true));
@@ -87,15 +114,28 @@ pub fn compile(
             percentages[index] = percent;
         }
     }
+    if radial {
+        for (index, name) in ["fx", "fy"].iter().enumerate() {
+            if !attrs.contains_key(*name) {
+                coordinates[index] = coordinates[index + 2];
+                percentages[index] = percentages[index + 2];
+            }
+        }
+        if coordinates[4] < 0. || coordinates[5] < 0. {
+            return Err(error(
+                "element <radialGradient> has a negative radius".into(),
+            ));
+        }
+    }
     let start = [coordinates[0], coordinates[1]];
     let end = [coordinates[2], coordinates[3]];
     let mut transform = [1., 0., 0., 1., 0., 0.];
     if let Some(raw) = attrs.get("gradientTransform") {
         let raw = trim_space(raw, cancel)?;
         if raw.is_empty() {
-            return Err(error(
-                "element <linearGradient> has an empty gradientTransform".into(),
-            ));
+            return Err(error(format!(
+                "element <{name}> has an empty gradientTransform"
+            )));
         }
         if *used >= maximum_functions {
             return Err(error(format!(
@@ -113,12 +153,25 @@ pub fn compile(
         *used += count;
     }
     if !inverse_is_finite(transform) {
-        return Err(error(
-            "element <linearGradient> has a singular or unrepresentable gradientTransform".into(),
-        ));
+        return Err(error(format!(
+            "element <{name}> has a singular or unrepresentable gradientTransform"
+        )));
+    }
+    if radial {
+        return Ok(Paint::Radial {
+            focal: start,
+            center: end,
+            radius: coordinates[4],
+            focal_radius: coordinates[5],
+            percentages,
+            stops: Vec::new(),
+            units,
+            transform,
+            spread,
+        });
     }
     Ok(Paint::Linear {
-        percentages,
+        percentages: percentages[..4].try_into().unwrap(),
         start,
         end,
         stops: Vec::new(),
@@ -146,7 +199,7 @@ pub fn attach_stops(
             .into(),
         );
     }
-    if !matches!(paint, Paint::Linear { .. }) {
+    if !matches!(paint, Paint::Linear { .. } | Paint::Radial { .. }) {
         return Err(error("internal uncompiled linear gradient".into()));
     }
     for stop in stops {
@@ -168,7 +221,7 @@ pub fn attach_stops(
         previous = stop.offset;
         compiled.push(stop);
     }
-    if let Paint::Linear { stops, .. } = paint {
+    if let Paint::Linear { stops, .. } | Paint::Radial { stops, .. } = paint {
         *stops = compiled;
         Ok(())
     } else {
@@ -365,6 +418,43 @@ mod raster_inverse_tests {
 
 /// Resolve a retained paint template in the referencing element's viewport.
 pub fn resolve(paint: &mut Option<Paint>, viewport: [f64; 4]) -> Result<(), String> {
+    if let Some(Paint::Radial {
+        focal,
+        center,
+        radius,
+        focal_radius,
+        percentages,
+        units,
+        stops,
+        ..
+    }) = paint
+    {
+        if stops.is_empty() {
+            *paint = None;
+            return Ok(());
+        }
+        let [w, h] = if *units == 0 {
+            [1., 1.]
+        } else {
+            [viewport[2], viewport[3]]
+        };
+        let diagonal = (w / std::f64::consts::SQRT_2).hypot(h / std::f64::consts::SQRT_2);
+        for (index, coordinate) in focal
+            .iter_mut()
+            .chain(center.iter_mut())
+            .chain([radius, focal_radius])
+            .enumerate()
+        {
+            if percentages[index] {
+                *coordinate *= [w, h, w, h, diagonal, diagonal][index];
+            }
+            if !coordinate.is_finite() {
+                return Err("invalid radial gradient coordinates or radius".into());
+            }
+        }
+        *percentages = [false; 6];
+        return Ok(());
+    }
     let Some(Paint::Linear {
         start,
         end,

@@ -40,7 +40,7 @@ pub fn validate(
         context(cancel)?;
         let element = &elements[index];
         let parent = parent.map(|i: usize| elements[i].name.as_str());
-        if element.name == "linearGradient" {
+        if matches!(element.name.as_str(), "linearGradient" | "radialGradient") {
             if !matches!(parent, Some("defs" | "g" | "svg")) {
                 return Err(error(
                     "element <linearGradient> must be inside <svg>, <g> or <defs>".into(),
@@ -60,7 +60,7 @@ pub fn validate(
                 }
             }
         } else if element.name == "stop" {
-            if parent != Some("linearGradient") {
+            if !matches!(parent, Some("linearGradient" | "radialGradient")) {
                 return Err(error(
                     "element <stop> is only supported inside <linearGradient>".into(),
                 ));
@@ -96,6 +96,18 @@ pub fn compile(
             "gradientTransform",
             "spreadMethod",
         ],
+        "radialGradient" => &[
+            "id",
+            "cx",
+            "cy",
+            "r",
+            "fx",
+            "fy",
+            "fr",
+            "gradientUnits",
+            "gradientTransform",
+            "spreadMethod",
+        ],
         "stop" => &["offset", "class", "style", "stop-color", "stop-opacity"],
         _ => &[],
     };
@@ -114,9 +126,10 @@ pub fn compile(
         }
     }
     match element.name.as_str() {
-        "linearGradient" => {
-            element.gradient = Some(svg_gradient::compile(
+        "linearGradient" | "radialGradient" => {
+            element.gradient = Some(svg_gradient::compile_kind(
                 source,
+                &element.name,
                 &element.attrs,
                 max_bytes,
                 max_functions,

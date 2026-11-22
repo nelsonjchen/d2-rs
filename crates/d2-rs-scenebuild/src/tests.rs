@@ -639,3 +639,56 @@ fn catalog_embedded_raster_whitespace_and_independent_decoded_budget() {
     assert!(source.len() < 1024);
     assert!(import(0).is_err(), "zero retains the source-byte fallback");
 }
+
+#[test]
+fn catalog_radial_gradient_pixels() {
+    // Upstream 8558856dc TestIconGradientCoordinatesAndPixels radial case.
+    let source = r##"<svg viewBox="0 0 40 40"><radialGradient id="r"><stop stop-color="red"/><stop offset="100%" stop-color="blue"/></radialGradient><rect x="4" y="4" width="32" height="32" fill="url(#r)"/></svg>"##;
+    let d2_rs_math::svg_import::Outcome::Imported(imported) =
+        d2_rs_math::svg_import::import_labeled(
+            "icon",
+            source.as_bytes(),
+            [262144, 32, 2048, 4096, 262144, 16384, 512, 8, 512],
+            None,
+            None,
+        )
+        .unwrap()
+    else {
+        panic!("pending")
+    };
+    let d2_rs_scene::Asset::VectorAsset {
+        view_box,
+        root: Some(root),
+    } = crate::svgimport::vector_asset("icon", imported)
+    else {
+        panic!("vector")
+    };
+    let document = d2_rs_scene::Document::new(view_box, *root);
+    let frame = d2_rs_raster::render(
+        &document,
+        &d2_rs_raster::FrameOptions {
+            scale: 1.,
+            max_width: 100,
+            max_height: 100,
+            max_pixels: 10000,
+            max_nodes: 100,
+            max_depth: 32,
+            max_path_commands: 1000,
+            max_animation_tracks: 100,
+            max_animation_keyframes: 100,
+            max_assets: 10,
+            max_asset_bytes: 10000,
+            max_decoded_asset_bytes: 10000,
+            max_import_depth: 32,
+            max_offscreen_bytes: 100000,
+            max_even_odd_clip_work: 1000000,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let pixel = |x: usize, y: usize| &frame.pix[y * frame.stride + x * 4..y * frame.stride + x * 4 + 4];
+    let center = pixel(20, 20);
+    let rim = pixel(35, 20);
+    assert!(center[0] > 235 && center[3] == 255, "{center:?}");
+    assert!(rim[2] > 240 && rim[3] == 255, "{rim:?}");
+}

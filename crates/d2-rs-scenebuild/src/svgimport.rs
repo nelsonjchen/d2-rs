@@ -59,6 +59,32 @@ fn paint(p: &svg_primitive::Paint) -> Paint {
             transform: matrix(*transform),
             spread: SpreadMethod(*spread),
         }),
+        svg_primitive::Paint::Radial {
+            center,
+            focal,
+            radius,
+            focal_radius,
+            stops,
+            units,
+            transform,
+            spread,
+            ..
+        } => Paint::RadialGradient(RadialGradient {
+            center: point(*center),
+            focal: point(*focal),
+            radius: *radius,
+            focal_radius: *focal_radius,
+            stops: stops
+                .iter()
+                .map(|s| GradientStop {
+                    offset: s.offset,
+                    color: color(s.color),
+                })
+                .collect(),
+            units: PaintUnits(*units),
+            transform: matrix(*transform),
+            spread: SpreadMethod(*spread),
+        }),
     }
 }
 fn commands(cs: &[Command]) -> Vec<PathCommand> {

@@ -297,6 +297,68 @@ mod catalog_contracts {
         }
     }
     #[test]
+    fn radial_defaults_percentages_and_opacity() {
+        // Upstream 8558856dc gradient.go: radial percentages use the normalized diagonal.
+        let imported = import(
+            r##"<svg viewBox="0 0 40 20"><radialGradient id="g" gradientUnits="userSpaceOnUse" cx="25%" fr="10%" spreadMethod="repeat"><stop stop-color="red"/><stop offset="100%" stop-color="blue"/></radialGradient><rect width="40" height="20" fill="url(#g)" fill-opacity=".5"/><svg width="10" height="10" viewBox="0 0 8 4"><rect width="8" height="4" fill="url(#g)"/></svg></svg>"##,
+        );
+        let paints: Vec<_> = imported
+            .scene
+            .nodes
+            .iter()
+            .filter_map(|n| n.primitive.as_ref()?.fill.as_ref())
+            .collect();
+        assert_eq!(paints.len(), 2);
+        for (paint, w, h, alpha) in [
+            (paints[0], 40_f64, 20_f64, 128),
+            (paints[1], 8_f64, 4_f64, 255),
+        ] {
+            let Paint::Radial {
+                center,
+                focal,
+                radius,
+                focal_radius,
+                units,
+                spread,
+                stops,
+                ..
+            } = paint
+            else {
+                panic!("radial")
+            };
+            assert_eq!(*center, [w * 0.25, h * 0.5]);
+            assert_eq!(center, focal);
+            let diagonal = (w / std::f64::consts::SQRT_2).hypot(h / std::f64::consts::SQRT_2);
+            assert_eq!(*radius, diagonal * 0.5);
+            assert_eq!(*focal_radius, diagonal * 0.1);
+            assert_eq!((*units, *spread), (1, 2));
+            assert_eq!(stops[0].color, [255, 0, 0, alpha]);
+        }
+    }
+    #[test]
+    fn radial_rejects_negative_radii_and_invalid_units() {
+        for attrs in [
+            r#"r="-1""#,
+            r#"fr="-1%""#,
+            r#"gradientUnits="bad""#,
+            r#"r="2 %""#,
+        ] {
+            let source =
+                format!(r#"<svg width="4" height="4"><radialGradient id="g" {attrs}/></svg>"#);
+            assert!(
+                import_labeled(
+                    "icon",
+                    source.as_bytes(),
+                    [262144, 32, 2048, 4096, 262144, 16384, 512, 8, 512],
+                    None,
+                    None
+                )
+                .is_err(),
+                "{attrs}"
+            );
+        }
+    }
+    #[test]
     fn gradient_defaults_and_referencing_viewports() {
         // Upstream 8558856dc TestIconGradientCoordinatesAndPixels.
         let imported = import(

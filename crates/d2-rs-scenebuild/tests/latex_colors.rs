@@ -11,6 +11,7 @@ fn options() -> Options {
         pad: Some(2),
         assets: Some(AssetOptions {
             svg_import_limits: SvgImportLimits {
+                max_decoded_raster_bytes: 0,
                 max_bytes: 1_000_000,
                 max_depth: 100,
                 max_elements: 10_000,

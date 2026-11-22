@@ -10,7 +10,7 @@ area does not move the pin or run scoreboards.
 - 8558856dc: linear-gradient defaults, object-bounding-box units, deferred
   percentages in each referencing viewport, pad/reflect/repeat spreading,
   omitted/percentage/clamped/nondecreasing stop offsets, empty and degenerate
-  gradients, definitions directly in graphics containers, SVG version 1.2,
+  gradients, radial gradients (including focal circles and viewport-relative radii), definitions directly in graphics containers, SVG version 1.2,
   descriptions and optional Dublin Core metadata, comma-separated simple class
   selectors, ASCII whitespace in embedded base64, separate decoded-raster
   ceilings, native export import ceilings, and image shapes with `multiple`.
@@ -25,7 +25,6 @@ area does not move the pin or run scoreboards.
 This is a partial port of the catalog commit. The following output-affecting
 work is still required:
 
-- Radial-gradient import and conversion to scene paints.
 - SVG mask regions/content coordinate systems, chained clipping paths, and
   single-primitive Gaussian filters, including linear-light interpolation.
 - Positioned text/tspan shaping with bundled fonts and shared glyph outlines.

@@ -495,7 +495,10 @@ pub fn compile(
     let mut stack = vec![0];
     while let Some(index) = stack.pop() {
         context(cancel)?;
-        if output.elements[index].name == "linearGradient" {
+        if matches!(
+            output.elements[index].name.as_str(),
+            "linearGradient" | "radialGradient"
+        ) {
             let stops = output.elements[index]
                 .children
                 .iter()
@@ -581,7 +584,12 @@ fn validate_style_tree(
         context(cancel)?;
         let element = &output.elements[index];
         let name = element.name.as_str();
-        if non_rendering(name) || matches!(name, "linearGradient" | "stop" | "clipPath") {
+        if non_rendering(name)
+            || matches!(
+                name,
+                "linearGradient" | "radialGradient" | "stop" | "clipPath"
+            )
+        {
             continue;
         }
         let style = super::svg_style::compute(

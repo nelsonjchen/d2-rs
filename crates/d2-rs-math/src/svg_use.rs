@@ -53,6 +53,7 @@ pub fn resolve(
             | "dc:type"
             | "sodipodi:namedview"
             | "linearGradient"
+            | "radialGradient"
             | "stop"
             | "clipPath"
     ) {
