@@ -1927,10 +1927,11 @@ pub fn draw_primitive(
                 scratch,
                 "even-odd fill Alpha mask",
                 &mut |mask| {
-                    crate::effects::rasterize_even_odd_mask(
+                    crate::effects::rasterize_even_odd_coverage(
                         mask,
                         bounds.min,
                         &primitive.even_odd_subpaths,
+                        primitive.even_odd_edges,
                     );
                     Ok(())
                 },

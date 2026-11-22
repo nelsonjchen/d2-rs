@@ -32,13 +32,12 @@ work is still required:
 - SVG mask regions/content coordinate systems, chained clipping paths, and
   single-primitive Gaussian filters, including linear-light interpolation.
 - Positioned text/tspan shaping with bundled fonts and shared glyph outlines.
-- Tiled even-odd rasterization and its revised work accounting.
 - Ambiguous duplicate IDs and hidden external-image sentinels.
 
 
 Unsupported SVG forms retain the previous importer rejection behavior; they
-are not silently approximated. Complex even-odd geometry retains the previous
-raster algorithm and work ceiling. The opt-in hosted catalog sweep and full PNG/GIF/PDF/PPTX
+are not silently approximated. Complex even-odd fills and clips now use the
+upstream bounded tile algorithm and revised work accounting. The opt-in hosted catalog sweep and full PNG/GIF/PDF/PPTX
 pixel coverage have not been ported. The new default-tier contracts cover
 linear-gradient geometry and PNG/GIF pixels, image `multiple`, metadata/classes,
 embedded-raster limits, data-only policy, and preview snapshots/placeholders.

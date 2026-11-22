@@ -292,6 +292,22 @@ fn even_odd_mask_work(bounds: Rect, edges: i64) -> Result<i64, String> {
         return Ok(0);
     }
     const DOMAIN: &str = "d2raster: even-odd clip work exceeds the int64 domain";
+    if use_even_odd_tiles(bounds.dx(), edges) {
+        // Upstream 8558856dc effects.go evenOddMaskWork: edge binary searches
+        // at four sample rows per tile, followed by the horizontal sweep.
+        let tiles = 1 + (bounds.dx() - 1) / EVEN_ODD_TILE_WIDTH;
+        let search_work = 1
+            + (i64::BITS - (EVEN_ODD_TILE_WIDTH * EVEN_ODD_SAMPLES_PER_AXIS).leading_zeros())
+                as i64;
+        let edge_work = checked_multiply(edges, search_work)
+            .and_then(|w| checked_multiply(w, tiles))
+            .ok_or(DOMAIN)?;
+        let samples = checked_multiply(bounds.dx(), EVEN_ODD_SAMPLES_PER_AXIS).ok_or(DOMAIN)?;
+        return checked_add(edge_work, samples)
+            .and_then(|w| checked_multiply(w, EVEN_ODD_SAMPLES_PER_AXIS))
+            .and_then(|w| checked_multiply(w, bounds.dy()))
+            .ok_or_else(|| DOMAIN.into());
+    }
     let pixels = checked_multiply(bounds.dx(), bounds.dy()).ok_or(DOMAIN)?;
     let work = checked_multiply(
         pixels,
@@ -639,7 +655,7 @@ pub fn apply_clip(
         .offscreen
         .new_alpha(mask_bounds, "clip Alpha mask")?;
     if !clip.bounds.intersect(bounds).empty() {
-        rasterize_even_odd_mask(&mut mask, bounds.min, &clip.subpaths);
+        rasterize_even_odd_coverage(&mut mask, bounds.min, &clip.subpaths, clip.edges);
     }
     multiply_layer_by_alpha(layer, &mask);
     scratch.offscreen.release(mask_bytes);
@@ -750,6 +766,68 @@ fn scale_coverage_span(row: &mut [u8], first: usize, last: usize, coverage: u8) 
         _ => {
             for x in first..last {
                 scale_premultiplied(&mut row[x * 4..x * 4 + 4], coverage);
+            }
+        }
+    }
+}
+
+const EVEN_ODD_TILE_WIDTH: i64 = 128;
+fn use_even_odd_tiles(width: i64, edges: i64) -> bool {
+    width >= 16 && edges >= 32
+}
+
+/// Upstream 8558856dc effects.go rasterizeEvenOddCoverage. Fixed scratch space
+/// records parity changes at the 4x4 samples, preserving strict edge tests.
+pub fn rasterize_even_odd_coverage(mask: &mut AlphaBuf, origin: Pt, paths: &[Subpath], edges: i64) {
+    if !use_even_odd_tiles(mask.rect.dx(), edges) {
+        return rasterize_even_odd_mask(mask, origin, paths);
+    }
+    let mut toggles = [0_u16; EVEN_ODD_TILE_WIDTH as usize];
+    for y in 0..mask.rect.dy() {
+        for x in (0..mask.rect.dx()).step_by(EVEN_ODD_TILE_WIDTH as usize) {
+            let width = EVEN_ODD_TILE_WIDTH.min(mask.rect.dx() - x) as usize;
+            toggles[..width].fill(0);
+            for sy in 0..4 {
+                let sample_y = (origin.y + y) as f64 + (sy as f64 + 0.5) / 4.;
+                for path in paths {
+                    if path.points.len() < 2 {
+                        continue;
+                    }
+                    let mut previous = path.points[path.points.len() - 1];
+                    for point in &path.points {
+                        if (point.y > sample_y) != (previous.y > sample_y) {
+                            let crossing = (previous.x - point.x) * (sample_y - point.y)
+                                / (previous.y - point.y)
+                                + point.x;
+                            let (mut lo, mut hi) = (0, width * 4);
+                            while lo < hi {
+                                let mid = lo + (hi - lo) / 2;
+                                let sample_x = (origin.x + x + (mid / 4) as i64) as f64
+                                    + ((mid % 4) as f64 + 0.5) / 4.;
+                                if !(sample_x < crossing) {
+                                    hi = mid;
+                                } else {
+                                    lo = mid + 1;
+                                }
+                            }
+                            if lo > 0 {
+                                let last = lo - 1;
+                                toggles[last / 4] ^= 1 << (4 * sy + last % 4);
+                            }
+                        }
+                        previous = *point;
+                    }
+                }
+            }
+            let mut parity = 0_u16;
+            for j in (0..width).rev() {
+                let mut inside = 0;
+                for sx in (0..4).rev() {
+                    parity ^= (toggles[j] >> sx) & 0x1111;
+                    inside += parity.count_ones();
+                }
+                mask.pix[y as usize * mask.stride + x as usize + j] =
+                    ((inside * 255 + 8) / 16) as u8;
             }
         }
     }
@@ -1309,5 +1387,77 @@ pub fn composite_layer_over(dst: &mut Rgba<'_>, layer: &Rgba<'_>, opacity: f64) 
             let alpha = source_alpha + mul255(dst.pix[di + 3] as u32, inverse_alpha);
             dst.pix[di + 3] = alpha.min(255) as u8;
         }
+    }
+}
+
+#[cfg(test)]
+mod tiled_even_odd_contracts {
+    use super::*;
+    use d2_rs_scene::Point;
+    #[test]
+    fn tiled_coverage_matches_independent_samples() {
+        // Upstream 8558856dc TestTiledEvenOddCoverageMatchesIndependentSamples.
+        let origin = Pt::new(-21, 3);
+        let bounds = Rect::new(0, 0, 269, 13);
+        let paths: Vec<_> = (0..24)
+            .map(|n| {
+                let x = 11. * n as f64 - 25. + 0.125;
+                Subpath {
+                    points: vec![
+                        Point::new(x, 1.125),
+                        Point::new(x + 97.5, 16.125),
+                        Point::new(x, 16.125),
+                        Point::new(x + 64.5, 1.125),
+                    ],
+                    closed: false,
+                }
+            })
+            .collect();
+        let mut got = AlphaBuf::new(bounds);
+        rasterize_even_odd_coverage(&mut got, origin, &paths, 96);
+        for y in 0..bounds.dy() {
+            for x in 0..bounds.dx() {
+                let mut inside = 0;
+                for sy in 0..4 {
+                    for sx in 0..4 {
+                        let sample_x = (origin.x + x) as f64 + (sx as f64 + 0.5) / 4.;
+                        let sample_y = (origin.y + y) as f64 + (sy as f64 + 0.5) / 4.;
+                        let mut parity = false;
+                        for path in &paths {
+                            let mut previous = *path.points.last().unwrap();
+                            for point in &path.points {
+                                if (point.y > sample_y) != (previous.y > sample_y)
+                                    && sample_x
+                                        < (previous.x - point.x) * (sample_y - point.y)
+                                            / (previous.y - point.y)
+                                            + point.x
+                                {
+                                    parity = !parity;
+                                }
+                                previous = *point;
+                            }
+                        }
+                        inside += u32::from(parity);
+                    }
+                }
+                assert_eq!(
+                    got.pix[y as usize * got.stride + x as usize],
+                    ((inside * 255 + 8) / 16) as u8,
+                    "pixel {x},{y}"
+                );
+            }
+        }
+    }
+    #[test]
+    fn work_accounts_for_partial_tiles_and_overflow() {
+        assert_eq!(
+            even_odd_mask_work(Rect::new(0, 0, 269, 13), 96).unwrap(),
+            (96 * 11 * 3 + 269 * 4) * 4 * 13
+        );
+        assert_eq!(
+            even_odd_mask_work(Rect::new(0, 0, 15, 13), 96).unwrap(),
+            15 * 13 * 16 * 96
+        );
+        assert!(even_odd_mask_work(Rect::new(0, 0, i64::MAX, 13), 96).is_err());
     }
 }
