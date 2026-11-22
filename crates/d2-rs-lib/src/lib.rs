@@ -1107,6 +1107,12 @@ fn decode_graph(document: &Value, lock_existing: bool) -> Result<DecodedGraph, D
         // Preserve the local object identity even without authored scalars.
         let authored = Some(Box::new(authored));
         let id = graph.add_node(Node {
+            // d2graph.Object.ELKLayerConstraint (`json:"elkLayerConstraint,omitempty"`).
+            elk_layer_constraint: object
+                .get("elkLayerConstraint")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_owned(),
             external_id: identity.canonical[index].clone(),
             size,
             declared_size: Some(parsed_size),

@@ -1747,6 +1747,7 @@ mod tests {
 
     fn node(name: &str, position: Point) -> Node {
         Node {
+            elk_layer_constraint: String::new(),
             d2_near_key: None,
             external_id: name.into(),
             size: Size {

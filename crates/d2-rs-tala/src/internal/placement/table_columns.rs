@@ -756,6 +756,7 @@ mod tests {
 
     fn table(name: &str, position: Point, width: f64, columns: usize) -> Node {
         Node {
+            elk_layer_constraint: String::new(),
             d2_near_key: None,
             external_id: name.into(),
             size: Size {

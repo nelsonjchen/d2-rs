@@ -7,6 +7,7 @@ use crate::{ContentAlignment, Insets, LabelPosition, Node, ShapeKind, Size};
 
 fn node(name: &str, width: f64, height: f64) -> Node {
     Node {
+        elk_layer_constraint: String::new(),
         d2_near_key: None,
         external_id: name.into(),
         size: Size { width, height },

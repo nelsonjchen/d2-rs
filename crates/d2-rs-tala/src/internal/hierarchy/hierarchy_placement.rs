@@ -174,6 +174,7 @@ mod tests {
         let mut input = Graph::default();
         for name in ["source", "sink"] {
             input.add_node(Node {
+                elk_layer_constraint: String::new(),
                 d2_near_key: None,
                 external_id: name.into(),
                 size: Size {
@@ -238,6 +239,7 @@ mod tests {
     #[test]
     fn table_column_edges_connect_ordered_same_level_dummy_children() {
         let table = |name: &str, columns: usize| Node {
+            elk_layer_constraint: String::new(),
             d2_near_key: None,
             external_id: name.into(),
             size: Size {
