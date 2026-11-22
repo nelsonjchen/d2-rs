@@ -1107,12 +1107,6 @@ fn decode_graph(document: &Value, lock_existing: bool) -> Result<DecodedGraph, D
         // Preserve the local object identity even without authored scalars.
         let authored = Some(Box::new(authored));
         let id = graph.add_node(Node {
-            // d2graph.Object.ELKLayerConstraint (`json:"elkLayerConstraint,omitempty"`).
-            elk_layer_constraint: object
-                .get("elkLayerConstraint")
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .to_owned(),
             external_id: identity.canonical[index].clone(),
             size,
             declared_size: Some(parsed_size),
@@ -1134,6 +1128,11 @@ fn decode_graph(document: &Value, lock_existing: bool) -> Result<DecodedGraph, D
             fixed_height,
             direction,
             force_hierarchy: shape.is_some_and(|v| v.eq_ignore_ascii_case("hierarchy")),
+            elk_layer_constraint: object
+                .get("elkLayerConstraint")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_owned(),
             grid_rows,
             grid_columns,
             canvas_position: None,
@@ -3054,6 +3053,21 @@ mod tests {
                 }
             );
         }
+    }
+
+    #[test]
+    fn graph_preserves_elk_layer_constraint() {
+        // e1922797b: d2graph.Object.ELKLayerConstraint survives graph handoffs.
+        let mut document: Value = serde_json::from_slice(SIMPLE).unwrap();
+        document["objects"][0]["elkLayerConstraint"] = json!("FIRST");
+        let (graph, _, _) = decode_graph(&document, false).unwrap();
+        assert_eq!(graph.node(NodeId(0)).unwrap().elk_layer_constraint, "FIRST");
+        document["objects"][0]
+            .as_object_mut()
+            .unwrap()
+            .remove("elkLayerConstraint");
+        let (graph, _, _) = decode_graph(&document, false).unwrap();
+        assert!(graph.node(NodeId(0)).unwrap().elk_layer_constraint.is_empty());
     }
 
     #[test]
