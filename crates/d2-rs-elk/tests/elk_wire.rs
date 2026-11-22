@@ -141,3 +141,37 @@ fn authored_container_layer_constraint_reaches_wire() {
         "LAST"
     );
 }
+
+// elk-go 8b285820520e p3order/TestModelOrderBarycenterKeepsRealNodeOrder:
+// model order wins over the opposing barycenters of crossed edges.
+#[test]
+fn forced_model_order_preserves_authored_nodes_across_crossings() {
+    for direction in ["right", "down", "left", "up"] {
+        let graph = compile(&format!(
+            "direction: {direction}\nvars: {{d2-config: {{data: {{elk-forceNodeModelOrder: true}}}}}}\na\nb\nc\nd\na -> d\nb -> c\n"
+        ));
+        let result = layout(&graph, &LayoutOptions::default()).unwrap();
+        let cross_position = |name: &str| {
+            let id = graph
+                .nodes()
+                .find(|(_, n)| n.external_id == name)
+                .unwrap()
+                .0;
+            let rect = result.boxes[&id];
+            if direction == "right" || direction == "left" {
+                rect.origin.y
+            } else {
+                rect.origin.x
+            }
+        };
+        assert!(
+            cross_position("a") < cross_position("b"),
+            "{direction}: a before b"
+        );
+        assert!(
+            cross_position("c") < cross_position("d"),
+            "{direction}: c before d"
+        );
+        assert_eq!(result.routes.len(), 2);
+    }
+}

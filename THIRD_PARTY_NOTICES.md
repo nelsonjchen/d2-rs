@@ -1122,6 +1122,16 @@ complete license is reproduced in `crates/d2-rs-elk/ELK-EPL-2.0.txt`
 (`ELK-EPL-2.0.txt` within the packaged ELK crate). Rust translation and
 modifications: Copyright 2026 Nelson Chen.
 
+## ELK forced model-order barycenter comparator
+
+`crates/d2-rs-elk/src/layered/model_order_barycenter.rs` translates
+`internal/layered/p3order/model_order_barycenter_heuristic.go` and
+`internal/layered/intermediate/preserveorder/cm_group_model_order.go` from
+`github.com/d2lang/elk-go` at `8b285820520e`. Copyright (c) 2021, 2025 Kiel
+University and others; Copyright (c) 2026 The elk-go Authors. These portions
+retain EPL-2.0; complete terms are reproduced in
+`crates/d2-rs-elk/ELK-EPL-2.0.txt` (`ELK-EPL-2.0.txt` in the packaged crate).
+
 ## ELK Fixed and utility-provider scope preparation
 
 `crates/d2-rs-elk/src/fixed_layout.rs` and `utility.rs` translate reachable

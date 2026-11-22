@@ -118,6 +118,7 @@ macro_rules! trace_barycenter_layer_start {
 mod coffman_graham;
 mod coordinates;
 mod forster;
+mod model_order_barycenter;
 pub(crate) use coordinates::{
     SourceFlow, change_graph_y, hierarchy_edge_offset_y, hierarchy_reference_graph, source_node_y,
 };
@@ -315,6 +316,7 @@ pub struct LGraph {
     pub random_seed: i64,
     /// Whether this graph's first P3 sweep must preserve the input model order.
     pub consider_model_order: bool,
+    pub(crate) forced_model_order: model_order_barycenter::Options,
     /// GREEDY_MODEL_ORDER uses model ties; the source default GREEDY uses RNG.
     pub cycle_breaking_model_order: bool,
     /// Whether P1 consumed the graph RNG before P3 initializes its holder.
@@ -625,6 +627,7 @@ pub struct LayeredArena {
     edge_thickness: BTreeMap<LEdgeId, f64>,
     /// Imported edge model order, inherited by synthetic phase segments.
     edge_model_order: BTreeMap<LEdgeId, usize>,
+    node_model_order: BTreeMap<LNodeId, (i64, i64)>,
     /// Source label-side options and LongEdgeSource/LongEdgeTarget ports.
     edge_label_side_modes: BTreeMap<LGraphId, EdgeLabelSideSelection>,
     long_edge_endpoints: BTreeMap<LNodeId, (LPortId, LPortId)>,
@@ -1047,6 +1050,8 @@ impl LayeredArena {
         arena
             .edge_label_side_modes
             .insert(root, parse_edge_label_side_selection(&graph.layout_options));
+        arena.graphs[root as usize].forced_model_order =
+            model_order_barycenter::Options::parse(&graph.layout_options);
         arena.graphs[root as usize].merge_edges = parse_merge_edges(&graph.layout_options);
         arena.graphs[root as usize].consider_model_order =
             parse_consider_model_order(&graph.layout_options);
@@ -1126,6 +1131,7 @@ impl LayeredArena {
                 .edge_thickness
                 .insert(edge_id, parse_edge_thickness(edge.layout_options.as_ref()));
         }
+        model_order_barycenter::import_orders(&mut arena, root);
         arena.record_source_edge_import_order(root, &layout_edges);
         Ok((arena, root))
     }
@@ -1824,6 +1830,15 @@ impl LayeredArena {
             position_x: node.x,
             position_y: node.y,
         });
+        let options = node.layout_options.as_ref().unwrap_or(&Value::Null);
+        let no_order = model_order_barycenter::property(options, "considerModelOrder.noModelOrder")
+            .is_some_and(|v| v.as_bool() == Some(true) || v.as_str() == Some("true"));
+        if !no_order {
+            let group = model_order_barycenter::property(options,
+                "considerModelOrder.groupModelOrder.crossingMinimizationId")
+                .and_then(Value::as_i64).unwrap_or(0);
+            self.node_model_order.insert(node_id, (0, group));
+        }
         if let Some(minimum) = node_size_minimum {
             self.node_size_minimum.insert(node_id, minimum);
         }
@@ -1912,6 +1927,8 @@ impl LayeredArena {
                 parse_coffman_bound(nested_options);
             self.edge_label_side_modes
                 .insert(nested, parse_edge_label_side_selection(nested_options));
+            self.graphs[nested as usize].forced_model_order =
+                model_order_barycenter::Options::parse(nested_options);
             self.graphs[nested as usize].merge_edges = parse_merge_edges(nested_options);
             self.graphs[nested as usize].consider_model_order =
                 parse_consider_model_order(nested_options);
@@ -12721,7 +12738,8 @@ fn order_layers_by_barycenter_impl(
         }
     }
 
-    let constraints = if use_source_port_ranks {
+    let force_model_order = graph.forced_model_order.enabled;
+    let constraints = if use_source_port_ranks && !force_model_order {
         let value = arena
             .source_forster_constraints
             .get(&graph_id)
@@ -12752,6 +12770,13 @@ fn order_layers_by_barycenter_impl(
         }
         keyed.stable_sort_by(|left, right| left.1.total_cmp(&right.1));
         let mut ordered = keyed.iter().map(|entry| entry.0).collect::<Vec<_>>();
+        if force_model_order {
+            // Sort the original order, before any barycenter sort, using the
+            // source partial comparator and its insertion-sort history.
+            ordered = arena.layers[layer_ids[boundary] as usize].nodes.clone();
+            let values = keyed.iter().map(|&(node, value)| (node, value)).collect();
+            model_order_barycenter::sort(arena, graph_id, &mut ordered, &values);
+        }
         if let Some(constraints) = &constraints {
             let mut states = vec![SourceBarycenterState::default(); arena.nodes.len()];
             for (node, value) in &keyed {
@@ -12940,6 +12965,11 @@ fn order_layers_by_barycenter_impl(
                 .then(first.2.cmp(&second.2))
         });
         let mut ordered = keyed.iter().map(|entry| entry.0).collect::<Vec<_>>();
+        if force_model_order {
+            ordered = arena.layers[free_layer as usize].nodes.clone();
+            let values = keyed.iter().filter_map(|&(node, value, _)| value.map(|v| (node, v))).collect();
+            model_order_barycenter::sort(arena, graph_id, &mut ordered, &values);
+        }
         if let Some(constraints) = &constraints {
             for (node, value, _) in &keyed {
                 states[*node as usize].barycenter = *value;

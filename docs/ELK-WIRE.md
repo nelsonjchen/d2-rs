@@ -27,14 +27,30 @@ option was enabled separately; other settings used provider defaults.
 | `elk.layered.wrapping.strategy=SINGLE_EDGE` | 964x75 | Port `intermediate/wrapping/single_edge.go` and its graph statistics, cut selection/validation and layer rearrangement helpers; schedule `SingleEdgeGraphWrapper` before node placement. |
 | `elk.layered.wrapping.strategy=MULTI_EDGE` | 394x258 | Port breaking-point insertion before node ordering, processing before node placement, and removal after edge routing, including dummy/edge restoration and cutting/statistics helpers. |
 | `elk.layered.feedbackEdges=true` | 984x75 | Run port-side processing before cycle breaking (instead of before ordering); carry the fixed sides through reversal and enable inverted-port processing in the orthogonal router even without the non-free-port graph flag. Preserve conditional north/south pre/postprocessing. |
-| `elk.layered.crossingMinimization.forceNodeModelOrder=true` | 964x75 | Import model-order metadata when enabled; integrate `p3order/model_order_barycenter_heuristic.go` into graph-info-holder/barycenter sweeps, including group-aware/transitive comparisons, insertion sorting, clearing transitive state, and bypassing Forster constraint processing for forced order. |
 
 These are implemented paths, not rejected or ignored options. Relevant
 registration/dispatch is in `internal/layered/{properties,configurator}.go`,
 `p5edges/orthogonal_edge_router.go` and `p3order/graph_info_holder.go`.
-The existing Rust unsupported errors remain: implementing these processor
-chains is intentionally outside this small follow-up. Matching the probe's
-dimensions alone would not implement those contracts.
+The remaining Rust unsupported errors stay in place until their complete
+processor chains are ported. Matching the probe's dimensions alone would not
+implement those contracts.
+
+## Forced model order
+
+`elk.layered.crossingMinimization.forceNodeModelOrder=true` now selects the
+elk-go `8b285820520e` model-order barycenter comparator for boundary and free
+layers on every sweep. The importer retains node model order separately from
+mutable traversal indices, honors `noModelOrder`, and records group IDs and
+the maximum order used by enforced group comparisons. The comparator mirrors
+insertion sorting, transitive comparison history (cleared per layer),
+group-aware comparisons and barycenter fallback for equal/absent model order.
+Forced sorts bypass Forster constraint resolution as upstream does.
+
+The D2-input contract preserves authored order despite opposing crossed-edge
+barycenters in all four directions. A native comparator contract also checks
+configured groups, the both-groups-enforced rule, and equal/absent-order
+fallbacks. This targets the forced-model-order differential mismatch cluster;
+no scoreboard or oracle fixture regeneration was run.
 
 ## Mr. Tree
 

@@ -3925,10 +3925,6 @@ fn validate_options(options: ElkOptions) -> Result<(), LayoutError> {
     // These processor chains are not translated yet. Never silently accept
     // an option and publish the default layout in its place.
     for (name, enabled) in [
-        (
-            "elk-forceNodeModelOrder",
-            options.layered.force_node_model_order,
-        ),
         ("elk-feedbackEdges", options.layered.feedback_edges),
         (
             "elk-wrappingStrategy",
