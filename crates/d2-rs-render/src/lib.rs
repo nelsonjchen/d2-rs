@@ -4514,7 +4514,8 @@ pub fn target_diagram_json(
         .into_iter()
         .filter_map(|id| {
             let shape = target_hash_shape(graph, result, labels, styles, id)?;
-            if shape.stroke_width == 2 && styles.get(&id).is_some_and(|s| s.stroke_width.is_some()) {
+            if shape.stroke_width == 2 && styles.get(&id).is_some_and(|s| s.stroke_width.is_some())
+            {
                 explicit_default_stroke_widths.insert(shape.id.clone(), true);
             }
             Some(shape)

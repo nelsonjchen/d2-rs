@@ -116,7 +116,11 @@ impl Builder<'_> {
             if s.opacity == 0.0 || s.text.label.is_empty() || s.text.language != "latex" {
                 continue;
             }
-            self.resolve_latex_asset(&format!("shape {}", q(&s.id)), &s.text.label, &s.font_color())?;
+            self.resolve_latex_asset(
+                &format!("shape {}", q(&s.id)),
+                &s.text.label,
+                &s.font_color(),
+            )?;
         }
         for c in self.diagram.connections() {
             if let Some(icon) = &c.icon {

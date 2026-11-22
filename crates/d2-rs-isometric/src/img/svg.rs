@@ -1180,7 +1180,7 @@ fn write_ground_casters(
     let mut limits = super::svg_visibility::SVG_DEFAULT_VISIBILITY_LIMITS;
     limits.work = super::svg_visibility::svg_visibility_work_limit(faces.len());
     let visible =
-        match super::svg_visibility::svg_visible_faces_with_context(&faces, limits, w.context) {
+        match super::svg_visibility::svg_visible_faces_with_context(faces, limits, w.context) {
             Ok(visible) => visible,
             Err(error) => {
                 w.err = Some(format!("native SVG ground shadow: {error}"));

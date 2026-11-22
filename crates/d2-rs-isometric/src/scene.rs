@@ -854,6 +854,24 @@ fn classify_sequence(
     }
 }
 
+fn resolve_endpoint(
+    text: &Option<crate::target::Text>,
+    theme: &Theme,
+    selected: bool,
+) -> Option<crate::target::Text> {
+    text.as_ref().map(|text| {
+        let mut resolved = text.clone();
+        if selected {
+            resolved.color = theme.resolve(if text.color.is_empty() {
+                "N1"
+            } else {
+                &text.color
+            });
+        }
+        resolved
+    })
+}
+
 #[cfg(test)]
 mod cubic_budget_tests {
     use super::*;
@@ -878,22 +896,4 @@ mod cubic_budget_tests {
         );
         assert_eq!(count, MAX_ENTRIES);
     }
-}
-
-fn resolve_endpoint(
-    text: &Option<crate::target::Text>,
-    theme: &Theme,
-    selected: bool,
-) -> Option<crate::target::Text> {
-    text.as_ref().map(|text| {
-        let mut resolved = text.clone();
-        if selected {
-            resolved.color = theme.resolve(if text.color.is_empty() {
-                "N1"
-            } else {
-                &text.color
-            });
-        }
-        resolved
-    })
 }

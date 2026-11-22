@@ -3067,7 +3067,13 @@ mod tests {
             .unwrap()
             .remove("elkLayerConstraint");
         let (graph, _, _) = decode_graph(&document, false).unwrap();
-        assert!(graph.node(NodeId(0)).unwrap().elk_layer_constraint.is_empty());
+        assert!(
+            graph
+                .node(NodeId(0))
+                .unwrap()
+                .elk_layer_constraint
+                .is_empty()
+        );
     }
 
     #[test]

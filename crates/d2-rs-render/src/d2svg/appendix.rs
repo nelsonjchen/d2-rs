@@ -302,6 +302,7 @@ mod tests {
     #[test]
     fn mixed_link_tooltip_numbering_uses_one_sequence() {
         // Upstream c71ea9096: root, parent-board link, and CLI-relinked parent.
+        let label_re = Regex::new(r#"<text class="text" [^>]*>(.*?)</text>"#).unwrap();
         for (link, pretty, expected) in [
             ("scenarios.one", "one", "one"),
             ("root", "", "root"),
@@ -315,8 +316,7 @@ mod tests {
             let (markers, rows) = out.split_once("<g class=\"appendix\"").unwrap();
             assert_eq!(numbers(markers), [1, 2, 3]);
             assert_eq!(numbers(rows), [1, 2, 3]);
-            let labels: Vec<_> = Regex::new(r#"<text class="text" [^>]*>(.*?)</text>"#)
-                .unwrap()
+            let labels: Vec<_> = label_re
                 .captures_iter(rows)
                 .map(|c| c[1].to_owned())
                 .collect();

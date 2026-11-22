@@ -482,7 +482,7 @@ mod catalog_contracts {
             (r##"<clipPath id="x"><rect width="2" height="2"/></clipPath><g id="x"/><rect width="8" height="8" clip-path="url(#x)"/>"##.into(), "ambiguous"),
             (r#"<image width="8" height="8" href="unused.jpg" visibility="hidden"/>"#.into(), "external"),
             (r#"<g display="none"><image width="0" height="8" href="unused.jpg"/></g>"#.into(), "positive"),
-            (format!(r#"<g display="none"><image width="8" height="8" href="unused.jpg" overflow="visible" preserveAspectRatio="xMidYMid slice"/></g>"#), "overflow"),
+            (r#"<g display="none"><image width="8" height="8" href="unused.jpg" overflow="visible" preserveAspectRatio="xMidYMid slice"/></g>"#.to_string(), "overflow"),
         ] {
             let source = format!("<svg width=\"8\" height=\"8\">{body}</svg>");
             let error = import_labeled("icon", source.as_bytes(), [262144,32,2048,4096,262144,16384,512,8,512], None, None).err().unwrap();

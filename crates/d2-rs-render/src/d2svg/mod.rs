@@ -12,13 +12,13 @@ pub(crate) mod shape;
 pub(crate) mod svgpath;
 
 pub(crate) mod animate;
-pub(crate) mod svgframe;
 pub mod color;
 pub(crate) mod element;
 pub(crate) mod fonts;
 pub mod markup;
 mod paint_validation;
 pub(crate) mod render;
+pub(crate) mod svgframe;
 pub(crate) mod svgtext;
 pub(crate) mod target_methods;
 pub(crate) mod target_validation;

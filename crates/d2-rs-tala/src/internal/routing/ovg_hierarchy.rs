@@ -60,7 +60,7 @@ pub(super) fn routing_hierarchies(
         let n = &graph.nodes[id.0 as usize];
         let Some(h) = &n.hierarchy else { continue };
         let key = h.record.allocation_key();
-        if !whole.contains_key(&key) {
+        if let std::collections::btree_map::Entry::Vacant(slot) = whole.entry(key) {
             let entries = levels(graph, &h.record);
             let (mut left, mut top) = (f64::INFINITY, f64::INFINITY);
             let (mut right, mut bottom) = (f64::NEG_INFINITY, f64::NEG_INFINITY);
@@ -83,7 +83,7 @@ pub(super) fn routing_hierarchies(
             let estimate = 2.0 * points * (1.0 + points.log2().ceil()) * edge_count as f64;
             let keep = one_container
                 || estimate <= super::route_search_guard::MAX_ROUTE_SEARCH_WORK_UNITS as f64;
-            whole.insert(key, keep);
+            slot.insert(keep);
             needs_local |= !keep;
             if keep {
                 groups.push(entries);

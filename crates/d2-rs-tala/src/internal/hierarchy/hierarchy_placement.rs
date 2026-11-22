@@ -816,13 +816,13 @@ impl HierarchyPlacement {
             let mut i = index;
             while i > 0 {
                 greater -= rank_counts[i][side];
-                i -= i & i.wrapping_neg();
+                i -= i.isolate_lowest_one();
             }
             crossings += greater;
             let mut i = index;
             while i < size {
                 rank_counts[i][side] += 1;
-                i += i & i.wrapping_neg();
+                i += i.isolate_lowest_one();
             }
             seen[side] += 1;
         }

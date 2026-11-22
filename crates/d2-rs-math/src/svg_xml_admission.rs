@@ -371,6 +371,28 @@ pub fn valid_id(id: &str, cancel: Option<&d2_rs_core::CancellationToken>) -> Res
     context(cancel)?;
     Ok(true)
 }
+
+fn valid_paint_id(
+    id: &str,
+    cancel: Option<&d2_rs_core::CancellationToken>,
+) -> Result<bool, String> {
+    if id.is_empty() {
+        return Ok(false);
+    }
+    for (index, byte) in id.bytes().enumerate() {
+        if index & 4095 == 0 {
+            context(cancel)?;
+        }
+        if index == 0 {
+            if !byte.is_ascii_alphabetic() && byte != b'_' {
+                return Ok(false);
+            }
+        } else if !byte.is_ascii_alphanumeric() && !b"_-.:".contains(&byte) {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -473,26 +495,4 @@ mod tests {
                 .is_ok()
         );
     }
-}
-
-fn valid_paint_id(
-    id: &str,
-    cancel: Option<&d2_rs_core::CancellationToken>,
-) -> Result<bool, String> {
-    if id.is_empty() {
-        return Ok(false);
-    }
-    for (index, byte) in id.bytes().enumerate() {
-        if index & 4095 == 0 {
-            context(cancel)?;
-        }
-        if index == 0 {
-            if !byte.is_ascii_alphabetic() && byte != b'_' {
-                return Ok(false);
-            }
-        } else if !byte.is_ascii_alphanumeric() && !b"_-.:".contains(&byte) {
-            return Ok(false);
-        }
-    }
-    Ok(true)
 }

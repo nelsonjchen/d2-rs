@@ -674,7 +674,8 @@ fn render_catalog_svg(source: &str) -> d2_rs_raster::NrgbaImage {
         panic!("vector")
     };
     let document = d2_rs_scene::Document::new(view_box, *root);
-    let frame = d2_rs_raster::render(
+
+    d2_rs_raster::render(
         &document,
         &d2_rs_raster::FrameOptions {
             scale: 1.,
@@ -695,8 +696,7 @@ fn render_catalog_svg(source: &str) -> d2_rs_raster::NrgbaImage {
             ..Default::default()
         },
     )
-    .unwrap();
-    frame
+    .unwrap()
 }
 
 #[test]

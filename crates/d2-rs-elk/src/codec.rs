@@ -607,7 +607,6 @@ fn options_padding(graph: &Graph) -> Option<crate::GraphPadding> {
 /// shape for the inner box of that estimate. The resulting shape clearance is
 /// merged with ELK's default 50px padding. Doing this before the nested scope
 /// is laid out is what moves children below package/diamond title bands.
-
 fn source_container_padding(
     graph: &Graph,
     source_graph: &Graph,

@@ -16247,8 +16247,8 @@ mod tests {
         let new_target = arena.edges[0].target_port.unwrap();
         assert_ne!(new_source, input);
         assert_ne!(new_target, output);
-        assert_eq!(arena.collector_ports[&new_source], true);
-        assert_eq!(arena.collector_ports[&new_target], false);
+        assert!(arena.collector_ports[&new_source]);
+        assert!(!arena.collector_ports[&new_target]);
         assert_eq!(arena.ports[output as usize].outgoing_edges, vec![1]);
         assert_eq!(arena.ports[input as usize].incoming_edges, vec![2]);
         assert_eq!(arena.ports[new_source as usize].outgoing_edges, vec![0]);
