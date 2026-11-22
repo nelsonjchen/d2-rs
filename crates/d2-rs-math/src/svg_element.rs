@@ -11,6 +11,8 @@ use super::{
 };
 #[derive(Debug, Default, serde::Serialize, serde::Deserialize, PartialEq)]
 pub struct State {
+    #[serde(default)]
+    pub mask_region: Option<super::svg_effects::Region>,
     pub transform: [f64; 6],
     pub viewport: Option<Viewport>,
 }
@@ -70,6 +72,15 @@ fn allowed(name: &str) -> Option<&'static [&'static str]> {
         "image" => &["x", "y", "width", "height", "href", "preserveAspectRatio"],
         "text" => &["font-size", "font-family"],
         "use" => &["href", "x", "y", "overflow"],
+        "mask" => &[
+            "maskUnits",
+            "maskContentUnits",
+            "x",
+            "y",
+            "width",
+            "height",
+            "mask-type",
+        ],
         "clipPath" => &["id", "clipPathUnits"],
         "linearGradient" => &[
             "id",
@@ -152,7 +163,7 @@ pub fn admit(
         state.transform = [1., 0., 0., 1., 0., 0.];
         return Ok(Continuation::Complete);
     }
-    if !matches!(name, "svg" | "g" | "defs" | "clipPath") && rendering_children {
+    if !matches!(name, "svg" | "g" | "defs" | "clipPath" | "mask") && rendering_children {
         return Err(error(format!(
             "element <{name}> cannot contain child elements"
         )));

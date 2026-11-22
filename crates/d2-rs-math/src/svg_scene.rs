@@ -16,12 +16,19 @@ pub struct Clip {
     pub transform: [f64; 6],
 }
 #[derive(Debug, serde::Serialize, serde::Deserialize, PartialEq)]
+pub struct Mask {
+    pub kind: u8,
+    pub root: usize,
+}
+#[derive(Debug, serde::Serialize, serde::Deserialize, PartialEq)]
 pub struct Node {
     pub id: String,
     pub classes: Vec<String>,
     pub transform: [f64; 6],
     pub opacity: f64,
     pub clip: Option<Clip>,
+    #[serde(default)]
+    pub mask: Option<Mask>,
     pub primitive: Option<Primitive>,
     pub children: Vec<usize>,
 }
@@ -44,7 +51,7 @@ fn context(cancel: Option<&d2_rs_core::CancellationToken>) -> Result<(), String>
         None => Ok(()),
     }
 }
-fn node(
+pub(crate) fn node(
     scene: &mut Scene,
     work: &mut Work,
     source: &str,
@@ -60,6 +67,7 @@ fn node(
         transform: [1., 0., 0., 1., 0., 0.],
         opacity: 1.,
         clip: None,
+        mask: None,
         primitive,
         children: Vec::new(),
     });
@@ -127,6 +135,43 @@ fn apply_clip_paths(
     }
     Ok(index)
 }
+fn apply_effects(
+    scene: &mut Scene,
+    index: usize,
+    source: &str,
+    style: &Style,
+    document: &Document,
+    compiled: &Compilation,
+    root_color: [u8; 4],
+    building_mask: bool,
+    templates: &std::collections::BTreeMap<String, Template>,
+    transforms: &std::collections::BTreeMap<String, [f64; 6]>,
+    work: &mut Work,
+    cancel: Option<&d2_rs_core::CancellationToken>,
+) -> Result<usize, String> {
+    let index = super::svg_effects::apply(
+        source,
+        document,
+        compiled,
+        scene,
+        index,
+        style,
+        root_color,
+        building_mask,
+        work,
+        cancel,
+    )?;
+    apply_clip_paths(
+        scene,
+        index,
+        source,
+        style.clip_path.clone(),
+        templates,
+        transforms,
+        work,
+        cancel,
+    )
+}
 struct Frame {
     index: usize,
     inherited: Style,
@@ -172,6 +217,26 @@ pub fn instantiate(
     work: &mut Work,
     cancel: Option<&d2_rs_core::CancellationToken>,
 ) -> Result<(), String> {
+    instantiate_effects(
+        source, document, compiled, root, inherited, prefix, depth, referenced, scene, work,
+        cancel, false,
+    )
+}
+pub(crate) fn instantiate_effects(
+    source: &str,
+    document: &Document,
+    compiled: &Compilation,
+    root: usize,
+    inherited: Style,
+    prefix: String,
+    depth: usize,
+    referenced: bool,
+    scene: &mut Scene,
+    work: &mut Work,
+    cancel: Option<&d2_rs_core::CancellationToken>,
+    building_mask: bool,
+) -> Result<(), String> {
+    let root_color = inherited.paint.color;
     scene.root = None;
     let error = |reason: String| format!("d2svgimport: {source}: {reason}");
     let resources = document
@@ -252,11 +317,15 @@ pub fn instantiate(
                         );
                         target.opacity = frame.style.opacity;
                         target.children.push(child);
-                        returned = Some(apply_clip_paths(
+                        returned = Some(apply_effects(
                             scene,
                             index,
                             source,
-                            frame.style.clip_path.clone(),
+                            &frame.style,
+                            document,
+                            compiled,
+                            root_color,
+                            building_mask,
                             &templates,
                             &clip_transforms,
                             work,
@@ -305,7 +374,7 @@ pub fn instantiate(
                     cancel,
                 )?;
                 frame.style = style.clone();
-                if !style.display || (name == "defs" && !frame.referenced) {
+                if !style.display || (matches!(name, "defs" | "mask") && !frame.referenced) {
                     stack.pop();
                     returned = None;
                     returning = true;
@@ -352,7 +421,7 @@ pub fn instantiate(
                 super::svg_gradient::resolve(&mut paint.stroke, style.viewport)?;
                 let (primitive, commands) =
                     super::svg_primitive::emit(&compiled.geometry[index], &paint, cancel)?;
-                if !matches!(name, "svg" | "g") && primitive.is_none() {
+                if !matches!(name, "svg" | "g" | "mask") && primitive.is_none() {
                     stack.pop();
                     returned = None;
                     returning = true;
@@ -410,11 +479,15 @@ pub fn instantiate(
             }
             1 => {
                 if frame.next == element.children.len() {
-                    returned = Some(apply_clip_paths(
+                    returned = Some(apply_effects(
                         scene,
                         frame.node.unwrap(),
                         source,
-                        frame.style.clip_path.clone(),
+                        &frame.style,
+                        document,
+                        compiled,
+                        root_color,
+                        building_mask,
                         &templates,
                         &clip_transforms,
                         work,

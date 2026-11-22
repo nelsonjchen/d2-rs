@@ -50,6 +50,7 @@ pub fn resolve(
         name.as_str(),
         "svg"
             | "defs"
+            | "mask"
             | "title"
             | "metadata"
             | "rdf:RDF"

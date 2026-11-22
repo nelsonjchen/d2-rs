@@ -333,6 +333,14 @@ pub fn compile_elements(
         )?;
         if next == super::svg_element::Continuation::Geometry {
             let name = output.elements[index].name.as_str();
+            if name == "mask" {
+                output.states[index].mask_region = Some(super::svg_effects::compile_mask(
+                    source,
+                    &output.elements[index],
+                )?);
+                stack.extend(document.elements[index].children.iter().rev().copied());
+                continue;
+            }
             if name == "image" {
                 let (_, aspect) = super::svg_image::geometry(
                     source,

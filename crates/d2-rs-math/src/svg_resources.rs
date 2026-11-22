@@ -79,6 +79,14 @@ pub fn clip(
     resources: &BTreeMap<String, Resource>,
     cancel: Option<&d2_rs_core::CancellationToken>,
 ) -> Result<String, String> {
+    local(value, "clipPath", resources, cancel)
+}
+pub fn local(
+    value: &str,
+    kind: &str,
+    resources: &BTreeMap<String, Resource>,
+    cancel: Option<&d2_rs_core::CancellationToken>,
+) -> Result<String, String> {
     context(cancel)?;
     let invalid = || {
         "requires one local url(#id) reference; external, quoted, and fallback URLs are forbidden"
@@ -104,8 +112,8 @@ pub fn clip(
     if resource.name.is_empty() {
         return Err("references an ambiguous local id".into());
     }
-    if resource.name != "clipPath" {
-        return Err("local id does not name a <clipPath> resource".into());
+    if resource.name != kind {
+        return Err(format!("local id does not name a <{kind}> resource"));
     }
     Ok(id.into())
 }

@@ -39,7 +39,7 @@ impl Bounds {
             }
         }
     }
-    fn union(&mut self, b: Self) {
+    pub(crate) fn union(&mut self, b: Self) {
         if !self.valid {
             *self = b;
         } else if b.valid {
@@ -54,7 +54,7 @@ impl Bounds {
         }
         b
     }
-    fn finite(self) -> bool {
+    pub(crate) fn finite(self) -> bool {
         !self.valid || self.min.into_iter().chain(self.max).all(f64::is_finite)
     }
 }
@@ -599,6 +599,9 @@ pub fn validate_imported(
                 context(cancel)?;
                 return Err("invalid clip bounds".into());
             }
+        }
+        if let Some(mask) = &node.mask {
+            stack.push((Some(mask.root), transform));
         }
         context(cancel)?;
         stack.extend(

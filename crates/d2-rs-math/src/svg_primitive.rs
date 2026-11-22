@@ -68,7 +68,7 @@ pub struct Stroke {
     pub dashes: Option<Vec<f64>>,
     pub dash_offset: f64,
 }
-#[derive(Debug, serde::Serialize, serde::Deserialize, PartialEq)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
 pub struct Primitive {
     pub geometry: Geometry,
     pub fill: Option<Paint>,

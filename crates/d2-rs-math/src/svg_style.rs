@@ -15,6 +15,8 @@ pub struct Style {
     pub display: bool,
     pub clip_rule: u8,
     pub clip_path: String,
+    #[serde(default)]
+    pub mask: String,
 }
 impl Default for Style {
     fn default() -> Self {
@@ -43,6 +45,7 @@ impl Default for Style {
             display: true,
             clip_rule: 0,
             clip_path: String::new(),
+            mask: String::new(),
         }
     }
 }
@@ -71,6 +74,7 @@ pub fn compute(
     style.opacity = 1.;
     style.display = true;
     style.clip_path.clear();
+    style.mask.clear();
     let error = |property: &str, reason: String| {
         format!("d2svgimport: {source}: element <{name}> has invalid {property}: {reason}")
     };
@@ -244,6 +248,12 @@ pub fn compute(
         } else {
             svg_resources::clip(value, resources, cancel).map_err(|e| error("clip-path", e))?
         };
+    }
+    if let Some(value) = values.get("mask") {
+        if !value.eq_ignore_ascii_case("none") {
+            style.mask = svg_resources::local(value, "mask", resources, cancel)
+                .map_err(|e| error("mask", e))?;
+        }
     }
     if let Some(value) = values.get("opacity") {
         style.opacity = if inherit(value) {

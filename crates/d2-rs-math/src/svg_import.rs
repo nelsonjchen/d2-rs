@@ -123,6 +123,7 @@ pub fn import_labeled_with_decoded_limit(
             transform: [1., 0., 0., 1., 0., 0.],
             opacity: 1.,
             clip: None,
+            mask: None,
             primitive: None,
             children: Vec::new(),
         });
