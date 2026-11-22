@@ -144,7 +144,7 @@ pub fn import_labeled_with_decoded_limit(
         parsed_attribute_bytes: document.counts[2],
         parsed_path_commands: compiled.parsed_commands,
         parsed_transform_funcs: compiled.work.transforms,
-        declared_resources: document.ids.len()
+        declared_resources: document.declared_ids()
             + compiled.image_assets.as_ref().unwrap().entries.len(),
         expanded_use_instances: work.uses,
         emitted_elements: work.budget.elements,
@@ -438,6 +438,40 @@ mod catalog_contracts {
         assert_eq!(
             stops.iter().map(|s| s.offset).collect::<Vec<_>>(),
             [0., 0.75, 0.75, 1.]
+        );
+    }
+    #[test]
+    fn ambiguous_ids_and_hidden_external_image_sentinels() {
+        // Upstream 8558856dc TestIconResourceLimitsAndVisibility and import.go.
+        const HIDDEN: &str = r#"<style>.archive{display:none}</style><g class="archive"><image id="old" width="8" height="8" href="unused.jpg"/></g>"#;
+        let source = format!(
+            r#"<svg width="8" height="8">{HIDDEN}<g id="unused"/><g id="unused"/><g id="unused"/><rect width="8" height="8"/></svg>"#
+        );
+        let imported = import(&source);
+        assert_eq!(imported.metrics.declared_resources, 4);
+        assert_eq!(imported.metrics.embedded_raster_assets, 0);
+        assert!(!imported.scene.nodes.iter().any(|n| n.id == "unused"));
+        for (body, message) in [
+            (format!(r##"{HIDDEN}<use href="#old"/>"##), "external"),
+            (r##"<g id="x"/><g id="x"/><use href="#x"/>"##.into(), "ambiguous"),
+            (r##"<linearGradient id="x"/><linearGradient id="x"/><rect width="8" height="8" fill="url(#x)"/>"##.into(), "ambiguous"),
+            (r##"<clipPath id="x"><rect width="2" height="2"/></clipPath><g id="x"/><rect width="8" height="8" clip-path="url(#x)"/>"##.into(), "ambiguous"),
+            (r#"<image width="8" height="8" href="unused.jpg" visibility="hidden"/>"#.into(), "external"),
+            (r#"<g display="none"><image width="0" height="8" href="unused.jpg"/></g>"#.into(), "positive"),
+            (format!(r#"<g display="none"><image width="8" height="8" href="unused.jpg" overflow="visible" preserveAspectRatio="xMidYMid slice"/></g>"#), "overflow"),
+        ] {
+            let source = format!("<svg width=\"8\" height=\"8\">{body}</svg>");
+            let error = import_labeled("icon", source.as_bytes(), [262144,32,2048,4096,262144,16384,512,8,512], None, None).err().unwrap();
+            assert!(error.contains(message), "{error}");
+        }
+        let source = r#"<svg width="8" height="8"><g id="x"/><g id="x"/><g id="x"/></svg>"#;
+        let mut limits = [262144, 32, 2048, 4096, 262144, 16384, 512, 8, 512];
+        limits[8] = 2;
+        assert!(
+            import_labeled("icon", source.as_bytes(), limits, None, None)
+                .err()
+                .unwrap()
+                .contains("ID resource count exceeds limit 2")
         );
     }
     #[test]

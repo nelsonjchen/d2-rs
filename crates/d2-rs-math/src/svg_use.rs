@@ -41,6 +41,11 @@ pub fn resolve(
     let (index, name) = ids
         .get(id)
         .ok_or_else(|| error("element <use> references an unknown local id".into()))?;
+    if *index == usize::MAX {
+        return Err(error(
+            "element <use> references an ambiguous local id".into(),
+        ));
+    }
     if matches!(
         name.as_str(),
         "svg"

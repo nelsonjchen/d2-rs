@@ -64,6 +64,9 @@ pub fn paint(
     let resource = resources
         .get(id)
         .ok_or_else(|| "paint server references an unknown local id".to_owned())?;
+    if resource.name.is_empty() {
+        return Err("paint server references an ambiguous local id".into());
+    }
     let gradient = resource
         .gradient
         .as_ref()
@@ -98,6 +101,9 @@ pub fn clip(
     let resource = resources
         .get(id)
         .ok_or_else(|| "references an unknown local id".to_owned())?;
+    if resource.name.is_empty() {
+        return Err("references an ambiguous local id".into());
+    }
     if resource.name != "clipPath" {
         return Err("local id does not name a <clipPath> resource".into());
     }

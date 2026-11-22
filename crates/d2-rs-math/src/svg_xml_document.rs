@@ -26,6 +26,21 @@ pub struct Document {
     pub ids: BTreeMap<String, usize>,
     pub counts: [usize; 4],
 }
+impl Document {
+    /// Count authored ID declarations, including ambiguous repetitions.
+    pub fn declared_ids(&self) -> usize {
+        self.elements
+            .iter()
+            .filter(|e| {
+                e.attributes
+                    .values
+                    .get("id")
+                    .is_some_and(|id| !id.is_empty())
+            })
+            .count()
+    }
+}
+
 fn space(c: u8) -> bool {
     matches!(c, b' ' | b'\t' | b'\r' | b'\n')
 }
@@ -371,6 +386,7 @@ fn parse_decoded(
         ids: BTreeMap::new(),
         counts: [0; 4],
     };
+    let mut declared_ids = 0;
     let mut state = State::default();
     let mut stack: Vec<usize> = Vec::new();
     let mut closed = false;
@@ -458,20 +474,24 @@ fn parse_decoded(
                         }
                     })
                     .collect::<Vec<_>>();
-                let attributes =
+                let mut attributes =
                     state.attributes(source, &name, &attrs, limits[3], limits[4], cancel)?;
                 let index = document.elements.len();
                 if !attributes.id.is_empty() {
-                    if document.ids.contains_key(&attributes.id) {
-                        return Err(error("duplicate id".into()));
-                    }
-                    if document.ids.len() >= limits[8] {
+                    if declared_ids >= limits[8] {
                         return Err(error(format!(
                             "ID resource count exceeds limit {}",
                             limits[8]
                         )));
                     }
-                    document.ids.insert(attributes.id.clone(), index);
+                    declared_ids += 1;
+                    if let Some(previous) = document.ids.insert(attributes.id.clone(), index) {
+                        if let Some(previous) = document.elements.get_mut(previous) {
+                            previous.attributes.id.clear();
+                        }
+                        document.ids.insert(attributes.id.clone(), usize::MAX);
+                        attributes.id.clear();
+                    }
                 }
                 let parent = stack.last().copied();
                 if let Some(parent) = parent {

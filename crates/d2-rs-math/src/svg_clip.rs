@@ -350,6 +350,11 @@ pub fn compile(
         let target = *ids
             .get(&node.href)
             .ok_or_else(|| error("element <use> references an unknown local id".into()))?;
+        if target == usize::MAX {
+            return Err(error(
+                "element <use> references an ambiguous local id".into(),
+            ));
+        }
         if !active.insert(target) {
             return Err(error("local <use> reference cycle detected".into()));
         }

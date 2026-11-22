@@ -147,6 +147,9 @@ pub fn emit(
     if !style.visible {
         return Ok((None, 0));
     }
+    if geometry.kind == 6 {
+        return Err("external image references are forbidden".into());
+    }
     if geometry.kind == 4 {
         return Ok((
             Some(Primitive {

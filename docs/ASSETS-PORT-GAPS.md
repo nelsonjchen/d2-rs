@@ -17,7 +17,8 @@ area does not move the pin or run scoreboards.
 - 8558856dc (continued): inert editor text/solid-color attributes on geometry,
   local path metadata hrefs, enable-background on graphics containers, isolation,
   normal blending, vector-effect=none, visible overflow on use/image, and
-  unreferenced clip paths without IDs.
+  unreferenced clip paths without IDs, ambiguous duplicate IDs with per-declaration
+  resource accounting, and hidden external-image sentinels.
 - b43d0c44f: data-only image resolver API classifies local paths and enforces
   denied local-file policy before rejecting external loading.
 - 6012a84bd and 1c7d0204e: raster watch previews use acquired resource snapshots
@@ -32,7 +33,6 @@ work is still required:
 - SVG mask regions/content coordinate systems, chained clipping paths, and
   single-primitive Gaussian filters, including linear-light interpolation.
 - Positioned text/tspan shaping with bundled fonts and shared glyph outlines.
-- Ambiguous duplicate IDs and hidden external-image sentinels.
 
 
 Unsupported SVG forms retain the previous importer rejection behavior; they

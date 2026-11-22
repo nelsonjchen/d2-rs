@@ -144,8 +144,15 @@ pub fn instantiate(
             (
                 id.clone(),
                 super::svg_resources::Resource {
-                    name: compiled.elements[index].name.clone(),
-                    gradient: compiled.elements[index].gradient.clone(),
+                    name: compiled
+                        .elements
+                        .get(index)
+                        .map(|e| e.name.clone())
+                        .unwrap_or_default(),
+                    gradient: compiled
+                        .elements
+                        .get(index)
+                        .and_then(|e| e.gradient.clone()),
                 },
             )
         })

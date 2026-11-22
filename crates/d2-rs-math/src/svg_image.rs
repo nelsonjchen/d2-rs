@@ -156,24 +156,22 @@ pub fn content_id(
     context(cancel)?;
     Ok(format!("svg-raster:{:x}", hash.finalize()))
 }
-/// Image geometry plus encoded-resource admission. The returned resource still
-/// requires cache/resource budgets, static-format inspection and decoded pixels.
-pub fn prepare(
+pub fn geometry(
     source: &str,
     attrs: &BTreeMap<String, String>,
     children: usize,
-    max_bytes: usize,
     cancel: Option<&d2_rs_core::CancellationToken>,
-) -> Result<Encoded, String> {
+) -> Result<([f64; 4], [u8; 2]), String> {
+    context(cancel)?;
     let error = |reason: String| format!("d2svgimport: {source}: {reason}");
     if children != 0 {
         return Err(error(
             "element <image> cannot contain child elements".into(),
         ));
     }
-    let raw = attrs
-        .get("href")
-        .ok_or_else(|| error("element <image> requires one data: href".into()))?;
+    if !attrs.contains_key("href") {
+        return Err(error("element <image> requires one data: href".into()));
+    }
     if !attrs.contains_key("width") || !attrs.contains_key("height") {
         return Err(error(
             "element <image> requires explicit width and height".into(),
@@ -214,6 +212,21 @@ pub fn prepare(
             .unwrap_or(""),
         "embedded image",
     )?;
+    Ok(([x, y, width, height], aspect))
+}
+/// Image geometry plus encoded-resource admission. The returned resource still
+/// requires cache/resource budgets, static-format inspection and decoded pixels.
+pub fn prepare(
+    source: &str,
+    attrs: &BTreeMap<String, String>,
+    children: usize,
+    max_bytes: usize,
+    cancel: Option<&d2_rs_core::CancellationToken>,
+) -> Result<Encoded, String> {
+    let (bounds, aspect) = geometry(source, attrs, children, cancel)?;
+    let [x, y, width, height] = bounds;
+    let raw = &attrs["href"];
+    let error = |reason: String| format!("d2svgimport: {source}: {reason}");
     let (mime, payload) = data_uri(source, raw, cancel)?;
     let data = decode(&payload, cancel).map_err(|_| {
         context(cancel)

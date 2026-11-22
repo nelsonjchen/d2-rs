@@ -298,7 +298,19 @@ pub fn compile_elements(
     let ids = document
         .ids
         .iter()
-        .map(|(id, &index)| (id.clone(), (index, document.elements[index].name.clone())))
+        .map(|(id, &index)| {
+            (
+                id.clone(),
+                (
+                    index,
+                    document
+                        .elements
+                        .get(index)
+                        .map(|e| e.name.clone())
+                        .unwrap_or_default(),
+                ),
+            )
+        })
         .collect();
     let mut stack = vec![0];
     while let Some(index) = stack.pop() {
@@ -321,6 +333,37 @@ pub fn compile_elements(
         )?;
         if next == super::svg_element::Continuation::Geometry {
             let name = output.elements[index].name.as_str();
+            if name == "image" {
+                let (_, aspect) = super::svg_image::geometry(
+                    source,
+                    &output.elements[index].attrs,
+                    document.elements[index].children.len(),
+                    cancel,
+                )?;
+                if output.elements[index].declarations.contains_key("overflow") && aspect[1] == 1 {
+                    return Err(format!(
+                        "d2svgimport: {source}: unsupported overflow on <image>"
+                    ));
+                }
+                if !output.elements[index].attrs["href"].starts_with("data:") {
+                    let mut ancestor = Some(index);
+                    let mut hidden = false;
+                    while let Some(current) = ancestor {
+                        hidden |= output.elements[current]
+                            .declarations
+                            .get("display")
+                            .is_some_and(|v| v.eq_ignore_ascii_case("none"));
+                        ancestor = document.elements[current].parent;
+                    }
+                    if hidden {
+                        output.geometry[index] = super::svg_geometry::Geometry {
+                            kind: 6,
+                            ..Default::default()
+                        };
+                        continue;
+                    }
+                }
+            }
             if name == "image" && output.image_assets.is_none() {
                 return Ok(Progress::Image(index));
             }
@@ -331,7 +374,7 @@ pub fn compile_elements(
                     document.elements[index].children.len(),
                     limits[0],
                     limits[8],
-                    document.ids.len(),
+                    document.declared_ids(),
                     output.image_assets.as_mut().unwrap(),
                     cancel,
                 )?;
@@ -518,8 +561,12 @@ pub fn compile(
             (
                 id.clone(),
                 super::svg_resources::Resource {
-                    name: output.elements[index].name.clone(),
-                    gradient: output.elements[index].gradient.clone(),
+                    name: output
+                        .elements
+                        .get(index)
+                        .map(|e| e.name.clone())
+                        .unwrap_or_default(),
+                    gradient: output.elements.get(index).and_then(|e| e.gradient.clone()),
                 },
             )
         })
