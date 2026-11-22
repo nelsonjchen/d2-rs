@@ -365,6 +365,13 @@ impl<'t> ThemableElement<'t> {
             if let Some(theme) = theme {
                 attributes.push(svg::attr("color", resolve_theme_color(theme, &self.color)));
             }
+        } else if !self.color.is_empty() && color::is_gradient(&self.color) {
+            // SVG currentColor takes a single color, even for gradient font paint.
+            if let Some(gradient) = color::parse_gradient(&self.color) {
+                if let Some((first, _)) = gradient.color_stops.first() {
+                    attributes.push(svg::attr("color", first));
+                }
+            }
         } else if !self.color.is_empty() {
             attributes.push(svg::attr("color", &self.color));
         }

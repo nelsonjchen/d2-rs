@@ -40,3 +40,20 @@ fn nonfinite_radius_is_rejected_after_radius_calculation() {
     element.height = 100.0;
     assert!(std::panic::catch_unwind(|| element.render()).is_err());
 }
+
+#[test]
+fn current_color_uses_first_gradient_stop_and_omits_invalid_gradient() {
+    // d2themes/element.go at 1a3c6b71b: currentColor is a single color.
+    for (paint, expected) in [
+        ("linear-gradient(to right, #008855 25%, blue)", "#008855"),
+        ("radial-gradient(circle, #993366, white)", "#993366"),
+        ("blue", "blue"),
+    ] {
+        let mut element = ThemableElement::new("g", None);
+        element.color = paint.into();
+        assert_eq!(element.render(), format!(r#"<g color="{expected}" />"#));
+    }
+    let mut invalid = ThemableElement::new("g", None);
+    invalid.color = "linear-gradient(to right)".into();
+    assert_eq!(invalid.render(), "<g />");
+}
