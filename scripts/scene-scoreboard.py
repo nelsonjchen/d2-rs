@@ -36,7 +36,7 @@ import references
 
 ROOT = Path(__file__).resolve().parents[1]
 TESTDATA = ROOT.parent / "d2" / "e2etests/testdata"
-GO_PROBE = ROOT / ".reference/bin/d2-scene-probe-6a7b4837"
+GO_PROBE = references.REFERENCE / f"bin/d2-scene-probe-{references.SOURCE_COMMIT[:8]}"
 RUST = {
     "model": ROOT / "target/diagnostic/examples/scene-roundtrip",
     "scenebuild": ROOT / "target/diagnostic/examples/scenebuild-probe",

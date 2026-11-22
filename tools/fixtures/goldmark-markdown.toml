@@ -1,4 +1,4 @@
-# Goldmark (github.com/yuin/goldmark, third-party) oracle fixtures for
+# Goldmark (github.com/yuin/goldmark/v2, third-party) oracle fixtures for
 # crates/d2-rs-text. Reference recipe family: see docs/FIXTURES.md.
 #
 # Each generator (scripts/check-markdown-*.py) builds its harness under
@@ -21,7 +21,7 @@ files = [
   "tools/oracle/go.mod",
   "tools/oracle/go.sum",
 ]
-go_modules = ["github.com/yuin/goldmark"]
+go_modules = ["github.com/yuin/goldmark/v2"]
 go_toolchain = true
 
 [[recipe]]

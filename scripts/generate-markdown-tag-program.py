@@ -8,7 +8,7 @@ binary=REFERENCE/'bin/markdown-link-oracle'
 # recorded in the retired docs/markdown-link-parity.json; see docs/RETIRED-EVIDENCE.md).
 assert digest(binary)=='184c27065d71aeb06489ffaa014717d478b539fe446974b4c88d1a9f26b9a77f'
 programs=json.loads(subprocess.check_output([str(binary)],input=json.dumps([{'Kind':'tagprogram','Source':''},{'Kind':'tagprogram','Source':'01'}]).encode()))
-out=['// SPDX-License-Identifier: MPL-2.0 AND MIT','// Copyright (c) 2019 Yusuke Inuzuka','// Generated Goldmark v1.8.5 tag regexps using Go 1.27.0 regexp/syntax.','use super::tag_matcher::Inst;']
+out=['// SPDX-License-Identifier: MPL-2.0 AND MIT','// Copyright (c) 2019 Yusuke Inuzuka','// Generated Goldmark v2.1.16 tag regexps using Go 1.27.4 regexp/syntax.','use super::tag_matcher::Inst;']
 for name,entry in zip(['OPEN','CLOSE'],programs):
     assert entry['onepass'] is False
     program=entry['program']
@@ -23,4 +23,4 @@ for name,entry in zip(['OPEN','CLOSE'],programs):
 (ROOT/'crates/d2-rs-text/src/markdown/tag_program.rs').write_text('\n'.join(out)+'\n')
 report_path = ROOT / 'oracle-cache/reports/markdown-tag-programs.json'
 report_path.parent.mkdir(parents=True, exist_ok=True)
-report_path.write_text(json.dumps({'programs':programs,'oracle_sha256':digest(binary),'source_sha256':{name:digest(REFERENCE/'go-mod/golang.org/toolchain@v0.0.1-go1.27.0.darwin-arm64/src'/name) for name in ['regexp/exec.go','regexp/regexp.go','regexp/syntax/compile.go','regexp/syntax/prog.go']}},indent=2)+'\n')
+report_path.write_text(json.dumps({'programs':programs,'oracle_sha256':digest(binary),'source_sha256':{name:digest(REFERENCE/'go-mod/golang.org/toolchain@v0.0.1-go1.27.4.darwin-arm64/src'/name) for name in ['regexp/exec.go','regexp/regexp.go','regexp/syntax/compile.go','regexp/syntax/prog.go']}},indent=2)+'\n')

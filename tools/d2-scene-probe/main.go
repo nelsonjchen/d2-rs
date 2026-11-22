@@ -5,7 +5,7 @@
 // source scene commands and transforms with the Rust renderer's parsed path.
 // Run from the pinned D2 checkout:
 //
-//	GOTOOLCHAIN=go1.27.0 go run ../d2-rs/tools/d2-scene-probe/main.go input.d2
+//	GOTOOLCHAIN=go1.27.4 go run ../d2-rs/tools/d2-scene-probe/main.go input.d2
 package main
 
 import (

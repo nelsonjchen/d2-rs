@@ -22,7 +22,7 @@ ranges=json.loads(subprocess.run([str(binary),'ranges'],stdout=subprocess.PIPE,c
 # The Unicode classifier table is committed source generated from this
 # oracle. Regeneration verifies it; set D2RS_UPDATE_UNICODE_TABLE=1 to rewrite it.
 table=ROOT/'crates/d2-rs-text/src/markdown/delimiter/unicode.rs'
-table_text='// SPDX-License-Identifier: BSD-3-Clause\n// Copyright The Go Authors. Rust translation Copyright 2026 Nelson Chen.\n// Generated from Go 1.27 Unicode 17.0.0 and Goldmark v1.8.5 classifiers.\n// Regenerate: D2RS_UPDATE_UNICODE_TABLE=1 uv run --no-project python scripts/regen-fixtures.py --only goldmark-delimiter --force.\n// Bit 1: punctuation or symbol; bit 2: whitespace.\npub(super) const RANGES: &[(u32, u32, u8)] = &[\n'+''.join(f'    ({a}, {b}, {flags}),\n' for a,b,flags in ranges)+'];\n'
+table_text='// SPDX-License-Identifier: BSD-3-Clause\n// Copyright The Go Authors. Rust translation Copyright 2026 Nelson Chen.\n// Generated from Go 1.27 Unicode 17.0.0 and Goldmark v2.1.16 classifiers.\n// Regenerate: D2RS_UPDATE_UNICODE_TABLE=1 uv run --no-project python scripts/regen-fixtures.py --only goldmark-delimiter --force.\n// Bit 1: punctuation or symbol; bit 2: whitespace.\npub(super) const RANGES: &[(u32, u32, u8)] = &[\n'+''.join(f'    ({a}, {b}, {flags}),\n' for a,b,flags in ranges)+'];\n'
 if os.environ.get('D2RS_UPDATE_UNICODE_TABLE') == '1':
     table.write_text(table_text)
 elif table.read_text() != table_text:

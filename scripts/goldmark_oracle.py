@@ -1,7 +1,7 @@
 """Build pinned Goldmark oracle harnesses (tools/markdown-*-oracle) for recipes.
 
 Goldmark is a third-party module: harnesses build in a minimal module that
-requires only github.com/yuin/goldmark at the version pinned in
+requires only github.com/yuin/goldmark/v2 at the version pinned in
 reference-manifest.json `dependencies`, not against the D2 checkout. Builds
 happen in the recipe workdir with the runner's absolute GOMODCACHE/GOCACHE.
 """
@@ -18,7 +18,7 @@ import subprocess
 from fixture_recipe import go_env, workdir
 from references import MANIFEST, ROOT
 
-MODULE = "github.com/yuin/goldmark"
+MODULE = "github.com/yuin/goldmark/v2"
 VERSION = MANIFEST["dependencies"][MODULE]
 
 

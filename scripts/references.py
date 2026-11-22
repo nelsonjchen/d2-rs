@@ -115,7 +115,7 @@ def release(host: str, fetch: bool) -> Path:
         if command(str(binary), "--version") != "v0.9.0":
             raise RuntimeError("Release reports an unexpected version")
         metadata = command("go", "version", "-m", str(binary))
-        if MANIFEST["d2"]["go_toolchain"] not in metadata.splitlines()[0]:
+        if pin.get("go_toolchain") and pin["go_toolchain"] not in metadata.splitlines()[0]:
             raise RuntimeError("Release Go toolchain mismatch")
     return binary
 
@@ -125,6 +125,8 @@ def source_builds() -> None:
         binary = (ROOT / pin["binary"]).resolve()
         if not binary.is_file():
             raise RuntimeError(f"Missing source build {name}: {binary}")
+        if not pin.get("binary_sha256"):
+            raise RuntimeError(f"Source build {name} needs a rebuild and recorded binary_sha256: {binary}")
         if digest(binary) != pin["binary_sha256"]:
             raise RuntimeError(f"Source build checksum mismatch: {binary}")
         metadata = command("go", "version", "-m", str(binary))

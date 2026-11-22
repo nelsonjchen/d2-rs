@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
-source = root / '.reference/go-mod/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.0.darwin-arm64/src'
+source = root / '.reference/go-mod/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.4.darwin-arm64/src'
 sniff = (source / 'net/http/internal/sniff.go').read_text()
 body = sniff.split('var sniffSignatures = []sniffSig{', 1)[1].split('\n}\n', 1)[0]
 body = re.sub(r'//[^\n]*', '', body)
@@ -32,7 +32,7 @@ extensions = re.findall(r'^\s*("\.[^"]*"):\s*("[^"]*"),', (source / 'mime/type.g
 assert len(extensions) == 65, len(extensions)
 output = '''// Copyright 2010, 2011 The Go Authors. All rights reserved.
 // SPDX-License-Identifier: BSD-3-Clause
-// Generated from pinned Go 1.27.0 mime/type.go and net/http/internal/sniff.go.
+// Generated from pinned Go 1.27.4 mime/type.go and net/http/internal/sniff.go.
 // Regenerate with scripts/generate-http-mime-tables.py; see THIRD_PARTY_NOTICES.md.
 use super::Signature;
 pub(super) const SIGNATURES: &[Signature] = &[

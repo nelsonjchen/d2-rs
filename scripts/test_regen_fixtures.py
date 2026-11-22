@@ -230,6 +230,40 @@ class RegenTests(unittest.TestCase):
         self.assertEqual(code, 2, out)
         self.assertIn("tools/x/go.mod: example.com/mod v1.0.0, pin v1.2.3", out)
 
+    def test_manifest_modules_are_checked_at_pin_including_indirect(self):
+        repo = Repo(self.base)
+        self.simple(repo)
+        upstream_mod = repo.upstream / "go.mod"
+        upstream_mod.write_text("module d2\n\nrequire example.com/mod v1.2.3\n"
+                                "require example.com/indirect v2.0.0 // indirect\n")
+        run = lambda *args: subprocess.run(["git", "-C", str(repo.upstream), *args],
+                                           check=True, capture_output=True, text=True)
+        run("add", "go.mod")
+        run("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "module pin")
+        manifest_path = repo.root / "reference-manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        manifest["d2"]["commit"] = run("rev-parse", "HEAD").stdout.strip()
+        manifest["dependencies"]["example.com/indirect"] = "v2.0.0"
+        manifest_path.write_text(json.dumps(manifest))
+        # A later checkout and dirty module must not change the selected oracle.
+        upstream_mod.write_text("module d2\n\nrequire example.com/mod v9.0.0\n")
+        run("add", "go.mod")
+        run("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "later module")
+        upstream_mod.write_text("module d2\n\nrequire example.com/mod v8.0.0\n")
+        code, out = repo.run("--list")
+        self.assertEqual(code, 0, out)
+        del manifest["dependencies"]["example.com/indirect"]
+        manifest_path.write_text(json.dumps(manifest))
+        code, out = repo.run("--list")
+        self.assertEqual(code, 2, out)
+        self.assertIn("example.com/indirect <missing>, pinned go.mod v2.0.0", out)
+        manifest["dependencies"]["example.com/indirect"] = "v2.0.0"
+        manifest["dependencies"]["example.com/removed"] = "v1.0.0"
+        manifest_path.write_text(json.dumps(manifest))
+        code, out = repo.run("--list")
+        self.assertEqual(code, 2, out)
+        self.assertIn("example.com/removed v1.0.0, pinned go.mod <absent>", out)
+
     def test_goarch_in_key_and_environment(self):
         repo = Repo(self.base)
         repo.recipes(f"""

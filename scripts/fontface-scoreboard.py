@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Score crates/d2-rs-fontface against pinned Go fontface (D2 master 6a7b48378).
+"""Score crates/d2-rs-fontface against pinned Go fontface (D2 master from reference-manifest.json).
 
 Every distinct label text in the upstream e2e goldens
 (e2etests/testdata/**/board.exp.json: shape labels, connection labels and
@@ -41,10 +41,12 @@ import sys
 import tempfile
 from pathlib import Path
 
+import references
+
 ROOT = Path(__file__).resolve().parents[1]
 D2 = ROOT.parent / "d2"
 TESTDATA = D2 / "e2etests/testdata"
-GO_PROBE = ROOT / ".reference/bin/d2-fontface-probe-6a7b4837"
+GO_PROBE = references.REFERENCE / f"bin/d2-fontface-probe-{references.SOURCE_COMMIT[:8]}"
 RUST_PROBE = ROOT / "target/diagnostic/examples/fontface-probe"
 PPEM_64 = 64 * 64
 

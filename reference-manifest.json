@@ -3,8 +3,8 @@
   "d2": {
     "repository": "https://github.com/d2lang/d2.git",
     "branch": "master",
-    "commit": "6a7b4837838a3907604a1d9eec57ee98b6f3cd01",
-    "commit_date": "2026-10-11",
+    "commit": "25e67b4c1f9ff0a879e14e2bb222ddb96ad14d16",
+    "commit_date": "2026-11-21",
     "base_tag": "v0.9.0",
     "checkout": "../d2",
     "trace_checkout": "../d2-trace",
@@ -12,16 +12,17 @@
       "tools/patches/d2-e2e-case-dump.patch",
       "tools/patches/mathtext-svgimport-admission.patch"
     ],
-    "go_toolchain": "go1.27.0",
-    "oracle": ".reference/bin/d2-master-6a7b4837-go1.27",
-    "e2e_cases": ".reference/e2e-cases-6a7b4837"
+    "go_toolchain": "go1.27.4",
+    "oracle": ".reference/bin/d2-master-25e67b4c-go1.27",
+    "e2e_cases": ".reference/e2e-cases-25e67b4c"
   },
   "releases": {
     "macos-arm64": {
       "archive": "d2-v0.9.0-macos-arm64.tar.gz",
       "url": "https://github.com/d2lang/d2/releases/download/v0.9.0/d2-v0.9.0-macos-arm64.tar.gz",
       "sha256": "eaf6c0c143e56dd9fa97bfb6df25ea9c1ebce40245f056a0768cf1a6c15d3064",
-      "binary_sha256": "e8ba501a413bac33a4d93014c475b804de10fb2863a391583e23a8d88160e311"
+      "binary_sha256": "e8ba501a413bac33a4d93014c475b804de10fb2863a391583e23a8d88160e311",
+      "go_toolchain": "go1.27.0"
     },
     "linux-amd64": {
       "archive": "d2-v0.9.0-linux-amd64.tar.gz",
@@ -50,24 +51,25 @@
     }
   },
   "source_builds": {
-    "d2-master-6a7b4837-go1.27.0": {
-      "binary": ".reference/bin/d2-master-6a7b4837-go1.27",
-      "source_commit": "6a7b4837838a3907604a1d9eec57ee98b6f3cd01",
-      "go_toolchain": "go1.27.0",
-      "binary_sha256": "f1bb2cb7cd632a5be742d7c3daf61fadf83895887a5324adf38469f29f50977e",
-      "build_command": "GOTOOLCHAIN=go1.27.0 GOMODCACHE=$PWD/.reference/go-mod/pkg/mod GOCACHE=$PWD/.reference/go-build go -C ../d2 build -mod=readonly -ldflags '-X github.com/d2lang/d2/lib/version.Version=v0.9.0' -o ../d2-rs/.reference/bin/d2-master-6a7b4837-go1.27 .",
+    "d2-master-25e67b4c-go1.27.4": {
+      "binary": ".reference/bin/d2-master-25e67b4c-go1.27",
+      "source_commit": "25e67b4c1f9ff0a879e14e2bb222ddb96ad14d16",
+      "go_toolchain": "go1.27.4",
+      "binary_sha256": null,
+      "build_command": "GOTOOLCHAIN=go1.27.4 GOMODCACHE=$PWD/.reference/go-mod/pkg/mod GOCACHE=$PWD/.reference/go-build go -C ../d2 build -mod=readonly -ldflags '-X github.com/d2lang/d2/lib/version.Version=v0.9.0' -o ../d2-rs/.reference/bin/d2-master-25e67b4c-go1.27 .",
       "reported_version": "v0.9.0",
-      "reported_version_note": "Unstamped master reports v0.8.1-HEAD (lib/version). The oracle keeps the last release's v0.9.0 stamp so version-sensitive CLI comparisons do not diverge on a label alone."
+      "reported_version_note": "Unstamped master reports v0.8.1-HEAD (lib/version). The oracle keeps the last release's v0.9.0 stamp so version-sensitive CLI comparisons do not diverge on a label alone.",
+      "binary_sha256_note": "Rebuild the oracle binary at the new pin, then record its SHA-256 before verification."
     }
   },
   "dependencies": {
     "codeberg.org/go-pdf/fpdf": "v0.12.0",
-    "github.com/PuerkitoBio/goquery": "v1.12.0",
+    "github.com/PuerkitoBio/goquery": "v1.14.0",
     "github.com/alecthomas/chroma/v2": "v2.27.0",
-    "github.com/andybalholm/brotli": "v1.2.2",
+    "github.com/andybalholm/brotli": "v1.3.0",
     "github.com/coder/websocket": "v1.8.15",
-    "github.com/d2lang/dagro": "v0.2.1",
-    "github.com/d2lang/elk-go": "v0.2.0",
+    "github.com/d2lang/dagro": "v0.2.2-0.20261119124940-425238d7043d",
+    "github.com/d2lang/elk-go": "v0.2.1-0.20261119175052-8b285820520e",
     "github.com/d2lang/mathjax-go": "v0.1.1-0.20261002175158-94d80186bfd7",
     "github.com/d2lang/rough-go": "v0.2.0",
     "github.com/d2lang/util-go": "v0.2.0",
@@ -75,30 +77,25 @@
     "github.com/fsnotify/fsnotify": "v1.10.1",
     "github.com/go-text/typesetting": "v0.3.4",
     "github.com/lucasb-eyer/go-colorful": "v1.4.1",
-    "github.com/mazznoer/csscolorparser": "v0.1.8",
+    "github.com/mazznoer/csscolorparser": "v0.2.0",
     "github.com/rivo/uniseg": "v0.4.7",
-    "github.com/spf13/pflag": "v1.0.10",
-    "github.com/stretchr/testify": "v1.11.1",
-    "github.com/yuin/goldmark": "v1.8.5",
-    "go.uber.org/multierr": "v1.11.0",
-    "golang.org/x/image": "v0.45.0",
-    "golang.org/x/net": "v0.57.0",
-    "golang.org/x/sync": "v0.22.0",
-    "golang.org/x/text": "v0.41.0",
-    "golang.org/x/tools": "v0.48.0",
-    "github.com/andybalholm/cascadia": "v1.3.4",
-    "github.com/davecgh/go-spew": "v1.1.1",
-    "github.com/dlclark/regexp2/v2": "v2.6.0",
-    "github.com/kr/pretty": "v0.3.1",
+    "github.com/spf13/pflag": "v1.1.0",
+    "github.com/stretchr/testify": "v1.12.1",
+    "github.com/yuin/goldmark/v2": "v2.1.16",
+    "golang.org/x/image": "v0.48.0",
+    "golang.org/x/net": "v0.63.0",
+    "golang.org/x/sync": "v0.25.0",
+    "golang.org/x/text": "v0.44.0",
+    "golang.org/x/tools": "v0.53.0",
+    "github.com/andybalholm/cascadia": "v1.3.5",
+    "github.com/dlclark/regexp2/v2": "v2.13.2",
     "github.com/pkg/browser": "v0.0.0-20240102092130-5ac0b6a4141c",
-    "github.com/pmezard/go-difflib": "v1.0.0",
-    "github.com/rogpeppe/go-internal": "v1.11.0",
-    "golang.org/x/exp": "v0.0.0-20260727155853-b88d891fe743",
-    "golang.org/x/sys": "v0.47.0",
-    "golang.org/x/term": "v0.45.0",
-    "golang.org/x/xerrors": "v0.0.0-20240903120638-7835f813f4da",
-    "gopkg.in/check.v1": "v1.0.0-20201130134442-10cb98267c6c",
-    "gopkg.in/yaml.v3": "v3.0.1"
+    "go.uber.org/multierr": "v1.11.0",
+    "go.yaml.in/yaml/v3": "v3.0.6",
+    "golang.org/x/exp": "v0.0.0-20261120182113-8801fbdfac81",
+    "golang.org/x/sys": "v0.50.0",
+    "golang.org/x/term": "v0.48.0",
+    "golang.org/x/xerrors": "v0.0.0-20240903120638-7835f813f4da"
   },
   "direct_engine_development_oracle": {
     "binary": ".reference/bin/tala-engine-oracle",

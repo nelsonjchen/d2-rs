@@ -4,7 +4,7 @@ package main
 import (
 	"encoding/hex"
 	"encoding/json"
-	"github.com/yuin/goldmark/text"
+	"github.com/yuin/goldmark/v2/text"
 	"os"
 )
 

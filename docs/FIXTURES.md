@@ -123,7 +123,10 @@ uv run --no-project python scripts/regen-fixtures.py [--only GLOB]... [--force] 
   `tools/**/go.mod` must equal the manifest. A mismatch stops the run, so a
   stale oracle module cannot silently agree with a stale Rust port. When
   moving the pin, update the manifest from the new upstream `go.mod`, then
-  `go get <module>@<version>` in each oracle module the check names.
+  update each oracle module the check names and resolve its graph/checksums
+  with `go get <module>@<version>` (or `go mod tidy` after a module-path move).
+  The check reads `go.mod` at the pinned commit, including indirect requirements;
+  the pristine checkout may remain at another revision.
 - Contract tests for the runner:
   `uv run --no-project python scripts/test_regen_fixtures.py`.
 
@@ -344,5 +347,36 @@ Ten `command` recipes (`goldmark-*`) produce the
 tests in `crates/d2-rs-text/tests/`. The generators are
 `scripts/check-markdown-*.py` (through `scripts/goldmark_oracle.py`). They
 build small Go oracles in a minimal module that requires only
-`github.com/yuin/goldmark` at the manifest version, so the key depends on
+`github.com/yuin/goldmark/v2` at the manifest version, so the key depends on
 that version and the Go toolchain, not on the D2 pin.
+
+## Pending qualification for the 2026-11-21 pin move
+
+The target is `25e67b4c1f9ff0a879e14e2bb222ddb96ad14d16`, Go 1.27.4,
+with `v0.9.0` retained as the last tagged release. Both trace patches have
+been rebased. Oracle module declarations and Goldmark v2 import paths follow
+the new graph; checked-in checksums come from the target's `go.sum`, without
+running dependency downloads or module resolution. Harness compatibility with
+Goldmark v2 still needs compilation and qualification.
+
+Before claiming parity at this pin:
+
+1. Resolve/tidy the changed oracle modules under `tools/` using Go 1.27.4,
+   including the Goldmark v2 migration, and verify their checksums. Rebuild
+   the instrumented ELK dependency at its new manifest version for
+   `tools/elk-oracle-trace`.
+2. Rebuild the manifest's source oracle, record its `binary_sha256` (currently
+   null), rebuild trace/mapseed/clock and probe oracles, and recapture
+   `.reference/e2e-cases-25e67b4c` using `D2RS_E2E_DUMP` and the rebased patch.
+   These steps require a separate checkout at the pin; do not change an
+   upstream checkout that is being kept read-only.
+3. Regenerate all fixtures with `scripts/regen-fixtures.py`, refresh and review
+   generated Rust tables through their documented opt-in generators, then run the
+   default and oracle tiers, both e2e and differential scoreboards, performance
+   boards and generated sweeps required by `AGENTS.md`, per architecture.
+
+The logical artifact `help-master-6a7b4837.txt` retains its historical name
+because Rust tests use that path; its contents must be regenerated from the
+new pin, and its recipe key includes the pin. Release provenance and the
+separate direct-engine development oracle remain historical records with
+their original toolchains. They do not certify this new D2 target.
