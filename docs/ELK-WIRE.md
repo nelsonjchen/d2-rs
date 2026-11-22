@@ -26,14 +26,20 @@ option was enabled separately; other settings used provider defaults.
 | --- | --- | --- |
 | `elk.layered.wrapping.strategy=SINGLE_EDGE` | 964x75 | Port `intermediate/wrapping/single_edge.go` and its graph statistics, cut selection/validation and layer rearrangement helpers; schedule `SingleEdgeGraphWrapper` before node placement. |
 | `elk.layered.wrapping.strategy=MULTI_EDGE` | 394x258 | Port breaking-point insertion before node ordering, processing before node placement, and removal after edge routing, including dummy/edge restoration and cutting/statistics helpers. |
-| `elk.layered.feedbackEdges=true` | 984x75 | Run port-side processing before cycle breaking (instead of before ordering); carry the fixed sides through reversal and enable inverted-port processing in the orthogonal router even without the non-free-port graph flag. Preserve conditional north/south pre/postprocessing. |
 
-These are implemented paths, not rejected or ignored options. Relevant
+These are implemented upstream paths, not rejected or ignored options. Relevant
 registration/dispatch is in `internal/layered/{properties,configurator}.go`,
 `p5edges/orthogonal_edge_router.go` and `p3order/graph_info_holder.go`.
 The remaining Rust unsupported errors stay in place until their complete
 processor chains are ported. Matching the probe's dimensions alone would not
 implement those contracts.
+
+Wrapping remains unported in this follow-up. In addition to the table's
+phase scheduling, the shared `cutting.go` helper needs per-dummy individual
+edge/node spacing, original-edge properties, and complete long-edge endpoint
+and reversal restoration. SINGLE_EDGE needs these helpers even for a path;
+MULTI_EDGE additionally needs paired breaking-point metadata and post-routing
+edge restoration. Neither strategy's unsupported error has been removed.
 
 ## Forced model order
 
@@ -51,6 +57,20 @@ barycenters in all four directions. A native comparator contract also checks
 configured groups, the both-groups-enforced rule, and equal/absent-order
 fallbacks. This targets the forced-model-order differential mismatch cluster;
 no scoreboard or oracle fixture regeneration was run.
+
+## Feedback edges
+
+`elk.layered.feedbackEdges=true` now schedules `PortSideProcessor` before P1
+(after the edge/layer-constraint reverser, following the source enum order),
+instead of before P3. Both root/component and nested scopes preserve those
+fixed sides through cycle reversal and run inverted-port processing even for
+originally free ports. The existing north/south pre/postprocessors remain
+conditional on connected fixed north/south ports; no unconditional dummy
+insertion was added. Collector adaptation remains the upstream reversal path.
+
+The D2-input cycle contract checks all three edges, including the feedback
+edge, for forward source/target approaches and orthogonal routing in all four
+directions, in both flat and container graphs. This targets the feedback-edge differential mismatch cluster.
 
 ## Mr. Tree
 

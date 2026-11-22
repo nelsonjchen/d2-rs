@@ -319,6 +319,7 @@ pub struct LGraph {
     pub(crate) forced_model_order: model_order_barycenter::Options,
     /// GREEDY_MODEL_ORDER uses model ties; the source default GREEDY uses RNG.
     pub cycle_breaking_model_order: bool,
+    pub(crate) feedback_edges: bool,
     /// Whether P1 consumed the graph RNG before P3 initializes its holder.
     cycle_random_consumed: bool,
     /// Whether fixed-side port lists use ELK's degree sorting strategy.
@@ -1050,6 +1051,11 @@ impl LayeredArena {
         arena
             .edge_label_side_modes
             .insert(root, parse_edge_label_side_selection(&graph.layout_options));
+        arena.graphs[root as usize].feedback_edges = model_order_barycenter::property(
+            &graph.layout_options,
+            "feedbackEdges",
+        )
+            .is_some_and(|v| v.as_bool() == Some(true) || v.as_str() == Some("true"));
         arena.graphs[root as usize].forced_model_order =
             model_order_barycenter::Options::parse(&graph.layout_options);
         arena.graphs[root as usize].merge_edges = parse_merge_edges(&graph.layout_options);
@@ -1927,6 +1933,11 @@ impl LayeredArena {
                 parse_coffman_bound(nested_options);
             self.edge_label_side_modes
                 .insert(nested, parse_edge_label_side_selection(nested_options));
+            self.graphs[nested as usize].feedback_edges = model_order_barycenter::property(
+                nested_options,
+                "feedbackEdges",
+            )
+                .is_some_and(|v| v.as_bool() == Some(true) || v.as_str() == Some("true"));
             self.graphs[nested as usize].forced_model_order =
                 model_order_barycenter::Options::parse(nested_options);
             self.graphs[nested as usize].merge_edges = parse_merge_edges(nested_options);
@@ -5933,8 +5944,12 @@ pub(crate) fn split_long_edges_for_layout(
 /// following inverted-port pass then inserts the same-layer long-edge dummy
 /// used for an input on the east side or an output on the west side.
 pub(crate) fn process_inverted_ports_for_layout(arena: &mut LayeredArena, graph_id: LGraphId) {
-    process_port_sides(arena, graph_id);
+    if !arena.graphs[graph_id as usize].feedback_edges {
+        process_port_sides(arena, graph_id);
+    }
 
+    // Run even for originally free ports: feedback routing fixed their sides
+    // before P1, so reversal must insert the same inverted-port dummies.
     let layer_ids = arena.graphs[graph_id as usize].layers.clone();
     let mut previous_layer = None;
     let mut unassigned = Vec::new();
@@ -6250,6 +6265,14 @@ fn real_port_degree(arena: &LayeredArena, port_id: LPortId, incoming: bool) -> u
         .iter()
         .filter(|edge_id| !arena.edges[**edge_id as usize].reversed)
         .count()
+}
+
+/// Configurator: feedback routing fixes sides after the constraint reverser
+/// but before cycle breaking, so reversed edges retain their authored sides.
+pub(crate) fn process_feedback_port_sides(arena: &mut LayeredArena, graph_id: LGraphId) {
+    if arena.graphs[graph_id as usize].feedback_edges {
+        process_port_sides(arena, graph_id);
+    }
 }
 
 fn process_port_sides(arena: &mut LayeredArena, graph_id: LGraphId) {

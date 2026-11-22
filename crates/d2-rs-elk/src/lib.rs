@@ -1999,6 +1999,7 @@ fn run_root_scope_pipeline(
     layered::reverse_constraint_edges_for_layout(arena, root);
     trace_phase!("constraints", "external_port_edge_direction");
     trace_arena!("constraints", "external_port_edge_direction", arena);
+    layered::process_feedback_port_sides(arena, root);
     layered::break_cycles_for_layout(arena, root)?;
     trace_phase!("cycle_breaking", "break_cycles");
     trace_arena!("cycle_breaking", "break_cycles", arena);
@@ -2217,6 +2218,7 @@ fn prepare_nested_graph_scope(
     layered::reverse_constraint_edges_for_layout(arena, graph_id);
     trace_phase!("nested", "external_port_edge_direction");
     trace_arena!("nested", "external_port_edge_direction", arena);
+    layered::process_feedback_port_sides(arena, graph_id);
     layered::break_cycles_for_layout(arena, graph_id)?;
     trace_phase!("nested", "break_cycles");
     trace_arena!("nested", "break_cycles", arena);
@@ -3922,23 +3924,11 @@ pub fn layout_with_options(
 }
 
 fn validate_options(options: ElkOptions) -> Result<(), LayoutError> {
-    // These processor chains are not translated yet. Never silently accept
-    // an option and publish the default layout in its place.
-    for (name, enabled) in [
-        ("elk-feedbackEdges", options.layered.feedback_edges),
-        (
-            "elk-wrappingStrategy",
-            options
-                .layered
-                .wrapping_strategy
-                .is_some_and(|s| s != "OFF"),
-        ),
-    ] {
-        if enabled {
-            return Err(LayoutError::EngineValidation(format!(
-                "{name}: native layered processor support is not yet ported"
-            )));
-        }
+    // Wrapping's processor chains are not translated yet.
+    if options.layered.wrapping_strategy.is_some_and(|s| s != "OFF") {
+        return Err(LayoutError::EngineValidation(
+            "elk-wrappingStrategy: native layered processor support is not yet ported".into(),
+        ));
     }
     for (name, value) in [
         ("edge_edge_spacing", options.edge_edge_spacing),

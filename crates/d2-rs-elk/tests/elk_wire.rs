@@ -175,3 +175,35 @@ fn forced_model_order_preserves_authored_nodes_across_crossings() {
         assert_eq!(result.routes.len(), 2);
     }
 }
+
+// elk-go configurator.go + p5edges/orthogonal_edge_router.go: feedback ports
+// retain the original flow sides even when P1 reverses an edge in the cycle.
+#[test]
+fn feedback_edges_keep_forward_endpoint_approaches() {
+    for direction in ["right", "down", "left", "up"] {
+        for body in ["a -> b -> c -> a", "container: {a -> b -> c -> a}"] {
+            let graph = compile(&format!(
+                "direction: {direction}\nvars: {{d2-config: {{data: {{elk-feedbackEdges: true}}}}}}\n{body}\n"
+            ));
+            let result = layout(&graph, &LayoutOptions::default()).unwrap();
+            for route in result.routes.values() {
+                let along = |p: Point| match direction {
+                    "right" => p.x,
+                    "left" => -p.x,
+                    "down" => p.y,
+                    _ => -p.y,
+                };
+                assert!(along(route[1]) > along(route[0]), "{direction}: {route:?}");
+                let end = route.len() - 1;
+                assert!(
+                    along(route[end]) > along(route[end - 1]),
+                    "{direction}: {route:?}"
+                );
+                for pair in route.windows(2) {
+                    assert!(pair[0].x == pair[1].x || pair[0].y == pair[1].y);
+                }
+            }
+            assert_eq!(result.routes.len(), 3);
+        }
+    }
+}
