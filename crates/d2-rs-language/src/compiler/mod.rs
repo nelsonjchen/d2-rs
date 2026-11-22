@@ -41,8 +41,8 @@ mod trace;
 pub use boards::{BoardTargetError, board_targets, board_targets_postorder, resolve_board_target};
 pub use compile::{
     CompileContext, CompileError, CompileLimits, CompileOptions, UntranslatedFeature, compile_ir,
-    compile_ir_with_context, compile_ir_with_imports, compile_ir_with_limits,
-    compile_ir_with_options,
+    compile_ir_with_context, compile_ir_with_import_resolver, compile_ir_with_imports,
+    compile_ir_with_limits, compile_ir_with_options,
 };
 pub use config::{DiagramConfig, extract_config, extract_config_checked};
 use d2_rs_core::{ast::Shared, ir::*};

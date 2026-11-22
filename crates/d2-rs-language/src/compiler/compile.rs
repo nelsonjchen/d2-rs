@@ -119,11 +119,26 @@ pub fn compile_ir_with_context(
     limits: CompileLimits,
     context: Option<CompileContext>,
 ) -> Result<(Compiler, NodeId), CompileError> {
+    compile_ir_with_import_resolver(source, options, limits, context, None)
+}
+
+/// Compile with a filesystem-owned import path resolver. `None` preserves
+/// virtual slash-separated names; native file providers pass
+/// `Some(Box::new(imports::native_import_path))`. Both imports and peeks use it.
+/// Kept separate from CompileOptions to preserve existing provider callbacks.
+pub fn compile_ir_with_import_resolver(
+    source: Shared<ast::Map>,
+    options: CompileOptions,
+    limits: CompileLimits,
+    context: Option<CompileContext>,
+    path_resolver: Option<super::imports::ImportPathResolver>,
+) -> Result<(Compiler, NodeId), CompileError> {
     let mut c = Compiler {
         context,
         import_opener: options.import_opener,
         import_state: super::imports::ImportState {
             utf16_positions: options.utf16_positions,
+            path_resolver,
             ..Default::default()
         },
         ..Default::default()
