@@ -1,0 +1,57 @@
+# ELK wire follow-up at 25e67b4c
+
+This area targets the differential mismatches for authored shape layer
+constraints and the Mr. Tree route contract from `f3da1baea`. No oracle
+artifacts or scoreboard results were changed or regenerated.
+
+`e1922797b`'s `d2layouts/d2elklayout/layout.go` assigns the uppercase shape
+constraint to every leaf/container's `elk.layered.layering.layerConstraint`.
+The Rust wire adapter now does that. D2-input tests check the emitted property
+and first/last layer placement. The compiler's inherited-scalar cache also
+needed disjoint root/style slots: root `elk-layer-constraint` occupied slot 46,
+which was already used for `style.opacity` (26 + 20). Its cache regression
+checks both lookups against the original public IR lookup.
+
+## Accepted upstream options still unsupported in Rust
+
+Source comparison uses elk-go
+`v0.2.1-0.20261119175052-8b285820520e`. A local public `elk.LayoutJSON` probe
+accepted each option below and returned 12 nodes and 12 routed edges. The
+input was a chain of twelve 60x40 nodes, plus a return edge from the last node
+to the first, direction RIGHT, algorithm layered, model-order strategy
+NODES_AND_EDGES, cycle breaking GREEDY_MODEL_ORDER, thoroughness 8. Each
+option was enabled separately; other settings used provider defaults.
+
+| Option | Go result dimensions | Required native work |
+| --- | --- | --- |
+| `elk.layered.wrapping.strategy=SINGLE_EDGE` | 964x75 | Port `intermediate/wrapping/single_edge.go` and its graph statistics, cut selection/validation and layer rearrangement helpers; schedule `SingleEdgeGraphWrapper` before node placement. |
+| `elk.layered.wrapping.strategy=MULTI_EDGE` | 394x258 | Port breaking-point insertion before node ordering, processing before node placement, and removal after edge routing, including dummy/edge restoration and cutting/statistics helpers. |
+| `elk.layered.feedbackEdges=true` | 984x75 | Run port-side processing before cycle breaking (instead of before ordering); carry the fixed sides through reversal and enable inverted-port processing in the orthogonal router even without the non-free-port graph flag. Preserve conditional north/south pre/postprocessing. |
+| `elk.layered.crossingMinimization.forceNodeModelOrder=true` | 964x75 | Import model-order metadata when enabled; integrate `p3order/model_order_barycenter_heuristic.go` into graph-info-holder/barycenter sweeps, including group-aware/transitive comparisons, insertion sorting, clearing transitive state, and bypassing Forster constraint processing for forced order. |
+
+These are implemented paths, not rejected or ignored options. Relevant
+registration/dispatch is in `internal/layered/{properties,configurator}.go`,
+`p5edges/orthogonal_edge_router.go` and `p3order/graph_info_holder.go`.
+The existing Rust unsupported errors remain: implementing these processor
+chains is intentionally outside this small follow-up. Matching the probe's
+dimensions alone would not implement those contracts.
+
+## Mr. Tree
+
+`f3da1baea` changes the adapter, not the tree-routing algorithm: use the
+provider's root edge-node clearance, preserve root tree detours during bend
+cleanup, and trim repeated bends and bends inside endpoint shapes before
+shape tracing. Those changes were already present in the preceding port.
+
+The new `mr_tree_routes_avoid_shapes` contract ports the upstream measured
+input (`Root -> API -> Cache -> Store`, `Root -> Store`, `Root -> Web`), all
+four directions and DFS/BFS. It checks attachment approach, repeated points
+and every segment against every shape with the upstream one-pixel inset.
+It passes without another routing change.
+
+The previous hand-sized endpoint test does not establish general avoidance
+for arbitrary geometry. In particular, `mrtree::routing::Arena::skip_gap`
+matches Go's `shouldSkipMultiLevelGap`, including the intentional `first.X`
+comparison in the horizontal branch. Replacing it with a general obstacle
+router would depart from the target source. No universal collision-free
+guarantee is claimed beyond the measured upstream contract.

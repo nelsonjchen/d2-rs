@@ -498,6 +498,13 @@ fn build_node(
         leaf_layout_options()
     };
     if let Some(object) = layout_options.as_object_mut() {
+        // d2elklayout.Layout applies this to leaves and containers alike.
+        if !node.elk_layer_constraint.is_empty() {
+            object.insert(
+                "elk.layered.layering.layerConstraint".to_owned(),
+                Value::String(node.elk_layer_constraint.to_uppercase()),
+            );
+        }
         object.insert("d2-rs.marginTop".to_owned(), Value::from(margin.top));
         object.insert("d2-rs.marginRight".to_owned(), Value::from(margin.right));
         object.insert("d2-rs.marginBottom".to_owned(), Value::from(margin.bottom));

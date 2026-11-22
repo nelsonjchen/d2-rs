@@ -161,8 +161,10 @@ fn scalar_slot(path: &[&str]) -> Option<u32> {
     match path {
         [key] => property_slot(key),
         ["style", key] => property_slot(key)
-            .filter(|slot| *slot >= 26)
-            .map(|slot| slot + 20),
+            .filter(|slot| (26..=45).contains(slot))
+            // Keep nested style slots disjoint from every root property,
+            // including elk-layer-constraint (46).
+            .map(|slot| slot + 64),
         _ => None,
     }
 }
@@ -244,13 +246,13 @@ impl FieldIndex {
             for candidates in &fields.properties {
                 let slot = present.trailing_zeros();
                 present &= present - 1;
-                if slot < 26 {
+                if !(26..=45).contains(&slot) {
                     continue;
                 }
                 if let Some(primary) = candidates.unquoted.and_then(|field| arena.primary(field))
                     && matches!(arena.node(primary), ir::Node::Scalar(_))
                 {
-                    output.insert_first(slot + 20, primary);
+                    output.insert_first(slot + 64, primary);
                 }
             }
         }
@@ -648,6 +650,8 @@ mod tests {
         let direct_label = scalar(&mut compiler, label);
         let duplicate = field(&mut compiler, map, "label", true);
         scalar(&mut compiler, duplicate);
+        let constraint = field(&mut compiler, map, "elk-layer-constraint", true);
+        scalar(&mut compiler, constraint);
         // A direct field without a primary does not erase a class scalar.
         field(&mut compiler, map, "shape", true);
         // Nested lookups skip a scalar holder, then stop at the first map.
@@ -657,6 +661,8 @@ mod tests {
         let style = child_map(&mut compiler, style);
         let fill = field(&mut compiler, style, "fill", true);
         let direct_fill = scalar(&mut compiler, fill);
+        let opacity = field(&mut compiler, style, "opacity", true);
+        scalar(&mut compiler, opacity);
         field(&mut compiler, style, "stroke", true);
         let later = field(&mut compiler, map, "style", true);
         let later = child_map(&mut compiler, later);
@@ -669,6 +675,8 @@ mod tests {
             &["shape"],
             &["height"],
             &["style"],
+            &["elk-layer-constraint"],
+            &["style", "opacity"],
             &["style", "fill"],
             &["style", "stroke"],
             &["style", "bold"],

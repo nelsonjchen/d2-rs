@@ -27,6 +27,7 @@ thiserror.workspace = true
 web-time = "1.1.0"
 
 [dev-dependencies]
+d2-rs-language.workspace = true
 d2-rs-testdata.workspace = true
 
 [lints]

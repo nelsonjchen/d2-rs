@@ -568,8 +568,9 @@ mod tests {
         );
     }
     // f3da1baea endpoint contract, in every direction and search order.
-    // Full all-shapes collision coverage remains open: the existing provider
-    // skips some multilevel gaps (see mrtree::routing::Arena::skip_gap).
+    // The measured D2-input/all-shapes contract lives in tests/elk_wire.rs.
+    // skip_gap mirrors Go's shouldSkipMultiLevelGap, including first.X in
+    // the horizontal branch; it is not a general obstacle-avoidance solver.
     #[test]
     fn mr_tree_attachments_avoid_endpoint_shapes() {
         for direction in [
