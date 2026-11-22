@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 //! route_caption_style.go: authored caption sizes, anchors and source metrics.
 use super::{
-    geometry::LabelSurface, geometry_routes::route_lengths, math as gomath, mesh::*,
-    route_labels::caption_finite,
+    geometry::LabelSurface, geometry_routes::route_lengths, mesh::*, route_labels::caption_finite,
 };
 use crate::target::{Connection, Text};
 use d2_rs_scene::{go_max, go_min};
@@ -110,20 +109,15 @@ pub fn native_connection_caption_surface(
         if length <= 1e-9 || lengths[i] < distance {
             continue;
         }
-        let mut direction = nunit(nsub(points[i], points[i - 1]));
+        let direction = nunit(nsub(points[i], points[i - 1]));
         let mut center = nlerp(
             points[i - 1],
             points[i],
             (-fraction).mul_add(total, lengths[i - 1]) / -length,
         );
-        let offset = side * (c.stroke_width as f64 / 2.0 + PADDING).mul_add(scale, depth / 2.0);
-        center.x = (-direction.z).mul_add(offset, center.x);
-        center.z = direction.x.mul_add(offset, center.z);
+        let (mut angle, _, mut across) =
+            super::route_labels::caption_print_axis(direction.x, direction.z, width, depth);
         center.y += 0.006;
-        if direction.x < -1e-6 || direction.x.abs() < 1e-6 && direction.z < 0.0 {
-            direction = nmul(direction, -1.0)
-        }
-        let mut angle = gomath::atan2(direction.z, direction.x);
         let (start, end) = native_caption_route_run(points, &lengths, i);
         if width + 2.0 * depth
             > 2.0
@@ -136,9 +130,20 @@ pub fn native_connection_caption_surface(
             angle = 0.0;
             if let Some(source) = native_caption_source_center(points, c, scale) {
                 center.x = source.x;
-                center.z = source.z
+                center.z = source.z;
+                return Some(LabelSurface {
+                    center,
+                    width,
+                    depth,
+                    ..Default::default()
+                });
             }
+            across =
+                super::route_labels::upright_caption_span(direction.x, direction.z, width, depth).1;
         }
+        let offset = side * (c.stroke_width as f64 / 2.0 + PADDING).mul_add(scale, across / 2.0);
+        center.x = (-direction.z).mul_add(offset, center.x);
+        center.z = direction.x.mul_add(offset, center.z);
         return Some(LabelSurface {
             center,
             width,

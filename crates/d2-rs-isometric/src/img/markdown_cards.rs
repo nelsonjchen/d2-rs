@@ -43,9 +43,12 @@ pub fn native_markdown_card_inset(n: &Node) -> f64 {
 
 /// The default transparent Markdown face becomes paper.
 pub fn native_markdown_card_paint(n: &Node) -> Node {
+    markdown_card_paint(n, "")
+}
+fn markdown_card_paint(n: &Node, paper: &str) -> Node {
     let mut n = n.clone();
     if native_paint(&n.fill, "transparent").a == 0 {
-        n.fill = "#fffdf6".into();
+        n.fill = if paper.is_empty() { "#fffdf6" } else { paper }.into();
     }
     n.fill_explicit = true;
     if !n.stroke_explicit
@@ -61,6 +64,10 @@ pub fn native_markdown_card_paint(n: &Node) -> Node {
 }
 
 impl MeshBuilder {
+    pub fn markdown_card_paint(&self, n: &Node) -> Node {
+        markdown_card_paint(n, &self.palette_paper)
+    }
+
     pub fn markdown_card(&mut self, n: &Node, tint: &str) {
         if self.err.is_some() || n.opacity <= 0.0 || n.size.x <= 0.0 || n.size.z <= 0.0 {
             return;
@@ -83,7 +90,7 @@ impl MeshBuilder {
     }
 
     fn markdown_card_body(&mut self, n: &Node, tint: &str) {
-        let paint = native_markdown_card_paint(n);
+        let paint = self.markdown_card_paint(n);
         // Decorative borders and modifiers use the canonical source face.
         if !native_plain_markdown_card(n) {
             let first = self.triangles.len();

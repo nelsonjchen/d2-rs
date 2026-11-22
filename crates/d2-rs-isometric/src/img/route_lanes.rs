@@ -4,7 +4,7 @@ use super::{
     geometry_routes::native_rounded_route,
     math as gomath,
     mesh::*,
-    route_bridges::{Work, bridge_finite, bridge_straight_runs, bridge_visible},
+    route_bridges::{Work, bridge_finite, bridge_straight_runs, native_route_visible},
     route_style::native_route_radius,
 };
 use crate::scene::{Board, Edge, Node};
@@ -300,7 +300,7 @@ pub fn native_resolve_lane_routes(
         }
         let path = bridge_straight_runs(&clean);
         let mut part = vec![None; path.len().saturating_sub(1)];
-        if bridge_visible(e) {
+        if native_route_visible(e) {
             for j in 1..path.len() {
                 let (a, b) = (path[j - 1], path[j]);
                 let length = gomath::hypot(b.x - a.x, b.z - a.z);

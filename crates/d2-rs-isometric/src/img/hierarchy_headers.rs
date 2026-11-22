@@ -48,12 +48,23 @@ struct HierarchyHeaderObstacle {
 
 /// The bool reports whether the full print area has an unoccluded placement.
 pub fn hierarchy_board_header_placement(
+    surface: LabelSurface,
+    board: &Board,
+    owner: &Node,
+    nodes: &[Node],
+    pixel_scale: f64,
+    boards: Option<&[Board]>,
+) -> (LabelSurface, bool) {
+    place_hierarchy_header(surface, board, owner, nodes, pixel_scale, boards, None)
+}
+pub fn place_hierarchy_header(
     mut surface: LabelSurface,
     board: &Board,
     owner: &Node,
     nodes: &[Node],
     pixel_scale: f64,
     boards: Option<&[Board]>,
+    mut reservations: Option<&mut super::route_labels::RouteCaptionPlacer>,
 ) -> (LabelSurface, bool) {
     if !positive(board.size.x)
         || !positive(board.size.z)
@@ -276,12 +287,23 @@ pub fn hierarchy_board_header_placement(
             );
         }
     }
+    let mut clear_strip = |s: &LabelSurface, x0, x1, z0, z1, vertical| {
+        let placed = hierarchy_header_strip(s, &obstacles, x0, x1, z0, z1, vertical)?;
+        if let Some(reservations) = reservations.as_deref_mut() {
+            let (score, complete) =
+                reservations.score(&super::route_labels::caption_rect(&placed, false));
+            if complete && score != 0.0 {
+                return None;
+            }
+        }
+        Some(placed)
+    };
     let name = position.string();
     let vertical = name.contains("_LEFT_")
         || name.contains("_RIGHT_")
         || name == "INSIDE_MIDDLE_LEFT"
         || name == "INSIDE_MIDDLE_RIGHT";
-    if let Some(placed) = hierarchy_header_strip(&surface, &obstacles, x0, x1, z0, z1, vertical) {
+    if let Some(placed) = clear_strip(&surface, x0, x1, z0, z1, vertical) {
         return (placed, true);
     }
     // At most eleven additional interval searches.
@@ -289,15 +311,14 @@ pub fn hierarchy_board_header_placement(
         let mut candidate = surface.clone();
         // ARM64 hierarchy_headers.go:157.
         candidate.center.z = go_fmadd(z1 - z0, fraction, z0);
-        if let Some(placed) = hierarchy_header_strip(&candidate, &obstacles, x0, x1, z0, z1, false)
-        {
+        if let Some(placed) = clear_strip(&candidate, x0, x1, z0, z1, false) {
             return (placed, true);
         }
     }
-    for x in [x0, x1] {
+    for fraction in [0.0, 1.0, 0.5, 0.25, 0.75, 0.125, 0.875, 0.375, 0.625] {
         let mut candidate = surface.clone();
-        candidate.center.x = x;
-        if let Some(placed) = hierarchy_header_strip(&candidate, &obstacles, x0, x1, z0, z1, true) {
+        candidate.center.x = go_fmadd(x1 - x0, fraction, x0);
+        if let Some(placed) = clear_strip(&candidate, x0, x1, z0, z1, true) {
             return (placed, true);
         }
     }
@@ -312,19 +333,17 @@ pub fn hierarchy_board_header_placement(
             let mut bottom = surface.clone();
             bottom.center.z = front + board.size.z - pad - bottom.depth / 2.0;
             let z = bottom.center.z;
-            if let Some(placed) = hierarchy_header_strip(&bottom, &obstacles, x0, x1, z, z, false) {
+            if let Some(placed) = clear_strip(&bottom, x0, x1, z, z, false) {
                 return (placed, true);
             }
         }
     }
-    if markdown_child && position.is_outside() {
+    if position.is_outside() {
         // Retain the authored outside anchor.
         let mut outside = surface.clone();
         outside.center.x = source_x;
         outside.center.z = source_z;
-        if let Some(placed) = hierarchy_header_strip(
-            &outside, &obstacles, source_x, source_x, source_z, source_z, false,
-        ) {
+        if let Some(placed) = clear_strip(&outside, source_x, source_x, source_z, source_z, false) {
             return (placed, true);
         }
     }

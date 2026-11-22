@@ -40,6 +40,7 @@ pub struct MeshBuilder {
     pub face_pixels: i64,
     pub face_max_pixels: i64,
     pub arrow_background: String,
+    pub palette_paper: String,
     pub arrow_owners: HashMap<String, super::arrow_visibility::NativeArrowOwner>,
     pub arrow_markers: HashMap<(String, i64), super::arrow_visibility::NativeArrowMarker>,
     pub arrow_work: usize,

@@ -231,6 +231,7 @@ pub(crate) fn replay(v: &Value) -> Value {
                 buf: v["prefix"].as_str().unwrap().into(),
                 err: None,
                 surfaces: HashMap::new(),
+        lighting_stops: HashMap::new(),
                 surface_svg: &super::super::vector_surface_svg::native_surface_svg,
             };
             write_ground_shadow(&mut w, &s);

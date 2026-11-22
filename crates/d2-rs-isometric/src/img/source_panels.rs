@@ -394,7 +394,9 @@ impl MeshBuilder {
             return Err(e);
         }
         let mut background = Nrgba::new(245, 247, 251, 255);
-        if !native_token(&s.root.fill) && !d2_rs_scenebuild::is_gradient(&s.background) {
+        if (!self.palette_paper.is_empty() || !native_token(&s.root.fill))
+            && !d2_rs_scenebuild::is_gradient(&s.background)
+        {
             let c = native_paint(&s.background, "#f5f7fb");
             let a = c.a as f64 / 255.0;
             background = Nrgba::new(
@@ -411,19 +413,20 @@ impl MeshBuilder {
             .options
             .camera
             .unwrap_or_else(|| extents.camera(width, height, self.options.fit_content));
-        let background_paint =
-            if !native_token(&s.root.fill) && d2_rs_scenebuild::is_gradient(&s.background) {
-                let paint = d2_rs_scenebuild::gradient_paint(&s.background)?;
-                self.gradient_texture(&s.background);
-                Some(Rc::new(super::vector_surface::VectorSurface {
-                    document: Rc::new(std::cell::RefCell::new(
-                        super::gradient_paints::native_paint_document(paint),
-                    )),
-                    ..Default::default()
-                }))
-            } else {
-                None
-            };
+        let background_paint = if (!self.palette_paper.is_empty() || !native_token(&s.root.fill))
+            && d2_rs_scenebuild::is_gradient(&s.background)
+        {
+            let paint = d2_rs_scenebuild::gradient_paint(&s.background)?;
+            self.gradient_texture(&s.background);
+            Some(Rc::new(super::vector_surface::VectorSurface {
+                document: Rc::new(std::cell::RefCell::new(
+                    super::gradient_paints::native_paint_document(paint),
+                )),
+                ..Default::default()
+            }))
+        } else {
+            None
+        };
         if let Some(e) = self.err.clone() {
             return Err(e);
         }

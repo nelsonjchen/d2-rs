@@ -166,6 +166,7 @@ fn writer<'a>(context: &'a RenderContext, prefix: &str) -> Writer<'a> {
         buf: prefix.into(),
         err: None,
         surfaces: HashMap::new(),
+        lighting_stops: HashMap::new(),
         surface_svg: &native_surface_svg,
     }
 }

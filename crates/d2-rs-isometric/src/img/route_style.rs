@@ -55,7 +55,16 @@ impl MeshBuilder {
         if points.len() < 2 {
             return;
         }
-        let mat = native_material("#f5f7fb", 1.0, 0.0, opacity);
+        let mat = native_material(
+            if self.palette_paper.is_empty() {
+                "#f5f7fb"
+            } else {
+                &self.palette_paper
+            },
+            1.0,
+            0.0,
+            opacity,
+        );
         mat.borrow_mut().unlit = true;
         let mut left = vec![Vertex::default(); points.len()];
         let mut right = left.clone();

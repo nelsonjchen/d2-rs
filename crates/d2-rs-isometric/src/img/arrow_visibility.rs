@@ -4,7 +4,7 @@ use super::{
     geometry::{MeshBuilder, native_material, native_paint},
     geometry_routes::route_lengths,
     hierarchy_boards::{hierarchy_node_relief, hierarchy_surface_y},
-    markdown_cards::{native_markdown_card, native_markdown_card_paint},
+    markdown_cards::native_markdown_card,
     mesh::*,
     native_shapes::{native_canonical_height, native_face_source, native_shape_profiles},
     native_solids::native_solid_node,
@@ -146,7 +146,7 @@ impl MeshBuilder {
         o.caps = Some(vec![]);
         let mut n = native_classic_node(&o.node);
         if native_markdown_card(&n) {
-            n = native_markdown_card_paint(&n)
+            n = self.markdown_card_paint(&n)
         }
         if o.board.is_none() && native_solid_node(&n) {
             return vec![];

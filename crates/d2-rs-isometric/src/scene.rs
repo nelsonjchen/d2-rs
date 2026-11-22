@@ -275,7 +275,11 @@ pub fn build_scene(diagram: &Diagram, opts: Option<&RenderOpts>) -> Result<Scene
         ..Default::default()
     };
     if scene.background.is_empty() {
-        scene.background = "#f5f7fa".into();
+        scene.background = if theme_id != 0 || has_overrides {
+            theme.resolve("N7")
+        } else {
+            "#f5f7fa".into()
+        };
     }
     let mut indices: HashMap<String, usize> = HashMap::new();
     let mut keys: BTreeMap<Vec<String>, usize> = BTreeMap::new();
@@ -302,7 +306,9 @@ pub fn build_scene(diagram: &Diagram, opts: Option<&RenderOpts>) -> Result<Scene
         indices.insert(s.id.clone(), i);
         keys.insert(path.clone(), i);
         paths.push(path);
-        let explicit = |value: &str| has_overrides || (!value.is_empty() && !is_theme_color(value));
+        let explicit = |value: &str| {
+            has_overrides || (!value.is_empty() && (theme_id != 0 || !is_theme_color(value)))
+        };
         scene.nodes.push(Node {
             id: s.id.clone(),
             label: s.text.label.clone(),
@@ -317,7 +323,7 @@ pub fn build_scene(diagram: &Diagram, opts: Option<&RenderOpts>) -> Result<Scene
             link: s.link.clone(),
             fill_explicit: explicit(&s.fill),
             stroke_explicit: explicit(&s.stroke),
-            font_explicit: explicit(&s.text.color),
+            font_explicit: theme_id != 0 || explicit(&s.text.color),
             icon: s
                 .icon
                 .as_ref()
@@ -345,25 +351,33 @@ pub fn build_scene(diagram: &Diagram, opts: Option<&RenderOpts>) -> Result<Scene
         if c.id.is_empty() || !edge_ids.insert(c.id.clone()) {
             return Err(format!("isometric: empty or duplicate edge ID {:?}", c.id));
         }
-        let explicit = |value: &str| has_overrides || (!value.is_empty() && !is_theme_color(value));
+        let explicit = |value: &str| {
+            has_overrides || (!value.is_empty() && (theme_id != 0 || !is_theme_color(value)))
+        };
         scene.edges.push(Edge {
             id: c.id.clone(),
             source: c.src.clone(),
             target: c.dst.clone(),
             label: c.text.label.clone(),
-            source_label: c.src_label.clone(),
-            target_label: c.dst_label.clone(),
+            source_label: resolve_endpoint(&c.src_label, &theme, theme_id != 0 || has_overrides),
+            target_label: resolve_endpoint(&c.dst_label, &theme, theme_id != 0 || has_overrides),
             source_arrow: c.src_arrow.clone(),
             target_arrow: c.dst_arrow.clone(),
             stroke: theme.resolve(&c.stroke),
-            font_color: theme.resolve(&c.text.color),
+            font_color: theme.resolve(
+                if (theme_id != 0 || has_overrides) && c.text.color.is_empty() {
+                    "N1"
+                } else {
+                    &c.text.color
+                },
+            ),
             stroke_width: c.stroke_width,
             stroke_dash: c.stroke_dash,
             opacity: c.opacity,
             link: c.link.clone(),
             tooltip: c.tooltip.clone(),
             stroke_explicit: explicit(&c.stroke),
-            font_explicit: explicit(&c.text.color),
+            font_explicit: theme_id != 0 || has_overrides || explicit(&c.text.color),
             icon: c
                 .icon
                 .as_ref()
@@ -857,4 +871,22 @@ mod cubic_budget_tests {
         );
         assert_eq!(count, MAX_ENTRIES);
     }
+}
+
+fn resolve_endpoint(
+    text: &Option<crate::target::Text>,
+    theme: &Theme,
+    selected: bool,
+) -> Option<crate::target::Text> {
+    text.as_ref().map(|text| {
+        let mut resolved = text.clone();
+        if selected {
+            resolved.color = theme.resolve(if text.color.is_empty() {
+                "N1"
+            } else {
+                &text.color
+            });
+        }
+        resolved
+    })
 }
