@@ -1077,7 +1077,6 @@ fn font_class(family: &str, bold: bool, italic: bool, underline: bool) -> String
 
 /// d2svg.drawConnection.
 #[allow(clippy::too_many_arguments)]
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn draw_connection(
     w: &mut String,
     diagram_hash: &str,
