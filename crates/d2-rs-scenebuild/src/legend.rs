@@ -758,7 +758,7 @@ impl Builder<'_> {
         let target = legend_connection_icon_target(index, c);
         let connection_mask = self.connection_mask.take();
         let id_to_shape = self.id_to_shape.take();
-        let result = self.build_connection(&target);
+        let result = self.build_connection(&target, None);
         self.connection_mask = connection_mask;
         self.id_to_shape = id_to_shape;
         let n = result.map_err(|e| {

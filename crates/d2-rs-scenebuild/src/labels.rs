@@ -15,6 +15,38 @@ use crate::target_ext::*;
 use crate::util::*;
 use crate::{Builder, target_geometry};
 
+/// crossingMask: a crossing only cuts the back connection's stroke. Labels,
+/// markers and the foreground connection keep their own paint and opacity.
+pub(crate) fn crossing_mask(
+    view_box: SceneBox,
+    gaps: &[d2_rs_render::crossings::ConnectionGap],
+) -> Option<Mask> {
+    if gaps.is_empty() {
+        return None;
+    }
+    let mut children = vec![Node::new(Some(Primitive::Rect(Rect {
+        r#box: view_box,
+        fill: Some(Paint::solid(Nrgba::new(0xff, 0xff, 0xff, 0xff))),
+        ..Default::default()
+    })))];
+    for gap in gaps {
+        children.push(Node::new(Some(Primitive::Ellipse(d2_rs_scene::Ellipse {
+            center: Point::new(gap.center.0, gap.center.1),
+            radius_x: gap.radius,
+            radius_y: gap.radius,
+            fill: Some(Paint::solid(Nrgba::new(0, 0, 0, 0xff))),
+            ..Default::default()
+        }))));
+    }
+    let mut root = Node::new(None);
+    root.children = Some(children);
+    Some(Mask {
+        r#type: MaskType::LUMINANCE,
+        root: Some(std::sync::Arc::new(root)),
+        transform: Matrix::identity(),
+    })
+}
+
 impl Builder<'_> {
     /// buildConnectionMask: one diagram-wide luminance mask.
     pub(crate) fn build_connection_mask(&self, view_box: SceneBox) -> Result<Option<Mask>> {

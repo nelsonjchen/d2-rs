@@ -34,6 +34,8 @@ pub fn svg_theme_css(hash: &str, options: &SvgRenderOptions) -> Result<String, S
 }
 /// Pinned lib/color gradient parsing and SVG serialization.
 pub use target::d2svg::color;
+/// Shared connection centerline and crossing gaps (d2target, upstream #3011).
+pub use target::d2svg::crossings;
 /// Pinned lib/svg typed markup and local-resource APIs.
 pub use target::d2svg::markup as svg;
 /// Pinned d2themes element and palette APIs.

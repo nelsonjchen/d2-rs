@@ -13,6 +13,7 @@ pub(crate) mod svgpath;
 
 pub(crate) mod animate;
 pub mod color;
+pub mod crossings;
 pub(crate) mod element;
 pub(crate) mod fonts;
 pub mod markup;

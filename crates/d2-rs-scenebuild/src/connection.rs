@@ -6,8 +6,8 @@
 //! offset (601); the others multiply by powers of two.
 
 use d2_rs_scene::{
-    AnimationProperty, Easing, EasingKind, Ellipse, Keyframe, LineCap, LineJoin, Matrix, Node,
-    Paint, Path, PathCommand, PathCommandKind, Point, Primitive, Stroke, Track,
+    AnimationProperty, Easing, EasingKind, Ellipse, Keyframe, LineCap, LineJoin, Mask, Matrix,
+    Node, Paint, Path, PathCommand, PathCommandKind, Point, Primitive, Stroke, Track,
 };
 use d2_rs_target::{Connection, Shape};
 
@@ -32,7 +32,11 @@ struct Segment {
 }
 
 impl Builder<'_> {
-    pub(crate) fn build_connection(&mut self, c: &Connection) -> Result<Node> {
+    pub(crate) fn build_connection(
+        &mut self,
+        c: &Connection,
+        crossing_mask: Option<&Mask>,
+    ) -> Result<Node> {
         let stroke_paint = self.paint(&c.stroke, &format!("connection {} stroke", q(&c.id)))?;
         let mut stroke_dash = c.stroke_dash;
         if c.animated && stroke_dash == 0.0 {
@@ -110,12 +114,14 @@ impl Builder<'_> {
                 format!("{}:path:reverse", c.id),
                 reverse_path,
                 reverse_track,
+                crossing_mask,
             ));
             geometry_children.extend(src_arrow_node);
             geometry_children.push(animated_connection_path_node(
                 format!("{}:path:forward", c.id),
                 forward_path,
                 forward_track,
+                crossing_mask,
             ));
             geometry_children.extend(dst_arrow_node);
         } else {
@@ -123,6 +129,7 @@ impl Builder<'_> {
                 format!("{}:path", c.id),
                 path,
                 forward_track,
+                crossing_mask,
             ));
             geometry_children.extend(src_arrow_node);
             geometry_children.extend(dst_arrow_node);
@@ -466,8 +473,14 @@ impl Builder<'_> {
     }
 }
 
-fn animated_connection_path_node(id: String, path: Path, track: Option<Track>) -> Node {
+fn animated_connection_path_node(
+    id: String,
+    path: Path,
+    track: Option<Track>,
+    crossing_mask: Option<&Mask>,
+) -> Node {
     let mut n = node(id, Some(Primitive::Path(path)));
+    n.mask = crossing_mask.cloned();
     if let Some(track) = track {
         n.animations = Some(vec![track]);
     }

@@ -865,12 +865,54 @@ impl<'a> Builder<'a> {
         root_children.push(background);
         root_children.extend(overlay);
 
-        self.connection_mask = self.build_connection_mask(SceneBox {
+        let view_box = SceneBox {
             x: left as f64,
             y: top as f64,
             width: width as f64,
             height: height as f64,
-        })?;
+        };
+        self.connection_mask = self.build_connection_mask(view_box)?;
+        let crossings = {
+            let shapes = self.id_to_shape.as_ref();
+            let stroke_of = |id: &str| shapes.and_then(|m| m.get(id)).map_or(0, |s| s.stroke_width);
+            let inputs: Vec<_> = self
+                .diagram
+                .connections()
+                .iter()
+                .map(|c| d2_rs_render::crossings::CrossingConnection {
+                    route: target_ext::route_points(c)
+                        .iter()
+                        .map(|p| (p.x, p.y))
+                        .collect(),
+                    is_curve: c.is_curve,
+                    border_radius: c.border_radius,
+                    src_arrow: &c.src_arrow,
+                    dst_arrow: &c.dst_arrow,
+                    stroke_width: c.stroke_width,
+                    src_shape_stroke_width: stroke_of(&c.src),
+                    dst_shape_stroke_width: stroke_of(&c.dst),
+                    opacity: c.opacity,
+                    stroke: &c.stroke,
+                    stroke_dash: c.stroke_dash,
+                    animated: c.animated,
+                    z_index: c.z_index,
+                })
+                .collect();
+            // d2themes.PaintVisibleIn(b.theme).
+            let theme = &self.theme;
+            let mut visible = |raw: &str| {
+                if d2_rs_target::theme::is_theme_color(raw) {
+                    d2_rs_render::color::paint_visible_throughout(&theme.resolve(raw))
+                } else {
+                    d2_rs_render::color::paint_visible_throughout(raw)
+                }
+            };
+            d2_rs_render::crossings::connection_crossings(
+                &inputs,
+                self.options.sketch,
+                &mut visible,
+            )
+        };
 
         let shapes = self.diagram.shapes();
         let connections = self.diagram.connections();
@@ -921,8 +963,10 @@ impl<'a> Builder<'a> {
                 rendered_objects.push(self.build_shape(s)?);
                 positioned_tooltips.push(self.build_positioned_tooltip(s)?);
             } else {
-                rendered_objects
-                    .push(self.build_connection(object.connection.expect("connection"))?);
+                let mask = labels::crossing_mask(view_box, &crossings[object.order - shapes.len()]);
+                rendered_objects.push(
+                    self.build_connection(object.connection.expect("connection"), mask.as_ref())?,
+                );
                 positioned_tooltips.push(None);
             }
         }

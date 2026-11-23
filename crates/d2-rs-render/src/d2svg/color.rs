@@ -175,6 +175,69 @@ fn colorful_from_hsl(h: f64, s: f64, l: f64) -> [f64; 3] {
     ]
 }
 
+/// color.PaintVisibleThroughout: whether a stroke can be visible along its
+/// entire length. A fade through an isolated transparent stop still
+/// qualifies. Gradients that hold zero alpha over an interval use plain
+/// crossings, because a route-wide mask could otherwise erase a line beneath
+/// invisible paint.
+pub fn paint_visible_throughout(raw: &str) -> bool {
+    if raw.is_empty() || raw.eq_ignore_ascii_case("none") {
+        return false;
+    }
+    if !is_gradient(raw) {
+        return d2_rs_math::svg_color::parse(raw).is_none_or(|c| c[3] > 0.0);
+    }
+    let Some(gradient) = parse_gradient(raw) else {
+        return true;
+    };
+    let total = gradient.color_stops.len();
+    let (mut previous, mut previous_clear) = (0.0, true);
+    for (i, (stop_color, position)) in gradient.color_stops.iter().enumerate() {
+        let Some(c) = d2_rs_math::svg_color::parse(stop_color) else {
+            return true;
+        };
+        let Some(offset) = gradient_stop_offset(position, i, total, previous) else {
+            return true;
+        };
+        let clear = c[3] == 0.0;
+        if clear && ((previous_clear && offset > previous) || (i == total - 1 && offset < 1.0)) {
+            return false;
+        }
+        (previous, previous_clear) = (offset, clear);
+    }
+    true
+}
+
+/// color.ColorStop.Offset: the rendered stop position, clamped to
+/// [previous, 1] so authored stops cannot move backwards along the gradient.
+pub fn gradient_stop_offset(
+    position: &str,
+    index: usize,
+    total: usize,
+    previous: f64,
+) -> Option<f64> {
+    if position.is_empty() {
+        if total == 1 {
+            return Some(0.0);
+        }
+        return Some(super::geo::go_max(
+            previous,
+            index as f64 / (total - 1) as f64,
+        ));
+    }
+    let mut position = position.trim();
+    let mut divisor = 1.0;
+    if let Some(stripped) = position.strip_suffix('%') {
+        position = stripped.trim();
+        divisor = 100.0;
+    }
+    let value = d2_rs_core::parse_d2_float(position).filter(|v| v.is_finite())?;
+    Some(super::geo::go_max(
+        previous,
+        super::geo::go_min(1.0, value / divisor),
+    ))
+}
+
 /// color.Gradient.
 #[derive(Clone, Debug, Default)]
 pub struct Gradient {
