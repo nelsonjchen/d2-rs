@@ -3,8 +3,8 @@
   "d2": {
     "repository": "https://github.com/d2lang/d2.git",
     "branch": "master",
-    "commit": "25e67b4c1f9ff0a879e14e2bb222ddb96ad14d16",
-    "commit_date": "2026-11-21",
+    "commit": "710a5d7bdb71871bbf2e6792ee72e147c97f4d71",
+    "commit_date": "2026-11-23",
     "base_tag": "v0.9.0",
     "checkout": "../d2",
     "trace_checkout": "../d2-trace",
@@ -13,8 +13,8 @@
       "tools/patches/mathtext-svgimport-admission.patch"
     ],
     "go_toolchain": "go1.27.4",
-    "oracle": ".reference/bin/d2-master-25e67b4c-go1.27",
-    "e2e_cases": ".reference/e2e-cases-25e67b4c"
+    "oracle": ".reference/bin/d2-master-710a5d7b-go1.27",
+    "e2e_cases": ".reference/e2e-cases-710a5d7b"
   },
   "releases": {
     "macos-arm64": {
@@ -51,12 +51,12 @@
     }
   },
   "source_builds": {
-    "d2-master-25e67b4c-go1.27.4": {
-      "binary": ".reference/bin/d2-master-25e67b4c-go1.27",
-      "source_commit": "25e67b4c1f9ff0a879e14e2bb222ddb96ad14d16",
+    "d2-master-710a5d7b-go1.27.4": {
+      "binary": ".reference/bin/d2-master-710a5d7b-go1.27",
+      "source_commit": "710a5d7bdb71871bbf2e6792ee72e147c97f4d71",
       "go_toolchain": "go1.27.4",
       "binary_sha256": null,
-      "build_command": "GOTOOLCHAIN=go1.27.4 GOMODCACHE=$PWD/.reference/go-mod/pkg/mod GOCACHE=$PWD/.reference/go-build go -C ../d2 build -mod=readonly -ldflags '-X github.com/d2lang/d2/lib/version.Version=v0.9.0' -o ../d2-rs/.reference/bin/d2-master-25e67b4c-go1.27 .",
+      "build_command": "GOTOOLCHAIN=go1.27.4 GOMODCACHE=$PWD/.reference/go-mod/pkg/mod GOCACHE=$PWD/.reference/go-build go -C ../d2 build -mod=readonly -ldflags '-X github.com/d2lang/d2/lib/version.Version=v0.9.0' -o ../d2-rs/.reference/bin/d2-master-710a5d7b-go1.27 .",
       "reported_version": "v0.9.0",
       "reported_version_note": "Unstamped master reports v0.8.1-HEAD (lib/version). The oracle keeps the last release's v0.9.0 stamp so version-sensitive CLI comparisons do not diverge on a label alone.",
       "binary_sha256_note": "Rebuild the oracle binary at the new pin, then record its SHA-256 before verification."
@@ -68,8 +68,8 @@
     "github.com/alecthomas/chroma/v2": "v2.27.0",
     "github.com/andybalholm/brotli": "v1.3.0",
     "github.com/coder/websocket": "v1.8.15",
-    "github.com/d2lang/dagro": "v0.2.2-0.20261119124940-425238d7043d",
-    "github.com/d2lang/elk-go": "v0.2.1-0.20261119175052-8b285820520e",
+    "github.com/d2lang/dagro": "v0.3.1",
+    "github.com/d2lang/elk-go": "v0.3.1",
     "github.com/d2lang/mathjax-go": "v0.1.1-0.20261002175158-94d80186bfd7",
     "github.com/d2lang/rough-go": "v0.2.0",
     "github.com/d2lang/util-go": "v0.2.0",

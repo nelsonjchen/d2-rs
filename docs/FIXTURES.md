@@ -350,9 +350,9 @@ build small Go oracles in a minimal module that requires only
 `github.com/yuin/goldmark/v2` at the manifest version, so the key depends on
 that version and the Go toolchain, not on the D2 pin.
 
-## Pending qualification for the 2026-11-21 pin move
+## Pending qualification for the 2026-11-23 pin move
 
-The target is `25e67b4c1f9ff0a879e14e2bb222ddb96ad14d16`, Go 1.27.4,
+The target is `710a5d7bdb71871bbf2e6792ee72e147c97f4d71`, Go 1.27.4,
 with `v0.9.0` retained as the last tagged release. Both trace patches have
 been rebased. Oracle module declarations and Goldmark v2 import paths follow
 the new graph; checked-in checksums come from the target's `go.sum`, without
@@ -367,7 +367,7 @@ Before claiming parity at this pin:
    `tools/elk-oracle-trace`.
 2. Rebuild the manifest's source oracle, record its `binary_sha256` (currently
    null), rebuild trace/mapseed/clock and probe oracles, and recapture
-   `.reference/e2e-cases-25e67b4c` using `D2RS_E2E_DUMP` and the rebased patch.
+   `.reference/e2e-cases-710a5d7b` using `D2RS_E2E_DUMP` and the rebased patch.
    These steps require a separate checkout at the pin; do not change an
    upstream checkout that is being kept read-only.
 3. Regenerate all fixtures with `scripts/regen-fixtures.py`, refresh and review
