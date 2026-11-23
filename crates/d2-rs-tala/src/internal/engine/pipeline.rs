@@ -12,6 +12,14 @@ use super::*;
 use d2_rs_core::stable_sort::StableSort;
 
 struct SizelessLayoutContext;
+/// Bound on the edge terms the sized annealing scores in one level (passes
+/// times twice the level's edges); a level above it runs as many passes as
+/// fit over a compressed cooling schedule.
+const MAX_SIZED_PHASE_WORK: usize = 48_000;
+/// The sized annealing ends after this many passes in a row in which no node
+/// moved, swapped or was transposed.
+const MAX_QUIET_SIZED_PASSES: usize = 20;
+
 impl limits::Context for SizelessLayoutContext {
     fn stable_sized_owner(&self) -> bool {
         true
@@ -10024,7 +10032,7 @@ impl Pipeline {
             self.next_rng_float = Some(rng.clone_without_trace().float64());
             return Ok(());
         }
-        let cooling_factor = (1.0 / iterations as f64 * (0.2 / initial_temperature).ln()).exp();
+        let mut cooling_factor = (1.0 / iterations as f64 * (0.2 / initial_temperature).ln()).exp();
         if crate::internal::trace_env_enabled("TALA_TRACE_COOLING") {
             eprintln!(
                 "COOLING_RUST sized node_count={} iterations={} initial_temp={:.17e} factor={:.17e} factor_bits={:016x}",
@@ -10086,8 +10094,25 @@ impl Pipeline {
         } else {
             let trace_sized_pass_target = crate::internal::trace_env_value("TALA_TRACE_SIZED_PASS")
                 .and_then(|target| target.parse::<usize>().ok());
-            for pass_index in 0..pass_count {
-                let iteration = iterations / 2 + 1 + pass_index;
+            // The sized phase anneals from the temperature the sizeless phase
+            // left down to 0.2. A level whose phase would score more than
+            // MAX_SIZED_PHASE_WORK edge terms (passes times twice its edges)
+            // runs only as many passes as fit, cooling to the same final
+            // temperature; each compaction among them takes the factor of the
+            // matching point of the full schedule (`schedule_iteration`).
+            let first_sized = iterations / 2 + 1;
+            let mut end_sized = first_sized + pass_count;
+            let full_end = end_sized;
+            let edges = optimizer.graph().graph_edge_count();
+            if edges > 0 && pass_count > MAX_SIZED_PHASE_WORK / (2 * edges) {
+                let passes = (MAX_SIZED_PHASE_WORK / (2 * edges)).max(1);
+                end_sized = first_sized + passes;
+                // Go math.Pow's positive, non-integral path (see above).
+                cooling_factor = (1.0 / passes as f64 * (0.2 / temperature).ln()).exp();
+            }
+            let mut quiet_passes = 0;
+            for pass_index in 0..end_sized - first_sized {
+                let iteration = first_sized + pass_index;
                 let trace_sized_pass = trace_sized_pass_target == Some(iteration);
                 if trace_sized_pass {
                     eprintln!("SIZED_PASS_RUST begin={iteration}");
@@ -10098,7 +10123,7 @@ impl Pipeline {
                     // placement path single-threaded during trace capture.
                     crate::internal::set_sized_pass_trace_active(true);
                 }
-                if let Some(session) = owner_session.as_deref_mut() {
+                let changed = if let Some(session) = owner_session.as_deref_mut() {
                     optimizer
                         .optimize_with_owner_nears(
                             temperature,
@@ -10108,17 +10133,36 @@ impl Pipeline {
                         )
                         .map_err(|error| {
                             crate::LayoutError::PlacementTransaction(error.to_string())
-                        })?;
+                        })?
                 } else {
-                    optimizer.optimize(temperature);
-                }
+                    optimizer.optimize(temperature)
+                };
                 trace_sized_boundary("after-optimize", optimizer.graph());
                 if trace_sized_pass {
                     crate::internal::set_sized_pass_trace_active(false);
                 }
+                // The annealing has settled after MAX_QUIET_SIZED_PASSES
+                // passes in a row that moved, swapped and transposed nothing:
+                // the rest of the phase (and its compactions) is skipped; the
+                // temperature-0 passes below still run.
+                if changed {
+                    quiet_passes = 0;
+                } else {
+                    quiet_passes += 1;
+                    if quiet_passes >= MAX_QUIET_SIZED_PASSES {
+                        break;
+                    }
+                }
                 if compact_during_passes && iteration.is_multiple_of(9) {
+                    let schedule_iteration = if end_sized < full_end {
+                        first_sized
+                            + (iteration - first_sized) * (full_end - first_sized)
+                                / (end_sized - first_sized)
+                    } else {
+                        iteration
+                    };
                     let factor = (1.0
-                        + (2.0 * (iterations as f64 - iteration as f64 - 30.0))
+                        + (2.0 * (iterations as f64 - schedule_iteration as f64 - 30.0))
                             / (0.5 * iterations as f64))
                         .max(1.0);
                     if let Some(session) = owner_session.as_deref_mut() {
