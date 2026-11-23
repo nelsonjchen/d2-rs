@@ -218,6 +218,27 @@ pub fn layout_with_options_and_rank_trace(
     )
 }
 
+/// d2dagrelayout.diagramSpacing: a spacing in pixels from the diagram's
+/// `vars.d2-config.data`, when present.
+fn diagram_spacing(
+    data: &std::collections::BTreeMap<String, serde_json::Value>,
+    key: &str,
+) -> Option<Result<i64, String>> {
+    let raw = data.get(key)?;
+    let text = match raw {
+        serde_json::Value::String(text) => text.clone(),
+        serde_json::Value::Number(number) if number.is_i64() || number.is_u64() => {
+            number.to_string()
+        }
+        serde_json::Value::Number(number) => number.as_f64().map(|v| format!("{v}")).unwrap_or_default(),
+        _ => String::new(),
+    };
+    Some(match text.parse::<i64>() {
+        Ok(pixels) if pixels >= 0 => Ok(pixels),
+        _ => Err(format!("{key} must be a non-negative integer")),
+    })
+}
+
 /// Runs the D2 adapter with its source-defined pre-solver admission check.
 #[doc(hidden)]
 pub fn layout_with_options_and_rank_trace_with_cancellation(
@@ -238,6 +259,17 @@ pub fn layout_with_options_and_rank_trace_with_cancellation(
     }
     if let Some(value) = graph.layout_engine_options.dagre_edge_sep {
         dagre_options.edge_sep = value as f64;
+    }
+    // Diagram data takes precedence over the command-line flags.
+    let spacing_error = |message: String| LayoutError::Context {
+        context: "failed to dagre layout",
+        source: Box::new(LayoutError::EngineValidation(message)),
+    };
+    if let Some(value) = diagram_spacing(&graph.d2_config_data, "dagre-nodesep") {
+        dagre_options.node_sep = value.map_err(spacing_error)? as f64;
+    }
+    if let Some(value) = diagram_spacing(&graph.d2_config_data, "dagre-edgesep") {
+        dagre_options.edge_sep = value.map_err(spacing_error)? as f64;
     }
     // Original d2dagrelayout reads measured boxes, not D2 top/left scalars.
     // Keep the native typed-graph lock API separate from compiled-source

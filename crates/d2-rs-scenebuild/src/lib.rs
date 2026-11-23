@@ -1028,12 +1028,7 @@ impl<'a> Builder<'a> {
         if self.options.center == Some(true) {
             document.viewport_align = ViewportAlign::X_MID_Y_MID;
         }
-        let mut logical_scale = self.options.scale.unwrap_or(1.0);
-        if appendix_layout.is_some() {
-            // SVG exports with appendix items use the expanded viewbox
-            // dimensions without applying the requested scale.
-            logical_scale = 1.0;
-        }
+        let logical_scale = self.options.scale.unwrap_or(1.0);
         let scaled_width = logical_scale * width as f64;
         let scaled_height = logical_scale * height as f64;
         if !finite(scaled_width)

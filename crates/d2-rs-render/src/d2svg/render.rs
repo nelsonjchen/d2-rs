@@ -98,7 +98,7 @@ fn render_multiboard_validated(
         super::paint_validation::links(diagram)?;
         let mut svg = process(render_validated(diagram, opts)?)?;
         if force_appendix {
-            svg = super::appendix::append(diagram, &opts.master_id, &svg)?;
+            svg = super::appendix::append(diagram, &opts.master_id, &svg, opts.scale)?;
         }
         boards.insert(0, svg);
     }
@@ -475,15 +475,7 @@ pub(crate) fn render_validated(
         upper += "</defs>";
     }
 
-    let dimensions = scale
-        .map(|scale| {
-            format!(
-                r#" width="{}" height="{}""#,
-                (scale * w as f64).ceil() as i64,
-                (scale * h as f64).ceil() as i64
-            )
-        })
-        .unwrap_or_default();
+    let dimensions = scaled_dimensions(w, h, scale)?;
     let alignment = if opts.center == Some(true) {
         "xMidYMid"
     } else {
@@ -2084,4 +2076,70 @@ fn add_appendix_items(
         .unwrap();
     }
     Ok(())
+}
+
+/// lib/svg.ScaledDimensions: the outer SVG's explicit size. An absent scale
+/// leaves sizing to the containing document.
+pub(crate) fn scaled_dimensions(
+    width: i64,
+    height: i64,
+    scale: Option<f64>,
+) -> Result<String, String> {
+    let Some(scale) = scale else {
+        return Ok(String::new());
+    };
+    let w = (scale * width as f64).ceil();
+    let h = (scale * height as f64).ceil();
+    let limit = -(i64::MIN as f64);
+    if !(scale > 0.0 && w >= 0.0 && w < limit && h >= 0.0 && h < limit) {
+        return Err(format!(
+            "SVG scale {} produces invalid dimensions",
+            go_percent_g(scale)
+        ));
+    }
+    Ok(format!(r#" width="{}" height="{}""#, w as i64, h as i64))
+}
+
+/// fmt's `%g` for a float64: the shortest representation, in exponent form
+/// when the decimal exponent is below -4 or at least 6.
+fn go_percent_g(value: f64) -> String {
+    if value.is_nan() {
+        return "NaN".into();
+    }
+    if value.is_infinite() {
+        return if value > 0.0 { "+Inf" } else { "-Inf" }.into();
+    }
+    let scientific = format!("{value:e}");
+    let (mantissa, exponent) = scientific.split_once('e').expect("scientific float");
+    let exponent: i32 = exponent.parse().expect("float exponent");
+    if value != 0.0 && !(-4..6).contains(&exponent) {
+        return format!(
+            "{mantissa}e{}{:02}",
+            if exponent < 0 { '-' } else { '+' },
+            exponent.abs()
+        );
+    }
+    format!("{value}")
+}
+
+#[cfg(test)]
+mod scaled_dimension_tests {
+    use super::{go_percent_g, scaled_dimensions};
+
+    #[test]
+    fn matches_lib_svg() {
+        assert_eq!(scaled_dimensions(10, 20, None).unwrap(), "");
+        assert_eq!(
+            scaled_dimensions(10, 21, Some(0.5)).unwrap(),
+            r#" width="5" height="11""#
+        );
+        assert_eq!(
+            scaled_dimensions(10, 20, Some(1e300)).unwrap_err(),
+            "SVG scale 1e+300 produces invalid dimensions"
+        );
+        assert_eq!(go_percent_g(1e6), "1e+06");
+        assert_eq!(go_percent_g(123456.0), "123456");
+        assert_eq!(go_percent_g(0.0001), "0.0001");
+        assert_eq!(go_percent_g(1.5e-5), "1.5e-05");
+    }
 }

@@ -273,7 +273,7 @@ fn render_wasm_impl(
         })?;
         if appendix {
             let hash = diagram.hash_id(opts.salt.as_deref())?;
-            self::appendix::append(diagram, &hash, &svg)
+            self::appendix::append(diagram, &hash, &svg, opts.scale)
         } else {
             Ok(svg)
         }
@@ -335,5 +335,5 @@ pub fn append_cli_appendix(
         Some(bytes) => crate::target_hash_id_from_input(bytes, options.salt.as_deref()),
         None => diagram.hash_id(options.salt.as_deref())?,
     };
-    appendix::append(&diagram, &hash, svg)
+    appendix::append(&diagram, &hash, svg, options.scale)
 }

@@ -63,16 +63,7 @@ pub(crate) fn wrap(
     if width < 0 || height < 0 {
         return Err(dimensions_error());
     }
-    let dimensions = opts
-        .scale
-        .map(|scale| {
-            format!(
-                r#" width="{}" height="{}""#,
-                (scale * width as f64).ceil() as i64,
-                (scale * height as f64).ceil() as i64
-            )
-        })
-        .unwrap_or_default();
+    let dimensions = super::render::scaled_dimensions(width, height, opts.scale)?;
     let mut buf = format!(
         r#"<?xml version="1.0" encoding="utf-8"?><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" d2Version="{VERSION}" preserveAspectRatio="xMinYMin meet" viewBox="0 0 {width} {height}"{dimensions}>"#
     );

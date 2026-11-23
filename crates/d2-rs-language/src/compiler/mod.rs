@@ -44,7 +44,7 @@ pub use compile::{
     compile_ir_with_context, compile_ir_with_import_resolver, compile_ir_with_imports,
     compile_ir_with_limits, compile_ir_with_options,
 };
-pub use config::{DiagramConfig, extract_config, extract_config_checked};
+pub use config::{DiagramConfig, extract_config, extract_config_checked, parse_animate_interval};
 use d2_rs_core::{ast::Shared, ir::*};
 pub use fields::{FieldQuery, FieldQueryResult};
 pub use graph::{

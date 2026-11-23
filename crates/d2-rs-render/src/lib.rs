@@ -3327,6 +3327,12 @@ struct HashConnection {
 
 #[derive(Serialize)]
 struct HashConfig {
+    #[serde(rename = "animateInterval", skip_serializing_if = "Option::is_none")]
+    animate_interval: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    scale: Option<target::GoFloat>,
+    #[serde(rename = "forceAppendix", skip_serializing_if = "Option::is_none")]
+    force_appendix: Option<bool>,
     sketch: bool,
     #[serde(rename = "themeID")]
     theme_id: i64,
@@ -4397,6 +4403,9 @@ pub fn target_config_metadata(
     let empty = Default::default();
     let config = config.unwrap_or(&empty);
     serde_json::to_value(HashConfig {
+        animate_interval: config.animate_interval,
+        scale: config.scale.map(target::GoFloat),
+        force_appendix: config.force_appendix,
         sketch,
         theme_id: options.theme_id.unwrap_or(0),
         dark_theme_id: options.dark_theme_id,
@@ -4432,6 +4441,9 @@ fn target_hash_bytes(
     connections.extend(target_hash_lifelines(graph, result, styles));
     let root = target_hash_root(graph, options);
     let config = HashConfig {
+        animate_interval: graph.d2_config_animate_interval,
+        scale: graph.d2_config_scale.map(target::GoFloat),
+        force_appendix: graph.d2_config_force_appendix,
         sketch,
         theme_id: options.theme_id.unwrap_or(0),
         dark_theme_id: options.dark_theme_id,
@@ -4534,6 +4546,9 @@ pub fn target_diagram_json(
     diagram.insert("name".into(), Value::String(String::new()));
     if options.include_config_in_hash {
         let config = HashConfig {
+            animate_interval: graph.d2_config_animate_interval,
+            scale: graph.d2_config_scale.map(target::GoFloat),
+            force_appendix: graph.d2_config_force_appendix,
             sketch,
             theme_id: options.theme_id.unwrap_or(0),
             dark_theme_id: options.dark_theme_id,

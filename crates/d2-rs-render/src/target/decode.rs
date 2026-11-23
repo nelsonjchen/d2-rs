@@ -552,6 +552,9 @@ go_struct!(TargetClassMethod{
 });
 
 go_struct!(TargetConfig{
+    "animateinterval" => animate_interval: normal,
+    "scale" => scale: normal,
+    "forceappendix" => force_appendix: normal,
     "sketch" => sketch: normal,
     "isometric" => isometric: normal,
     "themeid" => theme_id: normal,

@@ -71,6 +71,13 @@ impl Diagram {
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Config {
+    /// Milliseconds per board.
+    #[serde(rename = "animateInterval", skip_serializing_if = "Option::is_none")]
+    pub animate_interval: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scale: Option<f64>,
+    #[serde(rename = "forceAppendix", skip_serializing_if = "Option::is_none")]
+    pub force_appendix: Option<bool>,
     pub sketch: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub isometric: Option<bool>,

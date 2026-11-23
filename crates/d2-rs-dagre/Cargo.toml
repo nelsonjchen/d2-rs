@@ -14,15 +14,14 @@ readme = "../../README.md"
 [features]
 default = []
 oracle-fixtures = []
-diagnostic-traces = ["dep:serde_json"]
+diagnostic-traces = []
 
 [dependencies]
 d2-rs-core.workspace = true
 thiserror.workspace = true
-serde_json = { workspace = true, optional = true }
+serde_json.workspace = true
 
 [dev-dependencies]
-serde_json.workspace = true
 d2-rs-testdata.workspace = true
 
 [lints]

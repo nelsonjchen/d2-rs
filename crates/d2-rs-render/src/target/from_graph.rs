@@ -241,6 +241,9 @@ pub(crate) fn export(
         // Config data intentionally retains encoding/json's untyped float64
         // interpretation. It is one small record, outside the bulk shape path.
         let value = crate::HashConfig {
+            animate_interval: graph.d2_config_animate_interval,
+            scale: graph.d2_config_scale.map(crate::target::GoFloat),
+            force_appendix: graph.d2_config_force_appendix,
             sketch,
             theme_id: options.theme_id.unwrap_or(0),
             dark_theme_id: options.dark_theme_id,

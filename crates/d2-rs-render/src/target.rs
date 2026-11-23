@@ -13,7 +13,7 @@ pub(super) mod from_graph;
 use decode::{GoSlice, UrlUser};
 #[derive(Clone, Copy, Debug, Default, Deserialize)]
 #[serde(transparent)]
-struct GoFloat(f64);
+pub(crate) struct GoFloat(pub(crate) f64);
 impl Serialize for GoFloat {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         if !self.0.is_finite() {
@@ -268,6 +268,12 @@ struct TargetClassMethod {
 #[derive(Clone, Debug, Default, Serialize)]
 #[serde(default, rename_all = "camelCase")]
 struct TargetConfig {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    animate_interval: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    scale: Option<GoFloat>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    force_appendix: Option<bool>,
     sketch: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     isometric: Option<bool>,

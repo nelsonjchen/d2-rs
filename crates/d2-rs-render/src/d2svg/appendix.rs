@@ -25,8 +25,8 @@ fn regexes() -> &'static (Regex, Regex, Regex, Regex) {
     R.get_or_init(|| {
         (
             Regex::new(r#"viewBox="([0-9\- ]+)""#).unwrap(),
-            Regex::new(r#"width="([.0-9]+)""#).unwrap(),
-            Regex::new(r#"height="([.0-9]+)""#).unwrap(),
+            Regex::new(r#" width="[.0-9]+""#).unwrap(),
+            Regex::new(r#" height="[.0-9]+""#).unwrap(),
             Regex::new(r"<svg(.*?)>").unwrap(),
         )
     })
@@ -104,6 +104,7 @@ pub(crate) fn append(
     diagram: &TargetDiagram,
     diagram_hash: &str,
     input: &[u8],
+    scale: Option<f64>,
 ) -> Result<Vec<u8>, String> {
     let mut svg = String::from_utf8(input.to_vec()).map_err(|e| e.to_string())?;
     let (tl, mut br) = diagram.go_bounding_box()?;
@@ -155,32 +156,40 @@ pub(crate) fn append(
         r#"viewBox="{} {} {viewbox_width} {viewbox_height}""#,
         slice[0], slice[1]
     );
-    let mut dimensions_to_update = 2;
-    let outer_svg = svg_re
-        .find(&svg)
-        .map(|m| m.as_str().to_owned())
-        .unwrap_or_default();
-    if width_re.is_match(&outer_svg) {
-        dimensions_to_update += 1;
+    // The outer SVG carries display dimensions. The inner SVG and its
+    // background use unscaled diagram coordinates.
+    let outer_end = svg_re.find(&svg).ok_or("appendix: missing svg")?.end();
+    let (mut outer, mut inner) = (svg[..outer_end].to_owned(), svg[outer_end..].to_owned());
+    outer = outer.replacen(&outer_match, &new_outer, 1);
+    if width_re.is_match(&outer) {
+        let dimensions = super::render::scaled_dimensions(
+            viewbox_width,
+            viewbox_height,
+            Some(scale.unwrap_or(1.0)),
+        )?;
+        outer = height_re.replace_all(&outer, "").into_owned();
+        outer = width_re
+            .replace_all(&outer, regex::NoExpand(&dimensions))
+            .into_owned();
     }
-    let widths: Vec<String> = width_re
-        .find_iter(&svg)
-        .take(dimensions_to_update)
+    inner = inner.replacen(&inner_match, &new_inner, 1);
+    let new_width = format!(r#" width="{viewbox_width}""#);
+    let new_height = format!(r#" height="{viewbox_height}""#);
+    for found in width_re
+        .find_iter(&inner.clone())
+        .take(2)
         .map(|m| m.as_str().to_owned())
-        .collect();
-    let heights: Vec<String> = height_re
-        .find_iter(&svg)
-        .take(dimensions_to_update)
-        .map(|m| m.as_str().to_owned())
-        .collect();
-    svg = svg.replacen(&outer_match, &new_outer, 1);
-    svg = svg.replacen(&inner_match, &new_inner, 1);
-    for i in 0..dimensions_to_update {
-        if let (Some(width), Some(height)) = (widths.get(i), heights.get(i)) {
-            svg = svg.replacen(width, &format!(r#"width="{viewbox_width}""#), 1);
-            svg = svg.replacen(height, &format!(r#"height="{viewbox_height}""#), 1);
-        }
+    {
+        inner = inner.replacen(&found, &new_width, 1);
     }
+    for found in height_re
+        .find_iter(&inner.clone())
+        .take(2)
+        .map(|m| m.as_str().to_owned())
+    {
+        inner = inner.replacen(&found, &new_height, 1);
+    }
+    svg = outer + &inner;
     use d2_rs_text::d2fonts::{FontFamily, FontStyle};
     for (face, class, style) in [
         ("font-regular", "text", FontStyle::Regular),
@@ -311,7 +320,7 @@ mod tests {
             let diagram: TargetDiagram = serde_json::from_value(board(link, pretty)).unwrap();
             let svg = super::super::render::render(&diagram, &Default::default()).unwrap();
             let out =
-                String::from_utf8(append(&diagram, &diagram.hash_id(None).unwrap(), &svg).unwrap())
+                String::from_utf8(append(&diagram, &diagram.hash_id(None).unwrap(), &svg, None).unwrap())
                     .unwrap();
             let (markers, rows) = out.split_once("<g class=\"appendix\"").unwrap();
             assert_eq!(numbers(markers), [1, 2, 3]);

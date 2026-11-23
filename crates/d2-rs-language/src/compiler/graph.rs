@@ -4517,6 +4517,9 @@ fn lower_graph_in_class_context(
     let mut graph = Graph::default();
     if let Some(config) = super::extract_config(compiler, root) {
         graph.d2_config_data = config.graph_data();
+        graph.d2_config_animate_interval = config.animate_interval;
+        graph.d2_config_scale = config.scale;
+        graph.d2_config_force_appendix = config.force_appendix;
         graph.d2_config_pad = config.pad;
         graph.d2_config_center = config.center;
         graph.d2_config_layout_engine = config.layout_engine;

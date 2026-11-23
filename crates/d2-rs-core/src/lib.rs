@@ -1587,6 +1587,12 @@ pub struct Graph {
     pub d2_config_data: BTreeMap<String, serde_json::Value>,
     /// Authored config pointers retained for the target's canonical byte stream.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub d2_config_animate_interval: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub d2_config_scale: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub d2_config_force_appendix: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub d2_config_pad: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub d2_config_center: Option<bool>,
