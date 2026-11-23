@@ -14,10 +14,12 @@ pub struct ImportState {
     pub stack: Vec<String>,
     pub parsed: HashMap<String, Shared<ast::Map>>,
     pub utf16_positions: bool,
+    /// The owning filesystem may resolve paths using native conventions.
+    pub path_resolver: Option<ImportPathResolver>,
 }
 impl ImportState {
-    /// Resolve against the current source filename. Slash cleaning follows Go
-    /// path on all hosts; absolute detection follows the native platform.
+    /// Resolve against the importing file using its filesystem's conventions.
+    /// Virtual filesystem names use Go path semantics on every host.
     pub fn path(&self, import: &ast::Import) -> Option<String> {
         let mut path = import.path_with_pre();
         if path.is_empty() && import.range != ast::Range::default() {
@@ -28,7 +30,10 @@ impl ImportState {
             if last.rfind('.').map(|i| &last[i..]) != Some(".d2") {
                 path.push_str(".d2");
             }
-            if !std::path::Path::new(&path).is_absolute() {
+            if let Some(resolve) = &self.path_resolver {
+                return Some(resolve(parent, &path));
+            }
+            if !path.starts_with('/') {
                 let dir = parent.rfind('/').map_or(".", |i| &parent[..=i]);
                 // Import.PathWithPre already implements Go's lexical path.Join.
                 path = ast::Import {
@@ -239,3 +244,81 @@ impl super::Compiler {
 
 /// Filesystem boundary for native and WASM callers.
 pub type ImportOpener = Box<dyn FnMut(&str) -> Result<Box<dyn crate::stream::ByteReader>, String>>;
+
+/// Optional filesystem-owned path resolution, matching ResolveImportPath in Go.
+pub type ImportPathResolver = Box<dyn Fn(&str, &str) -> String>;
+
+/// Resolve an import next to its native importing filename (localfile.Policy).
+/// Absolute names are retained verbatim; relative names are lexically cleaned.
+pub fn native_import_path(parent: &str, name: &str) -> String {
+    use std::path::{Component, Path, PathBuf};
+    if Path::new(name).is_absolute() {
+        return name.to_owned();
+    }
+    let joined = Path::new(parent)
+        .parent()
+        .unwrap_or_else(|| Path::new(""))
+        .join(name);
+    let mut clean = PathBuf::new();
+    for part in joined.components() {
+        match part {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                if clean.file_name().is_some_and(|name| name != "..") {
+                    clean.pop();
+                } else if !clean.has_root() {
+                    clean.push("..");
+                }
+            }
+            other => clean.push(other.as_os_str()),
+        }
+    }
+    if clean.as_os_str().is_empty() {
+        ".".into()
+    } else {
+        clean.to_string_lossy().into_owned()
+    }
+}
+
+#[cfg(test)]
+mod resolver_tests {
+    use super::*;
+    use std::{cell::RefCell, rc::Rc};
+
+    #[test]
+    fn imports_and_container_peeks_use_the_filesystems_resolver() {
+        let calls = Rc::new(RefCell::new(Vec::new()));
+        let calls_for_resolver = calls.clone();
+        let mut compiler = super::super::Compiler {
+            import_state: ImportState {
+                stack: vec!["native-parent.d2".into()],
+                path_resolver: Some(Box::new(move |parent, name| {
+                    calls_for_resolver
+                        .borrow_mut()
+                        .push((parent.to_owned(), name.to_owned()));
+                    format!("owned/{name}")
+                })),
+                ..Default::default()
+            },
+            import_opener: Some(Box::new(|path| {
+                assert_eq!(path, "owned/library.d2");
+                Ok(Box::new(std::io::Cursor::new(b"x: meow".to_vec())))
+            })),
+            glob_context_stack: vec![Vec::new()],
+            ..Default::default()
+        };
+        let key = crate::parse_map_key(b"x: @library").unwrap();
+        let import = key.value.import.unwrap();
+        assert!(compiler.peek_import(import.clone()).is_some());
+        assert!(compiler.errors.is_empty(), "{:?}", compiler.errors);
+        let mut errors = ParseError::default();
+        assert_eq!(
+            compiler.import_state.push(import, &mut errors).as_deref(),
+            Some("owned/library.d2")
+        );
+        assert_eq!(
+            *calls.borrow(),
+            vec![("native-parent.d2".to_owned(), "library.d2".to_owned()); 2]
+        );
+    }
+}

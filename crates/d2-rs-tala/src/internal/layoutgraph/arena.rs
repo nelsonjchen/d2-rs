@@ -1145,6 +1145,11 @@ impl ArenaGraph {
         })
     }
 
+    /// `len(Graph.Edges)`.
+    pub(in crate::internal) fn graph_edge_count(&self) -> usize {
+        self.edge_order.len()
+    }
+
     pub(super) fn can_optimize_node(&self, node: NodeId) -> bool {
         let node_ref = &self.nodes[node.0 as usize];
         // sizeless_optimizer.go598-625 reads Node.Edges itself. An edge can

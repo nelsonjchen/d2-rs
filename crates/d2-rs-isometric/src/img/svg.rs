@@ -30,6 +30,8 @@ pub const RASTER_SHADOW_NORMAL_OFFSET: f64 = 0.025;
 /// A link hit region in world space (nativeLink).
 #[derive(Clone, Debug, Default)]
 pub struct NativeLink {
+    pub mesh_start: usize,
+    pub mesh_end: usize,
     pub points: Vec2<Vec>,
     pub url: String,
     pub tooltip: String,
@@ -63,6 +65,7 @@ struct Writer<'a> {
     buf: String,
     err: Option<String>,
     surfaces: HashMap<usize, String>,
+    lighting_stops: HashMap<String, String>,
     surface_svg: &'a SurfaceWriter,
 }
 
@@ -125,50 +128,112 @@ pub fn svg_color(r: f64, g: f64, b: f64) -> String {
     format!("#{:02x}{:02x}{:02x}", c(r), c(g), c(b))
 }
 
-/// svgPolygonPath: canonical compound loops at SVG precision.
+/// Normalize at serialization precision before cancelling directed edges.
+fn canonical_loop(polygon: &[SvgPoint]) -> Vec2<SvgPoint> {
+    let mut points = Vec2::with_capacity(polygon.len());
+    for v in polygon {
+        let p = SvgPoint {
+            x: go_round(v.x * 1e6) / 1e6,
+            y: go_round(v.y * 1e6) / 1e6,
+            z: 0.0,
+        };
+        if points.last() != Some(&p) {
+            points.push(p);
+        }
+    }
+    if points.len() > 1 && points.first() == points.last() {
+        points.pop();
+    }
+    let mut points = omit_collinear_splits(points);
+    if points.len() < 3 {
+        return vec![];
+    }
+    let area = 2.0 * polygon_area(&points);
+    if area.abs() < 1e-10 {
+        return vec![];
+    }
+    if area < 0.0 {
+        points.reverse();
+    }
+    let mut first = 0;
+    for i in 0..points.len() {
+        if points[i].x < points[first].x
+            || points[i].x == points[first].x && points[i].y < points[first].y
+        {
+            first = i;
+        }
+    }
+    points.rotate_left(first);
+    points
+}
+fn write_loop(s: &mut String, points: &[SvgPoint]) {
+    for (i, p) in points.iter().enumerate() {
+        s.push(if i == 0 { 'M' } else { 'L' });
+        s.push_str(&svg_number(p.x));
+        s.push(' ');
+        s.push_str(&svg_number(p.y));
+    }
+    if !points.is_empty() {
+        s.push('Z');
+    }
+}
 pub fn svg_polygon_path(polygons: &[Vec2<SvgPoint>]) -> String {
     let mut s = String::new();
     for polygon in polygons {
-        let mut p: Vec2<SvgPoint> = Vec2::with_capacity(polygon.len());
-        for v in polygon {
-            let v = SvgPoint {
-                x: go_round(v.x * 1e6) / 1e6,
-                y: go_round(v.y * 1e6) / 1e6,
-                z: 0.0,
-            };
-            if p.last() != Some(&v) {
-                p.push(v);
+        write_loop(&mut s, &canonical_loop(polygon));
+    }
+    s
+}
+/// Remove shared edges of nonzero fills; stroked paths keep interior edges.
+pub fn svg_fill_path(polygons: &[Vec2<SvgPoint>]) -> String {
+    if polygons.len() < 8 || polygons.iter().map(|p| p.len()).sum::<usize>() > 1 << 16 {
+        return svg_polygon_path(polygons);
+    }
+    type PointKey = (i64, i64);
+    let key =
+        |p: SvgPoint| -> PointKey { (go_round(p.x * 1e6) as i64, go_round(p.y * 1e6) as i64) };
+    let mut edges = vec![];
+    let mut pending = HashMap::<(PointKey, PointKey), usize>::new();
+    let mut points = HashMap::new();
+    for polygon in polygons {
+        let p = canonical_loop(polygon);
+        for (i, &a) in p.iter().enumerate() {
+            let b = p[(i + 1) % p.len()];
+            let edge = (key(a), key(b));
+            points.insert(edge.0, a);
+            points.insert(edge.1, b);
+            let back = pending.entry((edge.1, edge.0)).or_default();
+            if *back > 0 {
+                *back -= 1;
+                continue;
             }
+            *pending.entry(edge).or_default() += 1;
+            edges.push(edge);
         }
-        if p.len() > 1 && p[0] == p[p.len() - 1] {
-            p.pop();
+    }
+    let mut next = HashMap::<PointKey, Vec2<PointKey>>::new();
+    for &edge in &edges {
+        let count = pending.get_mut(&edge).unwrap();
+        if *count > 0 {
+            next.entry(edge.0).or_default().push(edge.1);
+            *count -= 1;
         }
-        let p = omit_collinear_splits(p);
-        if p.len() < 3 {
-            continue;
-        }
-        let area = 2.0 * polygon_area(&p);
-        if area.abs() < 1e-10 {
-            continue;
-        }
-        let mut first = 0;
-        for i in 0..p.len() {
-            if p[i].x < p[first].x || p[i].x == p[first].x && p[i].y < p[first].y {
-                first = i;
+    }
+    let mut s = String::new();
+    for edge in edges {
+        let start = edge.0;
+        while next.get(&start).is_some_and(|out| !out.is_empty()) {
+            let mut at = start;
+            let mut path = vec![];
+            loop {
+                path.push(points[&at]);
+                at = next.get_mut(&at).unwrap().pop().unwrap();
+                if at == start {
+                    break;
+                }
             }
+            write_loop(&mut s, &path);
         }
-        for i in 0..p.len() {
-            let j = if area < 0.0 {
-                (first + p.len() - i) % p.len()
-            } else {
-                (first + i) % p.len()
-            };
-            s.push(if i == 0 { 'M' } else { 'L' });
-            s.push_str(&svg_number(p[j].x));
-            s.push(' ');
-            s.push_str(&svg_number(p[j].y));
-        }
-        s.push('Z');
     }
     s
 }
@@ -225,6 +290,7 @@ struct Batch {
 }
 
 struct Unit {
+    link: Option<usize>,
     batches: Vec2<usize>,
     depth: f64,
     count: usize,
@@ -572,21 +638,33 @@ fn write_lighting_gradient(w: &mut Writer, gradient: &Gradient, id: &str) -> Str
         let c = gradient.stops[0].1;
         return svg_color(c.x, c.y, c.z);
     }
-    w.write(&format!(
-        r#"<linearGradient id="{id}" gradientUnits="userSpaceOnUse" color-interpolation="sRGB" x1="{}" y1="{}" x2="{}" y2="{}">"#,
-        svg_number(gradient.start.x),
-        svg_number(gradient.start.y),
-        svg_number(gradient.end.x),
-        svg_number(gradient.end.y)
-    ));
+    let first = gradient.stops[0].1;
+    let solid = svg_color(first.x, first.y, first.z);
+    let mut stops = String::new();
+    let mut uniform = true;
     for (offset, color) in &gradient.stops {
-        w.write(&format!(
+        let color = svg_color(color.x, color.y, color.z);
+        if color != solid {
+            uniform = false;
+        }
+        stops.push_str(&format!(
             r#"<stop offset="{}" stop-color="{}"/>"#,
             svg_number(*offset),
-            svg_color(color.x, color.y, color.z)
+            color
         ));
     }
-    w.write("</linearGradient>");
+    if uniform {
+        return solid;
+    }
+    w.write(&format!(r#"<linearGradient id="{id}" gradientUnits="userSpaceOnUse" color-interpolation="sRGB" x1="{}" y1="{}" x2="{}" y2="{}""#,svg_number(gradient.start.x),svg_number(gradient.start.y),svg_number(gradient.end.x),svg_number(gradient.end.y)));
+    if let Some(shared) = w.lighting_stops.get(&stops).cloned() {
+        w.write(&format!(r##" xlink:href="#{shared}"/>"##));
+    } else {
+        if w.lighting_stops.len() < 8192 {
+            w.lighting_stops.insert(stops.clone(), id.into());
+        }
+        w.write(&format!(">{stops}</linearGradient>"));
+    }
     format!("url(#{id})")
 }
 
@@ -825,14 +903,14 @@ fn write_cover(
     };
     w.write(&format!(
         r#"<path d="{}" fill="url(#{name})" fill-opacity="{}"{blend}/>"#,
-        svg_polygon_path(&cover.polygons),
+        svg_fill_path(&cover.polygons),
         svg_number(m.color.a as f64 / 255.0)
     ));
 }
 
 /// writeSVGBatch without its cover indirection.
 fn write_batch_plain(w: &mut Writer, b: &Batch, id: i64, camera: &Camera) {
-    let path = svg_polygon_path(&b.polygons);
+    let path = svg_fill_path(&b.polygons);
     if path.is_empty() {
         return;
     }
@@ -852,6 +930,11 @@ fn write_batch_plain(w: &mut Writer, b: &Batch, id: i64, camera: &Camera) {
             return;
         };
         let surface_id = w.surface_definition(vector);
+        let caption_hit = if m.outside_caption {
+            r#"<rect width="1" height="1" fill="transparent" pointer-events="all"/>"#
+        } else {
+            ""
+        };
         if w.err.is_some() {
             return;
         }
@@ -872,7 +955,7 @@ fn write_batch_plain(w: &mut Writer, b: &Batch, id: i64, camera: &Camera) {
         }
         let a = b.affine;
         w.write(&format!(
-            r##"<g clip-path="url(#face-{id})" opacity="{}"{blend}><g transform="matrix({} {} {} {} {} {})"{filter}><use xlink:href="#{surface_id}"/></g></g>"##,
+            r##"<g clip-path="url(#face-{id})" opacity="{}"{blend}><g transform="matrix({} {} {} {} {} {})"{filter}>{caption_hit}<use xlink:href="#{surface_id}"/></g></g>"##,
             svg_number(alpha),
             svg_number(a[0]),
             svg_number(a[1]),
@@ -895,14 +978,18 @@ fn write_batch_plain(w: &mut Writer, b: &Batch, id: i64, camera: &Camera) {
 
 // ------------------------------------------------------ ground shadow (svg_lighting.go)
 
-pub fn raster_shadow_ground(ts: &[Triangle]) -> f64 {
+pub fn native_mesh_floor(ts: &[Triangle]) -> f64 {
     let mut ground = 0.0f64;
     for t in ts {
         for v in &t.v {
             ground = go_min(ground, v.position.y);
         }
     }
-    ground + 0.08
+    ground
+}
+
+pub fn raster_shadow_ground(ts: &[Triangle]) -> f64 {
+    native_mesh_floor(ts) + 0.08
 }
 
 /// ground_receivers.go rasterGroundTriangles.
@@ -951,31 +1038,27 @@ fn ground_caster(
     camera: &Camera,
     light: Vec,
 ) -> Vec2<SvgPoint> {
-    let mut vertices = Vec2::new();
-    for i in 0..3 {
-        let (a, b) = (t.v[i].position, t.v[(i + 1) % 3].position);
-        if a.y >= receiver {
-            vertices.push(a);
-        }
-        if (a.y < receiver) != (b.y < receiver) {
-            vertices.push(nlerp(a, b, (receiver - a.y) / (b.y - a.y)));
-        }
-    }
-    vertices
-        .iter()
-        .map(|&vertex| {
-            let mut p = nsub(
-                vertex,
-                nmul(
-                    light,
-                    (vertex.y - (ground + RASTER_SHADOW_NORMAL_OFFSET)) / light.y,
-                ),
-            );
-            p.y = ground;
-            let q = camera.project(p);
-            svg_projected_point(q.x, q.y, ndot(vertex, light))
-        })
-        .collect()
+    let points =
+        t.v.iter()
+            .map(|v| {
+                let mut p = nsub(
+                    v.position,
+                    nmul(
+                        light,
+                        (v.position.y - (ground + RASTER_SHADOW_NORMAL_OFFSET)) / light.y,
+                    ),
+                );
+                p.y = ground;
+                let q = camera.project(p);
+                let mut point = svg_projected_point(q.x, q.y, 0.0);
+                point.z = v.position.y;
+                point
+            })
+            .collect::<Vec2<_>>();
+    split_polygon(&points, &|p| p.z - receiver)
+        .0
+        .resolve(&points)
+        .unwrap_or_default()
 }
 
 fn write_ground_shadow(w: &mut Writer, scene: &NativeScene) {
@@ -987,11 +1070,20 @@ fn write_ground_shadow(w: &mut Writer, scene: &NativeScene) {
     let light_camera = raster_fit(&triangles, light, 2048, 2048, 1.08);
     let bias = go_max(0.012, 2.0 / light_camera.scale);
     // ARM64 svg_lighting.go:282.
-    let receiver = go_fmadd(bias, light.y, ground + RASTER_SHADOW_NORMAL_OFFSET);
+    let receiver = go_fmadd(
+        bias,
+        light_camera.direction.y,
+        ground + RASTER_SHADOW_NORMAL_OFFSET,
+    );
     let mut faces = Vec2::new();
-    let mut sources = Vec2::new();
-    let mut opacities = Vec2::new();
+    let mut max_height = f64::NEG_INFINITY;
     for (i, triangle) in triangles.iter().enumerate() {
+        if i % 512 == 0 {
+            if let Err(error) = w.context.check_string() {
+                w.err = Some(error);
+                return;
+            }
+        }
         let opacity = caster_opacity(triangle);
         if opacity == 0 {
             continue;
@@ -1005,62 +1097,109 @@ fn write_ground_shadow(w: &mut Writer, scene: &NativeScene) {
                 .material
                 .as_ref()
                 .is_some_and(|m| m.borrow().texture.is_some());
+        for p in &points {
+            max_height = go_max(max_height, p.z);
+        }
         faces.push(SvgVisibilityFace {
             points,
             opaque: !texture,
             order: -(i as i64),
             ..Default::default()
         });
-        sources.push(i);
-        opacities.push(opacity);
     }
     if faces.is_empty() {
         return;
     }
+    let right = nsub(
+        light_camera.right,
+        nmul(light, light_camera.right.y / light.y),
+    );
+    let up = nsub(light_camera.up, nmul(light, light_camera.up.y / light.y));
+    let x_scale = gomath::hypot(
+        ndot(right, scene.camera.right),
+        ndot(up, scene.camera.right),
+    ) * scene.camera.scale;
+    let y_scale =
+        gomath::hypot(ndot(right, scene.camera.up), ndot(up, scene.camera.up)) * scene.camera.scale;
+    let mut silhouette = None;
+    for (index, (height, sigma, opacity)) in
+        super::raster::ground_shadow::LAYERS.into_iter().enumerate()
+    {
+        let ceiling = ground + RASTER_SHADOW_NORMAL_OFFSET + height;
+        if ceiling < max_height {
+            silhouette = None;
+            max_height = f64::NEG_INFINITY;
+            let mut next = vec![];
+            for (i, mut face) in faces.into_iter().enumerate() {
+                if i % 512 == 0 {
+                    if let Err(error) = w.context.check_string() {
+                        w.err = Some(error);
+                        return;
+                    }
+                }
+                face.points = split_polygon(&face.points, &|p| ceiling - p.z)
+                    .0
+                    .resolve(&face.points)
+                    .unwrap_or_default();
+                if face.points.is_empty() {
+                    continue;
+                }
+                for p in &face.points {
+                    max_height = go_max(max_height, p.z);
+                }
+                next.push(face);
+            }
+            faces = next;
+            if faces.is_empty() {
+                return;
+            }
+        }
+        if silhouette.is_none() {
+            silhouette = Some(index);
+            w.write(&format!(r#"<defs><g id="ground-casters-{index}">"#));
+            write_ground_casters(w, scene, &triangles, &faces, ground, light, index);
+            if w.err.is_some() {
+                return;
+            }
+            w.write("</g></defs>");
+        }
+        let sigma = go_max(sigma, (2.0f64 / 3.0).sqrt() / light_camera.scale);
+        w.write(&format!(r#"<defs><filter id="ground-softness-{index}" filterUnits="userSpaceOnUse" x="0" y="0" width="{}" height="{}" color-interpolation-filters="sRGB"><feGaussianBlur stdDeviation="{} {}"/></filter></defs>"#,scene.width,scene.height,svg_number(sigma*x_scale),svg_number(sigma*y_scale)));
+        w.write(&format!(r##"<use xlink:href="#ground-casters-{}" filter="url(#ground-softness-{index})" opacity="{}"/>"##,silhouette.unwrap(),svg_number(opacity)));
+    }
+}
+fn write_ground_casters(
+    w: &mut Writer,
+    scene: &NativeScene,
+    triangles: &[Triangle],
+    faces: &[SvgVisibilityFace],
+    ground: f64,
+    light: Vec,
+    layer: usize,
+) {
     let mut limits = super::svg_visibility::SVG_DEFAULT_VISIBILITY_LIMITS;
     limits.work = super::svg_visibility::svg_visibility_work_limit(faces.len());
     let visible =
-        match super::svg_visibility::svg_visible_faces_with_context(&faces, limits, w.context) {
+        match super::svg_visibility::svg_visible_faces_with_context(faces, limits, w.context) {
             Ok(visible) => visible,
             Err(error) => {
                 w.err = Some(format!("native SVG ground shadow: {error}"));
                 return;
             }
         };
-    let right = nsub(
-        light_camera.right,
-        nmul(light, light_camera.right.y / light.y),
-    );
-    let up = nsub(light_camera.up, nmul(light, light_camera.up.y / light.y));
-    let scale = scene.camera.scale / light_camera.scale * (2.0f64 / 3.0).sqrt();
-    let sx = gomath::hypot(
-        ndot(right, scene.camera.right),
-        ndot(up, scene.camera.right),
-    ) * scale;
-    let sy = gomath::hypot(ndot(right, scene.camera.up), ndot(up, scene.camera.up)) * scale;
-    w.write(&format!(
-        r#"<defs><filter id="ground-softness" filterUnits="userSpaceOnUse" x="0" y="0" width="{}" height="{}" color-interpolation-filters="sRGB"><feGaussianBlur stdDeviation="{} {}"/></filter></defs><g filter="url(#ground-softness)">"#,
-        scene.width,
-        scene.height,
-        svg_number(sx),
-        svg_number(sy)
-    ));
     let mut merged: BTreeMap<u8, Vec2<Vec2<SvgPoint>>> = BTreeMap::new();
     let mut textured: BTreeMap<u8, Vec2<usize>> = BTreeMap::new();
     for (i, polygons) in visible.iter().enumerate() {
         if polygons.is_empty() {
             continue;
         }
-        let t = &triangles[sources[i]];
-        if t.shadow_fill_alpha.is_none()
-            && t.material
-                .as_ref()
-                .is_some_and(|m| m.borrow().texture.is_some())
-        {
-            textured.entry(opacities[i]).or_default().push(i);
+        let t = &triangles[(-faces[i].order) as usize];
+        let alpha = caster_opacity(t);
+        if !faces[i].opaque {
+            textured.entry(alpha).or_default().push(i);
         } else {
             merged
-                .entry(opacities[i])
+                .entry(alpha)
                 .or_default()
                 .extend(polygons.iter().cloned());
         }
@@ -1073,12 +1212,12 @@ fn write_ground_shadow(w: &mut Writer, scene: &NativeScene) {
         }
         w.write(&format!(
             r#"<g opacity="{}">"#,
-            svg_number(0.11 * alpha as f64 / 255.0)
+            svg_number(alpha as f64 / 255.0)
         ));
         if !polygons.is_empty() {
             w.write(&format!(
                 r##"<path d="{}" fill="#243754"/>"##,
-                svg_polygon_path(&polygons)
+                svg_fill_path(&polygons)
             ));
         }
         let depth = |i: usize| {
@@ -1091,12 +1230,12 @@ fn write_ground_shadow(w: &mut Writer, scene: &NativeScene) {
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
         for i in textures {
-            let t = &triangles[sources[i]];
+            let t = &triangles[(-faces[i].order) as usize];
             let vector = t.material.as_ref().and_then(|m| m.borrow().vector.clone());
             let Some(vector) = vector else {
                 w.err = Some(format!(
                     "native SVG shadow surface {} has no retained vector source",
-                    sources[i]
+                    -faces[i].order
                 ));
                 return;
             };
@@ -1129,11 +1268,11 @@ fn write_ground_shadow(w: &mut Writer, scene: &NativeScene) {
                 }
             };
             w.write(&format!(
-                r#"<defs><clipPath id="shadow-clip-{i}"><path d="{}"/></clipPath><filter id="shadow-ink-{i}" color-interpolation-filters="sRGB"><feColorMatrix values="0 0 0 0 0.14117647 0 0 0 0 0.21568627 0 0 0 0 0.32941176 0 0 0 1 0"/></filter></defs>"#,
-                svg_polygon_path(&visible[i])
+                r#"<defs><clipPath id="shadow-clip-{layer}-{i}"><path d="{}"/></clipPath><filter id="shadow-ink-{layer}-{i}" color-interpolation-filters="sRGB"><feColorMatrix values="0 0 0 0 0.14117647 0 0 0 0 0.21568627 0 0 0 0 0.32941176 0 0 0 1 0"/></filter></defs>"#,
+                svg_fill_path(&visible[i])
             ));
             w.write(&format!(
-                r##"<g clip-path="url(#shadow-clip-{i})"><g transform="matrix({} {} {} {} {} {})" filter="url(#shadow-ink-{i})"><use xlink:href="#{surface_id}"/></g></g>"##,
+                r##"<g clip-path="url(#shadow-clip-{layer}-{i})"><g transform="matrix({} {} {} {} {} {})" filter="url(#shadow-ink-{layer}-{i})"><use xlink:href="#{surface_id}"/></g></g>"##,
                 svg_number(affine[0]),
                 svg_number(affine[1]),
                 svg_number(affine[2]),
@@ -1144,7 +1283,6 @@ fn write_ground_shadow(w: &mut Writer, scene: &NativeScene) {
         }
         w.write("</g>");
     }
-    w.write("</g>");
 }
 
 /// html.EscapeString.
@@ -1167,6 +1305,7 @@ fn write_links(w: &mut Writer, scene: &NativeScene) {
     let mut links: Vec2<(&NativeLink, Vec2<SvgPoint>, f64)> = scene
         .links
         .iter()
+        .filter(|link| link.mesh_end == 0)
         .map(|link| {
             let points: Vec2<SvgPoint> = link
                 .points
@@ -1182,22 +1321,35 @@ fn write_links(w: &mut Writer, scene: &NativeScene) {
         .collect();
     links.stable_sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal));
     for (link, points, _) in links {
-        let mut destination = link.url.clone();
-        if destination.is_empty() && !link.target.is_empty() {
-            destination = format!("#{}", link.target);
-        }
+        let close = write_link_start(w, link, false);
         w.write(&format!(
-            r#"<a xlink:href="{}">"#,
-            html_escape(&destination)
-        ));
-        if !link.tooltip.is_empty() {
-            w.write(&format!("<title>{}</title>", html_escape(&link.tooltip)));
-        }
-        w.write(&format!(
-            r#"<path d="{}" fill="transparent" pointer-events="all"/></a>"#,
+            r#"<path d="{}" fill="transparent" pointer-events="all"/>{close}"#,
             svg_polygon_path(&[points])
         ));
     }
+}
+
+fn write_link_start(w: &mut Writer, link: &NativeLink, continued: bool) -> &'static str {
+    let destination = if link.url.is_empty() && !link.target.is_empty() {
+        format!("#{}", link.target)
+    } else {
+        link.url.clone()
+    };
+    let close = if destination.is_empty() {
+        w.write("<g>");
+        "</g>"
+    } else {
+        let tab = if continued { r#" tabindex="-1""# } else { "" };
+        w.write(&format!(
+            r#"<a xlink:href="{}"{tab}>"#,
+            html_escape(&destination)
+        ));
+        "</a>"
+    };
+    if !link.tooltip.is_empty() {
+        w.write(&format!("<title>{}</title>", html_escape(&link.tooltip)));
+    }
+    close
 }
 
 /// nativeSceneSVG.
@@ -1258,7 +1410,7 @@ pub fn native_scene_svg_with_context(
     limits.work = super::svg_visibility::svg_visibility_work_limit(faces.len());
     let visible = super::svg_visibility::svg_visible_faces_with_context(&faces, limits, context)?;
     let mut units: Vec2<Unit> = Vec2::new();
-    let mut unit_index: HashMap<(usize, usize, usize), usize> = HashMap::new();
+    let mut unit_index: HashMap<(Option<usize>, usize, usize, usize), usize> = HashMap::new();
     let mut batch_indexes: Vec2<HashMap<(usize, [i64; 6], String, usize), usize>> = Vec2::new();
     let mut batches: Vec2<Batch> = Vec2::new();
     for i in 0..scene.triangles.len() {
@@ -1284,11 +1436,16 @@ pub fn native_scene_svg_with_context(
         } else {
             0
         };
-        let key = (group, owner, material_key);
+        let link = scene
+            .links
+            .iter()
+            .position(|link| link.mesh_end > 0 && i >= link.mesh_start && i < link.mesh_end);
+        let key = (link, group, owner, material_key);
         let unit = match unit_index.get(&key) {
             Some(&unit) => unit,
             None => {
                 let mut u = Unit {
+                    link,
                     batches: Vec2::new(),
                     depth: 0.0,
                     count: 0,
@@ -1440,6 +1597,7 @@ pub fn native_scene_svg_with_context(
         buf: String::new(),
         err: None,
         surfaces: HashMap::new(),
+        lighting_stops: HashMap::new(),
         surface_svg,
     };
     w.write(&format!(
@@ -1447,25 +1605,30 @@ pub fn native_scene_svg_with_context(
         scene.width, scene.height
     ));
     let bg = scene.background;
-    w.write(&format!(
-        r#"<rect width="100%" height="100%" fill="{}"/>"#,
-        svg_color(
-            bg.r as f64 / 255.0,
-            bg.g as f64 / 255.0,
-            bg.b as f64 / 255.0
-        )
-    ));
     if let Some(background) = &scene.background_paint {
-        let fragment = surface_svg(background, "background")?;
+        let mut surface = (**background).clone();
+        surface.cap_background = Some(bg);
+        let fragment = surface_svg(&surface, "background")?;
+        w.write(&format!(r#"<svg width="100%" height="100%" viewBox="0 0 1 1" preserveAspectRatio="none">{fragment}</svg>"#));
+    } else {
         w.write(&format!(
-            r#"<g transform="scale({} {})">{fragment}</g>"#,
-            scene.width, scene.height
+            r#"<rect width="100%" height="100%" fill="{}"/>"#,
+            svg_color(
+                bg.r as f64 / 255.0,
+                bg.g as f64 / 255.0,
+                bg.b as f64 / 255.0
+            )
         ));
     }
     write_ground_shadow(&mut w, scene);
     let mut id = 0i64;
+    let mut seen_links = std::collections::HashSet::new();
     for &u in &order {
         let unit = &units[u];
+        let close_link = unit
+            .link
+            .map(|i| write_link_start(&mut w, &scene.links[i], !seen_links.insert(i)))
+            .unwrap_or("");
         w.write(&format!(r#"<g opacity="{}">"#, svg_number(unit.opacity)));
         for &b in &unit.batches {
             id += 1;
@@ -1479,6 +1642,7 @@ pub fn native_scene_svg_with_context(
             }
         }
         w.write("</g>");
+        w.write(close_link);
     }
     write_links(&mut w, scene);
     w.write("</svg>");

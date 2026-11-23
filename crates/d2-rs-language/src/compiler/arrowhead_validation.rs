@@ -755,6 +755,14 @@ impl ArrowheadValidation<'_> {
                 }
                 continue;
             }
+            if self
+                .unquoted_name(field)
+                .as_deref()
+                .is_some_and(|n| lower_equals_keyword(n, "elk-layer-constraint"))
+            {
+                self.key_error(field, "elk-layer-constraint can only be set on shapes");
+                continue;
+            }
             if let Some(name) = self.unquoted_name(field)
                 && STYLE_KEYWORDS.contains(&name.to_lowercase().as_str())
             {
@@ -840,6 +848,14 @@ impl ArrowheadValidation<'_> {
     }
 
     fn compile_reserved(&mut self, field: NodeId) {
+        if self
+            .unquoted_name(field)
+            .as_deref()
+            .is_some_and(|n| lower_equals_keyword(n, "elk-layer-constraint"))
+        {
+            self.key_error(field, "elk-layer-constraint can only be set on shapes");
+            return;
+        }
         if !self.reserved_scalar(field) {
             if self.compiler.arena.primary(field).is_none()
                 && self
@@ -1183,6 +1199,39 @@ impl ArrowheadValidation<'_> {
 
     fn object_style_field(&mut self, field: NodeId) {
         let name = self.unquoted_name(field);
+        if name
+            .as_deref()
+            .is_some_and(|n| lower_equals_keyword(n, "elk-layer-constraint"))
+        {
+            let parent = self.compiler.arena.parent_map(field).unwrap();
+            if !self.compiler.arena.board_kind(parent).is_empty() {
+                self.key_error(field, "elk-layer-constraint can only be set on shapes");
+            } else if self.compiler.arena.primary(field).is_none()
+                || matches!(self.compiler.arena.node(field), Node::Field(f) if f.composite.is_some())
+            {
+                self.key_error(field, "elk-layer-constraint expects first, last or none");
+            } else if let Some(primary) = self.compiler.arena.primary(field) {
+                let Node::Scalar(s) = self.compiler.arena.node(primary) else {
+                    unreachable!()
+                };
+                let value = s.value.scalar_string();
+                if !matches!(
+                    d2_rs_core::ir::go_uppercase_text(&value).as_str(),
+                    "FIRST" | "LAST" | "NONE"
+                ) {
+                    if let Some(node) = s.value.unbox() {
+                        self.errors.push(error(
+                            &node,
+                            format!(
+                                "elk-layer-constraint expects first, last or none, got {}",
+                                crate::parser::quote_input(value.as_bytes())
+                            ),
+                        ));
+                    }
+                }
+            }
+            return;
+        }
         if let Some(name) = &name
             && STYLE_KEYWORDS
                 .iter()

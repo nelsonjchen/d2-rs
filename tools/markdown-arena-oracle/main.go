@@ -3,7 +3,7 @@ package main
 
 import (
 	"encoding/json"
-	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/v2/ast"
 	"os"
 )
 

@@ -31,8 +31,8 @@ type pngCase struct {
 }
 
 func main() {
-	if runtime.Version() != "go1.27.0" {
-		panic("requires pinned go1.27.0; got " + runtime.Version())
+	if runtime.Version() != "go1.27.4" {
+		panic("requires pinned go1.27.4; got " + runtime.Version())
 	}
 	var cases []pngCase
 	for _, spec := range []struct {

@@ -14,7 +14,11 @@ use super::*;
 /// containment, it clips against the closed box and requires a positive
 /// interval. A corner touch with both endpoints outside is admissible.
 #[inline(always)]
-pub(super) fn recovered_segment_intersects_box(start: Point, end: Point, rect: Rect) -> bool {
+pub(in crate::internal) fn recovered_segment_intersects_box(
+    start: Point,
+    end: Point,
+    rect: Rect,
+) -> bool {
     // This is TALA's layoutgraph.segmentIntersectsBox verbatim in geometric
     // terms. A single-point boundary touch is admissible; only a positive
     // length of the segment inside the closed box is an intersection.

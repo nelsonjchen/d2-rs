@@ -97,7 +97,7 @@ def main():
     parser.add_argument("--extra-report", action="append", type=Path, default=[])
     args = parser.parse_args()
     added, changed, current = inventory()
-    reports = sorted((ROOT / ".reference/scoreboard-master-6a7b4837").glob("*.json"))
+    reports = sorted((references.REFERENCE / f"scoreboard-master-{references.SOURCE_COMMIT[:8]}").glob("*.json"))
     reports += [p.resolve() for p in args.extra_report]
     observed = observations(reports)
     duplicates = collections.Counter(row["test"] for row in added)

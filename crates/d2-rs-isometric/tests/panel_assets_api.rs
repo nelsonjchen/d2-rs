@@ -137,6 +137,7 @@ fn explicit_resolver_is_shared_with_the_legend_and_remains_bounded() {
     assert_eq!(format!("{:x}", Sha256::digest(png)), call["want"]["sha256"]);
     assert_eq!(resolver.calls.load(Ordering::Relaxed), 1);
     options.assets.as_mut().unwrap().svg_import_limits = SvgImportLimits {
+        max_decoded_raster_bytes: 0,
         max_elements: 1,
         ..Default::default()
     };

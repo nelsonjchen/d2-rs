@@ -303,7 +303,9 @@ impl SurfaceSvg<'_> {
             let mut effects = String::new();
             for f in filters {
                 effects += &match f {
-                    Filter::GaussianBlur { sigma_x, sigma_y } => format!(
+                    Filter::GaussianBlur {
+                        sigma_x, sigma_y, ..
+                    } => format!(
                         "<feGaussianBlur stdDeviation=\"{} {}\"/>",
                         number(*sigma_x),
                         number(*sigma_y)

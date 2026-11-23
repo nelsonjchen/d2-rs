@@ -206,7 +206,7 @@ fn caption_data(e: &Edge, scale: f64) -> (std::vec::Vec<Caption>, LabelSurface) 
 }
 impl MeshBuilder {
     pub fn reserve_sequence_edge(&mut self, e: &Edge, points: &[Vec], p: &mut RouteCaptionPlacer) {
-        if e.stroke_width > 0 {
+        if super::route_bridges::native_route_visible(e) {
             p.avoid_route(points, e.stroke_width as f64 * self.scale / 2.0)
         }
         let (captions, icon) = caption_data(e, self.scale);

@@ -117,13 +117,21 @@ impl<K: Copy + Ord> SpatialIndex<K> {
     }
 }
 pub(super) struct CollisionIndex {
+    pub object_buffer: f64,
+    pub edge_buffer: f64,
     objects: SpatialIndex<NodeId>,
     segments: SpatialIndex<(EdgeId, usize)>,
     lengths: BTreeMap<EdgeId, usize>,
 }
 impl CollisionIndex {
+    #[cfg(all(test, feature = "oracle-fixtures"))]
     pub fn new(graph: &Graph, result: &LayoutResult) -> Self {
+        Self::with_options(graph, result, crate::LayeredOptions::default())
+    }
+    pub fn with_options(graph: &Graph, result: &LayoutResult, opts: crate::LayeredOptions) -> Self {
         let mut index = Self {
+            object_buffer: opts.edge_node.map_or(39.0, |n| (n - 1.0).max(0.0)),
+            edge_buffer: opts.edge_edge.map_or(20.0, |n| 2.0 * n),
             objects: SpatialIndex::default(),
             segments: SpatialIndex::default(),
             lengths: BTreeMap::new(),
@@ -138,7 +146,7 @@ impl CollisionIndex {
                         x1: b.origin.x + b.size.width,
                         y1: b.origin.y + b.size.height,
                     }
-                    .expanded(39.0),
+                    .expanded(index.object_buffer),
                 );
             }
         }
@@ -162,7 +170,8 @@ impl CollisionIndex {
         self.objects.query(Bounds::segment(a, b))
     }
     pub fn segments(&self, a: Point, b: Point) -> Vec<(EdgeId, usize)> {
-        self.segments.query(Bounds::segment(a, b).expanded(20.0))
+        self.segments
+            .query(Bounds::segment(a, b).expanded(self.edge_buffer))
     }
 }
 

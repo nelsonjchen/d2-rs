@@ -13,7 +13,7 @@ pub(super) mod from_graph;
 use decode::{GoSlice, UrlUser};
 #[derive(Clone, Copy, Debug, Default, Deserialize)]
 #[serde(transparent)]
-struct GoFloat(f64);
+pub(crate) struct GoFloat(pub(crate) f64);
 impl Serialize for GoFloat {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         if !self.0.is_finite() {
@@ -268,6 +268,12 @@ struct TargetClassMethod {
 #[derive(Clone, Debug, Default, Serialize)]
 #[serde(default, rename_all = "camelCase")]
 struct TargetConfig {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    animate_interval: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    scale: Option<GoFloat>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    force_appendix: Option<bool>,
     sketch: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     isometric: Option<bool>,
@@ -325,6 +331,8 @@ pub struct TargetDiagram {
     mono_font_family: Option<String>,
     shapes: Option<GoSlice<TargetShape>>,
     connections: Option<GoSlice<TargetConnection>>,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    explicit_default_stroke_widths: BTreeMap<String, bool>,
     root: TargetShape,
     #[serde(skip_serializing_if = "Option::is_none")]
     legend: Option<TargetLegend>,
@@ -385,6 +393,23 @@ impl TargetDiagram {
         interval_ms: i64,
     ) -> Result<Vec<u8>, String> {
         d2svg::animate::wrap(self, frames, options, interval_ms)
+    }
+    /// Isolate isometric resources when authored default widths change crease ink.
+    pub fn isometric_resource_suffix(&self) -> String {
+        let mut marked = String::new();
+        for (i, shape) in self.shapes.iter().flatten().enumerate() {
+            if shape.stroke_width == 2
+                && self.explicit_default_stroke_widths.get(&shape.id) == Some(&true)
+            {
+                use std::fmt::Write;
+                write!(&mut marked, "{i},").unwrap();
+            }
+        }
+        if marked.is_empty() {
+            String::new()
+        } else {
+            format!("{}-", d2svg::render::hash(&marked))
+        }
     }
     /// Exact Diagram.Bytes input, including child boards in source traversal
     /// order. No layout, source reconstruction or SVG parsing participates.

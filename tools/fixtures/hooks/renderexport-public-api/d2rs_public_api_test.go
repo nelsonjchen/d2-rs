@@ -58,8 +58,8 @@ func TestD2RSPublicAPI(t *testing.T) {
 	if mode == "" || os.Getenv("D2RS_RECIPE_OUTPUT") == "" {
 		t.Skip("run via scripts/regen-fixtures.py")
 	}
-	if runtime.Version() != "go1.27.0" {
-		t.Fatal("requires pinned go1.27.0; got " + runtime.Version())
+	if runtime.Version() != "go1.27.4" {
+		t.Fatal("requires pinned go1.27.4; got " + runtime.Version())
 	}
 	switch mode {
 	case "pptx":

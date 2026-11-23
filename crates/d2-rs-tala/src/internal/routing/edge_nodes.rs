@@ -287,6 +287,15 @@ impl PortBuild {
         graph_nodes: &[NodeId],
         budget: Budget<'_, '_>,
     ) -> Result<(), ()> {
+        self.add_edge_nodes_with_hierarchies(graph, graph_nodes, None, budget)
+    }
+    pub(super) fn add_edge_nodes_with_hierarchies(
+        &mut self,
+        graph: &ArenaGraph,
+        graph_nodes: &[NodeId],
+        hierarchies: Option<&std::collections::BTreeMap<NodeId, usize>>,
+        budget: Budget<'_, '_>,
+    ) -> Result<(), ()> {
         check(budget)?;
         let fixed = self.fixed_overlaps(graph, graph_nodes, budget)?;
         let index = PortIndex::new(self, graph, graph_nodes, &fixed, budget)?;
@@ -302,12 +311,20 @@ impl PortBuild {
             if edge.from == edge.to {
                 continue;
             }
-            if graph.nodes[edge.from.0 as usize]
-                .hierarchy
-                .as_ref()
-                .zip(graph.nodes[edge.to.0 as usize].hierarchy.as_ref())
-                .is_some_and(|(a, b)| a.id == b.id)
-            {
+            if hierarchies.map_or_else(
+                || {
+                    graph.nodes[edge.from.0 as usize]
+                        .hierarchy
+                        .as_ref()
+                        .zip(graph.nodes[edge.to.0 as usize].hierarchy.as_ref())
+                        .is_some_and(|(a, b)| a.id == b.id)
+                },
+                |groups| {
+                    groups
+                        .get(&edge.from)
+                        .is_some_and(|group| Some(group) == groups.get(&edge.to))
+                },
+            ) {
                 continue;
             }
             for point in self.edge_fill_points(graph, edge.from, edge.to, budget)? {

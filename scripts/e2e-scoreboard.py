@@ -133,7 +133,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--cases", type=Path, default=references.E2E_CASES)
     parser.add_argument("--rust", type=Path, default=ROOT / "target/diagnostic/d2-rs")
-    parser.add_argument("--output", type=Path, default=references.REFERENCE / "scoreboard-master-6a7b4837/e2e-report.json")
+    parser.add_argument("--output", type=Path, default=references.REFERENCE / f"scoreboard-master-{references.SOURCE_COMMIT[:8]}/e2e-report.json")
     parser.add_argument("--go", type=Path, default=None, help="also score this Go CLI as the reference")
     parser.add_argument("--d2svg", action="store_true", help="render SVG through the d2svg port (D2_RS_SVG_RENDERER=d2svg)")
     parser.add_argument("--engines", default="dagre,elk,tala")

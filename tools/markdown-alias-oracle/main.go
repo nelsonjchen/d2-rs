@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/yuin/goldmark/text"
+	"github.com/yuin/goldmark/v2/text"
 	"os"
 	"strings"
 )

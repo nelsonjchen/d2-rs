@@ -711,6 +711,9 @@ pub struct Node {
     /// Whether this node forces hierarchical placement independent of shape.
     #[serde(default)]
     pub force_hierarchy: bool,
+    /// ELK layered placement constraint, normalized to FIRST, LAST or NONE.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub elk_layer_constraint: String,
     /// Requested minimum number of grid rows.
     pub grid_rows: Option<usize>,
     /// Requested minimum number of grid columns.
@@ -770,6 +773,7 @@ impl Node {
             fixed_height: false,
             direction: None,
             force_hierarchy: false,
+            elk_layer_constraint: String::new(),
             grid_rows: None,
             grid_columns: None,
             canvas_position: None,
@@ -1582,6 +1586,12 @@ pub struct Graph {
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub d2_config_data: BTreeMap<String, serde_json::Value>,
     /// Authored config pointers retained for the target's canonical byte stream.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub d2_config_animate_interval: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub d2_config_scale: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub d2_config_force_appendix: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub d2_config_pad: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

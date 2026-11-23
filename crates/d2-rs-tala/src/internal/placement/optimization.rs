@@ -2444,7 +2444,14 @@ impl ArenaGraph {
             // live child slice.  The sized optimizer has a separate
             // getBestSwapCandidate path that shuffles Graph.Nodes; this
             // SwapStuff pass is the direct SwapOptimize implementation.
-            let candidates = self.container_node_order(self.nodes[node.0 as usize].container);
+            //
+            // Only the SWAP_NEIGHBOURHOOD siblings whose centres are nearest
+            // to the node's centre are tried (swap.go nearestSwapCandidates).
+            let candidates = self.nearest_swap_candidates(
+                node,
+                &self.container_node_order(self.nodes[node.0 as usize].container),
+                &node_to_tree,
+            );
             let mut baseline = None;
             for candidate in candidates {
                 if candidate == node
@@ -2576,6 +2583,67 @@ impl ArenaGraph {
             }
         }
         swap_made
+    }
+
+    /// swap.go `nearestSwapCandidates`: the at most `SWAP_NEIGHBOURHOOD`
+    /// swappable siblings of `node` (placed, not `node`, not in a tree, not in
+    /// a hierarchy, not fixed) whose centres are nearest to the node's centre
+    /// by squared distance, ties in sibling order, returned in sibling order.
+    fn nearest_swap_candidates(
+        &self,
+        node: NodeId,
+        siblings: &[NodeId],
+        node_to_tree: &BTreeSet<NodeId>,
+    ) -> Vec<NodeId> {
+        const SWAP_NEIGHBOURHOOD: usize = 6;
+        let Some(position) = self.active_node_position(node) else {
+            return Vec::new();
+        };
+        let size = self.active_node_size(node);
+        let cx = position.x + size.width / 2.0;
+        let cy = position.y + size.height / 2.0;
+        let container = self.nodes[node.0 as usize].container;
+        let k = SWAP_NEIGHBOURHOOD;
+        let mut nearest: Vec<(usize, f64)> = Vec::with_capacity(k);
+        for (index, &sibling) in siblings.iter().enumerate() {
+            if sibling == node
+                || node_to_tree.contains(&sibling)
+                || self.nodes[sibling.0 as usize].hierarchy.is_some()
+                || self.nodes[sibling.0 as usize].fixed_top_left.is_some()
+                || self.hidden_swap_aggregate_member(sibling)
+                || self.nodes[sibling.0 as usize].container != container
+            {
+                continue;
+            }
+            let Some(sibling_position) = self.active_node_position(sibling) else {
+                continue;
+            };
+            let sibling_size = self.active_node_size(sibling);
+            let dx = sibling_position.x + sibling_size.width / 2.0 - cx;
+            let dy = sibling_position.y + sibling_size.height / 2.0 - cy;
+            let mut distance = dx * dx + dy * dy;
+            if distance.is_nan() {
+                distance = f64::INFINITY;
+            }
+            let mut j = nearest.len();
+            if nearest.len() < k {
+                nearest.push((index, distance));
+            } else if !(distance < nearest[k - 1].1) {
+                continue;
+            } else {
+                j = k - 1;
+            }
+            while j > 0 && distance < nearest[j - 1].1 {
+                nearest[j] = nearest[j - 1];
+                j -= 1;
+            }
+            nearest[j] = (index, distance);
+        }
+        nearest.sort_by_key(|&(index, _)| index);
+        nearest
+            .into_iter()
+            .map(|(index, _)| siblings[index])
+            .collect()
     }
 
     /// Apply the `AffectContainers` transaction boundary used by Go's

@@ -13,6 +13,20 @@ pub fn wrap_svg(
     omit: bool,
     version: &str,
 ) -> Result<Vec<u8>, String> {
+    wrap_svg_with_suffix(svg, hash, "", pad, scale, center, no_xml, omit, version)
+}
+#[allow(clippy::too_many_arguments)]
+pub fn wrap_svg_with_suffix(
+    svg: &str,
+    hash: &str,
+    suffix: &str,
+    pad: i64,
+    scale: Option<f64>,
+    center: bool,
+    no_xml: bool,
+    omit: bool,
+    version: &str,
+) -> Result<Vec<u8>, String> {
     let opening = svg
         .find('>')
         .ok_or("native isometric output has an invalid SVG envelope")?
@@ -54,15 +68,15 @@ pub fn wrap_svg(
         for (from, to) in [
             (
                 format!("id=\"{id}\""),
-                format!("id=\"{hash}-isometric-{id}\""),
+                format!("id=\"{hash}-isometric-{suffix}{id}\""),
             ),
             (
                 format!("url(#{id})"),
-                format!("url(#{hash}-isometric-{id})"),
+                format!("url(#{hash}-isometric-{suffix}{id})"),
             ),
             (
                 format!("href=\"#{id}\""),
-                format!("href=\"#{hash}-isometric-{id}\""),
+                format!("href=\"#{hash}-isometric-{suffix}{id}\""),
             ),
         ] {
             replacements.push((from, to));
@@ -80,9 +94,9 @@ pub fn wrap_svg(
         body = replacer.replace_all(&body, &values);
     }
     body = body.replacen(
-        "<rect width=\"100%\" height=\"100%\"",
+        " width=\"100%\" height=\"100%\"",
         &format!(
-            "<rect x=\"{}\" y=\"{}\" width=\"{w}\" height=\"{h}\"",
+            " x=\"{}\" y=\"{}\" width=\"{w}\" height=\"{h}\"",
             -pad, -pad
         ),
         1,

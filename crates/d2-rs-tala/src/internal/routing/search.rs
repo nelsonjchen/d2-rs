@@ -446,6 +446,9 @@ pub(super) struct RouteInteractionIndex {
     #[cfg(feature = "diagnostic-traces")]
     pub(super) trace_flavor: Option<String>,
     static_index: super::static_edge_index::StaticEdgeIndex,
+    route_directions: std::cell::RefCell<BTreeMap<usize, super::route_directions::DirectionIndex>>,
+    search_node_count: std::cell::Cell<usize>,
+    pub(super) touched_node_count: std::cell::Cell<usize>,
     route_centers: Vec<Option<(Point, Point)>>,
     tunnel_points: crate::internal::FloatKeyHashSet<PointKey>,
     point_to_routes: crate::internal::FloatKeyHashMap<PointKey, Vec<usize>>,
@@ -727,6 +730,9 @@ impl RouteInteractionIndex {
                 .collect(),
             positioned_arrowhead_labels: Vec::new(),
             search_clusters: None,
+            route_directions: Default::default(),
+            search_node_count: Default::default(),
+            touched_node_count: Default::default(),
         }
     }
 
@@ -1031,12 +1037,22 @@ impl RouteInteractionIndex {
                     to: route.node_ref(point_index + 1, route_id, &self.canonical_nodes),
                     distance: 0.0,
                 };
+                let before = self.routed_set.len();
+                let crossing_segment = retained.points();
                 self.routed_set
                     .add_guarded(
                         retained,
                         budget.map(|guard| guard as &dyn super::routed_edge_set::Work),
                     )
                     .map_err(|_| RoutePublicationError::WorkLimit)?;
+                if self.routed_set.len() > before {
+                    self.static_index
+                        .add_crossing(
+                            crossing_segment,
+                            budget.map(|b| b as &dyn super::routed_edge_set::Work),
+                        )
+                        .map_err(|_| RoutePublicationError::WorkLimit)?;
+                }
                 #[cfg(test)]
                 self.routed_segments.push(segment);
             }
@@ -1092,6 +1108,39 @@ impl RouteInteractionIndex {
             records.push((route.edge, route.segment_endpoints()?));
         }
         Some(records)
+    }
+
+    pub(super) fn prepare_search_scratch(
+        &self,
+        nodes: usize,
+        budget: &LocalRouteSearchWork,
+    ) -> Option<()> {
+        if self.search_node_count.get() != nodes {
+            budget.reserve_product(nodes as u64, 4).ok()?;
+            self.search_node_count.set(nodes);
+        } else {
+            budget
+                .reserve_product(self.touched_node_count.get() as u64, 3)
+                .ok()?;
+        }
+        self.touched_node_count.set(0);
+        Some(())
+    }
+    pub(super) fn has_opposing_segment(
+        &self,
+        route: usize,
+        from: Point,
+        to: Point,
+        budget: Option<&LocalRouteSearchWork>,
+    ) -> Option<bool> {
+        let mut indices = self.route_directions.borrow_mut();
+        if let std::collections::btree_map::Entry::Vacant(entry) = indices.entry(route) {
+            entry.insert(super::route_directions::DirectionIndex::new(
+                &self.routes[route].points(),
+                budget,
+            )?);
+        }
+        indices[&route].opposes(from, to, budget)
     }
 
     pub(super) fn published_route(
@@ -1277,6 +1326,15 @@ impl RouteInteractionIndex {
         budget: &LocalRouteSearchWork,
         memo: &mut OccupiedMemo<'a>,
     ) -> Option<()> {
+        self.charge_occupied_routes_for_edge(point, budget, memo, false)
+    }
+    pub(super) fn charge_occupied_routes_for_edge<'a>(
+        &'a self,
+        point: Option<Point>,
+        budget: &LocalRouteSearchWork,
+        memo: &mut OccupiedMemo<'a>,
+        directed: bool,
+    ) -> Option<()> {
         let count = point.map_or(0, |point| self.occupied_routes_memo(point, memo).len());
         for _ in 0..count {
             budget.step().ok()?;
@@ -1285,7 +1343,8 @@ impl RouteInteractionIndex {
             budget.check().ok()?;
             return Some(());
         }
-        for _ in 0..10 {
+        // c12b4b1a3 standalone_route_guard.go checks directed overlaps once.
+        for _ in 0..if directed && count > 0 { 1 } else { 10 } {
             budget.add(count as u64).ok()?;
         }
         budget.check().ok()?;
@@ -1395,78 +1454,67 @@ impl RouteInteractionIndex {
         let directed = graph.edge_records[edge_index].source_arrow
             != graph.edge_records[edge_index].target_arrow;
         let adjacent_is_tunnel = self.tunnel_points.contains(&adjacent_key);
+        // Collect shareability first; geometric checks are only needed for
+        // routes that can overlap (ovg_edge_router.go, 64288a936).
+        for _ in overlapping_edges {
+            if let Some(budget) = budget {
+                budget.step().ok()?;
+            }
+        }
+        if let Some(budget) = budget {
+            if directed && !overlapping_edges.is_empty() {
+                budget.add(overlapping_edges.len() as u64).ok()?;
+                budget.check().ok()?;
+            } else {
+                budget.charge_overlap_checks(overlapping_edges.len()).ok()?;
+            }
+        }
+        let can_overlap = self.with_route_edge_ids(overlapping_edges, |ids| {
+            super::interactions::edges_can_overlap_all_for_search_with(
+                graph, edge_index, ids, clusters,
+            )
+        });
         let mut opposing_share = false;
         let mut entire_tunnel_share = false;
-        for other_index in overlapping_edges {
-            let published = &self.routes[*other_index];
-            if let Some(budget) = budget {
-                budget.reserve_product(published.len() as u64 + 1, 2).ok()?;
-            }
-            let other = &graph.edge_records[published.edge];
-            let opposing_candidate = directed && other.source_arrow != other.target_arrow;
-            // Materialize live route points only for a predicate that reads
-            // them; neither predicate polls, so skipped reads are unobserved.
-            let points = (opposing_candidate || adjacent_is_tunnel).then(|| published.points());
-            let points = points.as_deref().unwrap_or(&[]);
-            opposing_share = opposing_candidate
-                && route_is_opposing_collinear(
-                    &points[..points.len().saturating_sub(1)],
-                    None,
-                    candidate_segment[0],
-                    candidate_segment[1],
-                );
-            #[cfg(feature = "diagnostic-traces")]
-            if std::env::var("D2_TRACE_SEARCH_OCCUPIED_EDGE")
-                .ok()
-                .as_deref()
-                == Some(graph.edge_records[edge_index].tala_id.to_string().as_str())
-            {
-                let points = published.points();
-                let bits = |p: Point| {
-                    [
-                        format!("{:016x}", p.x.to_bits()),
-                        format!("{:016x}", p.y.to_bits()),
-                    ]
-                };
-                eprintln!(
-                    "{}",
-                    serde_json::json!({"event":"search-occupied-route","scope_nodes":graph.node_order.len(),"scope_edges":graph.edge_order.len(),"edge":graph.edge_records[edge_index].tala_id,"flavor":self.trace_flavor,"other":other.tala_id,"nodes":published.len(),"points":points.iter().copied().map(bits).collect::<Vec<_>>(),"opposing":opposing_share,"from":bits(candidate_segment[0]),"to":bits(candidate_segment[1]),"work":budget.map(LocalRouteSearchWork::used)})
-                );
-            }
-            if opposing_share {
-                break;
-            }
-            entire_tunnel_share = adjacent_is_tunnel && {
-                let interior_points = &points
-                    [1.min(points.len())..points.len().saturating_sub(1).max(1.min(points.len()))];
-                route_is_entire_collinear(
-                    interior_points,
-                    candidate_segment[0],
-                    candidate_segment[1],
-                ) || route_is_entire_collinear(
-                    interior_points,
-                    candidate_segment[1],
-                    candidate_segment[0],
-                )
-            };
-            if entire_tunnel_share {
-                break;
+        if can_overlap && (directed || adjacent_is_tunnel) {
+            for &route_id in overlapping_edges {
+                if let Some(budget) = budget {
+                    budget.step().ok()?;
+                }
+                let published = &self.routes[route_id];
+                let other = &graph.edge_records[published.edge];
+                if directed && other.source_arrow != other.target_arrow {
+                    opposing_share = self.has_opposing_segment(
+                        route_id,
+                        candidate_segment[0],
+                        candidate_segment[1],
+                        budget,
+                    )?;
+                    if opposing_share {
+                        break;
+                    }
+                }
+                if adjacent_is_tunnel {
+                    if let Some(budget) = budget {
+                        budget.add(published.len() as u64).ok()?;
+                    }
+                    let points = published.points();
+                    let interior = &points[1.min(points.len())
+                        ..points.len().saturating_sub(1).max(1.min(points.len()))];
+                    entire_tunnel_share = route_is_entire_collinear(
+                        interior,
+                        candidate_segment[0],
+                        candidate_segment[1],
+                    );
+                    if entire_tunnel_share {
+                        break;
+                    }
+                }
             }
         }
-        if !opposing_share
-            && !entire_tunnel_share
-            && let Some(budget) = budget
-        {
-            budget.charge_overlap_checks(overlapping_edges.len()).ok()?;
-        }
-        let prohibited_share = opposing_share
+        let prohibited_share = !can_overlap
+            || opposing_share
             || entire_tunnel_share
-            || (!overlapping_edges.is_empty()
-                && !self.with_route_edge_ids(overlapping_edges, |ids| {
-                    super::interactions::edges_can_overlap_all_for_search_with(
-                        graph, edge_index, ids, clusters,
-                    )
-                }))
             || (occupied_edges.is_empty()
                 && edge_key.is_some_and(|id| self.static_index.nearby.contains(&id))
                 && !adjacent_is_on_route());
@@ -1508,9 +1556,18 @@ impl RouteInteractionIndex {
         let crosses_routed_segment = if crosses_occupied_point {
             false
         } else {
-            match budget {
-                Some(budget) => self.intersects_routed_edges_guarded(candidate_segment, budget)?,
-                None => self.crosses_routed_segment(candidate_segment),
+            if let Some(id) = edge_key {
+                if let Some(budget) = budget {
+                    budget.step().ok()?;
+                }
+                self.static_index.grid.crossed.contains(&id)
+            } else {
+                match budget {
+                    Some(budget) => {
+                        self.intersects_routed_edges_guarded(candidate_segment, budget)?
+                    }
+                    None => self.crosses_routed_segment(candidate_segment),
+                }
             }
         };
         Some(if crosses_occupied_point || crosses_routed_segment {
@@ -1608,20 +1665,39 @@ fn build_route_ovg_context_mut(
         .map_err(|_| "OVG construction cancelled".to_owned())?;
     let mut ordinary_nodes = nearby_nodes.to_vec();
     let mut hierarchies = Vec::new();
+    let lane_groups = super::ovg_hierarchy::routing_hierarchies(
+        graph,
+        scope_nodes,
+        graph
+            .edge_order
+            .read()
+            .iter()
+            .filter(|id| {
+                let e = &graph.edge_records[id.0 as usize];
+                scope_nodes.contains(&e.from) && scope_nodes.contains(&e.to)
+            })
+            .count(),
+        ovg_budget,
+    )
+    .map_err(|_| "OVG routing hierarchy classification failed".to_owned())?;
+    let lane_membership = lane_groups
+        .iter()
+        .enumerate()
+        .flat_map(|(i, group)| group.iter().filter_map(move |(id, _)| id.map(|id| (id, i))))
+        .collect::<BTreeMap<_, _>>();
     let mut seen = BTreeSet::new();
     for &node in scope_nodes {
         ovg_budget
             .reserve_work(1)
             .map_err(|_| "OVG classification cancelled".to_owned())?;
-        if let Some(hierarchy) = graph.nodes[node.0 as usize].hierarchy.clone() {
-            if seen.insert(hierarchy.record.allocation_key()) {
+        if let Some(&index) = lane_membership.get(&node) {
+            let group = &lane_groups[index];
+            if seen.insert(index) {
                 hierarchies.push(
-                    super::ovg_hierarchy::build(graph, &hierarchy.record, ovg_budget).map_err(
-                        |_| {
-                            "OVG hierarchy construction cancelled or exceeded its resource limit"
-                                .to_owned()
-                        },
-                    )?,
+                    super::ovg_hierarchy::build_scoped(graph, group, ovg_budget).map_err(|_| {
+                        "OVG hierarchy construction cancelled or exceeded its resource limit"
+                            .to_owned()
+                    })?,
                 );
             }
         } else {
@@ -1854,6 +1930,23 @@ fn prepare_route_flavor_owned(
                 Vec::new(),
             ));
         }
+        if interaction_index
+            .static_index
+            .initialize_grid(budget.map(|b| b as &dyn super::routed_edge_set::Work))
+            .is_err()
+        {
+            return Err((
+                routes,
+                ordered_edges.len(),
+                f64::INFINITY,
+                selected_ports,
+                Some(crate::LayoutError::BadRouteState(
+                    "route-search work limit exceeded while preparing router".into(),
+                )),
+                Vec::new(),
+                Vec::new(),
+            ));
+        }
         for existing in existing_routes.iter() {
             let edge_index = existing.edge.0 as usize;
             if budget.is_some_and(|budget| budget.step().is_err()) {
@@ -2073,6 +2166,24 @@ fn prepare_route_flavor_owned(
             #[cfg(feature = "diagnostic-traces")]
             preexisting_route_order.clone(),
             #[cfg(not(feature = "diagnostic-traces"))]
+            Vec::new(),
+            Vec::new(),
+        ));
+    }
+    if fixed_routes.is_none()
+        && interaction_index
+            .static_index
+            .initialize_grid(budget.map(|b| b as &dyn super::routed_edge_set::Work))
+            .is_err()
+    {
+        return Err((
+            routes,
+            ordered_edges.len(),
+            f64::INFINITY,
+            selected_ports,
+            Some(crate::LayoutError::BadRouteState(
+                "route-search work limit exceeded while preparing router".into(),
+            )),
             Vec::new(),
             Vec::new(),
         ));
@@ -2322,12 +2433,6 @@ fn generate_route_flavor(
         trace_generation("slingshot-done");
         #[cfg(feature = "diagnostic-traces")]
         trace_generation("search-begin");
-        let Some(mut prepared_search) = visibility.prepare_route_search(budget) else {
-            unrouted += router_edge_count - this_edge_order_index;
-            break;
-        };
-        #[cfg(feature = "diagnostic-traces")]
-        trace_generation("search-arrays-done");
         if interaction_index
             .prepare_search_node_labels(graph, edge_index, Some(budget))
             .is_none()
@@ -2361,8 +2466,8 @@ fn generate_route_flavor(
             None
         };
         if let Some(line) = quick_line {
-            // Search allocates its temporary arrays and scans labels before
-            // trying this shortcut, but performs ancestry checks only if it fails.
+            // Search scans labels before this shortcut. Scratch allocation
+            // and ancestry checks follow only when the shortcut fails.
             #[cfg(feature = "diagnostic-traces")]
             trace_generation("search-done");
             selected_ports[edge_index] = Some((line.source, line.target));
@@ -2400,6 +2505,14 @@ fn generate_route_flavor(
             trace_route_cost("quick-line", total_score, routes[edge_index].len());
             continue;
         }
+        let Some(mut prepared_search) =
+            visibility.prepare_route_search_for_router(&interaction_index, budget)
+        else {
+            unrouted += router_edge_count - this_edge_order_index;
+            break;
+        };
+        #[cfg(feature = "diagnostic-traces")]
+        trace_generation("search-arrays-done");
         if prepared_search
             .prepare_arrowhead_nodes(graph, edge_index, budget)
             .is_none()
@@ -5241,6 +5354,7 @@ mod tests {
 
     fn routing_test_node(name: &str, width: f64, height: f64) -> crate::Node {
         crate::Node {
+            elk_layer_constraint: String::new(),
             d2_near_key: None,
             external_id: name.into(),
             size: crate::Size { width, height },
@@ -5871,13 +5985,13 @@ mod tests {
         index.static_index.overlapping.insert(key, vec![0]);
         index.point_to_routes.clear();
         index.static_index.nearby.insert(key);
-        let guard = LocalRouteSearchWork::new(20);
+        let guard = LocalRouteSearchWork::new(11);
         assert_eq!(
             index.apply_route_interaction_cost_guarded(&graph, 0, route, 1.0, Some(&guard)),
             Some(10_000_000.0)
         );
-        assert_eq!(guard.used(), 20); // (4 published nodes + 1)*2, then ten passes
-        let guard = LocalRouteSearchWork::new(19);
+        assert_eq!(guard.used(), 11); // c12b4b1a3: collect one route, then ten undirected passes
+        let guard = LocalRouteSearchWork::new(10);
         assert_eq!(
             index.apply_route_interaction_cost_guarded(&graph, 0, route, 1.0, Some(&guard)),
             None
@@ -6074,9 +6188,9 @@ mod tests {
                 route_additional_edges_with_budget(&graph, &[crate::EdgeId(0)], Some(limit), 0)
                     .unwrap_err();
             assert!(
-                matches!(error, crate::LayoutError::RouteSearchWorkLimit {
-                    flavor: "ShortestToLongest", limit: actual,
-                } if actual == limit),
+                // c12b4b1a3 constructs the fixed crossing index before search.
+                matches!(error, crate::LayoutError::BadRouteState(ref message)
+                    if message == "route-search work limit exceeded while preparing router"),
                 "limit {limit}: {error}"
             );
             assert_eq!(&*graph.edge_records[0].route.read(), before.as_slice());
@@ -6397,6 +6511,9 @@ mod tests {
             node_label_rects: Vec::new(),
             positioned_arrowhead_labels: Vec::new(),
             search_clusters: None,
+            route_directions: Default::default(),
+            search_node_count: Default::default(),
+            touched_node_count: Default::default(),
         };
 
         index
@@ -6444,6 +6561,9 @@ mod tests {
             node_label_rects: Vec::new(),
             positioned_arrowhead_labels: Vec::new(),
             search_clusters: None,
+            route_directions: Default::default(),
+            search_node_count: Default::default(),
+            touched_node_count: Default::default(),
         };
 
         // The reverse segment is the same OVG edge geometrically, but Go's
@@ -6580,13 +6700,14 @@ mod tests {
     }
 
     #[test]
-    fn publication_finishes_edge_index_before_nearby_scan_exhaustion() {
+    fn publication_can_exhaust_while_indexing_crossings() {
         let (graph, visibility, _, _) = route_interaction_fixture();
         let mut base = RouteInteractionIndex::new(&visibility, &graph);
         let mut crowded = RouteInteractionIndex::new(&visibility, &graph);
         for index in [&mut base, &mut crowded] {
             index.static_index.horizontal.clear();
             index.static_index.vertical.clear();
+            index.static_index.initialize_grid(None).unwrap();
         }
         let route = [
             Point { x: 10.0, y: 0.0 },
@@ -6596,8 +6717,8 @@ mod tests {
         ];
         let base_work = LocalRouteSearchWork::new(100_000);
         assert!(base.add_route_with_budget(&graph, 0, &route, "test", Some(&base_work)));
-        // Every axis is charged before its proximity filter. Exhaust that
-        // scan after index publication, even though none is nearby.
+        // c12b4b1a3: the fixed index charges binary searches for distant
+        // lines, while skipping their intervals.
         for axis in 100..200 {
             crowded.static_index.horizontal.buckets.insert(
                 (axis as f64).to_bits(),
@@ -6607,14 +6728,26 @@ mod tests {
                 },
             );
         }
+        crowded.static_index.initialize_grid(None).unwrap();
         let limited_work = LocalRouteSearchWork::new(base_work.used());
         assert!(!crowded.add_route_with_budget(&graph, 0, &route, "test", Some(&limited_work)));
-        assert_eq!(crowded.routed_segments, base.routed_segments);
-        assert_eq!(crowded.point_to_routes, base.point_to_routes);
+        // c12b4b1a3 addRoute indexes each newly retained segment immediately,
+        // before continuing pointToRoute publication or the later nearby scan.
+        assert_eq!(crowded.routed_segments, base.routed_segments[..1]);
+        assert_eq!(crowded.routed_set.len(), 2);
+        assert_eq!(
+            crowded
+                .point_to_routes
+                .values()
+                .map(Vec::len)
+                .sum::<usize>(),
+            3
+        );
+        assert!(limited_work.exhausted());
     }
 
     #[test]
-    fn invisible_publication_does_not_charge_nearby_axis_inventory() {
+    fn invisible_publication_indexes_crossings_without_marking_nearby_edges() {
         let (mut graph, visibility, _, _) = route_interaction_fixture();
         graph.edge_records[0].invisible = true;
         let mut base = RouteInteractionIndex::new(&visibility, &graph);
@@ -6622,6 +6755,7 @@ mod tests {
         for index in [&mut base, &mut extra] {
             index.static_index.horizontal.clear();
             index.static_index.vertical.clear();
+            index.static_index.initialize_grid(None).unwrap();
         }
         let segment = [Point { x: 10.0, y: 1.0 }, Point { x: 90.0, y: 1.0 }];
         extra.static_index.append_value(segment);
@@ -6630,7 +6764,8 @@ mod tests {
         let extra_work = LocalRouteSearchWork::new(100_000);
         assert!(base.add_route_with_budget(&graph, 0, &route, "test", Some(&base_work)));
         assert!(extra.add_route_with_budget(&graph, 0, &route, "test", Some(&extra_work)));
-        assert_eq!(base_work.used(), extra_work.used());
+        // c12b4b1a3 crossing-index visits still run for invisible routes.
+        assert_eq!(extra_work.used(), base_work.used() + 2);
         assert!(extra.static_index.nearby.is_empty());
         assert!(extra.static_index.overlapping.is_empty());
         assert!(!extra.routed_segments.is_empty());
@@ -6821,13 +6956,14 @@ mod tests {
     }
 
     #[test]
-    fn publication_does_not_charge_perpendicular_edges() {
+    fn publication_indexes_perpendicular_crossings() {
         let (graph, visibility, _, _) = route_interaction_fixture();
         let mut base = RouteInteractionIndex::new(&visibility, &graph);
         let mut crossing = RouteInteractionIndex::new(&visibility, &graph);
         for index in [&mut base, &mut crossing] {
             index.static_index.horizontal.clear();
             index.static_index.vertical.clear();
+            index.static_index.initialize_grid(None).unwrap();
         }
         let segment = [Point { x: 50.0, y: -10.0 }, Point { x: 50.0, y: 10.0 }];
         crossing.static_index.append_value(segment);
@@ -6836,7 +6972,15 @@ mod tests {
         let crossing_work = LocalRouteSearchWork::new(100_000);
         assert!(base.add_route_with_budget(&graph, 0, &route, "test", Some(&base_work)));
         assert!(crossing.add_route_with_budget(&graph, 0, &route, "test", Some(&crossing_work)));
-        assert_eq!(base_work.used(), crossing_work.used());
+        // c12b4b1a3 CrossingIndex.add visits perpendicular intervals.
+        assert!(crossing_work.used() > base_work.used());
+        assert!(
+            crossing
+                .static_index
+                .grid
+                .crossed
+                .contains(&(crossing.static_index.edges.len() - 1))
+        );
         assert!(crossing.crosses_routed_segment(segment));
     }
 

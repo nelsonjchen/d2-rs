@@ -13,13 +13,13 @@ readme = "../../README.md"
 
 [features]
 default = []
-diagnostic-traces = ["d2-rs-render/diagnostic-traces"]
+diagnostic-traces = []
 # Oracle tier: tests that read Go-oracle artifacts regenerated into
 # oracle-cache/fixtures by scripts/regen-fixtures.py (docs/FIXTURES.md).
 oracle-fixtures = []
 
 [dependencies]
-d2-rs-render.workspace = true
+d2-rs-core.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 rustybuzz.workspace = true

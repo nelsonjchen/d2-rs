@@ -59,21 +59,23 @@ pub(crate) fn render_multiboard(
     opts: &RenderOpts,
 ) -> Result<Vec<Vec<u8>>, String> {
     super::target_validation::validate(diagram)?;
-    render_multiboard_validated(diagram, opts, &mut Ok)
+    render_multiboard_validated(diagram, opts, false, &mut Ok)
 }
 
 pub(crate) fn render_multiboard_with(
     diagram: &TargetDiagram,
     opts: &RenderOpts,
+    force_appendix: bool,
     process: &mut impl FnMut(Vec<u8>) -> Result<Vec<u8>, String>,
 ) -> Result<Vec<Vec<u8>>, String> {
     super::target_validation::validate(diagram)?;
-    render_multiboard_validated(diagram, opts, process)
+    render_multiboard_validated(diagram, opts, force_appendix, process)
 }
 
 fn render_multiboard_validated(
     diagram: &TargetDiagram,
     opts: &RenderOpts,
+    force_appendix: bool,
     process: &mut impl FnMut(Vec<u8>) -> Result<Vec<u8>, String>,
 ) -> Result<Vec<Vec<u8>>, String> {
     let mut boards = Vec::new();
@@ -85,11 +87,20 @@ fn render_multiboard_validated(
         .chain(diagram.steps.iter().flatten())
         .flatten()
     {
-        boards.extend(render_multiboard_validated(child, opts, process)?);
+        boards.extend(render_multiboard_validated(
+            child,
+            opts,
+            force_appendix,
+            process,
+        )?);
     }
     if !diagram.is_folder_only {
         super::paint_validation::links(diagram)?;
-        boards.insert(0, process(render_validated(diagram, opts)?)?);
+        let mut svg = process(render_validated(diagram, opts)?)?;
+        if force_appendix {
+            svg = super::appendix::append(diagram, &opts.master_id, &svg, opts.scale)?;
+        }
+        boards.insert(0, svg);
     }
     Ok(boards)
 }
@@ -151,7 +162,8 @@ fn dimensions(
 
 enum Object<'a> {
     Shape(&'a TargetShape),
-    Connection(&'a TargetConnection),
+    /// d2svg indexedConnection: the connection and its diagram index.
+    Connection(usize, &'a TargetConnection),
 }
 
 /// d2svg.sortObjects (sort.SliceStable).
@@ -159,7 +171,7 @@ fn sort_objects(objects: &mut [Object<'_>]) {
     objects.stable_sort_by(|a, b| {
         let z = |o: &Object<'_>| match o {
             Object::Shape(s) => s.z_index,
-            Object::Connection(c) => c.z_index,
+            Object::Connection(_, c) => c.z_index,
         };
         let (za, zb) = (z(a), z(b));
         if za != zb {
@@ -167,9 +179,9 @@ fn sort_objects(objects: &mut [Object<'_>]) {
         }
         match (a, b) {
             (Object::Shape(sa), Object::Shape(sb)) => sa.level.cmp(&sb.level),
-            (Object::Shape(_), Object::Connection(_)) => std::cmp::Ordering::Less,
-            (Object::Connection(_), Object::Shape(_)) => std::cmp::Ordering::Greater,
-            (Object::Connection(_), Object::Connection(_)) => std::cmp::Ordering::Equal,
+            (Object::Shape(_), Object::Connection(..)) => std::cmp::Ordering::Less,
+            (Object::Connection(..), Object::Shape(_)) => std::cmp::Ordering::Greater,
+            (Object::Connection(..), Object::Connection(..)) => std::cmp::Ordering::Equal,
         }
     });
 }
@@ -243,10 +255,31 @@ pub(crate) fn render_validated(
     }
 
     let mut objects: Vec<Object<'_>> = shapes.iter().map(Object::Shape).collect();
-    objects.extend(connections.iter().map(Object::Connection));
-    sort_objects(&mut objects);
+    objects.extend(
+        connections
+            .iter()
+            .enumerate()
+            .map(|(i, c)| Object::Connection(i, c)),
+    );
     let id_to_shape: std::collections::HashMap<&str, &TargetShape> =
         shapes.iter().map(|s| (s.id.as_str(), s)).collect();
+    let crossings = {
+        let mut light = Theme::find(theme_id);
+        light.apply_overrides(opts.theme_overrides.as_ref());
+        let dark = dark_theme_id.map(|id| {
+            let mut dark = Theme::find(id);
+            dark.apply_overrides(opts.dark_theme_overrides.as_ref());
+            dark
+        });
+        let themes: Vec<&Theme> = std::iter::once(&light).chain(dark.as_ref()).collect();
+        let mut visible = |raw: &str| paint_visible_in(&themes, raw);
+        let inputs: Vec<_> = connections
+            .iter()
+            .map(|c| crossing_connection(c, &c.route_points(), &id_to_shape))
+            .collect();
+        super::crossings::connection_crossings(&inputs, sketch, &mut visible)
+    };
+    sort_objects(&mut objects);
 
     let mut appendix_buf = String::new();
     let mut label_masks = Vec::new();
@@ -265,9 +298,14 @@ pub(crate) fn render_validated(
     markdown.set_custom_fonts(&opts.custom_fonts);
     for object in &objects {
         let label_mask = match object {
-            Object::Connection(c) => draw_connection(
+            Object::Connection(i, c) => draw_connection(
                 &mut buf,
                 &isolated_diagram_hash,
+                &if crossings[*i].is_empty() {
+                    String::new()
+                } else {
+                    crossing_mask_id(&isolated_diagram_hash, *i)
+                },
                 c,
                 &mut markers,
                 &id_to_shape,
@@ -311,6 +349,15 @@ pub(crate) fn render_validated(
         "</mask>".to_owned(),
     ]
     .join("\n");
+    write_crossing_masks(
+        &mut buf,
+        &isolated_diagram_hash,
+        &crossings,
+        left,
+        top,
+        w,
+        h,
+    );
 
     let mut theme_stylesheet = String::new();
     if opts.master_id.is_empty() {
@@ -428,15 +475,7 @@ pub(crate) fn render_validated(
         upper += "</defs>";
     }
 
-    let dimensions = scale
-        .map(|scale| {
-            format!(
-                r#" width="{}" height="{}""#,
-                (scale * w as f64).ceil() as i64,
-                (scale * h as f64).ceil() as i64
-            )
-        })
-        .unwrap_or_default();
+    let dimensions = scaled_dimensions(w, h, scale)?;
     let alignment = if opts.center == Some(true) {
         "xMidYMid"
     } else {
@@ -832,139 +871,81 @@ fn arrowhead_marker(
     .join(" ")
 }
 
-/// d2svg.arrowheadAdjustment.
-fn arrowhead_adjustment(
-    start: Point,
-    end: Point,
-    arrowhead: &str,
-    edge_stroke_width: i64,
-    shape_stroke_width: i64,
-) -> Point {
-    let mut distance = (edge_stroke_width as f64 + shape_stroke_width as f64) / 2.0;
-    if arrowhead != "none" {
-        distance += edge_stroke_width as f64;
-    }
-    Vector::new(&[end.x - start.x, end.y - start.y])
-        .unit()
-        .multiply(-distance)
-        .to_point()
+fn crossing_mask_id(board_hash: &str, edge: usize) -> String {
+    format!("crossings-{board_hash}-{edge}")
 }
 
-/// d2svg.getArrowheadAdjustments.
-fn get_arrowhead_adjustments(
-    c: &TargetConnection,
+/// d2svg.writeCrossingMasks: these masks affect only individual connection
+/// strokes. The label mask remains on the paths inside, preserving its
+/// partial opacities.
+fn write_crossing_masks(
+    buf: &mut String,
+    board_hash: &str,
+    crossings: &[Vec<super::crossings::ConnectionGap>],
+    left: i64,
+    top: i64,
+    width: i64,
+    height: i64,
+) {
+    let bounds = format!(r#"x="{left}" y="{top}" width="{width}" height="{height}""#);
+    for (i, gaps) in crossings.iter().enumerate() {
+        if gaps.is_empty() {
+            continue;
+        }
+        write!(
+            buf,
+            r#"<mask id="{}" maskUnits="userSpaceOnUse" {bounds}><rect {bounds} fill="white" />"#,
+            crossing_mask_id(board_hash, i)
+        )
+        .unwrap();
+        for g in gaps {
+            write!(
+                buf,
+                r#"<circle cx="{}" cy="{}" r="{}" fill="black" />"#,
+                format_float(g.center.0),
+                format_float(g.center.1),
+                format_float(g.radius)
+            )
+            .unwrap();
+        }
+        buf.push_str("</mask>");
+    }
+}
+
+/// The fields of a target connection the shared centerline reads.
+fn crossing_connection<'a>(
+    c: &'a TargetConnection,
     route: &[Point],
     id_to_shape: &std::collections::HashMap<&str, &TargetShape>,
-) -> Result<(Point, Point), String> {
-    if route.len() < 2 {
-        return Err(crate::RenderError::SourceRouteIndex {
-            index: 1,
-            length: route.len(),
-        }
-        .to_string());
+) -> super::crossings::CrossingConnection<'a> {
+    let stroke_of = |id: &str| id_to_shape.get(id).map_or(0, |s| s.stroke_width);
+    super::crossings::CrossingConnection {
+        route: route.iter().map(|p| (p.x, p.y)).collect(),
+        is_curve: c.is_curve,
+        border_radius: c.border_radius.0,
+        src_arrow: &c.src_arrow,
+        dst_arrow: &c.dst_arrow,
+        stroke_width: c.stroke_width,
+        src_shape_stroke_width: stroke_of(&c.src),
+        dst_shape_stroke_width: stroke_of(&c.dst),
+        opacity: c.opacity.0,
+        stroke: &c.stroke,
+        stroke_dash: c.stroke_dash.0,
+        animated: c.animated,
+        z_index: c.z_index,
     }
-    let src_width = id_to_shape
-        .get(c.src.as_str())
-        .map_or(0, |s| s.stroke_width);
-    let dst_width = id_to_shape
-        .get(c.dst.as_str())
-        .map_or(0, |s| s.stroke_width);
-    Ok((
-        arrowhead_adjustment(route[1], route[0], &c.src_arrow, c.stroke_width, src_width),
-        arrowhead_adjustment(
-            route[route.len() - 2],
-            route[route.len() - 1],
-            &c.dst_arrow,
-            c.stroke_width,
-            dst_width,
-        ),
-    ))
 }
 
-/// d2svg.pathData.
-fn path_data(c: &TargetConnection, route: &[Point], src_adj: Point, dst_adj: Point) -> String {
-    let f = format_float;
-    let mut path = vec![format!(
-        "M {} {}",
-        f(route[0].x + src_adj.x),
-        f(route[0].y + src_adj.y)
-    )];
-    if c.is_curve {
-        let mut i = 1;
-        while i + 3 < route.len() {
-            path.push(format!(
-                "C {} {} {} {} {} {}",
-                f(route[i].x),
-                f(route[i].y),
-                f(route[i + 1].x),
-                f(route[i + 1].y),
-                f(route[i + 2].x),
-                f(route[i + 2].y)
-            ));
-            i += 3;
-        }
-        path.push(format!(
-            "C {} {} {} {} {} {}",
-            f(route[i].x),
-            f(route[i].y),
-            f(route[i + 1].x),
-            f(route[i + 1].y),
-            f(route[i + 2].x + dst_adj.x),
-            f(route[i + 2].y + dst_adj.y)
-        ));
+/// d2themes.PaintVisibleIn: ink visible in every active palette. A
+/// responsive SVG shares its crossing masks between light and dark.
+fn paint_visible_in(themes: &[&Theme], raw: &str) -> bool {
+    if color::is_theme_color(raw) {
+        themes.iter().all(|theme| {
+            color::paint_visible_throughout(super::element::resolve_theme_color(theme, raw))
+        })
     } else {
-        let mut i = 1;
-        while i + 1 < route.len() {
-            let prev_source = route[i - 1];
-            let prev_target = route[i];
-            let curr_target = route[i + 1];
-            let prev_vector = prev_source.vector_to(&prev_target);
-            let curr_vector = prev_target.vector_to(&curr_target);
-            let dist =
-                geo::euclidean_distance(prev_target.x, prev_target.y, curr_target.x, curr_target.y);
-            let radius = c.border_radius.0;
-            let units = radius.min(dist / 2.);
-            let prev_t = prev_vector.unit().multiply(units).to_point();
-            let curr_t = curr_vector.unit().multiply(units).to_point();
-            path.push(format!(
-                "L {} {}",
-                f(prev_target.x - prev_t.x),
-                f(prev_target.y - prev_t.y)
-            ));
-            if units < radius && i + 2 < route.len() {
-                let next_target = route[i + 2];
-                let next_vector =
-                    Vector::new(&[next_target.x - curr_target.x, next_target.y - curr_target.y]);
-                i += 1;
-                let next_t = next_vector.unit().multiply(units).to_point();
-                path.push(format!(
-                    "C {} {} {} {} {} {}",
-                    f(prev_target.x + prev_t.x),
-                    f(prev_target.y + prev_t.y),
-                    f(curr_target.x - next_t.x),
-                    f(curr_target.y - next_t.y),
-                    f(curr_target.x + next_t.x),
-                    f(curr_target.y + next_t.y)
-                ));
-            } else {
-                path.push(format!(
-                    "S {} {} {} {}",
-                    f(prev_target.x),
-                    f(prev_target.y),
-                    f(prev_target.x + curr_t.x),
-                    f(prev_target.y + curr_t.y)
-                ));
-            }
-            i += 1;
-        }
-        let last = route[route.len() - 1];
-        path.push(format!(
-            "L {} {}",
-            f(last.x + dst_adj.x),
-            f(last.y + dst_adj.y)
-        ));
+        color::paint_visible_throughout(raw)
     }
-    path.join(" ")
 }
 
 /// d2svg.makeLabelMask.
@@ -1099,6 +1080,7 @@ fn font_class(family: &str, bold: bool, italic: bool, underline: bool) -> String
 pub(crate) fn draw_connection(
     w: &mut String,
     diagram_hash: &str,
+    crossing_mask: &str,
     c: &TargetConnection,
     markers: &mut BTreeSet<String>,
     id_to_shape: &std::collections::HashMap<&str, &TargetShape>,
@@ -1199,9 +1181,28 @@ pub(crate) fn draw_connection(
         }
     }
     let route = c.route_points();
-    let (src_adj, dst_adj) = get_arrowhead_adjustments(c, &route, id_to_shape)?;
-    let path = path_data(c, &route, src_adj, dst_adj);
+    if route.len() < 2 {
+        return Err(crate::RenderError::SourceRouteIndex {
+            index: 1,
+            length: route.len(),
+        }
+        .to_string());
+    }
+    let centerline = crossing_connection(c, &route, id_to_shape);
+    let (src_adj, dst_adj) = super::crossings::arrowhead_adjustments(&centerline);
+    let path = super::crossings::path_data(&super::crossings::path_commands(
+        &centerline,
+        src_adj,
+        dst_adj,
+    ));
+    let (src_adj, dst_adj) = (
+        Point::new(src_adj.0, src_adj.1),
+        Point::new(dst_adj.0, dst_adj.1),
+    );
     let mask = format!(r#"mask="url(#{diagram_hash})""#);
+    if !crossing_mask.is_empty() {
+        write!(w, r#"<g mask="url(#{crossing_mask})">"#).unwrap();
+    }
     let animated_class = if c.animated {
         " animated-connection"
     } else {
@@ -1239,6 +1240,9 @@ pub(crate) fn draw_connection(
         el.style = c.css_style();
         el.attributes = format!("{marker_start}{marker_end}{mask}");
         w.push_str(&el.render());
+    }
+    if !crossing_mask.is_empty() {
+        w.push_str("</g>");
     }
     if !c.label.is_empty() && !c.language.is_empty() {
         let rich_label_link = !c.link.is_empty();
@@ -2071,4 +2075,70 @@ fn add_appendix_items(
         .unwrap();
     }
     Ok(())
+}
+
+/// lib/svg.ScaledDimensions: the outer SVG's explicit size. An absent scale
+/// leaves sizing to the containing document.
+pub(crate) fn scaled_dimensions(
+    width: i64,
+    height: i64,
+    scale: Option<f64>,
+) -> Result<String, String> {
+    let Some(scale) = scale else {
+        return Ok(String::new());
+    };
+    let w = (scale * width as f64).ceil();
+    let h = (scale * height as f64).ceil();
+    let limit = -(i64::MIN as f64);
+    if !(scale > 0.0 && w >= 0.0 && w < limit && h >= 0.0 && h < limit) {
+        return Err(format!(
+            "SVG scale {} produces invalid dimensions",
+            go_percent_g(scale)
+        ));
+    }
+    Ok(format!(r#" width="{}" height="{}""#, w as i64, h as i64))
+}
+
+/// fmt's `%g` for a float64: the shortest representation, in exponent form
+/// when the decimal exponent is below -4 or at least 6.
+fn go_percent_g(value: f64) -> String {
+    if value.is_nan() {
+        return "NaN".into();
+    }
+    if value.is_infinite() {
+        return if value > 0.0 { "+Inf" } else { "-Inf" }.into();
+    }
+    let scientific = format!("{value:e}");
+    let (mantissa, exponent) = scientific.split_once('e').expect("scientific float");
+    let exponent: i32 = exponent.parse().expect("float exponent");
+    if value != 0.0 && !(-4..6).contains(&exponent) {
+        return format!(
+            "{mantissa}e{}{:02}",
+            if exponent < 0 { '-' } else { '+' },
+            exponent.abs()
+        );
+    }
+    format!("{value}")
+}
+
+#[cfg(test)]
+mod scaled_dimension_tests {
+    use super::{go_percent_g, scaled_dimensions};
+
+    #[test]
+    fn matches_lib_svg() {
+        assert_eq!(scaled_dimensions(10, 20, None).unwrap(), "");
+        assert_eq!(
+            scaled_dimensions(10, 21, Some(0.5)).unwrap(),
+            r#" width="5" height="11""#
+        );
+        assert_eq!(
+            scaled_dimensions(10, 20, Some(1e300)).unwrap_err(),
+            "SVG scale 1e+300 produces invalid dimensions"
+        );
+        assert_eq!(go_percent_g(1e6), "1e+06");
+        assert_eq!(go_percent_g(123456.0), "123456");
+        assert_eq!(go_percent_g(0.0001), "0.0001");
+        assert_eq!(go_percent_g(1.5e-5), "1.5e-05");
+    }
 }

@@ -163,6 +163,7 @@ pub struct Material {
     pub multiply: bool,
     pub svg_contour: bool,
     pub svg_solid_texture: bool,
+    pub outside_caption: bool,
     pub gradient: String,
 }
 

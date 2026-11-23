@@ -12093,6 +12093,7 @@ mod projected_symmetry_tests {
 
     fn node(name: &str, width: f64, height: f64) -> crate::Node {
         crate::Node {
+            elk_layer_constraint: String::new(),
             d2_near_key: None,
             external_id: name.into(),
             size: Size { width, height },

@@ -8,15 +8,31 @@ use super::{
 use std::collections::BTreeMap;
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Style {
+    #[serde(default)]
+    pub viewport: [f64; 4],
+    #[serde(default = "default_font_size")]
+    pub font_size: f64,
+    #[serde(default)]
+    pub font_family: String,
     pub paint: PaintStyle,
     pub opacity: f64,
     pub display: bool,
     pub clip_rule: u8,
     pub clip_path: String,
+    #[serde(default)]
+    pub mask: String,
+    #[serde(default)]
+    pub filter: String,
+}
+fn default_font_size() -> f64 {
+    16.
 }
 impl Default for Style {
     fn default() -> Self {
         Self {
+            viewport: [0.; 4],
+            font_size: 16.,
+            font_family: String::new(),
             paint: PaintStyle {
                 visible: true,
                 fill: Some(Paint::Solid {
@@ -40,6 +56,8 @@ impl Default for Style {
             display: true,
             clip_rule: 0,
             clip_path: String::new(),
+            mask: String::new(),
+            filter: String::new(),
         }
     }
 }
@@ -68,10 +86,61 @@ pub fn compute(
     style.opacity = 1.;
     style.display = true;
     style.clip_path.clear();
+    style.mask.clear();
+    style.filter.clear();
     let error = |property: &str, reason: String| {
         format!("d2svgimport: {source}: element <{name}> has invalid {property}: {reason}")
     };
     let inherit = |value: &str| value.eq_ignore_ascii_case("inherit");
+    if let Some(value) = values.get("font-size") {
+        if !value.eq_ignore_ascii_case("inherit") {
+            let size = svg_length::length(value, true).ok();
+            if !size.is_some_and(|size| (0. ..=32767.).contains(&size)) {
+                return Err(error(
+                    "font-size",
+                    "expected a finite absolute length between 0 and 32767px".into(),
+                ));
+            }
+            style.font_size = size.unwrap();
+        }
+    }
+    if let Some(value) = values.get("font-family") {
+        if !value.eq_ignore_ascii_case("inherit") {
+            style.font_family = value.clone();
+        }
+    }
+    // Upstream 8558856dc style.go: these modes have no backdrop effect.
+    if let Some(value) = values.get("overflow") {
+        if value != "visible" || !matches!(name, "use" | "image" | "style") {
+            return Err(error(
+                "overflow",
+                "only overflow=\"visible\" on <use> or <image> is supported".into(),
+            ));
+        }
+    }
+    for (property, allowed, reason) in [
+        ("vector-effect", &["none"][..], "only none is supported"),
+        (
+            "isolation",
+            &["auto", "isolate", "inherit"][..],
+            "expected auto or isolate",
+        ),
+        (
+            "mix-blend-mode",
+            &["normal", "inherit"][..],
+            "only normal blending is supported",
+        ),
+    ] {
+        if let Some(value) = values.get(property) {
+            if !allowed.iter().any(|v| value.eq_ignore_ascii_case(v)) {
+                return Err(error(property, reason.into()));
+            }
+        }
+    }
+    if let Some(value) = values.get("enable-background") {
+        super::svg_declarations::background(value, cancel)
+            .map_err(|e| error("enable-background", e))?;
+    }
     if let Some(value) = values.get("color") {
         if !inherit(value) && !value.eq_ignore_ascii_case("currentColor") {
             style.paint.color = svg_color::solid(value).map_err(|e| error("color", e))?;
@@ -199,6 +268,18 @@ pub fn compute(
             svg_resources::clip(value, resources, cancel).map_err(|e| error("clip-path", e))?
         };
     }
+    if let Some(value) = values.get("mask") {
+        if !value.eq_ignore_ascii_case("none") {
+            style.mask = svg_resources::local(value, "mask", resources, cancel)
+                .map_err(|e| error("mask", e))?;
+        }
+    }
+    if let Some(value) = values.get("filter") {
+        if !value.eq_ignore_ascii_case("none") {
+            style.filter = svg_resources::local(value, "filter", resources, cancel)
+                .map_err(|e| error("filter", e))?;
+        }
+    }
     if let Some(value) = values.get("opacity") {
         style.opacity = if inherit(value) {
             parent.opacity
@@ -242,6 +323,7 @@ mod tests {
                 Resource {
                     name: "linearGradient".into(),
                     gradient: Some(Paint::Linear {
+                        percentages: [false; 4],
                         start: [0., 0.],
                         end: [1., 0.],
                         stops: vec![

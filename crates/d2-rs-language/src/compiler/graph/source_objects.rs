@@ -104,6 +104,9 @@ pub(super) fn object(
         // board links on the object itself, not only its target projection.
         value["attributes"].as_object_mut().unwrap().remove("link");
     }
+    if !node.elk_layer_constraint.is_empty() {
+        value["elkLayerConstraint"] = json!(node.elk_layer_constraint);
+    }
     if let Some(bits) = style.content_aspect_ratio_bits {
         value["contentAspectRatio"] = json!(f64::from_bits(bits));
     }

@@ -301,6 +301,7 @@ fn legend_connection_icon(
     draw_connection(
         &mut out,
         &legend_hash,
+        "",
         &legend_conn,
         &mut markers,
         &id_to_shape,

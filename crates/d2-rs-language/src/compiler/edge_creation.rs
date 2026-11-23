@@ -376,6 +376,12 @@ impl Compiler {
             .read()
             .has_glob()
             .then(|| self.ensure_glob_context(context.clone()));
+        if id.glob
+            && glob.is_some()
+            && super::recursive_edge_selector::same_recursive_endpoints(context)
+        {
+            return self.select_recursive_edges(map, id, context, glob.unwrap());
+        }
         let mut out = Vec::new();
         let _ = self.query_edge(map, id, context, glob, &mut out);
         out
@@ -423,14 +429,28 @@ impl Compiler {
         if let Some(e) = dst.error {
             return Err(e);
         }
-        for src in src.fields {
-            for dst in &dst.fields {
+        self.query_edges_between(map, &id, context, glob, &src.fields, &dst.fields, out);
+        Ok(())
+    }
+    pub(super) fn query_edges_between(
+        &mut self,
+        map: NodeId,
+        id: &EdgeId,
+        context: &Shared<RefContext>,
+        glob: Option<GlobId>,
+        sources: &[NodeId],
+        destinations: &[NodeId],
+        out: &mut Vec<NodeId>,
+    ) {
+        let edge = edge_ast(context);
+        for &src in sources {
+            for dst in destinations {
                 if self.stopped()
                     || ((edge.read().src.as_ref().unwrap().read().has_glob()
                         || edge.read().dst.as_ref().unwrap().read().has_glob())
                         && !self.reserve_edge_expansion(&edge, glob, src, *dst, true))
                 {
-                    return Ok(());
+                    return;
                 }
                 let mut id = id.clone();
                 id.src_path = crate::ir::relative_ida(&self.arena, Some(map), src);
@@ -454,6 +474,57 @@ impl Compiler {
                 }
             }
         }
-        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod recursive_selector_tests {
+    use super::*;
+    #[test]
+    fn recursive_selectors_preserve_cartesian_match_order() {
+        // Port of d2ir.TestRecursiveEdgeSelectorOrder (ec0f409db).
+        let source = "z; a\nbox: {y; x; x -> y; y -> y; x -- y; x <-> y}\na -> z; z <- a; box.x -> a; z -> box.y; a -- z; z <-> a\nlayers.other: {p -> q; p -- q}\n\"folder*\": {x -> y}\n\"folder*\".a -> \"folder*\".b\n\"vars\": {x -> y}\n";
+        for glob in ["**", "***"] {
+            for arrow in ["--", "->", "<-", "<->"] {
+                let parsed = crate::parse("main.d2", source.as_bytes(), None);
+                let (mut c, root) = super::super::compile_ir(Shared::new(parsed.map)).unwrap();
+                assert!(c.errors.is_empty(), "{:?}", c.errors);
+                let key = Shared::new(
+                    crate::parse_map_key(format!("({glob} {arrow} {glob})[*]").as_bytes()).unwrap(),
+                );
+                let context = Shared::new(RefContext {
+                    key: Some(key.clone()),
+                    edge: key
+                        .read()
+                        .edges
+                        .as_ref()
+                        .unwrap()
+                        .get(0)
+                        .unwrap()
+                        .read()
+                        .clone(),
+                    scope_map: Some(root),
+                    ..Default::default()
+                });
+                let id = new_edge_ids(&key.read()).unwrap().remove(0);
+                c.glob_context_stack.push(Vec::new());
+                // Original endpoint Cartesian traversal is the ordering contract.
+                let mut want = Vec::new();
+                let glob_id = c.ensure_glob_context(context.clone());
+                c.query_edge(root, &id, &context, Some(glob_id), &mut want)
+                    .unwrap();
+                c.arena
+                    .glob(glob_id)
+                    .applied_edges
+                    .as_ref()
+                    .unwrap()
+                    .write()
+                    .clear();
+                assert!(!want.is_empty());
+                let got = c.query_edges(root, &id, &context);
+                assert_eq!(got, want, "{glob} {arrow}");
+                assert!(c.query_edges(root, &id, &context).is_empty());
+            }
+        }
     }
 }

@@ -20,6 +20,9 @@ use std::{
 #[cfg(target_arch = "wasm32")]
 use web_time::Instant;
 
+#[path = "ground_shadow.rs"]
+pub(crate) mod ground_shadow;
+
 const MAX_WORK: i64 = 500_000_000;
 const AA: i64 = 2;
 const STRIP_ROWS: i64 = 64;
@@ -396,7 +399,7 @@ fn downsample(
 struct Prepared {
     camera: Camera,
     shadow: Shadow,
-    ground_shadow: Option<Shadow>,
+    ground_shadow: ground_shadow::GroundShadow,
     ground: f64,
     ground_bounds: Bounds,
 }
@@ -433,19 +436,25 @@ impl Prepared {
         let shadow = build_shadow_at(ts, work, shadow_camera)?;
         let ground = raster_shadow_ground(ts);
         let ground_triangles = raster_ground_triangles(ts, ground, camera.direction);
-        // Ground remapping returns a copy only when a receiver differs. Reusing a
-        // map with identical caster positions is exact and avoids a second buffer.
-        let ground_shadow = if matches!(ground_triangles, Cow::Owned(_)) {
-            work.charge(ts.len() as i64)?;
-            Some(build_shadow_at(&ground_triangles, work, ground_camera)?)
-        } else {
-            None
-        };
         let mut ground_bounds = Bounds::default();
-        let gs = ground_shadow.as_ref().unwrap_or(&shadow);
-        if !gs.depth.is_empty() {
+        let mut ground_shadow = ground_shadow::GroundShadow::default();
+        if !shadow.depth.is_empty() {
+            let light = ground_camera.copied().unwrap_or_else(|| {
+                if matches!(ground_triangles, Cow::Owned(_)) {
+                    raster_fit(
+                        &ground_triangles,
+                        raster_shadow_direction(),
+                        2048,
+                        2048,
+                        1.08,
+                    )
+                } else {
+                    shadow.camera
+                }
+            });
+            ground_shadow = ground_shadow::build(work, &ground_triangles, ground, light)?;
             let mut e = ProjectedExtent::default();
-            e.prepared_ground_shadows(&ground_triangles, &[], 0.0, ground, Some(&gs.camera));
+            e.prepared_ground_shadows(&ground_triangles, &[], 0.0, ground, Some(&light));
             if e.valid {
                 let x0 = go_fmadd(
                     e.min_x - camera.center_x,
@@ -492,7 +501,7 @@ impl Prepared {
         Raster {
             camera: self.camera,
             shadow: &self.shadow,
-            ground_shadow: self.ground_shadow.as_ref().unwrap_or(&self.shadow),
+            ground_shadow: &self.ground_shadow,
             ground: self.ground,
             ground_bounds: self.ground_bounds,
             background,
@@ -880,6 +889,35 @@ fn weighted(a: Vec, b: Vec, c: Vec, x: f64, y: f64, z: f64) -> Vec {
         weighted3(a.z, b.z, c.z, x, y, z),
     )
 }
+fn shadow_texture_alpha(t: &Texture, u: f64, v: f64) -> f64 {
+    let x = go_fnmsub(raster_clamp(u), t.width as f64, 0.5);
+    let y = go_fnmsub(raster_clamp(v), t.height as f64, 0.5);
+    let (x0, y0) = (x.floor() as i64, y.floor() as i64);
+    let (fx, fy) = (x - x0 as f64, y - y0 as f64);
+    let pixels = t.pixels.borrow();
+    let step = t.channels();
+    let stride = t.stride.unwrap_or((t.width * step) as i64) as usize;
+    let offset = if t.format == TextureFormat::Alpha {
+        0
+    } else {
+        3
+    };
+    let mut alpha = 0.0;
+    for dy in 0..=1 {
+        for dx in 0..=1 {
+            let sx = (x0 + dx).clamp(0, t.width as i64 - 1) as usize;
+            let sy = (y0 + dy).clamp(0, t.height as i64 - 1) as usize;
+            let weight =
+                (if dx == 0 { 1.0 - fx } else { fx }) * (if dy == 0 { 1.0 - fy } else { fy });
+            alpha = go_fmadd(
+                pixels[sy * stride + sx * step + offset] as f64 / 255.0,
+                weight,
+                alpha,
+            );
+        }
+    }
+    if alpha <= 1e-10 { 0.0 } else { alpha }
+}
 fn texture_sample(t: &Texture, u: f64, v: f64) -> [f64; 4] {
     let x = go_fnmsub(raster_clamp(u), t.width as f64, 0.5);
     let y = go_fnmsub(raster_clamp(v), t.height as f64, 0.5);
@@ -939,11 +977,24 @@ fn build_shadow_at(
             1.08,
         )
     });
+    rasterize_shadow(ts, work, camera, f64::NEG_INFINITY, f64::INFINITY)
+}
+fn rasterize_shadow(
+    ts: &[Triangle],
+    work: &mut Work,
+    camera: Camera,
+    min_y: f64,
+    max_y: f64,
+) -> Result<Shadow, String> {
+    let casts = |t: &Triangle| {
+        t.cast_shadow
+            && t.shadow_opacity.is_none_or(|o| o > 0.0)
+            && t.material.as_ref().is_none_or(|m| m.borrow().color.a > 0)
+    };
     let mut s = Shadow {
         camera,
-        depth: vec![f32::NEG_INFINITY; (SHADOW_SIZE * SHADOW_SIZE) as usize],
-        opacity: vec![0; (SHADOW_SIZE * SHADOW_SIZE) as usize],
         bias: go_max(0.012, 2.0 / camera.scale),
+        ..Default::default()
     };
     for (i, t) in ts.iter().enumerate() {
         if i % 512 == 0 {
@@ -952,6 +1003,13 @@ fn build_shadow_at(
         if !casts(t) {
             continue;
         }
+        let heights = t.v.map(|v| v.position.y);
+        let lo = go_min(heights[0], go_min(heights[1], heights[2]));
+        let hi = go_max(heights[0], go_max(heights[1], heights[2]));
+        if hi < min_y || lo > max_y {
+            continue;
+        }
+        let crosses_boundary = lo < min_y || hi > max_y;
         let mut p = t.v.map(|v| camera.project(v.position));
         let mut vertices = t.v;
         let mut area = orient(p[0], p[1], p[2]);
@@ -963,7 +1021,14 @@ fn build_shadow_at(
             vertices.swap(1, 2);
             area = -area;
         }
-        let b = bounds(p, SHADOW_SIZE, SHADOW_SIZE);
+        let b = bounds(p, camera.width, camera.height);
+        if b.x0 == b.x1 || b.y0 == b.y1 {
+            continue;
+        }
+        if s.depth.is_empty() {
+            s.depth = vec![f32::NEG_INFINITY; (camera.width * camera.height) as usize];
+            s.opacity = vec![0; s.depth.len()];
+        }
         work.charge(b.height() * 3)?;
         let m = t.material.as_ref().map(|m| m.borrow());
         let mut opacity = m.as_ref().map_or(255, |m| m.color.a);
@@ -996,7 +1061,24 @@ fn build_shadow_at(
                 if u < 0.0 || v < 0.0 || w < 0.0 {
                     continue;
                 }
+                if crosses_boundary {
+                    let height = weighted3(
+                        vertices[0].position.y,
+                        vertices[1].position.y,
+                        vertices[2].position.y,
+                        u,
+                        v,
+                        w,
+                    ) / area;
+                    if height < min_y || height > max_y {
+                        continue;
+                    }
+                }
                 let z = (weighted3(p[0].z, p[1].z, p[2].z, u, v, w) / area) as f32;
+                let at = (y * camera.width + x) as usize;
+                if z <= s.depth[at] {
+                    continue;
+                }
                 let mut sample = opacity;
                 if t.shadow_fill_alpha.is_none() {
                     if let Some(tex) = m.as_ref().and_then(|m| m.texture.as_ref()) {
@@ -1004,13 +1086,13 @@ fn build_shadow_at(
                             weighted3(vertices[0].u, vertices[1].u, vertices[2].u, u, v, w) / area;
                         let ty =
                             weighted3(vertices[0].v, vertices[1].v, vertices[2].v, u, v, w) / area;
-                        sample = (opacity as f64 * texture_sample(tex, tx, ty)[3]).round() as u8;
+                        sample = (opacity as f64 * shadow_texture_alpha(tex, tx, ty)).round() as u8;
                         if sample == 0 {
                             continue;
                         }
                     }
                 }
-                let at = (y * SHADOW_SIZE + x) as usize;
+
                 if z > s.depth[at] {
                     s.depth[at] = z;
                     s.opacity[at] = sample;
@@ -1023,7 +1105,7 @@ fn build_shadow_at(
 struct Raster<'a> {
     camera: Camera,
     shadow: &'a Shadow,
-    ground_shadow: &'a Shadow,
+    ground_shadow: &'a ground_shadow::GroundShadow,
     ground: f64,
     ground_bounds: Bounds,
     background: Nrgba,
@@ -1049,7 +1131,7 @@ fn material_key(t: &Triangle) -> usize {
 impl Raster<'_> {
     fn paint_ground(&self, w: &mut Work, pixels: &mut [u8], bounds: Bounds) -> Result<(), String> {
         let sb = bounds.intersect(self.ground_bounds);
-        w.charge(bounds.width() * bounds.height() + sb.width() * sb.height() * 9)?;
+        w.charge(bounds.width() * bounds.height() + sb.width() * sb.height() * 4)?;
         for y in bounds.y0..bounds.y1 {
             if y % 32 == 0 {
                 w.check()?;
@@ -1065,7 +1147,7 @@ impl Raster<'_> {
                             (self.ground - p.y) / self.camera.direction.y,
                         ),
                     );
-                    shadow = self.ground_shadow.occlusion(p, nv(0.0, 1.0, 0.0)) * 0.11;
+                    shadow = self.ground_shadow.coverage(p);
                 }
                 let mut paint = self.background;
                 if let Some(tex) = self.background_texture {
@@ -1561,4 +1643,29 @@ pub(super) fn coverage_validate(
             ..Work::new()
         },
     )
+}
+
+#[cfg(test)]
+mod shadow_alpha_contracts {
+    use super::*;
+    #[test]
+    fn alpha_sampler_matches_color_sampler_for_all_storage_kinds() {
+        for format in [
+            TextureFormat::Rgba,
+            TextureFormat::Nrgba,
+            TextureFormat::Alpha,
+        ] {
+            let step = if format == TextureFormat::Alpha { 1 } else { 4 };
+            let mut pixels = vec![0; 3 * step + 7];
+            for (i, alpha) in [255, 64, 0].into_iter().enumerate() {
+                pixels[i * step + step - 1] = alpha;
+            }
+            let t = Texture::with_storage(3, 1, (3 * step + 7) as i64, format, pixels);
+            for u in [-1.0, 0.0, 0.1, 0.5, 0.9, 1.0, 2.0] {
+                for v in [-0.1, 0.0, 0.5, 1.1] {
+                    assert_eq!(shadow_texture_alpha(&t, u, v), texture_sample(&t, u, v)[3]);
+                }
+            }
+        }
+    }
 }

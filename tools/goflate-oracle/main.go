@@ -1,4 +1,4 @@
-// Command goflate-oracle is the Go 1.27.0 compress/zlib + compress/flate
+// Command goflate-oracle is the Go 1.27.4 compress/zlib + compress/flate
 // test oracle for crates/d2-rs-goflate. It reads a case-spec file and prints,
 // for every case and level, the SHA-256 of Go's zlib output.
 //
@@ -46,9 +46,9 @@ func main() {
 
 	// compress/flate was rewritten in Go 1.27 (and its output is explicitly
 	// not covered by the Go 1 promise), so only the pinned toolchain is a
-	// valid oracle. go.mod's "go 1.27.0" makes GOTOOLCHAIN=auto select it.
-	if runtime.Version() != "go1.27.0" {
-		check(fmt.Errorf("oracle must run on go1.27.0, not %s", runtime.Version()))
+	// valid oracle. go.mod's "go 1.27.4" makes GOTOOLCHAIN=auto select it.
+	if runtime.Version() != "go1.27.4" {
+		check(fmt.Errorf("oracle must run on go1.27.4, not %s", runtime.Version()))
 	}
 
 	specs, err := readSpecs(*specsPath)

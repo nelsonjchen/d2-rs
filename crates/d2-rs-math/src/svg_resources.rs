@@ -64,42 +64,26 @@ pub fn paint(
     let resource = resources
         .get(id)
         .ok_or_else(|| "paint server references an unknown local id".to_owned())?;
-    let Some(Paint::Linear {
-        start,
-        end,
-        stops,
-        units,
-        transform,
-        spread,
-    }) = resource
+    if resource.name.is_empty() {
+        return Err("paint server references an ambiguous local id".into());
+    }
+    let gradient = resource
         .gradient
         .as_ref()
-        .filter(|_| resource.name == "linearGradient")
-    else {
-        return Err("paint server local id does not name a supported linear gradient".into());
-    };
-    context(cancel)?;
-    let mut owned = Vec::with_capacity(stops.len());
-    for (index, stop) in stops.iter().enumerate() {
-        if index & 255 == 0 {
-            context(cancel)?;
-        }
-        owned.push(stop.clone());
-    }
-    Ok((
-        Some(Paint::Linear {
-            start: *start,
-            end: *end,
-            stops: owned,
-            units: *units,
-            transform: *transform,
-            spread: *spread,
-        }),
-        false,
-    ))
+        .filter(|_| matches!(resource.name.as_str(), "linearGradient" | "radialGradient"))
+        .ok_or_else(|| "paint server local id does not name a supported gradient".to_owned())?;
+    super::svg_primitive::opacity(Some(gradient), 1., cancel).map(|paint| (paint, false))
 }
 pub fn clip(
     value: &str,
+    resources: &BTreeMap<String, Resource>,
+    cancel: Option<&d2_rs_core::CancellationToken>,
+) -> Result<String, String> {
+    local(value, "clipPath", resources, cancel)
+}
+pub fn local(
+    value: &str,
+    kind: &str,
     resources: &BTreeMap<String, Resource>,
     cancel: Option<&d2_rs_core::CancellationToken>,
 ) -> Result<String, String> {
@@ -125,8 +109,11 @@ pub fn clip(
     let resource = resources
         .get(id)
         .ok_or_else(|| "references an unknown local id".to_owned())?;
-    if resource.name != "clipPath" {
-        return Err("local id does not name a <clipPath> resource".into());
+    if resource.name.is_empty() {
+        return Err("references an ambiguous local id".into());
+    }
+    if resource.name != kind {
+        return Err(format!("local id does not name a <{kind}> resource"));
     }
     Ok(id.into())
 }
@@ -163,6 +150,7 @@ mod tests {
                         .into(),
                         gradient: if kind == "linearGradient" {
                             Some(Paint::Linear {
+                                percentages: [false; 4],
                                 start: [0.; 2],
                                 end: [0.; 2],
                                 stops: Vec::new(),

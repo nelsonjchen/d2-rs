@@ -138,6 +138,28 @@ pub(super) fn edges_can_overlap_all_with_members_and_style(
         return true;
     }
     let edge = &graph.edge_records[edge_index];
+    if edge.source_arrow != edge.target_arrow {
+        if edge.source_arrowhead_label.is_some() || edge.target_arrowhead_label.is_some() {
+            return false;
+        }
+        return other_indices.iter().all(|&index| {
+            let other = &graph.edge_records[index];
+            let style = prior_style_override.unwrap_or(&other.style);
+            other.source_arrow != other.target_arrow
+                && (edge.from == other.from || edge.to == other.to)
+                && arrowhead_identity(edge.source_arrow, &edge.source_arrowhead)
+                    == arrowhead_identity(other.source_arrow, &other.source_arrowhead)
+                && arrowhead_identity(edge.target_arrow, &edge.target_arrowhead)
+                    == arrowhead_identity(other.target_arrow, &other.target_arrowhead)
+                && other.source_arrowhead_label.is_none()
+                && other.target_arrowhead_label.is_none()
+                && edge.style.opacity == style.opacity
+                && edge.style.stroke == style.stroke
+                && edge.style.stroke_width == style.stroke_width
+                && edge.style.stroke_dash == style.stroke_dash
+                && edge.style.animated == style.animated
+        });
+    }
     if edge.source_arrowhead_label.is_some() || edge.target_arrowhead_label.is_some() {
         return false;
     }
@@ -167,24 +189,6 @@ pub(super) fn edges_can_overlap_all_with_members_and_style(
     };
     let is_cluster_edge = source_cluster.is_some_and(all_touch_cluster)
         || target_cluster.is_some_and(all_touch_cluster);
-
-    let directed = edge.source_arrow != edge.target_arrow;
-    if directed
-        && other_indices.iter().all(|index| {
-            let other = &graph.edge_records[*index];
-            if other.source_arrow == other.target_arrow {
-                return false;
-            }
-            let same_directed_end = edge.to == other.to || edge.from == other.from;
-            same_directed_end
-                && arrowhead_identity(edge.source_arrow, &edge.source_arrowhead)
-                    == arrowhead_identity(other.source_arrow, &other.source_arrowhead)
-                && arrowhead_identity(edge.target_arrow, &edge.target_arrowhead)
-                    == arrowhead_identity(other.target_arrow, &other.target_arrowhead)
-        })
-    {
-        return true;
-    }
 
     let bidirectional = edge.source_arrow && edge.target_arrow;
     let own_arrowheads_match = arrowhead_identity(true, &edge.source_arrowhead)
@@ -435,6 +439,7 @@ mod tests {
 
     fn node(name: &str) -> Node {
         Node {
+            elk_layer_constraint: String::new(),
             d2_near_key: None,
             external_id: name.into(),
             size: Size {

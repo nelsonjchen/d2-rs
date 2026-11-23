@@ -2631,7 +2631,10 @@ impl ArenaGraph {
                 final_score
             );
         }
-        if final_score > original_score {
+        if !failed && edges_placed && scope.is_some() && final_score <= original_score {
+            failed = staging.blocks_fixed_routes(self, guard)?;
+        }
+        if failed || final_score > original_score {
             staging.restore_positions_checked(self, guard)?;
             // The Go implementation marks this scope rejected after
             // restoring its original geometry.  The recursive caller uses

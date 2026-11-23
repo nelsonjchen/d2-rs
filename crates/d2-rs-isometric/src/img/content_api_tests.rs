@@ -123,6 +123,7 @@ fn mat(v: &Value) -> MaterialRef {
         unlit: flag(&v["unlit"]),
         multiply: flag(&v["multiply"]),
         svg_contour: flag(&v["contour"]),
+        outside_caption: false,
         svg_solid_texture: flag(&v["solid"]),
         gradient: strv(&v["gradient"]),
         vector: surface(&v["vector"]),
@@ -353,6 +354,7 @@ fn node(v: &Value) -> Node {
         link: v["link"].as_str().unwrap_or_default().into(),
         icon: v["icon"].as_str().unwrap_or_default().into(),
         metadata: NodeMetadata {
+            explicit_default_stroke_width: false,
             original: serde_json::from_value(v["metadata"]["original"].clone()).unwrap(),
         },
     }

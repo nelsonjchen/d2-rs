@@ -9,7 +9,7 @@ use crate::{
 };
 
 fn node(name: &str, width: f64, height: f64) -> Node {
-    Node {
+    Node { elk_layer_constraint: String::new(),
         d2_near_key: None,
         external_id: name.into(),
         size: Size { width, height },
@@ -11360,7 +11360,9 @@ fn sized_anneal_matches_recovered_ent2d2_right_boundary_and_rng() {
             Point { x: 924.0, y: 308.0 },
         ]
     );
-    assert_eq!(snapshot.next_rng_float, Some(0.754_048_363_010_997_4));
+    // Upstream f0c3bd218 ends the sized annealing after 20 quiet passes, so
+    // the same layout leaves the generator fewer draws in.
+    assert_eq!(snapshot.next_rng_float, Some(0.361_970_490_212_905_4));
 }
 
 #[test]
@@ -11421,7 +11423,9 @@ fn sized_zero_optimize_matches_recovered_ent2d2_right_boundary_and_rng() {
             Point { x: 924.0, y: 308.0 },
         ]
     );
-    assert_eq!(snapshot.next_rng_float, Some(0.570_258_585_120_084_9));
+    // Upstream f0c3bd218 ends the sized annealing after 20 quiet passes, so
+    // the same layout leaves the generator fewer draws in.
+    assert_eq!(snapshot.next_rng_float, Some(0.242_336_424_602_728_6));
 }
 
 #[test]
@@ -11450,7 +11454,9 @@ fn node_placement_matches_recovered_ent2d2_right_boundary() {
             Point { x: 616.0, y: 0.0 },
         ]
     );
-    assert_eq!(snapshot.next_rng_float, Some(0.570_258_585_120_084_9));
+    // Upstream f0c3bd218 ends the sized annealing after 20 quiet passes, so
+    // the same layout leaves the generator fewer draws in.
+    assert_eq!(snapshot.next_rng_float, Some(0.242_336_424_602_728_6));
 }
 
 #[test]

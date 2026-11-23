@@ -34,6 +34,8 @@ pub fn svg_theme_css(hash: &str, options: &SvgRenderOptions) -> Result<String, S
 }
 /// Pinned lib/color gradient parsing and SVG serialization.
 pub use target::d2svg::color;
+/// Shared connection centerline and crossing gaps (d2target, upstream #3011).
+pub use target::d2svg::crossings;
 /// Pinned lib/svg typed markup and local-resource APIs.
 pub use target::d2svg::markup as svg;
 /// Pinned d2themes element and palette APIs.
@@ -3325,6 +3327,12 @@ struct HashConnection {
 
 #[derive(Serialize)]
 struct HashConfig {
+    #[serde(rename = "animateInterval", skip_serializing_if = "Option::is_none")]
+    animate_interval: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    scale: Option<target::GoFloat>,
+    #[serde(rename = "forceAppendix", skip_serializing_if = "Option::is_none")]
+    force_appendix: Option<bool>,
     sketch: bool,
     #[serde(rename = "themeID")]
     theme_id: i64,
@@ -4395,6 +4403,9 @@ pub fn target_config_metadata(
     let empty = Default::default();
     let config = config.unwrap_or(&empty);
     serde_json::to_value(HashConfig {
+        animate_interval: config.animate_interval,
+        scale: config.scale.map(target::GoFloat),
+        force_appendix: config.force_appendix,
         sketch,
         theme_id: options.theme_id.unwrap_or(0),
         dark_theme_id: options.dark_theme_id,
@@ -4430,6 +4441,9 @@ fn target_hash_bytes(
     connections.extend(target_hash_lifelines(graph, result, styles));
     let root = target_hash_root(graph, options);
     let config = HashConfig {
+        animate_interval: graph.d2_config_animate_interval,
+        scale: graph.d2_config_scale.map(target::GoFloat),
+        force_appendix: graph.d2_config_force_appendix,
         sketch,
         theme_id: options.theme_id.unwrap_or(0),
         dark_theme_id: options.dark_theme_id,
@@ -4509,9 +4523,17 @@ pub fn target_diagram_json(
             None => return Err("d2svg target export: legend without its source graph".into()),
         },
     };
+    let mut explicit_default_stroke_widths = BTreeMap::new();
     let shapes = target_node_ids(graph)
         .into_iter()
-        .filter_map(|id| target_hash_shape(graph, result, labels, styles, id))
+        .filter_map(|id| {
+            let shape = target_hash_shape(graph, result, labels, styles, id)?;
+            if shape.stroke_width == 2 && styles.get(&id).is_some_and(|s| s.stroke_width.is_some())
+            {
+                explicit_default_stroke_widths.insert(shape.id.clone(), true);
+            }
+            Some(shape)
+        })
         .collect::<Vec<_>>();
     let mut connections = graph
         .edges()
@@ -4524,6 +4546,9 @@ pub fn target_diagram_json(
     diagram.insert("name".into(), Value::String(String::new()));
     if options.include_config_in_hash {
         let config = HashConfig {
+            animate_interval: graph.d2_config_animate_interval,
+            scale: graph.d2_config_scale.map(target::GoFloat),
+            force_appendix: graph.d2_config_force_appendix,
             sketch,
             theme_id: options.theme_id.unwrap_or(0),
             dark_theme_id: options.dark_theme_id,
@@ -4537,6 +4562,12 @@ pub fn target_diagram_json(
         diagram.insert(
             "config".into(),
             serde_json::to_value(&config).map_err(|e| e.to_string())?,
+        );
+    }
+    if !explicit_default_stroke_widths.is_empty() {
+        diagram.insert(
+            "explicitDefaultStrokeWidths".into(),
+            serde_json::to_value(&explicit_default_stroke_widths).map_err(|e| e.to_string())?,
         );
     }
     diagram.insert("isFolderOnly".into(), Value::Bool(false));

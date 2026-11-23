@@ -1,7 +1,8 @@
 diff --git a/d2renderers/d2svgimport/compile.go b/d2renderers/d2svgimport/compile.go
+index 9b370c5e0..849535344 100644
 --- a/d2renderers/d2svgimport/compile.go
 +++ b/d2renderers/d2svgimport/compile.go
-@@ -330,6 +330,11 @@
+@@ -341,6 +341,11 @@ func (i *svgImporter) compileElement(element *svgElement) error {
  		element.viewportY = y
  	}
  
@@ -10,13 +11,14 @@ diff --git a/d2renderers/d2svgimport/compile.go b/d2renderers/d2svgimport/compil
 +		i.d2rsElementAdmissionReached = true
 +		return nil
 +	}
- 	element.geometry, err = i.compileGeometry(element)
- 	if err != nil {
- 		return err
+ 	if element.name == "mask" {
+ 		return i.compileMask(element)
+ 	}
 diff --git a/d2renderers/d2svgimport/import.go b/d2renderers/d2svgimport/import.go
+index 708225513..bf4cfcda1 100644
 --- a/d2renderers/d2svgimport/import.go
 +++ b/d2renderers/d2svgimport/import.go
-@@ -370,6 +370,11 @@
+@@ -371,6 +371,11 @@ type svgImporter struct {
  	rootCurrentColor   color.NRGBA
  	rasterBytes        int
  	rasterDecodedBytes int64

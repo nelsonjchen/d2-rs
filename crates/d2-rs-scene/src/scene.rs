@@ -89,6 +89,8 @@ pub struct DropShadow {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Filter {
     GaussianBlur {
+        #[serde(rename = "LinearRGB", default)]
+        linear_rgb: bool,
         #[serde(rename = "SigmaX")]
         sigma_x: f64,
         #[serde(rename = "SigmaY")]

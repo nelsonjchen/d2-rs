@@ -496,3 +496,40 @@ pub fn order_paint_units_with_context(
     }
     Ok((ordered, stats))
 }
+
+#[cfg(test)]
+mod tie_contracts {
+    use super::*;
+    #[test]
+    fn order_tree_breaks_ties_after_reordering() {
+        // 66f1d24ea: alternating boxes force the sort to move polygons.
+        let polygons = (0..40)
+            .map(|i| {
+                let x = (i % 2 * 2) as f64;
+                OrderPolygon {
+                    points: vec![],
+                    plane: DepthPlane::default(),
+                    bbox: SvgBox {
+                        min_x: x,
+                        min_y: 0.0,
+                        max_x: x + 1.0,
+                        max_y: 1.0,
+                    },
+                }
+            })
+            .collect();
+        let mut budget = Budget {
+            context: Default::default(),
+            limits: SVG_DEFAULT_VISIBILITY_LIMITS,
+            work: 0,
+            face: 0,
+            faces: 0,
+            candidates: 0,
+            fragments: 0,
+        };
+        let tree = new_order_tree(polygons, &mut budget).unwrap();
+        for (i, index) in tree.indices.into_iter().enumerate() {
+            assert_eq!(index, 2 * (i % 20) + i / 20);
+        }
+    }
+}

@@ -16,6 +16,8 @@ pub fn non_rendering(name: &str) -> bool {
     matches!(
         name,
         "title"
+            | "desc"
+            | "dc:title"
             | "metadata"
             | "rdf:RDF"
             | "cc:Work"
@@ -58,13 +60,15 @@ pub fn validate_metadata(
                         display(&element.name)
                     )));
                 }
-                "cc:Work" if !matches!(element.name.as_str(), "dc:format" | "dc:type") => {
+                "cc:Work"
+                    if !matches!(element.name.as_str(), "dc:format" | "dc:type" | "dc:title") =>
+                {
                     return Err(error(format!(
                         "element <cc:Work> has unsupported child <{}>",
                         display(&element.name)
                     )));
                 }
-                "title" | "dc:format" | "dc:type" | "sodipodi:namedview" => {
+                "title" | "desc" | "dc:format" | "dc:type" | "dc:title" | "sodipodi:namedview" => {
                     return Err(error(format!(
                         "non-rendering element <{name}> cannot contain child elements"
                     )));
@@ -89,7 +93,7 @@ pub fn validate_metadata(
                     "element <cc:Work> is only supported inside <rdf:RDF>".into(),
                 ));
             }
-            "dc:format" | "dc:type" if parent_name != Some("cc:Work") => {
+            "dc:format" | "dc:type" | "dc:title" if parent_name != Some("cc:Work") => {
                 return Err(error(format!(
                     "element <{}> is only supported inside <cc:Work>",
                     element.name
@@ -129,17 +133,16 @@ pub fn validate_metadata(
                     "element <rdf:RDF> must contain exactly one <cc:Work>".into(),
                 ));
             }
-            "cc:Work"
-                if element.children.len() != 2
-                    || !matches!(
-                        (name(0), name(1)),
-                        ("dc:format", "dc:type") | ("dc:type", "dc:format")
-                    ) =>
-            {
-                return Err(error(
-                    "element <cc:Work> must contain exactly one <dc:format> and one <dc:type>"
-                        .into(),
-                ));
+            "cc:Work" => {
+                let mut seen = std::collections::HashSet::new();
+                for &child in &element.children {
+                    let name = &document.elements[child].name;
+                    if !seen.insert(name) {
+                        return Err(error(format!(
+                            "element <cc:Work> contains duplicate <{name}>"
+                        )));
+                    }
+                }
             }
             _ => {}
         }
@@ -295,7 +298,19 @@ pub fn compile_elements(
     let ids = document
         .ids
         .iter()
-        .map(|(id, &index)| (id.clone(), (index, document.elements[index].name.clone())))
+        .map(|(id, &index)| {
+            (
+                id.clone(),
+                (
+                    index,
+                    document
+                        .elements
+                        .get(index)
+                        .map(|e| e.name.clone())
+                        .unwrap_or_default(),
+                ),
+            )
+        })
         .collect();
     let mut stack = vec![0];
     while let Some(index) = stack.pop() {
@@ -316,8 +331,60 @@ pub fn compile_elements(
             &mut output.work,
             cancel,
         )?;
+        if matches!(
+            output.elements[index].name.as_str(),
+            "filter" | "feGaussianBlur"
+        ) {
+            super::svg_effects::compile_filter(
+                source,
+                document,
+                &output.elements,
+                &mut output.states,
+                index,
+                cancel,
+            )?;
+        }
         if next == super::svg_element::Continuation::Geometry {
             let name = output.elements[index].name.as_str();
+            if name == "mask" {
+                output.states[index].mask_region = Some(super::svg_effects::compile_mask(
+                    source,
+                    &output.elements[index],
+                )?);
+                stack.extend(document.elements[index].children.iter().rev().copied());
+                continue;
+            }
+            if name == "image" {
+                let (_, aspect) = super::svg_image::geometry(
+                    source,
+                    &output.elements[index].attrs,
+                    document.elements[index].children.len(),
+                    cancel,
+                )?;
+                if output.elements[index].declarations.contains_key("overflow") && aspect[1] == 1 {
+                    return Err(format!(
+                        "d2svgimport: {source}: unsupported overflow on <image>"
+                    ));
+                }
+                if !output.elements[index].attrs["href"].starts_with("data:") {
+                    let mut ancestor = Some(index);
+                    let mut hidden = false;
+                    while let Some(current) = ancestor {
+                        hidden |= output.elements[current]
+                            .declarations
+                            .get("display")
+                            .is_some_and(|v| v.eq_ignore_ascii_case("none"));
+                        ancestor = document.elements[current].parent;
+                    }
+                    if hidden {
+                        output.geometry[index] = super::svg_geometry::Geometry {
+                            kind: 6,
+                            ..Default::default()
+                        };
+                        continue;
+                    }
+                }
+            }
             if name == "image" && output.image_assets.is_none() {
                 return Ok(Progress::Image(index));
             }
@@ -328,7 +395,7 @@ pub fn compile_elements(
                     document.elements[index].children.len(),
                     limits[0],
                     limits[8],
-                    document.ids.len(),
+                    document.declared_ids(),
                     output.image_assets.as_mut().unwrap(),
                     cancel,
                 )?;
@@ -339,7 +406,13 @@ pub fn compile_elements(
                     aspect: image.aspect,
                     ..Default::default()
                 }
-            } else if name == "text" {
+            } else if matches!(name, "text" | "tspan") {
+                if !super::svg_text::frozen(document, output.work.mathjax_root, index) {
+                    super::svg_text::validate(source, document, index)?;
+                    output.geometry[index].kind = 5;
+                    stack.extend(document.elements[index].children.iter().rev().copied());
+                    continue;
+                }
                 let commands = super::svg_frozen_text::commands(
                     source,
                     document,
@@ -492,7 +565,10 @@ pub fn compile(
     let mut stack = vec![0];
     while let Some(index) = stack.pop() {
         context(cancel)?;
-        if output.elements[index].name == "linearGradient" {
+        if matches!(
+            output.elements[index].name.as_str(),
+            "linearGradient" | "radialGradient"
+        ) {
             let stops = output.elements[index]
                 .children
                 .iter()
@@ -512,8 +588,12 @@ pub fn compile(
             (
                 id.clone(),
                 super::svg_resources::Resource {
-                    name: output.elements[index].name.clone(),
-                    gradient: output.elements[index].gradient.clone(),
+                    name: output
+                        .elements
+                        .get(index)
+                        .map(|e| e.name.clone())
+                        .unwrap_or_default(),
+                    gradient: output.elements.get(index).and_then(|e| e.gradient.clone()),
                 },
             )
         })
@@ -578,7 +658,17 @@ fn validate_style_tree(
         context(cancel)?;
         let element = &output.elements[index];
         let name = element.name.as_str();
-        if non_rendering(name) || matches!(name, "linearGradient" | "stop" | "clipPath") {
+        if non_rendering(name)
+            || matches!(
+                name,
+                "linearGradient"
+                    | "radialGradient"
+                    | "stop"
+                    | "clipPath"
+                    | "filter"
+                    | "feGaussianBlur"
+            )
+        {
             continue;
         }
         let style = super::svg_style::compute(
@@ -589,7 +679,7 @@ fn validate_style_tree(
             resources,
             cancel,
         )?;
-        if name == "text" {
+        if name == "text" && super::svg_text::frozen(document, output.work.mathjax_root, index) {
             super::svg_frozen_text::validate_style(source, &style)?;
         }
         validate_stroke_caps(source, name, &output.geometry[index], &style, cancel)?;

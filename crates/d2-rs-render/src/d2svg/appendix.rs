@@ -25,8 +25,8 @@ fn regexes() -> &'static (Regex, Regex, Regex, Regex) {
     R.get_or_init(|| {
         (
             Regex::new(r#"viewBox="([0-9\- ]+)""#).unwrap(),
-            Regex::new(r#"width="([.0-9]+)""#).unwrap(),
-            Regex::new(r#"height="([.0-9]+)""#).unwrap(),
+            Regex::new(r#" width="[.0-9]+""#).unwrap(),
+            Regex::new(r#" height="[.0-9]+""#).unwrap(),
             Regex::new(r"<svg(.*?)>").unwrap(),
         )
     })
@@ -66,13 +66,15 @@ fn line(i: usize, y: i64, text: &str) -> Result<(String, i64, i64), String> {
 }
 
 /// appendix.generateAppendix.
-fn generate(diagram: &TargetDiagram) -> Result<(String, i64, i64), String> {
-    let ((tlx, _), (brx, bry)) = diagram.go_bounding_box()?;
+fn generate(
+    diagram: &TargetDiagram,
+    ((tlx, _), (brx, bry)): ((i64, i64), (i64, i64)),
+) -> Result<(String, i64, i64), String> {
     let (mut max_width, mut total_height) = (0, 0);
     let mut lines = Vec::new();
     let mut i = 1;
     for s in diagram.shapes_slice() {
-        for text in [s.tooltip.as_str(), s.pretty_link_str()] {
+        for text in [s.tooltip.as_str(), s.appendix_link_text()] {
             if !text.is_empty() {
                 let (l, w, h) = line(i, bry + PAD_TOP * 2 + total_height, text)?;
                 i += 1;
@@ -102,11 +104,38 @@ pub(crate) fn append(
     diagram: &TargetDiagram,
     diagram_hash: &str,
     input: &[u8],
+    scale: Option<f64>,
 ) -> Result<Vec<u8>, String> {
     let mut svg = String::from_utf8(input.to_vec()).map_err(|e| e.to_string())?;
-    let (mut appendix, mut w, h) = generate(diagram)?;
+    let (tl, mut br) = diagram.go_bounding_box()?;
+    let is_frame = svg.starts_with("<g ");
+    let frame = if is_frame {
+        let Some(frame) = super::svgframe::read(&svg) else {
+            return Ok(input.to_vec());
+        };
+        br.1 = br.1.max(frame.bottom - PAD_TOP);
+        Some(frame)
+    } else {
+        None
+    };
+    let (tlx, _) = tl;
+    let (brx, bry) = br;
+    let (mut appendix, mut w, h) = generate(diagram, (tl, br))?;
     if h == 0 {
         return Ok(input.to_vec());
+    }
+    let mut separator = ThemableElement::new("line", None);
+    separator.x1 = (tlx - PAD_SIDES) as f64;
+    separator.y1 = (bry + PAD_TOP) as f64;
+    separator.x2 = (w.max(brx) + PAD_SIDES) as f64;
+    separator.y2 = (bry + PAD_TOP) as f64;
+    separator.stroke = "B2".into();
+    appendix = separator.render() + &appendix;
+    if let Some(frame) = frame {
+        let Some(resized) = append_to_frame(&svg, &appendix, &frame, tl, br, w, h) else {
+            return Ok(input.to_vec());
+        };
+        return Ok(number_icons(diagram, &frame.master_id, resized).into_bytes());
     }
     let (viewbox_re, width_re, height_re, svg_re) = regexes();
     let viewboxes: Vec<_> = viewbox_re.captures_iter(&svg).take(2).collect();
@@ -116,14 +145,6 @@ pub(crate) fn append(
     let pad_left = atoi(&slice[0]);
     let mut viewbox_width = atoi(&slice[2]);
     let mut viewbox_height = atoi(&slice[3]);
-    let ((tlx, _), (brx, bry)) = diagram.go_bounding_box()?;
-    let mut separator = ThemableElement::new("line", None);
-    separator.x1 = (tlx - PAD_SIDES) as f64;
-    separator.y1 = (bry + PAD_TOP) as f64;
-    separator.x2 = (w.max(brx) + PAD_SIDES) as f64;
-    separator.y2 = (bry + PAD_TOP) as f64;
-    separator.stroke = "B2".into();
-    appendix = separator.render() + &appendix;
     w -= pad_left;
     w += PAD_SIDES * 2;
     if viewbox_width < w {
@@ -135,32 +156,40 @@ pub(crate) fn append(
         r#"viewBox="{} {} {viewbox_width} {viewbox_height}""#,
         slice[0], slice[1]
     );
-    let mut dimensions_to_update = 2;
-    let outer_svg = svg_re
-        .find(&svg)
-        .map(|m| m.as_str().to_owned())
-        .unwrap_or_default();
-    if width_re.is_match(&outer_svg) {
-        dimensions_to_update += 1;
+    // The outer SVG carries display dimensions. The inner SVG and its
+    // background use unscaled diagram coordinates.
+    let outer_end = svg_re.find(&svg).ok_or("appendix: missing svg")?.end();
+    let (mut outer, mut inner) = (svg[..outer_end].to_owned(), svg[outer_end..].to_owned());
+    outer = outer.replacen(&outer_match, &new_outer, 1);
+    if width_re.is_match(&outer) {
+        let dimensions = super::render::scaled_dimensions(
+            viewbox_width,
+            viewbox_height,
+            Some(scale.unwrap_or(1.0)),
+        )?;
+        outer = height_re.replace_all(&outer, "").into_owned();
+        outer = width_re
+            .replace_all(&outer, regex::NoExpand(&dimensions))
+            .into_owned();
     }
-    let widths: Vec<String> = width_re
-        .find_iter(&svg)
-        .take(dimensions_to_update)
+    inner = inner.replacen(&inner_match, &new_inner, 1);
+    let new_width = format!(r#" width="{viewbox_width}""#);
+    let new_height = format!(r#" height="{viewbox_height}""#);
+    for found in width_re
+        .find_iter(&inner.clone())
+        .take(2)
         .map(|m| m.as_str().to_owned())
-        .collect();
-    let heights: Vec<String> = height_re
-        .find_iter(&svg)
-        .take(dimensions_to_update)
-        .map(|m| m.as_str().to_owned())
-        .collect();
-    svg = svg.replacen(&outer_match, &new_outer, 1);
-    svg = svg.replacen(&inner_match, &new_inner, 1);
-    for i in 0..dimensions_to_update {
-        if let (Some(width), Some(height)) = (widths.get(i), heights.get(i)) {
-            svg = svg.replacen(width, &format!(r#"width="{viewbox_width}""#), 1);
-            svg = svg.replacen(height, &format!(r#"height="{viewbox_height}""#), 1);
-        }
+    {
+        inner = inner.replacen(&found, &new_width, 1);
     }
+    for found in height_re
+        .find_iter(&inner.clone())
+        .take(2)
+        .map(|m| m.as_str().to_owned())
+    {
+        inner = inner.replacen(&found, &new_height, 1);
+    }
+    svg = outer + &inner;
     use d2_rs_text::d2fonts::{FontFamily, FontStyle};
     for (face, class, style) in [
         ("font-regular", "text", FontStyle::Regular),
@@ -179,6 +208,10 @@ pub(crate) fn append(
         .rfind("</svg></svg>")
         .ok_or("appendix: unterminated svg")?;
     svg.insert_str(closing, &appendix);
+    Ok(number_icons(diagram, diagram_hash, svg).into_bytes())
+}
+
+fn number_icons(diagram: &TargetDiagram, diagram_hash: &str, mut svg: String) -> String {
     // Icons are numbered in definition order but replaced in render order.
     let mut order: Vec<(usize, bool, &TargetShape)> = Vec::new();
     let mut i = 1;
@@ -187,7 +220,7 @@ pub(crate) fn append(
             order.push((i, true, s));
             i += 1;
         }
-        if !s.link.is_empty() {
+        if !s.appendix_link_text().is_empty() {
             order.push((i, false, s));
             i += 1;
         }
@@ -204,5 +237,219 @@ pub(crate) fn append(
             .replace("%[2]s", &svg_id(&s.id));
         svg = svg.replacen(&icon, &numbered_icon(number, 0, ICON_RADIUS), 1);
     }
-    Ok(svg.into_bytes())
+    svg
+}
+
+// Resize only the opening group and its background rectangles, as upstream does.
+fn append_to_frame(
+    svg: &str,
+    appendix: &str,
+    box_: &super::svgframe::Frame,
+    tl: (i64, i64),
+    br: (i64, i64),
+    w: i64,
+    h: i64,
+) -> Option<String> {
+    static PREFIX: OnceLock<Regex> = OnceLock::new();
+    static DIMENSION: OnceLock<Regex> = OnceLock::new();
+    let prefix = PREFIX
+        .get_or_init(|| Regex::new(r"^<g [^>]*>(?:<rect [^>]* />)*").unwrap())
+        .find(svg)?
+        .as_str();
+    let end = svg.rfind("</g>")?;
+    if end < prefix.len() {
+        return None;
+    }
+    let left = box_.left.min(0).min(tl.0 - PAD_SIDES);
+    let right = box_.right.max(w + PAD_SIDES * 2).max(br.0 + PAD_SIDES);
+    let bottom = br.1 + 2 * PAD_TOP + h;
+    let width = right - left;
+    let height = bottom - box_.top;
+    let resized = DIMENSION
+        .get_or_init(|| Regex::new(r#" (x|width|height)="(-?[0-9]+)""#).unwrap())
+        .replace_all(prefix, |c: &regex::Captures<'_>| {
+            let mut n = c[2].parse::<i64>().unwrap_or(0);
+            n += match &c[1] {
+                "x" => left - box_.left,
+                "width" => width - (box_.right - box_.left),
+                "height" => height - (box_.bottom - box_.top),
+                _ => 0,
+            };
+            format!(r#" {}="{n}""#, &c[1])
+        });
+    let resized = regexes().0.replace_all(
+        &resized,
+        format!(r#"viewBox="{left} {} {width} {height}""#, box_.top),
+    );
+    Some(format!(
+        "{resized}{}{appendix}{}",
+        &svg[prefix.len()..end],
+        &svg[end..]
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn board(link: &str, pretty: &str) -> serde_json::Value {
+        json!({"shapes": [
+            {"id":"back", "type":"rectangle", "pos":{"x":0,"y":0}, "width":100,"height":60,
+             "opacity":1,"strokeWidth":2,"stroke":"N1","fill":"N7", "link":link,"prettyLink":pretty},
+            {"id":"note", "type":"rectangle", "pos":{"x":120,"y":0}, "width":100,"height":60,
+             "opacity":1,"strokeWidth":2,"stroke":"N1","fill":"N7", "tooltip":"tooltip for C",
+             "link":"https://example.com", "prettyLink":"Example"}
+        ]})
+    }
+
+    fn numbers(svg: &str) -> Vec<usize> {
+        Regex::new(r#"class="appendix-icon">(?:<title>[^<]*</title>)?<circle[^>]*/><text[^>]*>(\d+)</text>"#)
+            .unwrap().captures_iter(svg).map(|c| c[1].parse().unwrap()).collect()
+    }
+
+    #[test]
+    fn mixed_link_tooltip_numbering_uses_one_sequence() {
+        // Upstream c71ea9096: root, parent-board link, and CLI-relinked parent.
+        let label_re = Regex::new(r#"<text class="text" [^>]*>(.*?)</text>"#).unwrap();
+        for (link, pretty, expected) in [
+            ("scenarios.one", "one", "one"),
+            ("root", "", "root"),
+            ("index.svg", "", "index.svg"),
+        ] {
+            let diagram: TargetDiagram = serde_json::from_value(board(link, pretty)).unwrap();
+            let svg = super::super::render::render(&diagram, &Default::default()).unwrap();
+            let out = String::from_utf8(
+                append(&diagram, &diagram.hash_id(None).unwrap(), &svg, None).unwrap(),
+            )
+            .unwrap();
+            let (markers, rows) = out.split_once("<g class=\"appendix\"").unwrap();
+            assert_eq!(numbers(markers), [1, 2, 3]);
+            assert_eq!(numbers(rows), [1, 2, 3]);
+            let labels: Vec<_> = label_re
+                .captures_iter(rows)
+                .map(|c| c[1].to_owned())
+                .collect();
+            assert_eq!(labels, [expected, "tooltip for C", "Example"]);
+        }
+        let diagram: TargetDiagram =
+            serde_json::from_value(board("", "stale pretty link")).unwrap();
+        assert_eq!(diagram.shapes_slice()[0].appendix_link_text(), "");
+    }
+
+    #[test]
+    fn animated_appendices_stay_with_frames_and_expand_canvas() {
+        // Upstream 890041df0: empty root, parent link, then a wide footer.
+        let tooltip = "A tooltip long enough to make this appendix wider than the diagram";
+        let root = json!({"scenarios": [board("root", ""), {"shapes":[{
+            "id":"note", "type":"rectangle", "width":100,"height":60,"opacity":1,
+            "strokeWidth":2,"stroke":"N1","fill":"N7", "tooltip":tooltip,"link":"https://example.com"
+        }]}]});
+        let options = crate::RenderOptions {
+            force_appendix: true,
+            pad: 0.0,
+            scale: Some(0.5),
+            ..Default::default()
+        };
+        let output = super::super::render_cli_animated(
+            &serde_json::to_vec(&root).unwrap(),
+            &options,
+            false,
+            1000,
+        )
+        .unwrap();
+        let output = String::from_utf8(output).unwrap();
+        let doc = roxmltree::Document::parse(&output).unwrap();
+        let outer = doc.root_element();
+        let canvas = outer.children().find(|n| n.has_tag_name("svg")).unwrap();
+        let rect = |n: roxmltree::Node<'_, '_>| -> Vec<i64> {
+            n.attribute("viewBox")
+                .unwrap()
+                .split_whitespace()
+                .map(|v| v.parse().unwrap())
+                .collect()
+        };
+        let bounds = rect(canvas);
+        assert_eq!(
+            outer.attribute("width").unwrap().parse::<i64>().unwrap(),
+            (bounds[2] + 1) / 2
+        );
+        assert_eq!(
+            outer.attribute("height").unwrap().parse::<i64>().unwrap(),
+            (bounds[3] + 1) / 2
+        );
+        let frames: Vec<_> = canvas.children().filter(|n| n.has_tag_name("g")).collect();
+        assert_eq!(frames.len(), 3);
+        for (i, frame) in frames.iter().enumerate() {
+            let b = rect(*frame);
+            assert!(b[0] >= bounds[0] && b[1] >= bounds[1]);
+            assert!(b[0] + b[2] <= bounds[0] + bounds[2] && b[1] + b[3] <= bounds[1] + bounds[3]);
+            let bg = frame.children().find(|n| n.has_tag_name("rect")).unwrap();
+            for (key, expected) in ["x", "y", "width", "height"].iter().zip(&b) {
+                assert_eq!(
+                    bg.attribute(*key).unwrap().parse::<i64>().unwrap(),
+                    *expected
+                );
+            }
+            let footer = frame
+                .children()
+                .find(|n| n.attribute("class") == Some("appendix"));
+            if i == 0 {
+                assert!(footer.is_none());
+                continue;
+            }
+            let footer = footer.unwrap();
+            let labels: Vec<_> = footer
+                .children()
+                .filter(|n| n.has_tag_name("text"))
+                .map(|n| {
+                    assert!(
+                        n.attribute("y").unwrap().parse::<f64>().unwrap() < (b[1] + b[3]) as f64
+                    );
+                    n.text().unwrap()
+                })
+                .collect();
+            assert_eq!(
+                labels,
+                if i == 1 {
+                    vec!["root", "tooltip for C", "Example"]
+                } else {
+                    vec![tooltip, "https://example.com"]
+                }
+            );
+            let badges: Vec<_> = frame
+                .children()
+                .filter(|n| n.attribute("class") == Some("appendix-icon"))
+                .flat_map(|n| n.children().filter(|n| n.has_tag_name("text")))
+                .map(|n| n.text().unwrap())
+                .collect();
+            let rows: Vec<_> = footer
+                .children()
+                .filter(|n| n.has_tag_name("g"))
+                .flat_map(|n| n.children().filter(|n| n.has_tag_name("text")))
+                .map(|n| n.text().unwrap())
+                .collect();
+            let expected: Vec<_> = (1..=labels.len()).map(|n| n.to_string()).collect();
+            assert_eq!(badges, expected);
+            assert_eq!(rows, expected);
+        }
+        assert!(rect(frames[2])[2] > rect(frames[1])[2]);
+        // Without the flag, animation keeps interactive icons and has no footer.
+        let options = crate::RenderOptions {
+            force_appendix: false,
+            ..options
+        };
+        let out = super::super::render_cli_animated(
+            &serde_json::to_vec(&root).unwrap(),
+            &options,
+            false,
+            1000,
+        )
+        .unwrap();
+        assert!(
+            !String::from_utf8(out)
+                .unwrap()
+                .contains("<g class=\"appendix\"")
+        );
+    }
 }

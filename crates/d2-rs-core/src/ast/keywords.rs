@@ -18,6 +18,7 @@ pub const SIMPLE_RESERVED_KEYWORDS: &[&str] = &[
     "width",
     "height",
     "direction",
+    "elk-layer-constraint",
     "top",
     "left",
     "grid-rows",

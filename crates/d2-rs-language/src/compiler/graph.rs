@@ -273,6 +273,7 @@ fn is_metadata_name(name: &str) -> bool {
             | "tooltip"
             | "link"
             | "direction"
+            | "elk-layer-constraint"
             | "constraint"
             | "grid-rows"
             | "grid-columns"
@@ -2386,6 +2387,12 @@ fn structured_inner_padding(compiler: &Compiler, field: IrNodeId) -> f64 {
     }
 }
 
+// compileLabel is called only for an authored scalar, including inherited labels.
+fn has_explicit_label(compiler: &Compiler, field: IrNodeId) -> bool {
+    property_scalar_inherited(compiler, field, &["label"]).is_some()
+        || compiler.arena.primary(field).is_some()
+}
+
 fn sql_table_dimensions(
     compiler: &Compiler,
     field: IrNodeId,
@@ -2438,7 +2445,7 @@ fn sql_table_dimensions(
                 })
             })
             .unwrap_or_else(|| name.clone());
-        let type_name = if type_name == name {
+        let type_name = if !has_explicit_label(compiler, column) && type_name == name {
             String::new()
         } else {
             type_name
@@ -2517,7 +2524,7 @@ fn class_member_rows(compiler: &Compiler, field: IrNodeId) -> Vec<(String, Strin
                     })
                 })
                 .unwrap_or_else(|| name.clone());
-            let value = if value == name {
+            let value = if !has_explicit_label(compiler, member) && value == name {
                 if name.contains('(') {
                     "void".into()
                 } else {
@@ -4037,6 +4044,9 @@ fn apply_node_properties(
         },
         |value| parse_shape(Some(value)),
     );
+    node.elk_layer_constraint = property_text_inherited(compiler, field, &["elk-layer-constraint"])
+        .map(|v| d2_rs_core::ir::go_uppercase_text(&v))
+        .unwrap_or_default();
     node.force_hierarchy = shape_value.as_deref() == Some("hierarchy");
     node.person = matches!(node.shape, ShapeKind::Person | ShapeKind::C4Person);
     node.is_3d = property_is_true_inherited(compiler, field, &["style", "3d"]);
@@ -4507,6 +4517,9 @@ fn lower_graph_in_class_context(
     let mut graph = Graph::default();
     if let Some(config) = super::extract_config(compiler, root) {
         graph.d2_config_data = config.graph_data();
+        graph.d2_config_animate_interval = config.animate_interval;
+        graph.d2_config_scale = config.scale;
+        graph.d2_config_force_appendix = config.force_appendix;
         graph.d2_config_pad = config.pad;
         graph.d2_config_center = config.center;
         graph.d2_config_layout_engine = config.layout_engine;

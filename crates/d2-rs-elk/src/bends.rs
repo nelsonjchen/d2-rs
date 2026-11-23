@@ -3,7 +3,7 @@
 use super::bend_index::CollisionIndex;
 use d2_rs_core::shape_geometry::{box_intersections, line_intersection_point, trace_shape_border};
 use d2_rs_core::{EdgeId, Graph, LayoutResult, NodeId, Point, Rect, ShapeKind, Size};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 type Segment = (Point, Point);
 
 fn horizontal((a, b): Segment) -> bool {
@@ -36,12 +36,12 @@ fn counts(
                 // entirely enclosed segment is not itself an intersection.
                 let expanded = Rect {
                     origin: Point {
-                        x: rect.origin.x - 39.0,
-                        y: rect.origin.y - 39.0,
+                        x: rect.origin.x - index.object_buffer,
+                        y: rect.origin.y - index.object_buffer,
                     },
                     size: Size {
-                        width: rect.size.width + 78.0,
-                        height: rect.size.height + 78.0,
+                        width: rect.size.width + 2.0 * index.object_buffer,
+                        height: rect.size.height + 2.0 * index.object_buffer,
                     },
                 };
                 if !box_intersections(expanded, segment.0, segment.1).is_empty() {
@@ -63,9 +63,9 @@ fn counts(
                     } else {
                         (segment.0.x - other.0.x).abs()
                     };
-                    if distance < 20.0 {
+                    if distance < index.edge_buffer {
                         out[2] += 1;
-                        if distance < 10.0 {
+                        if distance < index.edge_buffer / 2.0 {
                             out[3] += 1;
                             // The original vertical touching predicate uses Y.
                             if (segment.0.y - other.0.y).abs() < 1.0 {
@@ -102,17 +102,51 @@ fn no_worse(old: [usize; 5], new: [usize; 5]) -> bool {
     old.into_iter().zip(new).all(|(a, b)| b <= a)
 }
 
+#[cfg(all(test, feature = "oracle-fixtures"))]
 pub(super) fn delete_bends(graph: &Graph, result: &mut LayoutResult) {
-    if !graph
-        .edges()
-        .any(|(id, e)| e.source != e.target && result.routes.get(&id).is_some_and(|r| r.len() >= 4))
-    {
+    delete_bends_with_options(
+        graph,
+        result,
+        crate::LayeredOptions::default(),
+        &BTreeSet::new(),
+    );
+}
+pub(super) fn delete_bends_with_options(
+    graph: &Graph,
+    result: &mut LayoutResult,
+    opts: crate::LayeredOptions,
+    keep: &BTreeSet<EdgeId>,
+) {
+    if !graph.edges().any(|(id, e)| {
+        !keep.contains(&id)
+            && e.source != e.target
+            && result.routes.get(&id).is_some_and(|r| r.len() >= 4)
+    }) {
         return;
     }
-    let mut index = CollisionIndex::new(graph, result);
+    let mut index = CollisionIndex::with_options(graph, result, opts);
+    let point_key = |p: Point| {
+        (
+            if p.x == 0.0 { 0 } else { p.x.to_bits() },
+            if p.y == 0.0 { 0 } else { p.y.to_bits() },
+        )
+    };
+    let mut attachments = BTreeMap::new();
+    if opts.merge_edges {
+        for (id, e) in graph.edges() {
+            if let Some(r) = result.routes.get(&id).filter(|r| !r.is_empty()) {
+                *attachments
+                    .entry((e.source, point_key(r[0]), true))
+                    .or_insert(0usize) += 1;
+                *attachments
+                    .entry((e.target, point_key(*r.last().unwrap()), false))
+                    .or_insert(0usize) += 1;
+            }
+        }
+    }
     for source in [true, false] {
         for (id, edge) in graph.edges() {
-            if edge.source == edge.target {
+            if edge.source == edge.target || keep.contains(&id) {
                 continue;
             }
             let Some(route) = result.routes.get(&id).filter(|r| r.len() >= 4) else {
@@ -136,6 +170,15 @@ pub(super) fn delete_bends(graph: &Graph, result: &mut LayoutResult) {
                     graph.edge_table_columns(id).target,
                 )
             };
+            if opts.merge_edges
+                && attachments
+                    .get(&(node, point_key(start), source))
+                    .copied()
+                    .unwrap_or(0)
+                    > 1
+            {
+                continue;
+            }
             let Some(rect) = result.boxes.get(&node).copied() else {
                 continue;
             };
@@ -213,7 +256,7 @@ pub(super) fn delete_bends(graph: &Graph, result: &mut LayoutResult) {
         }
     }
     for (id, edge) in graph.edges() {
-        if edge.source == edge.target {
+        if edge.source == edge.target || keep.contains(&id) {
             continue;
         }
         let Some(route) = result.routes.get(&id).filter(|r| r.len() >= 6) else {

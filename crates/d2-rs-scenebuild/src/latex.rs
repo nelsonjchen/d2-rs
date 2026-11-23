@@ -147,17 +147,16 @@ impl Builder<'_> {
     ) -> Result<LatexAsset> {
         validate_latex_input(object, formula)?;
         self.validate_latex_import_options(object)?;
-        let current_color = if raw_color.is_empty() {
-            Nrgba::new(0, 0, 0, 255)
-        } else {
-            match self.paint(raw_color, &format!("{object} latex currentColor"))? {
-                None => Nrgba::new(0, 0, 0, 255),
-                Some(Paint::SolidPaint { color }) => color,
-                Some(_) => {
-                    return err(format!(
-                        "scene: {object} latex currentColor must resolve to a solid color"
-                    ));
-                }
+        let current_color = match self.paint(raw_color, &format!("{object} latex currentColor"))? {
+            // SVG currentColor defaults to black.
+            None => Nrgba::new(0, 0, 0, 255),
+            Some(Paint::SolidPaint { color }) => color,
+            Some(Paint::LinearGradient(p)) => p.stops[0].color,
+            Some(Paint::RadialGradient(p)) => p.stops[0].color,
+            Some(Paint::PatternPaint(_)) => {
+                return err(format!(
+                    "scene: unsupported {object} latex currentColor paint d2scene.PatternPaint"
+                ));
             }
         };
         let key = (formula.to_owned(), current_color);

@@ -282,6 +282,7 @@ mod tests {
 
     fn test_node(name: &str) -> Node {
         Node {
+            elk_layer_constraint: String::new(),
             d2_near_key: None,
             external_id: name.into(),
             size: Size {

@@ -101,6 +101,18 @@ fn specific(name: &str) -> Option<&'static [&'static str]> {
             "gradientTransform",
             "spreadMethod",
         ],
+        "radialGradient" => &[
+            "id",
+            "cx",
+            "cy",
+            "r",
+            "fx",
+            "fy",
+            "fr",
+            "gradientUnits",
+            "gradientTransform",
+            "spreadMethod",
+        ],
         "stop" => &["offset", "class", "style", "stop-color", "stop-opacity"],
         _ => return None,
     })
@@ -149,7 +161,7 @@ fn element_name_value(
             }
             match local {
                 "script" | "foreignObject" => return Err(format!("forbidden element <{local}>")),
-                "radialGradient" | "pattern" => {
+                "pattern" => {
                     return Err(format!("unsupported paint server <{local}>"));
                 }
                 _ if specific(local).is_some() && !local.contains(':') => local.into(),
@@ -702,7 +714,10 @@ fn validate_compiled_attributes(source: &str) -> Result<(), String> {
                         continue;
                     }
                     let common = !nonrendering(&name)
-                        && !matches!(name.as_str(), "style" | "linearGradient" | "stop")
+                        && !matches!(
+                            name.as_str(),
+                            "style" | "linearGradient" | "radialGradient" | "stop"
+                        )
                         && (matches!(key, "id" | "class" | "style") || PRESENTATION.contains(&key));
                     if !common && !allowed.contains(&key) {
                         return Err(format!(

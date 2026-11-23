@@ -868,8 +868,8 @@ def check_goarch_runs(paths: Paths) -> None:
             "transparently: install qemu-user-static with binfmt (Linux) or Rosetta (macOS)")
 
 
-def go_requires(text: str) -> list[tuple[str, str]]:
-    """Direct (non-indirect) module requirements of a go.mod file."""
+def go_requires(text: str, *, include_indirect: bool = False) -> list[tuple[str, str]]:
+    """Module requirements of a go.mod file (direct only by default)."""
     requires, block = [], False
     for line in text.splitlines():
         line = line.strip()
@@ -883,7 +883,7 @@ def go_requires(text: str) -> list[tuple[str, str]]:
             line = line[len("require "):]
         elif not block:
             continue
-        if "// indirect" in line:
+        if not include_indirect and "// indirect" in line:
             continue
         fields = line.split("//")[0].split()
         if len(fields) == 2:
@@ -901,11 +901,14 @@ def check_module_pins(paths: Paths) -> None:
     """
     pins = paths.manifest.get("dependencies", {})
     stale = []
-    upstream_mod = paths.upstream_repo / "go.mod"
-    if upstream_mod.exists():
-        for module, version in go_requires(upstream_mod.read_text()):
-            if pins.get(module, version) != version:
-                stale.append(f"reference-manifest.json: {module} {pins[module]}, pinned go.mod {version}")
+    # Read the pin, not the checkout's HEAD or uncommitted module edits.
+    if git("ls-tree", "--name-only", paths.pin, "--", "go.mod", cwd=paths.upstream_repo):
+        upstream = dict(go_requires(
+            git("show", f"{paths.pin}:go.mod", cwd=paths.upstream_repo), include_indirect=True))
+        for module in sorted(pins.keys() | upstream.keys()):
+            if pins.get(module) != upstream.get(module):
+                stale.append(f"reference-manifest.json: {module} {pins.get(module, '<missing>')}, "
+                             f"pinned go.mod {upstream.get(module, '<absent>')}")
     for gomod in sorted(paths.root.glob("tools/**/go.mod")):
         for module, version in go_requires(gomod.read_text()):
             if module in pins and version != pins[module]:

@@ -16,12 +16,21 @@ pub struct Clip {
     pub transform: [f64; 6],
 }
 #[derive(Debug, serde::Serialize, serde::Deserialize, PartialEq)]
+pub struct Mask {
+    pub kind: u8,
+    pub root: usize,
+}
+#[derive(Debug, serde::Serialize, serde::Deserialize, PartialEq)]
 pub struct Node {
     pub id: String,
     pub classes: Vec<String>,
     pub transform: [f64; 6],
     pub opacity: f64,
     pub clip: Option<Clip>,
+    #[serde(default)]
+    pub mask: Option<Mask>,
+    #[serde(default)]
+    pub filters: Vec<super::svg_effects::Blur>,
     pub primitive: Option<Primitive>,
     pub children: Vec<usize>,
 }
@@ -36,6 +45,8 @@ pub struct Work {
     pub uses: usize,
     pub max_uses: usize,
     pub max_depth: usize,
+    pub text_fonts: super::svg_text::Fonts,
+    pub shaped_runes: usize,
 }
 fn context(cancel: Option<&d2_rs_core::CancellationToken>) -> Result<(), String> {
     match cancel.and_then(d2_rs_core::CancellationToken::error) {
@@ -44,7 +55,7 @@ fn context(cancel: Option<&d2_rs_core::CancellationToken>) -> Result<(), String>
         None => Ok(()),
     }
 }
-fn node(
+pub(crate) fn node(
     scene: &mut Scene,
     work: &mut Work,
     source: &str,
@@ -60,6 +71,8 @@ fn node(
         transform: [1., 0., 0., 1., 0., 0.],
         opacity: 1.,
         clip: None,
+        mask: None,
+        filters: Vec::new(),
         primitive,
         children: Vec::new(),
     });
@@ -89,6 +102,83 @@ fn clip(
             transform: clip.transform,
         })
     })
+}
+/// Intersect chained clip resources through nested clipped groups, as in
+/// upstream 8558856dc clip.go applyClipPaths.
+fn apply_clip_paths(
+    scene: &mut Scene,
+    mut index: usize,
+    source: &str,
+    mut id: String,
+    templates: &std::collections::BTreeMap<String, Template>,
+    transforms: &std::collections::BTreeMap<String, [f64; 6]>,
+    work: &mut Work,
+    cancel: Option<&d2_rs_core::CancellationToken>,
+) -> Result<usize, String> {
+    let mut transform = [1., 0., 0., 1., 0., 0.];
+    let mut depth = 0;
+    while !id.is_empty() {
+        if depth >= work.max_depth {
+            return Err(format!(
+                "d2svgimport: {source}: clip-path chain exceeds depth limit {} or contains a cycle",
+                work.max_depth
+            ));
+        }
+        depth += 1;
+        let mut clip = clip(source, &id, templates, work, cancel)?.unwrap();
+        clip.transform = super::svg_transform::mul(transform, clip.transform);
+        if scene.nodes[index].clip.is_some() {
+            let group = node(scene, work, source, None, 0)?;
+            scene.nodes[group].transform = scene.nodes[index].transform;
+            scene.nodes[index].transform = [1., 0., 0., 1., 0., 0.];
+            scene.nodes[group].children.push(index);
+            index = group;
+        }
+        scene.nodes[index].clip = Some(clip);
+        transform = super::svg_transform::mul(transform, transforms[&id]);
+        id = templates[&id].parent_id.clone();
+    }
+    Ok(index)
+}
+fn apply_effects(
+    scene: &mut Scene,
+    index: usize,
+    source: &str,
+    style: &Style,
+    document: &Document,
+    compiled: &Compilation,
+    root_color: [u8; 4],
+    building_mask: bool,
+    templates: &std::collections::BTreeMap<String, Template>,
+    transforms: &std::collections::BTreeMap<String, [f64; 6]>,
+    work: &mut Work,
+    cancel: Option<&d2_rs_core::CancellationToken>,
+) -> Result<usize, String> {
+    let (index, apply_clips) = super::svg_effects::apply(
+        source,
+        document,
+        compiled,
+        scene,
+        index,
+        style,
+        root_color,
+        building_mask,
+        work,
+        cancel,
+    )?;
+    if !apply_clips {
+        return Ok(index);
+    }
+    apply_clip_paths(
+        scene,
+        index,
+        source,
+        style.clip_path.clone(),
+        templates,
+        transforms,
+        work,
+        cancel,
+    )
 }
 struct Frame {
     index: usize,
@@ -135,6 +225,26 @@ pub fn instantiate(
     work: &mut Work,
     cancel: Option<&d2_rs_core::CancellationToken>,
 ) -> Result<(), String> {
+    instantiate_effects(
+        source, document, compiled, root, inherited, prefix, depth, referenced, scene, work,
+        cancel, false,
+    )
+}
+pub(crate) fn instantiate_effects(
+    source: &str,
+    document: &Document,
+    compiled: &Compilation,
+    root: usize,
+    inherited: Style,
+    prefix: String,
+    depth: usize,
+    referenced: bool,
+    scene: &mut Scene,
+    work: &mut Work,
+    cancel: Option<&d2_rs_core::CancellationToken>,
+    building_mask: bool,
+) -> Result<(), String> {
+    let root_color = inherited.paint.color;
     scene.root = None;
     let error = |reason: String| format!("d2svgimport: {source}: {reason}");
     let resources = document
@@ -144,8 +254,15 @@ pub fn instantiate(
             (
                 id.clone(),
                 super::svg_resources::Resource {
-                    name: compiled.elements[index].name.clone(),
-                    gradient: compiled.elements[index].gradient.clone(),
+                    name: compiled
+                        .elements
+                        .get(index)
+                        .map(|e| e.name.clone())
+                        .unwrap_or_default(),
+                    gradient: compiled
+                        .elements
+                        .get(index)
+                        .and_then(|e| e.gradient.clone()),
                 },
             )
         })
@@ -158,6 +275,16 @@ pub fn instantiate(
                 .clips
                 .get(index)
                 .map(|template| (id.clone(), template.clone()))
+        })
+        .collect();
+    let clip_transforms = document
+        .ids
+        .iter()
+        .filter_map(|(id, &index)| {
+            compiled
+                .states
+                .get(index)
+                .map(|state| (id.clone(), state.transform))
         })
         .collect();
     let mut stack = vec![Frame::new(root, inherited, prefix, depth, referenced)];
@@ -197,10 +324,21 @@ pub fn instantiate(
                             ],
                         );
                         target.opacity = frame.style.opacity;
-                        target.clip =
-                            clip(source, &frame.style.clip_path, &templates, work, cancel)?;
                         target.children.push(child);
-                        returned = Some(index);
+                        returned = Some(apply_effects(
+                            scene,
+                            index,
+                            source,
+                            &frame.style,
+                            document,
+                            compiled,
+                            root_color,
+                            building_mask,
+                            &templates,
+                            &clip_transforms,
+                            work,
+                            cancel,
+                        )?);
                     }
                     stack.pop();
                     continue;
@@ -215,14 +353,22 @@ pub fn instantiate(
         match frame.phase {
             0 => {
                 if super::svg_compile::non_rendering(name)
-                    || matches!(name, "linearGradient" | "stop" | "clipPath")
+                    || matches!(
+                        name,
+                        "linearGradient"
+                            | "radialGradient"
+                            | "stop"
+                            | "clipPath"
+                            | "filter"
+                            | "feGaussianBlur"
+                    )
                 {
                     stack.pop();
                     returned = None;
                     returning = true;
                     continue;
                 }
-                let style = super::svg_style::compute(
+                let mut style = super::svg_style::compute(
                     source,
                     name,
                     &frame.inherited,
@@ -230,6 +376,9 @@ pub fn instantiate(
                     &resources,
                     cancel,
                 )?;
+                if let Some(viewport) = &compiled.states[index].viewport {
+                    style.viewport = viewport.view_box;
+                }
                 super::svg_compile::validate_stroke_caps(
                     source,
                     name,
@@ -238,7 +387,7 @@ pub fn instantiate(
                     cancel,
                 )?;
                 frame.style = style.clone();
-                if !style.display || (name == "defs" && !frame.referenced) {
+                if !style.display || (matches!(name, "defs" | "mask") && !frame.referenced) {
                     stack.pop();
                     returned = None;
                     returning = true;
@@ -280,9 +429,19 @@ pub fn instantiate(
                 if name == "svg" && frame.referenced {
                     return Err(error("referenced <svg> resources are unsupported".into()));
                 }
-                let (primitive, commands) =
-                    super::svg_primitive::emit(&compiled.geometry[index], &style.paint, cancel)?;
-                if !matches!(name, "svg" | "g") && primitive.is_none() {
+                let mut paint = style.paint.clone();
+                super::svg_gradient::resolve(&mut paint.fill, style.viewport)?;
+                super::svg_gradient::resolve(&mut paint.stroke, style.viewport)?;
+                let text_geometry;
+                let geometry = if compiled.geometry[index].kind == 5 {
+                    text_geometry =
+                        super::svg_text::geometry(source, document, index, &style, work, cancel)?;
+                    &text_geometry
+                } else {
+                    &compiled.geometry[index]
+                };
+                let (primitive, commands) = super::svg_primitive::emit(geometry, &paint, cancel)?;
+                if !matches!(name, "svg" | "g" | "mask" | "text") && primitive.is_none() {
                     stack.pop();
                     returned = None;
                     returning = true;
@@ -333,8 +492,6 @@ pub fn instantiate(
                     frame.child_node = Some(content);
                 } else {
                     scene.nodes[node_index].transform = compiled.states[index].transform;
-                    scene.nodes[node_index].clip =
-                        clip(source, &style.clip_path, &templates, work, cancel)?;
                     frame.child_node = Some(node_index);
                 }
                 frame.node = Some(node_index);
@@ -342,7 +499,20 @@ pub fn instantiate(
             }
             1 => {
                 if frame.next == element.children.len() {
-                    returned = frame.node;
+                    returned = Some(apply_effects(
+                        scene,
+                        frame.node.unwrap(),
+                        source,
+                        &frame.style,
+                        document,
+                        compiled,
+                        root_color,
+                        building_mask,
+                        &templates,
+                        &clip_transforms,
+                        work,
+                        cancel,
+                    )?);
                     stack.pop();
                     returning = true;
                     continue;
@@ -486,6 +656,7 @@ pub(crate) mod tests {
                 max_uses: maximum[2],
                 max_depth: maximum[3],
                 uses: used,
+                ..Default::default()
             };
             let mut scene = Scene::default();
             let result = super::super::svg_compile::compile(

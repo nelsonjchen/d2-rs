@@ -18,6 +18,35 @@ type SegmentKey = (usize, usize, Option<EdgeId>);
 fn key(s: &Segment) -> SegmentKey {
     (s.start.allocation_key(), s.end.allocation_key(), s.owner)
 }
+#[derive(Clone, Default)]
+struct SegmentBounds {
+    position: [Point; 2],
+    floor: f64,
+    ceil: f64,
+}
+impl SegmentBounds {
+    fn update(
+        &mut self,
+        segment: &Segment,
+        locked: &[Segment],
+        mut known: usize,
+        guard: &RouteAtomicGuard<'_>,
+    ) -> Result<(f64, f64)> {
+        let position = [segment.start.get(), segment.end.get()];
+        if self.position != position {
+            known = 0;
+        }
+        let (mut floor, mut ceil) = bounds(segment, &locked[known..], guard)?;
+        if known > 0 {
+            floor = maximum(floor, self.floor);
+            ceil = minimum(ceil, self.ceil);
+        }
+        self.position = position;
+        self.floor = floor;
+        self.ceil = ceil;
+        Ok((floor, ceil))
+    }
+}
 fn eq(a: f64, b: f64) -> bool {
     (a - b).abs() <= 1.0
 }
@@ -473,17 +502,31 @@ pub(super) fn regular(
             }
         }
         locked_walls.extend(special_walls);
+        let mut previous_locks = Vec::<[Point; 2]>::new();
+        let mut cached_bounds = vec![SegmentBounds::default(); eligible.len()];
         while locked.len() != eligible.len() {
             guard.step()?;
             let mut min_range = (f64::NEG_INFINITY, f64::INFINITY);
             let mut ranges: BTreeMap<(u64, u64), Vec<usize>> = BTreeMap::new();
-            for &i in &eligible {
+            let mut known = previous_locks.len();
+            for (i, segment) in locked_walls.iter().enumerate() {
+                guard.step()?;
+                let position = [segment.start.get(), segment.end.get()];
+                if i == previous_locks.len() {
+                    previous_locks.push(position);
+                } else if previous_locks[i] != position {
+                    previous_locks[i] = position;
+                    known = 0;
+                }
+            }
+            for (cache_index, &i) in eligible.iter().enumerate() {
                 guard.step()?;
                 let s = &all[i];
                 if locked.contains(&key(s)) {
                     continue;
                 }
-                let (mut floor, mut ceil) = bounds(s, &locked_walls, guard)?;
+                let (mut floor, mut ceil) =
+                    cached_bounds[cache_index].update(s, &locked_walls, known, guard)?;
                 if floor == f64::NEG_INFINITY {
                     floor = s.position(horizontal) - 100.0;
                 }
@@ -726,6 +769,35 @@ pub(in crate::internal) fn balance_edge_segments(g: &mut ArenaGraph) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn balance_bounds_reuse_unchanged_segments() {
+        // Upstream 64288a936 TestBalanceBoundsReuseUnchangedSegments.
+        let context = RuntimeRouteContext;
+        let work = RouteStageWork::new(MAX_ROUTE_STAGE_WORK_UNITS);
+        let guard = RouteAtomicGuard::new(Some(&context), "BalanceEdgeSegments", &work).unwrap();
+        let vertical = |x| Segment {
+            start: SharedOwnerPoint::new(Point { x, y: 20. }),
+            end: SharedOwnerPoint::new(Point { x, y: 80. }),
+            owner: None,
+        };
+        let moving = vertical(10.);
+        let mut locked = vec![vertical(0.), vertical(30.)];
+        let mut cache = SegmentBounds::default();
+        let mut check = |known, floor, ceil, expected_work, locked: &[Segment]| {
+            let before = work.used();
+            assert_eq!(
+                cache.update(&moving, locked, known, &guard).unwrap(),
+                (floor, ceil)
+            );
+            assert_eq!(work.used() - before, expected_work);
+        };
+        check(0, 0., 30., 2, &locked);
+        locked.push(vertical(15.));
+        check(2, 0., 15., 1, &locked);
+        moving.start.set(Point { x: 20., y: 20. });
+        moving.end.set(Point { x: 20., y: 80. });
+        check(3, 15., 30., 3, &locked);
+    }
     fn z_graph() -> ArenaGraph {
         let input=br#"{"nodes":[{"id":1,"width":100,"height":100,"topLeft":{"x":0,"y":0},"shapeType":"Square"},{"id":2,"width":100,"height":100,"topLeft":{"x":300,"y":200},"shapeType":"Square"}],"edges":[{"id":9,"from":1,"to":2,"points":[{"x":100,"y":50},{"x":120,"y":50},{"x":120,"y":250},{"x":300,"y":250}]}],"containers":{"0":[1,2]}}"#;
         let core = crate::graphjson::graphjson_to_graph(input).unwrap();
@@ -737,7 +809,8 @@ mod tests {
         let old = g.edge_records[0].route.clone();
         let budget = RouteStageWork::new(100000);
         balance_edge_segments_with_budget(&mut g, &budget).unwrap();
-        assert_eq!(budget.used(), 122);
+        // 64288a936 postprocess.go also polls each retained locked wall.
+        assert_eq!(budget.used(), 131);
         assert_eq!(old.point(1).x, 200.0);
         let current = &g.edge_records[0].route;
         assert!(

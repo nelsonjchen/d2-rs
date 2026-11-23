@@ -312,10 +312,8 @@ impl Compiler {
             return;
         }
         self.arena.overlay_map(base, existing, true);
-        let Node::Field(f) = self.arena.node_mut(field) else {
-            unreachable!()
-        };
-        f.composite = Some(base);
+
+        self.arena.set_composite(field, Some(base));
     }
     pub(super) fn inherit_board(&mut self, field: NodeId) {
         match self.arena.board_kind(field) {

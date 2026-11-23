@@ -66,12 +66,15 @@ impl State {
                 }
                 match name {
                     "svg" | "g" | "defs" | "style" | "path" | "rect" | "circle" | "ellipse"
-                    | "line" | "polyline" | "polygon" | "image" | "text" | "use" | "clipPath"
-                    | "linearGradient" | "stop" | "title" | "metadata" => return Ok(name.into()),
+                    | "line" | "polyline" | "polygon" | "image" | "text" | "tspan" | "use"
+                    | "clipPath" | "linearGradient" | "radialGradient" | "stop" | "title"
+                    | "desc" | "metadata" | "mask" | "filter" | "feGaussianBlur" => {
+                        return Ok(name.into());
+                    }
                     "script" | "foreignObject" => {
                         return Err(error(format!("forbidden element <{name}>")));
                     }
-                    "radialGradient" | "pattern" => {
+                    "pattern" => {
                         return Err(error(format!("unsupported paint server <{name}>")));
                     }
                     _ => return Err(error(format!("unknown element <{}>", display(name)))),
@@ -79,7 +82,9 @@ impl State {
             }
             RDF if name == "RDF" => return Ok("rdf:RDF".into()),
             CC if name == "Work" => return Ok("cc:Work".into()),
-            DC if name == "format" || name == "type" => return Ok(format!("dc:{name}")),
+            DC if name == "format" || name == "type" || name == "title" => {
+                return Ok(format!("dc:{name}"));
+            }
             SODIPODI if name == "namedview" => return Ok("sodipodi:namedview".into()),
             _ => {}
         }
@@ -129,6 +134,9 @@ impl State {
                 continue;
             }
             if ignored_namespaced(source, element, attribute, cancel)? {
+                if attribute.namespace == XML && name == "space" {
+                    output.metadata.insert("xml:space".into(), value.into());
+                }
                 continue;
             }
             match attribute.namespace.as_str() {
@@ -295,6 +303,31 @@ fn ignored_plain(
     cancel: Option<&d2_rs_core::CancellationToken>,
 ) -> Result<bool, String> {
     let error = |reason: &str| format!("d2svgimport: {source}: element <{element}> {reason}");
+    if matches!(
+        element,
+        "path" | "rect" | "circle" | "ellipse" | "line" | "polyline" | "polygon"
+    ) {
+        if matches!(
+            name,
+            "text-indent"
+                | "text-align"
+                | "text-decoration-line"
+                | "text-decoration-style"
+                | "text-decoration-color"
+                | "text-transform"
+                | "block-progression"
+                | "white-space"
+                | "solid-color"
+                | "solid-opacity"
+        ) {
+            return Ok(true);
+        }
+        if element == "path" && name == "href" {
+            if let Some(id) = value.strip_prefix('#') {
+                return valid_paint_id(id, cancel);
+            }
+        }
+    }
     if name.starts_with("data-") {
         if name.len() == 5 {
             return Err(error("has invalid data-* metadata attribute"));
@@ -336,6 +369,28 @@ pub fn valid_id(id: &str, cancel: Option<&d2_rs_core::CancellationToken>) -> Res
         }
     }
     context(cancel)?;
+    Ok(true)
+}
+
+fn valid_paint_id(
+    id: &str,
+    cancel: Option<&d2_rs_core::CancellationToken>,
+) -> Result<bool, String> {
+    if id.is_empty() {
+        return Ok(false);
+    }
+    for (index, byte) in id.bytes().enumerate() {
+        if index & 4095 == 0 {
+            context(cancel)?;
+        }
+        if index == 0 {
+            if !byte.is_ascii_alphabetic() && byte != b'_' {
+                return Ok(false);
+            }
+        } else if !byte.is_ascii_alphanumeric() && !b"_-.:".contains(&byte) {
+            return Ok(false);
+        }
+    }
     Ok(true)
 }
 #[cfg(test)]

@@ -50,7 +50,7 @@ pub(crate) fn shape_label(
         s.label_height as f64,
     );
     g.set_translate(label_tl.x, label_tl.y);
-    g.color.clone_from(&s.stroke);
+    g.color = s.get_font_color();
     g.content = render;
     w.push_str(&g.render());
     Ok(())

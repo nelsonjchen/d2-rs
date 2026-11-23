@@ -17,7 +17,7 @@ harness = ROOT / 'tools/markdown-link-oracle/main.go'
 module, trace_dep = prepare_module('markdown-link-oracle', harness, copy_goldmark=True)
 dep = trace_dep  # verified byte-identical to the pinned module
 bridge=module/'oracle_links.go.txt'
-bridge.write_text('package parser\nimport "github.com/yuin/goldmark/text"\nimport "github.com/yuin/goldmark/ast"\nimport "fmt"\nimport "bytes"\nimport "regexp/syntax"\nimport "reflect"\nimport "github.com/yuin/goldmark/util"\nfunc OracleLinkValue(r text.Reader,title bool)([]byte,bool){if title{return parseLinkTitle(r)};return parseLinkDestination(r)}\nfunc OracleReference(r text.Reader)(*ast.LinkReferenceDefinition,int,int){n,s,e:=parseLinkReferenceDefinition(r,NewContext());if n==nil{return nil,s,e};return n.(*ast.LinkReferenceDefinition),s,e}\n')
+bridge.write_text('package parser\nimport "github.com/yuin/goldmark/v2/text"\nimport "github.com/yuin/goldmark/v2/ast"\nimport "fmt"\nimport "bytes"\nimport "regexp/syntax"\nimport "reflect"\nimport "github.com/yuin/goldmark/v2/util"\nfunc OracleLinkValue(r text.Reader,title bool)([]byte,bool){if title{return parseLinkTitle(r)};return parseLinkDestination(r)}\nfunc OracleReference(r text.Reader)(*ast.LinkReferenceDefinition,int,int){n,s,e:=parseLinkReferenceDefinition(r,NewContext());if n==nil{return nil,s,e};return n.(*ast.LinkReferenceDefinition),s,e}\n')
 
 with bridge.open('a') as out: out.write("""
 func OracleCodeBlock(source []byte,segments []text.Segment)any{
@@ -320,7 +320,7 @@ func OracleReferenceParagraph(source []byte,segments []text.Segment,mutate bool)
 table_bridge=module/'oracle_table.go.txt'
 table_bridge.write_text("""
 package extension
-import("fmt";gast "github.com/yuin/goldmark/ast";"github.com/yuin/goldmark/text";"github.com/yuin/goldmark/parser";"github.com/yuin/goldmark/extension/ast")
+import("fmt";gast "github.com/yuin/goldmark/v2/ast";"github.com/yuin/goldmark/v2/text";"github.com/yuin/goldmark/v2/parser";"github.com/yuin/goldmark/v2/extension/ast")
 func OracleTableParagraph(source []byte,segments []text.Segment,inline bool)any{
  root:=gast.NewDocument();p:=gast.NewParagraph();for _,s:=range segments{p.Lines().Append(s)};root.AppendChild(root,p)
  pc:=parser.NewContext();defaultTableParagraphTransformer.Transform(p,text.NewReader(source),pc)

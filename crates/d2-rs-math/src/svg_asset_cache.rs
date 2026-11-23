@@ -107,6 +107,8 @@ impl AssetCache {
             transform: imported.viewport.transform,
             opacity: 1.,
             clip: None,
+            mask: None,
+            filters: Vec::new(),
             primitive: None,
             children: vec![scene.root.unwrap()],
         });
@@ -148,6 +150,8 @@ impl AssetCache {
                 fill_rule: 0,
                 transform: [1., 0., 0., 1., 0., 0.],
             }),
+            mask: None,
+            filters: Vec::new(),
             primitive: None,
             children: vec![content],
         });
@@ -266,6 +270,8 @@ fn unavailable_image() -> Vector {
             transform: [1., 0., 0., 1., 0., 0.],
             opacity: 1.,
             clip: None,
+            mask: None,
+            filters: Vec::new(),
             primitive: Some(Primitive {
                 geometry,
                 fill: fill.map(|color| Paint::Solid { color }),
@@ -282,6 +288,8 @@ fn unavailable_image() -> Vector {
         transform: [1., 0., 0., 1., 0., 0.],
         opacity: 1.,
         clip: None,
+        mask: None,
+        filters: Vec::new(),
         primitive: None,
         children: (0..7).collect(),
     });

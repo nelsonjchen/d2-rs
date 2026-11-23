@@ -177,6 +177,7 @@ fn original_go_layered_root_transfer_minimum_and_fixed_dimensions() {
                 edge_edge_spacing: 10.0,
                 padding: 12.,
                 self_loop_spacing: 10.,
+                ..ElkOptions::default()
             },
         )
         .unwrap();

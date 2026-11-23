@@ -10065,3 +10065,7 @@ mod source_nil_child_tests;
 
 /// Shared imageasset SVG acquisition helpers.
 pub mod image_svg;
+
+pub mod svg_effects;
+
+pub mod svg_text;

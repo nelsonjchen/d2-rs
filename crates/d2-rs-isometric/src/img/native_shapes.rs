@@ -563,7 +563,22 @@ impl MeshBuilder {
                 surface = inside_label;
             }
         }
+        let first = self.triangles.len();
         self.shape_label(&n.metadata.original, &surface, &ink, n.opacity, "node");
+        if self.triangles.len() > first
+            && Position::from_string(&n.metadata.original.label_position).is_outside()
+            && self.options.links.is_some()
+            && (!n.link.is_empty() || !n.tooltip.is_empty())
+        {
+            if !self.options.vector {
+                self.add_surface_link(&n.link, &n.tooltip, &surface);
+            }
+            for t in &self.triangles[first..] {
+                if let Some(m) = &t.material {
+                    m.borrow_mut().outside_caption = true;
+                }
+            }
+        }
     }
 
     /// A front-facing sidewall occupies some of the outside caption's
@@ -598,7 +613,7 @@ impl MeshBuilder {
                 dz = height * horizontal / (direction.y * direction.z)
             }
             OutsideRightTop | OutsideRightMiddle | OutsideRightBottom => {
-                dx = height * horizontal / (direction.y * direction.x)
+                dx = (height - self.node_support_drop * relief) * direction.x / direction.y
             }
             _ => return,
         }

@@ -66,7 +66,7 @@ impl Work {
         Ok(())
     }
 }
-pub fn bridge_visible(e: &Edge) -> bool {
+pub fn native_route_visible(e: &Edge) -> bool {
     e.opacity > 0.0
         && e.stroke_width > 0
         && (!e.stroke_explicit || native_paint(&e.stroke, "#657e9e").a > 0)
@@ -169,7 +169,7 @@ pub fn native_resolve_bridge_routes(
         let path = bridge_straight_runs(&native_rounded_route(points));
         total += path.len();
         let mut part = vec![None; path.len().saturating_sub(1)];
-        if bridge_visible(e) {
+        if native_route_visible(e) {
             for j in 1..path.len() {
                 let (a, b) = (path[j - 1], path[j]);
                 let length = gomath::hypot(b.x - a.x, b.z - a.z);

@@ -587,3 +587,133 @@ fn sketch_admission_accounts_for_rough_sets_and_shared_streak_commands() {
     options.sketch_budget.max_operation_sets = 4;
     build(&d, &options).unwrap();
 }
+
+#[test]
+fn catalog_embedded_raster_whitespace_and_independent_decoded_budget() {
+    // Upstream 8558856dc TestIconResourceLimitsAndVisibility.
+    use base64::Engine as _;
+    let bitmap = d2_rs_raster::NrgbaImage {
+        rect: d2_rs_raster::Rect::new(0, 0, 16, 16),
+        stride: 64,
+        pix: [0, 255, 0, 255].repeat(256),
+    };
+    let png = d2_rs_raster::encode_png_default(&bitmap).unwrap();
+    let encoded = base64::engine::general_purpose::STANDARD.encode(png);
+    let source = format!(
+        r#"<svg width="8" height="8"><image width="8" height="8" href="data:image/png;base64,{}
+{}"/></svg>"#,
+        &encoded[..4],
+        &encoded[4..]
+    );
+    let limits = [
+        source.len(),
+        32,
+        2048,
+        4096,
+        source.len(),
+        16384,
+        512,
+        8,
+        512,
+    ];
+    let import = |decoded| {
+        d2_rs_math::svg_import::import_labeled_with_decoded_limit(
+            "icon",
+            source.as_bytes(),
+            limits,
+            None,
+            decoded,
+            None,
+        )
+    };
+    assert!(matches!(
+        import(1024).unwrap(),
+        d2_rs_math::svg_import::Outcome::Imported(_)
+    ));
+    assert!(
+        import(1023)
+            .err()
+            .unwrap()
+            .contains("embedded raster decoded bytes exceed limit 1023")
+    );
+    assert!(source.len() < 1024);
+    assert!(import(0).is_err(), "zero retains the source-byte fallback");
+}
+
+#[test]
+fn catalog_radial_gradient_pixels() {
+    // Upstream 8558856dc TestIconGradientCoordinatesAndPixels radial case.
+    let source = r##"<svg viewBox="0 0 40 40"><radialGradient id="r"><stop stop-color="red"/><stop offset="100%" stop-color="blue"/></radialGradient><rect x="4" y="4" width="32" height="32" fill="url(#r)"/></svg>"##;
+    let frame = render_catalog_svg(source);
+    let pixel =
+        |x: usize, y: usize| &frame.pix[y * frame.stride + x * 4..y * frame.stride + x * 4 + 4];
+    let center = pixel(20, 20);
+    let rim = pixel(35, 20);
+    assert!(center[0] > 235 && center[3] == 255, "{center:?}");
+    assert!(rim[2] > 240 && rim[3] == 255, "{rim:?}");
+}
+
+fn render_catalog_svg(source: &str) -> d2_rs_raster::NrgbaImage {
+    let d2_rs_math::svg_import::Outcome::Imported(imported) =
+        d2_rs_math::svg_import::import_labeled(
+            "icon",
+            source.as_bytes(),
+            [262144, 32, 2048, 4096, 262144, 16384, 512, 8, 512],
+            None,
+            None,
+        )
+        .unwrap()
+    else {
+        panic!("pending")
+    };
+    let d2_rs_scene::Asset::VectorAsset {
+        view_box,
+        root: Some(root),
+    } = crate::svgimport::vector_asset("icon", imported)
+    else {
+        panic!("vector")
+    };
+    let document = d2_rs_scene::Document::new(view_box, *root);
+
+    d2_rs_raster::render(
+        &document,
+        &d2_rs_raster::FrameOptions {
+            scale: 1.,
+            max_width: 100,
+            max_height: 100,
+            max_pixels: 10000,
+            max_nodes: 100,
+            max_depth: 32,
+            max_path_commands: 1000,
+            max_animation_tracks: 100,
+            max_animation_keyframes: 100,
+            max_assets: 10,
+            max_asset_bytes: 10000,
+            max_decoded_asset_bytes: 10000,
+            max_import_depth: 32,
+            max_offscreen_bytes: 100000,
+            max_even_odd_clip_work: 1000000,
+            ..Default::default()
+        },
+    )
+    .unwrap()
+}
+
+#[test]
+fn catalog_chained_clip_transforms_intersect() {
+    // Upstream 8558856dc TestIconNestedClipTransformsIntersect.
+    let frame = render_catalog_svg(
+        r##"<svg viewBox="0 0 24 24"><clipPath id="upper"><rect width="20" height="7"/></clipPath><clipPath id="both" transform="translate(3 4)" clip-path="url(#upper)"><rect width="9" height="18"/></clipPath><rect transform="translate(2 1)" width="20" height="20" clip-path="url(#both)" fill="red"/></svg>"##,
+    );
+    let alpha = |x: usize, y: usize| frame.pix[y * frame.stride + x * 4 + 3];
+    assert_eq!(
+        (
+            alpha(6, 6),
+            alpha(13, 11),
+            alpha(4, 7),
+            alpha(8, 12),
+            alpha(14, 6)
+        ),
+        (255, 255, 0, 0, 0)
+    );
+}

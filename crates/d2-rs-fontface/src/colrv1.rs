@@ -8,7 +8,7 @@
 use crate::colr::{ColorRecord, Colr, be16, be24, be32};
 use crate::error::Error;
 use crate::face::{Nrgba, ParsedFace};
-use d2_rs_render::go_float::go_fmsub;
+use d2_rs_core::go_fmsub;
 
 const MAX_TRUSTED_COLRV1_PAINT_NODES: usize = 8_192;
 const MAX_TRUSTED_COLRV1_DEPTH: usize = 32;

@@ -43,6 +43,103 @@ fn levels(graph: &ArenaGraph, hierarchy: &OwnerHierarchy) -> Vec<(Option<NodeId>
         })
         .collect()
 }
+// routingHierarchies and keepHierarchyLanes, upstream 2e6b9f5da.
+// Group indices stand for the temporary hierarchy pointers; placement records
+// remain untouched while all groups feed the same visibility graph.
+pub(super) fn routing_hierarchies(
+    graph: &ArenaGraph,
+    nodes: &[NodeId],
+    edge_count: usize,
+    budget: Budget<'_, '_>,
+) -> Result<Vec<Vec<(Option<NodeId>, i64)>>, ()> {
+    let mut whole = BTreeMap::new();
+    let mut groups = Vec::new();
+    let mut needs_local = false;
+    for &id in nodes {
+        step(budget)?;
+        let n = &graph.nodes[id.0 as usize];
+        let Some(h) = &n.hierarchy else { continue };
+        let key = h.record.allocation_key();
+        if let std::collections::btree_map::Entry::Vacant(slot) = whole.entry(key) {
+            let entries = levels(graph, &h.record);
+            let (mut left, mut top) = (f64::INFINITY, f64::INFINITY);
+            let (mut right, mut bottom) = (f64::NEG_INFINITY, f64::NEG_INFINITY);
+            let mut one_container = true;
+            for &(node, _) in &entries {
+                step(budget)?;
+                let Some(node) = node else { return Err(()) };
+                let Some(p) = graph.position(node) else {
+                    return Err(());
+                };
+                let other = &graph.nodes[node.0 as usize];
+                one_container &= other.container == n.container;
+                left = minimum(left, p.x);
+                top = minimum(top, p.y);
+                right = maximum(right, p.x + other.rect.size.width);
+                bottom = maximum(bottom, p.y + other.rect.size.height);
+            }
+            let points =
+                (1.0 + ((right - left) / 20.0).ceil()) * (1.0 + ((bottom - top) / 20.0).ceil());
+            let estimate = 2.0 * points * (1.0 + points.log2().ceil()) * edge_count as f64;
+            let keep = one_container
+                || estimate <= super::route_search_guard::MAX_ROUTE_SEARCH_WORK_UNITS as f64;
+            slot.insert(keep);
+            needs_local |= !keep;
+            if keep {
+                groups.push(entries);
+            }
+        }
+    }
+    if !needs_local {
+        check(budget)?;
+        return Ok(groups);
+    }
+    let scope = nodes
+        .iter()
+        .copied()
+        .collect::<std::collections::BTreeSet<_>>();
+    let mut local = BTreeMap::new();
+    for edge in graph.edge_order.read() {
+        let e = &graph.edge_records[edge.0 as usize];
+        if !scope.contains(&e.from) || !scope.contains(&e.to) {
+            continue;
+        }
+        step(budget)?;
+        let (from, to) = (
+            &graph.nodes[e.from.0 as usize],
+            &graph.nodes[e.to.0 as usize],
+        );
+        let Some(h) = &from.hierarchy else { continue };
+        if e.from == e.to
+            || whole[&h.record.allocation_key()]
+            || !to
+                .hierarchy
+                .as_ref()
+                .is_some_and(|other| other.record.same_allocation(&h.record))
+            || from.container != to.container
+        {
+            continue;
+        }
+        local
+            .entry((h.record.allocation_key(), from.container))
+            .or_insert_with(|| {
+                let i = groups.len();
+                groups.push(Vec::new());
+                i
+            });
+    }
+    for &id in nodes {
+        step(budget)?;
+        let n = &graph.nodes[id.0 as usize];
+        if let Some(h) = &n.hierarchy {
+            if let Some(&i) = local.get(&(h.record.allocation_key(), n.container)) {
+                groups[i].push((Some(id), h.level()));
+            }
+        }
+    }
+    check(budget)?;
+    Ok(groups)
+}
 fn node(key: Option<NodeId>) -> NodeId {
     key.expect("runtime error: invalid memory address or nil pointer dereference")
 }
@@ -116,9 +213,16 @@ pub(super) fn build(
     hierarchy: &OwnerHierarchy,
     budget: Budget<'_, '_>,
 ) -> Result<HierarchyOvg, ()> {
+    build_scoped(graph, &levels(graph, hierarchy), budget)
+}
+pub(super) fn build_scoped(
+    graph: &mut ArenaGraph,
+    hierarchy: &[(Option<NodeId>, i64)],
+    budget: Budget<'_, '_>,
+) -> Result<HierarchyOvg, ()> {
     check(budget)?;
     let mut nodes = Vec::new();
-    for (key, _) in levels(graph, hierarchy) {
+    for &(key, _) in hierarchy {
         step(budget)?;
         nodes.push(key);
     }
@@ -214,25 +318,48 @@ fn bounds(ports: &PortBuild, budget: Budget<'_, '_>) -> Result<super::ovg_bounda
 fn add_level_nodes(
     ports: &mut PortBuild,
     graph: &ArenaGraph,
-    hierarchy: &OwnerHierarchy,
+    hierarchy: &[(Option<NodeId>, i64)],
     budget: Budget<'_, '_>,
 ) -> Result<(), ()> {
     check(budget)?;
     let mut by_level = BTreeMap::<i64, Vec<NodeId>>::new();
-    for (key, level) in levels(graph, hierarchy) {
+    let local_levels = hierarchy
+        .iter()
+        .map(|&(id, level)| (node(id), level))
+        .collect::<BTreeMap<_, _>>();
+    for &(key, level) in hierarchy {
         step(budget)?;
         by_level.entry(level).or_default().push(node(key));
     }
-    for level in 0..by_level.len() as i64 {
+    for _ in by_level.keys() {
         step(budget)?;
-        let Some(nodes) = by_level.get_mut(&level) else {
-            sort_work(budget, 0)?;
-            continue;
-        };
+    }
+    sort_work(budget, by_level.len())?;
+    let mut rows = Vec::new();
+    for (_, mut nodes) in by_level {
         sort_work(budget, nodes.len())?;
-        crate::internal::go_sort::sort_by(nodes, |a, b| {
-            graph.position(*a).unwrap().x < graph.position(*b).unwrap().x
+        nodes.stable_sort_by(|a, b| {
+            {
+                let (a, b) = (graph.position(*a).unwrap().x, graph.position(*b).unwrap().x);
+                if a == b {
+                    std::cmp::Ordering::Equal
+                } else if a.is_nan() {
+                    if b.is_nan() {
+                        std::cmp::Ordering::Equal
+                    } else {
+                        std::cmp::Ordering::Less
+                    }
+                } else {
+                    a.partial_cmp(&b).unwrap_or(std::cmp::Ordering::Greater)
+                }
+            }
+            .then_with(|| {
+                graph.nodes[a.0 as usize]
+                    .tala_id
+                    .cmp(&graph.nodes[b.0 as usize].tala_id)
+            })
         });
+        rows.push(nodes);
     }
     let (mut lo, mut hi) = bounds(ports, budget)?.unwrap();
     lo.x -= 20.0;
@@ -240,20 +367,26 @@ fn add_level_nodes(
     let width = ((hi.x - lo.x) / 20.0).ceil() * 20.0;
     hi.x = lo.x + width + 20.0;
     let mut ys = AxisMap::<()>::default();
-    for level in 1..by_level.len() as i64 {
+    for level in 1..rows.len() {
         step(budget)?;
-        let above = by_level
-            .get(&(level - 1))
-            .map(Vec::as_slice)
-            .unwrap_or_default();
-        let below = by_level.get(&level).map(Vec::as_slice).unwrap_or_default();
-        let level_ys = boundary_above(ports, graph, above, below, lo.x, hi.x, budget)?;
+        let above = rows[level - 1].as_slice();
+        let below = rows[level].as_slice();
+        let level_ys = boundary_above(
+            ports,
+            graph,
+            above,
+            below,
+            &local_levels,
+            lo.x,
+            hi.x,
+            budget,
+        )?;
         aligned(ports, above, below, &level_ys, budget)?;
         for y in level_ys {
             ys.entry(y);
         }
     }
-    let xs = sibling_lanes(ports, graph, &by_level, lo.x, hi.x, budget)?;
+    let xs = sibling_lanes(ports, graph, &rows, lo.x, hi.x, budget)?;
     ports.add_intersections(graph, &graph.graph_node_order(), xs, ys, budget)
 }
 fn boundary_above(
@@ -261,6 +394,7 @@ fn boundary_above(
     graph: &ArenaGraph,
     above: &[NodeId],
     below: &[NodeId],
+    local_levels: &BTreeMap<NodeId, i64>,
     left: f64,
     right: f64,
     budget: Budget<'_, '_>,
@@ -277,16 +411,13 @@ fn boundary_above(
                 .expect("runtime error: invalid memory address or nil pointer dereference")
                 .0 as usize];
             let adjacent = if e.from == id { e.to } else { e.from };
-            if e.from == e.to || graph.nodes[adjacent.0 as usize].hierarchy.is_none() {
+            let Some(&level) = local_levels.get(&adjacent) else {
+                continue;
+            };
+            if e.from == e.to {
                 continue;
             }
-            let level = |id: NodeId| {
-                graph.nodes[id.0 as usize]
-                    .hierarchy
-                    .as_ref()
-                    .map_or(0, |h| h.level())
-            };
-            if level(adjacent) < level(id) {
+            if level < local_levels[&id] {
                 edges_above += 1.0;
             }
         }
@@ -342,16 +473,15 @@ fn aligned(
 fn sibling_lanes(
     ports: &mut PortBuild,
     graph: &ArenaGraph,
-    levels: &BTreeMap<i64, Vec<NodeId>>,
+    levels: &[Vec<NodeId>],
     left: f64,
     right: f64,
     budget: Budget<'_, '_>,
 ) -> Result<AxisMap<()>, ()> {
     check(budget)?;
     let mut xs = AxisMap::<()>::default();
-    for level in 0..levels.len() as i64 {
+    for nodes in levels {
         step(budget)?;
-        let nodes = levels.get(&level).map(Vec::as_slice).unwrap_or_default();
         let mut last = false;
         let mut i = 0;
         let mut id = nodes[i];
@@ -539,6 +669,103 @@ mod tests {
         limits::{Context, ContextError},
         owner_points::SharedOwnerPoint,
     };
+    #[test]
+    fn hierarchy_routing_lanes() {
+        // Upstream 2e6b9f5da ovg_scopes_test.go TestHierarchyRoutingLanes.
+        let mut input = crate::Graph::default();
+        let left = input.add_node(crate::Node::new(
+            "left",
+            crate::Size {
+                width: 40.,
+                height: 40.,
+            },
+        ));
+        let right = input.add_node(crate::Node::new(
+            "right",
+            crate::Size {
+                width: 40.,
+                height: 40.,
+            },
+        ));
+        let mut children = Vec::new();
+        for (name, parent) in [("a", left), ("b", left), ("c", right), ("d", right)] {
+            let mut n = crate::Node::new(
+                name,
+                crate::Size {
+                    width: 40.,
+                    height: 40.,
+                },
+            );
+            n.parent = Some(parent);
+            children.push(input.add_node(n));
+        }
+        let [a, b, c, d] = children.as_slice() else {
+            unreachable!()
+        };
+        input.add_edge(crate::Edge {
+            source: *a,
+            target: *b,
+        });
+        input.add_edge(crate::Edge {
+            source: *b,
+            target: *c,
+        });
+        let mut graph = ArenaGraph::from_input(&input);
+        for (id, level) in [(left, 0), (right, 2), (*a, 1), (*b, 4), (*c, 1), (*d, 4)] {
+            graph.set_position(id, Point::default());
+            graph.assign_hierarchy_member(id, 0, None, level, 5);
+        }
+        let groups = |g: &ArenaGraph| {
+            routing_hierarchies(
+                g,
+                &g.graph_node_order(),
+                g.edge_order.len(),
+                &OvgBuildBudget::new(),
+            )
+            .unwrap()
+        };
+        assert_eq!(groups(&graph).len(), 1);
+        assert_eq!(groups(&graph)[0].len(), 6);
+        graph.set_position(
+            *d,
+            Point {
+                x: 50_000.,
+                y: 50_000.,
+            },
+        );
+        let local = groups(&graph);
+        assert_eq!(local.len(), 1);
+        assert_eq!(local[0], vec![(Some(*a), 1), (Some(*b), 4)]);
+        let mut more = input.clone();
+        more.add_edge(crate::Edge {
+            source: *c,
+            target: *d,
+        });
+        let mut graph = ArenaGraph::from_input(&more);
+        for (id, level) in [(left, 0), (right, 2), (*a, 1), (*b, 4), (*c, 1), (*d, 4)] {
+            graph.set_position(
+                id,
+                if id == *d {
+                    Point {
+                        x: 50_000.,
+                        y: 50_000.,
+                    }
+                } else {
+                    Point::default()
+                },
+            );
+            graph.assign_hierarchy_member(id, 0, None, level, 5);
+        }
+        let local = groups(&graph);
+        assert_eq!(local.len(), 2);
+        assert_eq!(local[0], vec![(Some(*a), 1), (Some(*b), 4)]);
+        assert_eq!(local[1], vec![(Some(*c), 1), (Some(*d), 4)]);
+        for n in &mut graph.nodes {
+            n.container = None;
+        }
+        assert_eq!(groups(&graph).len(), 1);
+        assert_eq!(groups(&graph)[0].len(), 6);
+    }
     struct Interrupt {
         point: SharedOwnerPoint,
         panic: bool,

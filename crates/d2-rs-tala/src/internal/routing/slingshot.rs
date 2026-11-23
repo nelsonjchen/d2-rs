@@ -496,21 +496,21 @@ fn occupied_unshareably_uncached(
         for route_id in overlapping_routes {
             let route = interaction_index.published_route(route_id);
             let other_index = route.edge;
-            if !charge_add(
-                budget,
-                route.len().saturating_add(1).saturating_mul(2) as u64,
-            ) {
+            if !charge_step(budget) {
                 return true;
             }
             overlapping.push(other_index);
-            let points = route.points();
-            let opposing = edge_is_directed(graph, edge_index)
-                && route_is_opposing_collinear(
-                    &points[..points.len().saturating_sub(1)],
-                    from,
-                    to,
-                    edge_is_directed(graph, other_index),
-                );
+            let opposing =
+                if edge_is_directed(graph, edge_index) && edge_is_directed(graph, other_index) {
+                    let Some(opposing) =
+                        interaction_index.has_opposing_segment(route_id, from, to, budget)
+                    else {
+                        return true;
+                    };
+                    opposing
+                } else {
+                    false
+                };
             #[cfg(feature = "diagnostic-traces")]
             if std::env::var("D2_TRACE_SLINGSHOT_CHECK_EDGE")
                 .ok()
@@ -526,9 +526,13 @@ fn occupied_unshareably_uncached(
                 return true;
             }
         }
-        // Source edgeCanOverlapEdgesGuarded reserves ten full passes and
-        // polls cancellation before the shareability decision.
-        for _ in 0..10 {
+        // Directed overlaps reserve one pass; other overlaps reserve ten.
+        // Poll cancellation before the shareability decision.
+        for _ in 0..if edge_is_directed(graph, edge_index) && !overlapping.is_empty() {
+            1
+        } else {
+            10
+        } {
             if !charge_add(budget, overlapping.len() as u64) {
                 return true;
             }
@@ -1506,23 +1510,35 @@ pub(super) fn s_route(
             left_distance.total_cmp(&right_distance)
         });
 
+        // Preserve target order within each aligned axis (64288a936).
+        let mut target_by_axis = std::collections::BTreeMap::<u64, Vec<usize>>::new();
+        let axis_of = |id| {
+            let p = visibility.point(id);
+            super::go_float_map_key(if vertical { p.y } else { p.x })
+        };
+        for &id in &target_anchor_order {
+            if !charge_step(budget) {
+                return None;
+            }
+            target_by_axis.entry(axis_of(id)).or_default().push(id);
+        }
         for source_anchor in source_anchor_order.iter().copied() {
             if !charge_step(budget) {
                 return None;
             }
             let source_port = source_anchor_ports[&source_anchor];
-            for target_anchor in target_anchor_order.iter().copied() {
+            for target_anchor in target_by_axis
+                .get(&axis_of(source_anchor))
+                .into_iter()
+                .flatten()
+                .copied()
+            {
                 if !charge_step(budget) {
                     return None;
                 }
                 let target_port = target_anchor_ports[&target_anchor];
                 let source_anchor_point = visibility.point(source_anchor);
                 let target_anchor_point = visibility.point(target_anchor);
-                if (vertical && source_anchor_point.y != target_anchor_point.y)
-                    || (!vertical && source_anchor_point.x != target_anchor_point.x)
-                {
-                    continue;
-                }
                 let pairs = [
                     (source_port.point, source_anchor_point),
                     (source_anchor_point, target_anchor_point),
@@ -1731,6 +1747,7 @@ mod tests {
 
     fn node(name: &str, position: Point) -> Node {
         Node {
+            elk_layer_constraint: String::new(),
             d2_near_key: None,
             external_id: name.into(),
             size: Size {

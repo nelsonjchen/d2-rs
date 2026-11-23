@@ -40,25 +40,19 @@ pub fn validate(
         context(cancel)?;
         let element = &elements[index];
         let parent = parent.map(|i: usize| elements[i].name.as_str());
-        if element.name == "linearGradient" {
-            if parent != Some("defs") {
-                return Err(error(
-                    "element <linearGradient> must be a direct child of <defs>".into(),
-                ));
-            }
-            if element.id.is_empty() {
-                return Err(error("element <linearGradient> must declare an id".into()));
-            }
-            if element.children.is_empty() {
-                return Err(error(
-                    "element <linearGradient> must contain at least one <stop>".into(),
-                ));
+        if matches!(element.name.as_str(), "linearGradient" | "radialGradient") {
+            if !matches!(parent, Some("defs" | "g" | "svg")) {
+                return Err(error(format!(
+                    "element <{}> must be inside <svg>, <g> or <defs>",
+                    element.name
+                )));
             }
             for &child in &element.children {
                 let name = &elements[child].name;
                 if name != "stop" {
                     return Err(error(format!(
-                        "element <linearGradient> has unsupported child <{}>",
+                        "element <{}> has unsupported child <{}>",
+                        element.name,
                         if name.len() > 64 {
                             "<oversized-name>"
                         } else {
@@ -68,9 +62,9 @@ pub fn validate(
                 }
             }
         } else if element.name == "stop" {
-            if parent != Some("linearGradient") {
+            if !matches!(parent, Some("linearGradient" | "radialGradient")) {
                 return Err(error(
-                    "element <stop> is only supported inside <linearGradient>".into(),
+                    "element <stop> is only supported inside a gradient".into(),
                 ));
             }
             if !element.children.is_empty() {
@@ -104,6 +98,18 @@ pub fn compile(
             "gradientTransform",
             "spreadMethod",
         ],
+        "radialGradient" => &[
+            "id",
+            "cx",
+            "cy",
+            "r",
+            "fx",
+            "fy",
+            "fr",
+            "gradientUnits",
+            "gradientTransform",
+            "spreadMethod",
+        ],
         "stop" => &["offset", "class", "style", "stop-color", "stop-opacity"],
         _ => &[],
     };
@@ -122,9 +128,10 @@ pub fn compile(
         }
     }
     match element.name.as_str() {
-        "linearGradient" => {
-            element.gradient = Some(svg_gradient::compile(
+        "linearGradient" | "radialGradient" => {
+            element.gradient = Some(svg_gradient::compile_kind(
                 source,
+                &element.name,
                 &element.attrs,
                 max_bytes,
                 max_functions,
@@ -155,12 +162,21 @@ pub fn compile(
                     )));
                 }
             }
-            let raw = element
-                .attrs
-                .get("offset")
-                .ok_or_else(|| error("element <stop> is missing offset".into()))?;
-            let offset = svg_length::unit_interval(raw)
-                .map_err(|e| error(format!("element <stop> has invalid offset: {e}")))?;
+            let raw = element.attrs.get("offset").map(|v| v.trim()).unwrap_or("");
+            let offset = if raw.is_empty() {
+                0.
+            } else {
+                let (number, percent) = raw.strip_suffix('%').map_or((raw, false), |n| (n, true));
+                if number.trim() != number {
+                    return Err(error(
+                        "element <stop> has invalid offset: percentage sign must follow its number"
+                            .into(),
+                    ));
+                }
+                let value = svg_length::number(number)
+                    .map_err(|e| error(format!("element <stop> has invalid offset: {e}")))?;
+                (if percent { value / 100. } else { value }).clamp(0., 1.)
+            };
             let mut stop = svg_gradient_stop::from_declarations(source, &element.declarations)?;
             stop.offset = offset;
             element.stop = Some(stop);

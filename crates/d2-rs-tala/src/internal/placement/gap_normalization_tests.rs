@@ -7,6 +7,7 @@ use crate::{ContentAlignment, Edge, Node};
 
 fn node(name: &str, shape: ShapeKind) -> Node {
     Node {
+        elk_layer_constraint: String::new(),
         d2_near_key: None,
         external_id: name.to_owned(),
         size: Size {

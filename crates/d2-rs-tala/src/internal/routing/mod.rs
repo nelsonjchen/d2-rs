@@ -48,6 +48,7 @@ mod ovg_ports;
 #[cfg(feature = "diagnostic-traces")]
 pub(in crate::internal) use ovg_hierarchy::diagnostic as hierarchy_ovg_probe;
 mod finalize;
+mod ovg_crossing_index;
 mod ovg_import;
 mod published_route;
 mod routed_edge_set;
@@ -272,7 +273,9 @@ mod hierarchy;
 mod interactions;
 mod nudge;
 mod priority_queue;
+mod route_directions;
 mod route_geometry;
+pub(super) use route_geometry::recovered_segment_intersects_box;
 mod route_search_guard;
 mod route_stage_guard;
 mod scopes;

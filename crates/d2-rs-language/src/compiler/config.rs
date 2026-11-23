@@ -48,8 +48,14 @@ fn valid_theme_color(value: &str) -> bool {
 /// environment values can override it, matching D2's `applyConfigs` boundary.
 /// Theme rendering itself remains a target-layer concern, but preserving these
 /// values lets native and WASM callers make the same precedence decision.
-#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 pub struct DiagramConfig {
+    /// Milliseconds per board of an animation, from `animate-interval`.
+    pub animate_interval: Option<i64>,
+    /// Output scale from `scale`; the automatic `-1` sentinel is absent.
+    pub scale: Option<f64>,
+    /// Whether SVG exports get an appendix, from `force-appendix`.
+    pub force_appendix: Option<bool>,
     /// Whether sketch rendering was requested in source.
     pub sketch: Option<bool>,
     /// Whether isometric rendering was requested in source (master config API).
@@ -237,6 +243,15 @@ pub fn extract_config(compiler: &Compiler, root: NodeId) -> Option<DiagramConfig
             .and_then(|field| compiler.arena.primary(field))
             .and_then(|node| scalar_text(compiler, node))
     };
+    output.animate_interval = text("animate-interval").map(|value| {
+        // compileConfig discards the parse result's validity: validation
+        // already rejected anything else.
+        parse_animate_interval(&value).unwrap_or(0)
+    });
+    output.scale = text("scale")
+        .map(|value| d2_rs_core::parse_d2_float(&value).unwrap_or(0.0))
+        .filter(|scale| *scale != -1.0);
+    output.force_appendix = text("force-appendix").map(|value| bool_value(&value).unwrap_or(false));
     output.sketch = text("sketch").and_then(|value| bool_value(&value));
     output.isometric = text("isometric").and_then(|value| bool_value(&value));
     output.center = text("center").and_then(|value| bool_value(&value));
@@ -359,22 +374,49 @@ impl Compiler {
                 self.config_error(field, format!("\"{name}\" needs a value"));
                 continue;
             }
+            let composite = self.arena.map(field).is_some();
             match name.as_str() {
-                "sketch" | "isometric" | "center" => {
-                    if !matches!(
-                        value.as_str(),
-                        "1" | "t"
-                            | "T"
-                            | "TRUE"
-                            | "true"
-                            | "True"
-                            | "0"
-                            | "f"
-                            | "F"
-                            | "FALSE"
-                            | "false"
-                            | "False"
-                    ) {
+                "animate-interval" => {
+                    if parse_animate_interval(&value).is_none() || composite {
+                        self.config_error(
+                            field,
+                            format!(
+                                "expected a non-negative whole number of milliseconds or a duration in whole milliseconds for \"animate-interval\", got {}",
+                                d2_rs_core::quote_go_bytes(value.as_bytes())
+                            ),
+                        );
+                    }
+                }
+                "scale" => {
+                    let valid = d2_rs_core::parse_d2_float(&value)
+                        .is_some_and(|scale| scale.is_finite() && (scale > 0.0 || scale == -1.0));
+                    if !valid || composite {
+                        self.config_error(
+                            field,
+                            format!(
+                                "expected a finite positive scale or -1 for automatic sizing, got {}",
+                                d2_rs_core::quote_go_bytes(value.as_bytes())
+                            ),
+                        );
+                    }
+                }
+                "sketch" | "isometric" | "center" | "force-appendix" => {
+                    if (name == "force-appendix" && composite)
+                        || !matches!(
+                            value.as_str(),
+                            "1" | "t"
+                                | "T"
+                                | "TRUE"
+                                | "true"
+                                | "True"
+                                | "0"
+                                | "f"
+                                | "F"
+                                | "FALSE"
+                                | "false"
+                                | "False"
+                        )
+                    {
                         self.config_error(
                             field,
                             format!("expected a boolean for \"{name}\", got \"{value}\""),
@@ -407,5 +449,163 @@ impl Compiler {
     fn config_error(&mut self, node: NodeId, message: String) {
         let ast = self.arena.last_ref(node).unwrap().ast().unwrap();
         self.errors.push(error(&ast, message));
+    }
+}
+
+/// d2ir.ParseAnimateInterval: the source interval in milliseconds. A bare
+/// integer uses milliseconds, matching the CLI flag.
+#[must_use]
+pub fn parse_animate_interval(value: &str) -> Option<i64> {
+    let mut text = value.to_owned();
+    if value.parse::<i64>().is_ok() {
+        text.push_str("ms");
+    }
+    let duration = go_parse_duration(&text)?;
+    if duration < 0 || duration % 1_000_000 != 0 {
+        return None;
+    }
+    // ParseDuration truncates below a nanosecond. Only an actual zero should
+    // turn an animation off.
+    if duration == 0 && text.bytes().any(|byte| matches!(byte, b'1'..=b'9')) {
+        return None;
+    }
+    Some(duration / 1_000_000)
+}
+
+/// Go time.ParseDuration, in nanoseconds.
+fn go_parse_duration(original: &str) -> Option<i64> {
+    const LIMIT: u64 = 1 << 63;
+    let mut s = original.as_bytes();
+    let mut negative = false;
+    if let Some(&sign @ (b'-' | b'+')) = s.first() {
+        negative = sign == b'-';
+        s = &s[1..];
+    }
+    if s == b"0" {
+        return Some(0);
+    }
+    if s.is_empty() {
+        return None;
+    }
+    let mut total: u64 = 0;
+    while !s.is_empty() {
+        if !(s[0] == b'.' || s[0].is_ascii_digit()) {
+            return None;
+        }
+        // leadingInt
+        let mut whole: u64 = 0;
+        let mut index = 0;
+        while index < s.len() && s[index].is_ascii_digit() {
+            if whole > LIMIT / 10 {
+                return None;
+            }
+            whole = whole * 10 + u64::from(s[index] - b'0');
+            if whole > LIMIT {
+                return None;
+            }
+            index += 1;
+        }
+        let consumed_whole = index > 0;
+        s = &s[index..];
+        // leadingFraction
+        let mut fraction: u64 = 0;
+        let mut scale = 1.0f64;
+        let mut consumed_fraction = false;
+        if s.first() == Some(&b'.') {
+            s = &s[1..];
+            let mut index = 0;
+            let mut overflow = false;
+            while index < s.len() && s[index].is_ascii_digit() {
+                let digit = u64::from(s[index] - b'0');
+                index += 1;
+                if overflow {
+                    continue;
+                }
+                if fraction > (LIMIT - 1) / 10 {
+                    overflow = true;
+                    continue;
+                }
+                let next = fraction * 10 + digit;
+                if next > LIMIT {
+                    overflow = true;
+                    continue;
+                }
+                fraction = next;
+                scale *= 10.0;
+            }
+            consumed_fraction = index > 0;
+            s = &s[index..];
+        }
+        if !consumed_whole && !consumed_fraction {
+            return None;
+        }
+        let unit_end = s
+            .iter()
+            .position(|byte| *byte == b'.' || byte.is_ascii_digit())
+            .unwrap_or(s.len());
+        if unit_end == 0 {
+            return None;
+        }
+        let unit: u64 = match &s[..unit_end] {
+            b"ns" => 1,
+            b"us" | b"\xc2\xb5s" | b"\xce\xbcs" => 1_000,
+            b"ms" => 1_000_000,
+            b"s" => 1_000_000_000,
+            b"m" => 60_000_000_000,
+            b"h" => 3_600_000_000_000,
+            _ => return None,
+        };
+        s = &s[unit_end..];
+        if whole > LIMIT / unit {
+            return None;
+        }
+        whole *= unit;
+        if fraction > 0 {
+            whole += (fraction as f64 * (unit as f64 / scale)) as u64;
+            if whole > LIMIT {
+                return None;
+            }
+        }
+        total += whole;
+        if total > LIMIT {
+            return None;
+        }
+    }
+    if negative {
+        return Some((total as i64).wrapping_neg());
+    }
+    if total > LIMIT - 1 {
+        return None;
+    }
+    Some(total as i64)
+}
+
+#[cfg(test)]
+mod animate_interval_tests {
+    use super::parse_animate_interval;
+
+    #[test]
+    fn parses_like_d2ir() {
+        for (value, expected) in [
+            ("0", Some(0)),
+            ("250", Some(250)),
+            ("+5", Some(5)),
+            ("1.5s", Some(1500)),
+            ("2m", Some(120_000)),
+            ("1h30m", Some(5_400_000)),
+            ("0s", Some(0)),
+            ("0.0001ns", None),
+            ("1us", None),
+            ("1000us", Some(1)),
+            ("-1", None),
+            ("-0", Some(0)),
+            ("1.5", None),
+            ("ms", None),
+            ("", None),
+            ("10x", None),
+            ("1e3", None),
+        ] {
+            assert_eq!(parse_animate_interval(value), expected, "{value:?}");
+        }
     }
 }

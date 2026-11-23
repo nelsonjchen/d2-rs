@@ -11,6 +11,12 @@ use super::{
 };
 #[derive(Debug, Default, serde::Serialize, serde::Deserialize, PartialEq)]
 pub struct State {
+    #[serde(default)]
+    pub mask_region: Option<super::svg_effects::Region>,
+    #[serde(default)]
+    pub filter_region: Option<super::svg_effects::Region>,
+    #[serde(default)]
+    pub blur: super::svg_effects::Blur,
     pub transform: [f64; 6],
     pub viewport: Option<Viewport>,
 }
@@ -45,8 +51,8 @@ fn allowed(name: &str) -> Option<&'static [&'static str]> {
         ],
         "g" | "defs" => &[],
         "style" => &["type"],
-        "title" | "metadata" => &["id"],
-        "rdf:RDF" | "cc:Work" | "dc:format" | "dc:type" => &[],
+        "title" | "desc" | "metadata" => &["id"],
+        "rdf:RDF" | "cc:Work" | "dc:format" | "dc:type" | "dc:title" => &[],
         "sodipodi:namedview" => &[
             "id",
             "pagecolor",
@@ -68,8 +74,28 @@ fn allowed(name: &str) -> Option<&'static [&'static str]> {
         "line" => &["x1", "y1", "x2", "y2"],
         "polyline" | "polygon" => &["points"],
         "image" => &["x", "y", "width", "height", "href", "preserveAspectRatio"],
-        "text" => &["font-size", "font-family"],
+        "text" | "tspan" => &["x", "y"],
         "use" => &["href", "x", "y", "overflow"],
+        "filter" => &[
+            "id",
+            "x",
+            "y",
+            "width",
+            "height",
+            "filterUnits",
+            "primitiveUnits",
+            "color-interpolation-filters",
+        ],
+        "feGaussianBlur" => &["stdDeviation", "in", "color-interpolation-filters"],
+        "mask" => &[
+            "maskUnits",
+            "maskContentUnits",
+            "x",
+            "y",
+            "width",
+            "height",
+            "mask-type",
+        ],
         "clipPath" => &["id", "clipPathUnits"],
         "linearGradient" => &[
             "id",
@@ -77,6 +103,18 @@ fn allowed(name: &str) -> Option<&'static [&'static str]> {
             "y1",
             "x2",
             "y2",
+            "gradientUnits",
+            "gradientTransform",
+            "spreadMethod",
+        ],
+        "radialGradient" => &[
+            "id",
+            "cx",
+            "cy",
+            "r",
+            "fx",
+            "fy",
+            "fr",
             "gradientUnits",
             "gradientTransform",
             "spreadMethod",
@@ -104,7 +142,17 @@ pub fn admit(
     let name = element.name.as_str();
     let specific =
         allowed(name).ok_or_else(|| error(format!("internal unsupported element <{name}>")))?;
-    if matches!(name, "linearGradient" | "stop") {
+    if matches!(name, "filter" | "feGaussianBlur") {
+        for key in &element.order {
+            if !specific.contains(&key.as_str()) {
+                return Err(error(format!(
+                    "element <{name}> has unsupported attribute {key:?}"
+                )));
+            }
+        }
+        return Ok(Continuation::Complete);
+    }
+    if matches!(name, "linearGradient" | "radialGradient" | "stop") {
         svg_gradient_tree::compile(
             source,
             element,
@@ -140,7 +188,7 @@ pub fn admit(
         state.transform = [1., 0., 0., 1., 0., 0.];
         return Ok(Continuation::Complete);
     }
-    if !matches!(name, "svg" | "g" | "defs" | "clipPath") && rendering_children {
+    if !matches!(name, "svg" | "g" | "defs" | "clipPath" | "mask" | "text") && rendering_children {
         return Err(error(format!(
             "element <{name}> cannot contain child elements"
         )));
@@ -152,7 +200,7 @@ pub fn admit(
     if name == "svg" {
         if root {
             if let Some(raw) = element.attrs.get("version") {
-                if !matches!(trim_space(raw, cancel)?, "1.0" | "1.1") {
+                if !matches!(trim_space(raw, cancel)?, "1.0" | "1.1" | "1.2") {
                     return Err(error("root <svg> has unsupported version".into()));
                 }
             }
@@ -165,21 +213,8 @@ pub fn admit(
                     }
                 }
             }
-            if let Some(raw) = element.attrs.get("enable-background") {
-                svg_declarations::background(raw, cancel).map_err(|reason| {
-                    context(cancel).err().unwrap_or_else(|| {
-                        error(format!(
-                            "root <svg> has invalid enable-background: {reason}"
-                        ))
-                    })
-                })?;
-            }
         } else if element.attrs.contains_key("version") {
             return Err(error("nested <svg> version is unsupported".into()));
-        } else if element.attrs.contains_key("enable-background") {
-            return Err(error(
-                "nested <svg> enable-background is unsupported".into(),
-            ));
         }
     }
     let (classes, set) =

@@ -166,6 +166,7 @@ fn writer<'a>(context: &'a RenderContext, prefix: &str) -> Writer<'a> {
         buf: prefix.into(),
         err: None,
         surfaces: HashMap::new(),
+        lighting_stops: HashMap::new(),
         surface_svg: &native_surface_svg,
     }
 }
@@ -286,6 +287,8 @@ fn replay(v: &Value, state: &mut ReplayState) -> Value {
                 .unwrap()
                 .iter()
                 .map(|l| NativeLink {
+                    mesh_start: 0,
+                    mesh_end: 0,
                     points: l["points"].as_array().unwrap().iter().map(vector).collect(),
                     url: l["region"]["URL"].as_str().unwrap().into(),
                     tooltip: l["region"]["Tooltip"].as_str().unwrap().into(),

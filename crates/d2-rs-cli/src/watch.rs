@@ -436,9 +436,26 @@ fn compile_and_publish<F>(
     if !error.is_empty() {
         eprintln!("{error}");
     }
+    // The browser rescales only a rendered preview, with the scale this
+    // compile resolved (the flag, else the source's d2-config).
+    let scale = if svg.is_empty() {
+        None
+    } else if config.scale_explicit {
+        config.scale
+    } else {
+        std::fs::read(&config.input_path)
+            .ok()
+            .and_then(|input| {
+                super::source_config(&input, &config.input_path)
+                    .ok()
+                    .flatten()
+            })
+            .and_then(|source| source.scale)
+            .filter(|scale| *scale > 0.0)
+    };
     let message = json!({
         "svg": svg,
-        "scale": config.scale,
+        "scale": scale,
         "err": error,
     })
     .to_string();
@@ -1141,6 +1158,9 @@ struct WatchConfig {
     port: u16,
     browser: Option<String>,
     scale: Option<f64>,
+    /// Whether SCALE or --scale was given; otherwise vars.d2-config.scale
+    /// sets each compile's preview scale.
+    scale_explicit: bool,
     img_cache: bool,
     render_args: Vec<String>,
 }
@@ -1154,6 +1174,7 @@ impl WatchConfig {
             .map_err(|error| format!("invalid PORT value {port_value:?}: {error}"))?;
         let mut browser = std::env::var("BROWSER").ok();
         let mut scale = parse_scale_env()?;
+        let mut scale_explicit = std::env::var("SCALE").is_ok_and(|value| !value.is_empty());
         let mut img_cache = std::env::var("IMG_CACHE")
             .ok()
             .map(|value| parse_bool(&value, "IMG_CACHE"))
@@ -1212,6 +1233,7 @@ impl WatchConfig {
                         return Err("scale must be a finite positive number".into());
                     }
                     scale = Some(parsed);
+                    scale_explicit = true;
                     render_flags.push(format!("--scale={value}"));
                 }
                 _ if is_value_flag(flag) => {
@@ -1289,6 +1311,7 @@ impl WatchConfig {
             port,
             browser,
             scale,
+            scale_explicit,
             img_cache,
             render_args,
         })

@@ -13,6 +13,7 @@ fn segments(v: &Value) -> List<ClassicInkSegment> {
         .unwrap()
         .iter()
         .map(|s| ClassicInkSegment {
+            crease: false,
             a: vector(&s["a"]),
             c: vector(&s["c"]),
             support: s["support"]

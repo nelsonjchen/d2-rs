@@ -10,6 +10,15 @@ pub type Palette = BTreeMap<String, Option<String>>;
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct LibraryConfig {
+    /// Source animation interval in milliseconds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub animate_interval: Option<i64>,
+    /// Source output scale; the automatic sentinel is absent.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scale: Option<f64>,
+    /// Source SVG appendix selection.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub force_appendix: Option<bool>,
     /// Sketch mode authored in source.
     pub sketch: Option<bool>,
     /// Effective true mode contributes to the appearance hash; false is absent.
@@ -105,6 +114,7 @@ pub fn apply_configs(
         sketch,
         isometric,
         pad,
+        scale,
         center,
         theme_overrides,
         dark_theme_overrides
@@ -162,6 +172,9 @@ impl From<&d2_rs_language::compiler::DiagramConfig> for LibraryConfig {
             Some(result)
         }
         Self {
+            animate_interval: config.animate_interval,
+            scale: config.scale,
+            force_appendix: config.force_appendix,
             sketch: config.sketch,
             isometric: config.isometric,
             theme_id: config.theme_id,

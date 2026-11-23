@@ -13,11 +13,13 @@ pub(crate) mod svgpath;
 
 pub(crate) mod animate;
 pub mod color;
+pub mod crossings;
 pub(crate) mod element;
 pub(crate) mod fonts;
 pub mod markup;
 mod paint_validation;
 pub(crate) mod render;
+pub(crate) mod svgframe;
 pub(crate) mod svgtext;
 pub(crate) mod target_methods;
 pub(crate) mod target_validation;
@@ -168,7 +170,7 @@ pub fn render_cli_animated_with(
     let mut opts = cli_opts(options, sketch);
     target_validation::validate(&diagram)?;
     opts.master_id = diagram.hash_id(opts.salt.as_deref())?;
-    let boards = render::render_multiboard_with(&diagram, &opts, process)?;
+    let boards = render::render_multiboard_with(&diagram, &opts, options.force_appendix, process)?;
     animate::wrap(&diagram, &boards, &opts, interval_ms)
 }
 
@@ -271,7 +273,7 @@ fn render_wasm_impl(
         })?;
         if appendix {
             let hash = diagram.hash_id(opts.salt.as_deref())?;
-            self::appendix::append(diagram, &hash, &svg)
+            self::appendix::append(diagram, &hash, &svg, opts.scale)
         } else {
             Ok(svg)
         }
@@ -333,5 +335,5 @@ pub fn append_cli_appendix(
         Some(bytes) => crate::target_hash_id_from_input(bytes, options.salt.as_deref()),
         None => diagram.hash_id(options.salt.as_deref())?,
     };
-    appendix::append(&diagram, &hash, svg)
+    appendix::append(&diagram, &hash, svg, options.scale)
 }

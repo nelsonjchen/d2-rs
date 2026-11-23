@@ -273,9 +273,9 @@ pub fn import_scene_svg(source: &str) -> Result<String, String> {
         match name {
             "svg" | "g" | "defs" | "style" | "path" | "rect" | "circle" | "ellipse" | "line"
             | "polyline" | "polygon" | "image" | "text" | "use" | "clipPath" | "linearGradient"
-            | "stop" | "title" | "metadata" => {}
+            | "radialGradient" | "stop" | "title" | "metadata" => {}
             "script" | "foreignObject" => return Err(format!("forbidden element <{name}>")),
-            "radialGradient" | "pattern" => {
+            "pattern" => {
                 return Err(format!("unsupported paint server <{name}>"));
             }
             _ => return Err(format!("unknown element <{name}>")),

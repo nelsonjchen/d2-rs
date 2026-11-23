@@ -90,6 +90,7 @@ pub fn surface_fonts(
 pub fn surface_assets() -> AssetOptions {
     AssetOptions {
         svg_import_limits: SvgImportLimits {
+            max_decoded_raster_bytes: 0,
             max_bytes: 2 << 20,
             max_depth: 64,
             max_elements: 20000,

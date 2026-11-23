@@ -41,6 +41,42 @@ impl PackingStaging {
             point,
         });
     }
+    // Upstream binpack.go packedLeavesBlockFixedRoutes (c12b4b1a3).
+    pub(super) fn blocks_fixed_routes(
+        &self,
+        graph: &ArenaGraph,
+        guard: &mut limits::WorkGuard<'_>,
+    ) -> Result<bool, limits::Error> {
+        for saved in &self.positions {
+            guard.step()?;
+            let (origin, _, node) = graph.packing_bounds_geometry(saved.node);
+            if node.is_some_and(|n| n.is_container || n.is_invisible) || origin == saved.value {
+                continue;
+            }
+            for edge_id in graph.edge_order.read() {
+                guard.step()?;
+                if self.route_index.contains(&edge_id) {
+                    continue;
+                }
+                let edge = &graph.edge_records[edge_id.0 as usize];
+                for i in 1..edge.route.len() {
+                    guard.step()?;
+                    let (origin, size, _) = graph.packing_bounds_geometry(saved.node);
+                    if let Some(origin) = origin {
+                        if routing::recovered_segment_intersects_box(
+                            edge.route.point(i - 1),
+                            edge.route.point(i),
+                            crate::Rect { origin, size },
+                        ) {
+                            return Ok(true);
+                        }
+                    }
+                }
+            }
+        }
+        guard.finish()?;
+        Ok(false)
+    }
     pub(super) fn restore_positions_checked(
         &self,
         graph: &mut ArenaGraph,
@@ -454,5 +490,59 @@ mod tests {
         assert_eq!(guard.used(), 2);
         assert_eq!(saved.positions.len(), 1);
         assert!(saved.positions[0].value.is_none());
+    }
+}
+
+#[cfg(test)]
+mod fixed_route_tests {
+    use super::*;
+    struct Background;
+    impl limits::Context for Background {
+        fn done(&self) -> Option<bool> {
+            None
+        }
+        fn error(&self) -> Option<limits::ContextError> {
+            None
+        }
+    }
+    #[test]
+    fn moving_leaf_cannot_cover_a_fixed_route_between_other_nodes() {
+        // c12b4b1a3: the two route endpoints are outside the packed group.
+        let mut input = crate::Graph::default();
+        let mut add = |name| {
+            input.add_node(crate::Node::new(
+                name,
+                crate::Size {
+                    width: 20.,
+                    height: 20.,
+                },
+            ))
+        };
+        let (left, right, leaf) = (add("left"), add("right"), add("leaf"));
+        let fixed = input.add_edge(crate::Edge {
+            source: left,
+            target: right,
+        });
+        input.set_edge_route(
+            fixed,
+            vec![Point { x: 0., y: 50. }, Point { x: 100., y: 50. }],
+        );
+        let mut graph = ArenaGraph::from_input(&input);
+        graph.set_position(leaf, Point { x: 40., y: 100. });
+        let mut saved = PackingStaging::default();
+        saved.record(&graph, PackingNodeRef::Node(leaf));
+        let context = Background;
+        let check = |saved: &PackingStaging, graph: &ArenaGraph| {
+            let mut guard = limits::WorkGuard::new(Some(&context), "BinPack", 10_000).unwrap();
+            saved.blocks_fixed_routes(graph, &mut guard).unwrap()
+        };
+        assert!(!check(&saved, &graph));
+        graph.set_position(leaf, Point { x: 40., y: 40. });
+        assert!(check(&saved, &graph));
+        saved.route_index.insert(fixed);
+        assert!(!check(&saved, &graph));
+        saved.route_index.clear();
+        graph.nodes[leaf.0 as usize].is_invisible = true;
+        assert!(!check(&saved, &graph));
     }
 }

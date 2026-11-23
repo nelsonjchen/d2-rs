@@ -360,6 +360,7 @@ version = "0.1.11"
 dependencies = [
  "d2-rs-core",
  "d2-rs-dagre",
+ "d2-rs-language",
  "d2-rs-testdata",
  "serde",
  "serde_json",
@@ -402,7 +403,7 @@ name = "d2-rs-fontface"
 version = "0.1.11"
 dependencies = [
  "brotli-decompressor",
- "d2-rs-render",
+ "d2-rs-core",
  "d2-rs-rustybuzz",
  "d2-rs-testdata",
  "d2-rs-text",
@@ -494,7 +495,9 @@ dependencies = [
  "base64 0.22.1",
  "brotli-decompressor",
  "d2-rs-core",
+ "d2-rs-fontface",
  "d2-rs-testdata",
+ "d2-rs-text",
  "flate2",
  "libm",
  "num-rational",

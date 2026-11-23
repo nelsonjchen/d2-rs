@@ -5,7 +5,6 @@ use super::{
     geometry::{LabelSurface, MeshBuilder, native_paint, native_token, readable_surface_ink},
     ground_receivers::{HierarchyShadowSpan, hierarchy_shadow_receivers},
     hierarchy_boards::*,
-    hierarchy_headers::hierarchy_board_header_surface,
     hierarchy_support::hierarchy_support_offsets,
     markdown_cards::native_markdown_card,
     mesh::{nadd, nsub, nv},
@@ -372,6 +371,9 @@ pub(crate) fn build_native_scene_with_options(
         .unwrap_or_else(|| crate::theme::Theme::find(0).unwrap());
     theme.apply_overrides(s.theme_overrides.as_ref());
     b.arrow_background = theme.resolve("N7");
+    if s.theme_id != 0 || s.theme_overrides.is_some() {
+        b.palette_paper = b.arrow_background.clone();
+    }
     let nodes: NodeIndex = s.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
     let boards = hierarchy_presentation_boards(&s.boards, &nodes);
     b.route_casing_floor = hierarchy_casing_floor(&boards, &nodes);
@@ -395,12 +397,13 @@ pub(crate) fn build_native_scene_with_options(
         );
         board_index.insert(board.id.clone(), board.clone());
     }
-    let background = if native_token(&s.root.fill) {
+    let background = if b.palette_paper.is_empty() && native_token(&s.root.fill) {
         "#f5f7fb"
     } else {
         &s.background
     };
     let mut captions = RouteCaptionPlacer::new();
+    let routes = b.prepare_edges(&s.edges, &mut captions, s)?;
     let mut spans = vec![];
     for board in &boards {
         ctx.check_string()?;
@@ -454,14 +457,16 @@ pub(crate) fn build_native_scene_with_options(
             };
             if let Some(owner) = owner {
                 surface.center.y = hierarchy_surface_y(board) + 0.00006;
-                surface = hierarchy_board_header_surface(
+                surface = super::hierarchy_headers::place_hierarchy_header(
                     surface,
                     board,
                     owner,
                     &header_nodes,
                     b.scale,
                     Some(&boards),
-                );
+                    Some(&mut captions),
+                )
+                .0;
             }
             captions.avoid(surface.center, pw, pd);
             if let Some(owner) = owner {
@@ -489,7 +494,7 @@ pub(crate) fn build_native_scene_with_options(
                 &mut b.geometry.triangles[first..],
                 owner.metadata.original.shadow,
             );
-            b.add_mesh_link(
+            b.add_object_link(
                 &owner.metadata.original.link,
                 &owner.metadata.original.tooltip,
                 first,
@@ -519,11 +524,7 @@ pub(crate) fn build_native_scene_with_options(
             let tint = tints.get(&n.board_id).map_or("", String::as_str);
             b.sequence_node(n, tint);
             captions.avoid_mesh(&b.triangles[first..]);
-            b.add_mesh_link(
-                &n.metadata.original.link,
-                &n.metadata.original.tooltip,
-                first,
-            );
+            b.add_object_link(&n.link, &n.tooltip, first);
             b.remember_arrow_owner(n, None, first);
             spans.push(HierarchyShadowSpan {
                 first,
@@ -533,7 +534,7 @@ pub(crate) fn build_native_scene_with_options(
         }
     }
     ctx.check_string()?;
-    let packets = b.edges(&s.edges, &mut captions, s);
+    let packets = b.draw_edges(&s.edges, &mut captions, s, routes);
     if let Some(e) = b.err.clone() {
         return Err(e);
     }

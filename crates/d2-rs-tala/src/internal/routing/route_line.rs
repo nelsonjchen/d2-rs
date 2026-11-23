@@ -291,8 +291,16 @@ fn overlap_eligibility_with_budget(
     budget: Option<&dyn LineWork>,
     eligible: impl FnOnce() -> bool,
 ) -> Option<bool> {
+    overlap_eligibility_with_direction(edge_count, false, budget, eligible)
+}
+fn overlap_eligibility_with_direction(
+    edge_count: usize,
+    directed: bool,
+    budget: Option<&dyn LineWork>,
+    eligible: impl FnOnce() -> bool,
+) -> Option<bool> {
     if let Some(budget) = budget {
-        for _ in 0..10 {
+        for _ in 0..if directed && edge_count > 0 { 1 } else { 10 } {
             budget.add(edge_count as u64).ok()?;
         }
         budget.check().ok()?;
@@ -807,25 +815,31 @@ fn route_line_with_overlap_mode(
                 &all_other_edges
             };
             if !overlapping_edges.is_empty()
-                && !overlap_eligibility_with_budget(overlap_edges.len(), budget, || {
-                    if let Some((source_members, target_members)) = &guarded_cluster_members {
-                        super::interactions::edges_can_overlap_all_with_members_and_style(
-                            graph,
-                            edge_index,
-                            overlap_edges,
-                            (!source_members.is_empty()).then_some(source_members),
-                            (!target_members.is_empty()).then_some(target_members),
-                            prior_style_override.as_ref(),
-                        )
-                    } else {
-                        super::interactions::edges_can_overlap_all_with_style(
-                            graph,
-                            edge_index,
-                            overlap_edges,
-                            prior_style_override.as_ref(),
-                        )
-                    }
-                })?
+                && !overlap_eligibility_with_direction(
+                    overlap_edges.len(),
+                    graph.edge_records[edge_index].source_arrow
+                        != graph.edge_records[edge_index].target_arrow,
+                    budget,
+                    || {
+                        if let Some((source_members, target_members)) = &guarded_cluster_members {
+                            super::interactions::edges_can_overlap_all_with_members_and_style(
+                                graph,
+                                edge_index,
+                                overlap_edges,
+                                (!source_members.is_empty()).then_some(source_members),
+                                (!target_members.is_empty()).then_some(target_members),
+                                prior_style_override.as_ref(),
+                            )
+                        } else {
+                            super::interactions::edges_can_overlap_all_with_style(
+                                graph,
+                                edge_index,
+                                overlap_edges,
+                                prior_style_override.as_ref(),
+                            )
+                        }
+                    },
+                )?
             {
                 if trace_candidates {
                     eprintln!(

@@ -27,7 +27,9 @@ pub mod model;
 #[cfg(test)]
 mod model_order_contract;
 mod mrtree;
+mod options;
 mod orthogonal;
+pub use options::{AlgorithmOptions, LayeredOptions};
 mod property;
 mod radial_layout;
 mod random_layout;
@@ -40,6 +42,7 @@ mod utility;
 
 pub use codec::{
     apply_elk_graph_result, graph_to_elk_graph, graph_to_elk_graph_with_table_columns,
+    try_graph_to_elk_graph,
 };
 pub use layered::{
     BkAlignment, BkFixedAlignment, BkHorizontalDirection, BkVerticalDirection, GraphPadding, LEdge,
@@ -179,6 +182,12 @@ impl ElkAlgorithm {
 /// D2's configurable ELK adapter options.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ElkOptions {
+    /// Controls applied to parent graphs.
+    pub layered: LayeredOptions,
+    /// Controls applied to the selected root algorithm.
+    pub algorithm_options: AlgorithmOptions,
+    /// Named container padding; omitted sides are zero.
+    pub padding_sides: Option<GraphPadding>,
     /// Algorithm selected by the caller.
     pub algorithm: ElkAlgorithm,
     /// Spacing between adjacent layers or packed nodes.
@@ -197,6 +206,9 @@ pub struct ElkOptions {
 impl Default for ElkOptions {
     fn default() -> Self {
         Self {
+            layered: LayeredOptions::default(),
+            algorithm_options: AlgorithmOptions::default(),
+            padding_sides: None,
             algorithm: ElkAlgorithm::Layered,
             node_spacing: 70.0,
             edge_node_spacing: 40.0,
@@ -1987,6 +1999,7 @@ fn run_root_scope_pipeline(
     layered::reverse_constraint_edges_for_layout(arena, root);
     trace_phase!("constraints", "external_port_edge_direction");
     trace_arena!("constraints", "external_port_edge_direction", arena);
+    layered::process_feedback_port_sides(arena, root);
     layered::break_cycles_for_layout(arena, root)?;
     trace_phase!("cycle_breaking", "break_cycles");
     trace_arena!("cycle_breaking", "break_cycles", arena);
@@ -1998,6 +2011,7 @@ fn run_root_scope_pipeline(
     // ELK inserts long-edge dummies before node ordering. The dummies must
     // participate in the barycenter sweep; appending them after ordering
     // leaves the source graph order stale and changes BK's conflict window.
+    layered::wrapping::insert_breaking_points(arena, root);
     layered::split_long_edges_for_layout(arena, root)?;
     trace_phase!("hierarchy", "split_long_edges");
     trace_arena!("hierarchy", "split_long_edges", arena);
@@ -2039,6 +2053,11 @@ fn run_root_scope_pipeline(
     finish_nested_graphs(arena, root)?;
     trace_phase!("hierarchy", "finish_nested_graphs");
     trace_arena!("hierarchy", "finish_nested_graphs", arena);
+    if includes_children {
+        layered::wrapping::before_placement(arena, root)?;
+    } else {
+        layered::for_each_separate_component(arena, root, layered::wrapping::before_placement)?;
+    }
     layered::redistribute_ordered_implicit_ports(arena, root);
     trace_phase!("ports", "redistribute_after_ordering");
     trace_arena!("ports", "redistribute_after_ordering", arena);
@@ -2144,6 +2163,10 @@ fn run_root_scope_pipeline(
     layered::restore_self_loop_edges_after_routing(arena, root);
     trace_phase!("self_loops", "restore_edges_after_routing");
     trace_arena!("self_loops", "restore_edges_after_routing", arena);
+    if layered::wrapping::is_multi_edge(arena, root) {
+        join_long_edges(arena, root)?;
+        layered::wrapping::remove_breaking_points(arena, root);
+    }
     postprocess_north_south_ports(arena, root);
     trace_phase!("routing", "north_south_port_postprocessor");
     trace_arena!("routing", "north_south_port_postprocessor", arena);
@@ -2205,6 +2228,7 @@ fn prepare_nested_graph_scope(
     layered::reverse_constraint_edges_for_layout(arena, graph_id);
     trace_phase!("nested", "external_port_edge_direction");
     trace_arena!("nested", "external_port_edge_direction", arena);
+    layered::process_feedback_port_sides(arena, graph_id);
     layered::break_cycles_for_layout(arena, graph_id)?;
     trace_phase!("nested", "break_cycles");
     trace_arena!("nested", "break_cycles", arena);
@@ -2213,6 +2237,7 @@ fn prepare_nested_graph_scope(
     trace_arena!("nested", "insert_center_edge_dummies", arena);
     layered::assign_layers_for_layout(arena, graph_id)?;
     trace_rank_phase!("nested", arena, graph_id);
+    layered::wrapping::insert_breaking_points(arena, graph_id);
     split_long_edges(arena, graph_id)?;
     layered::process_inverted_ports_for_layout(arena, graph_id);
     trace_phase!("nested", "inverted_port_preprocessor");
@@ -2266,6 +2291,7 @@ fn finish_nested_graph_scope(
     // processors; their external-port constraints are not the flat graph's
     // balanced-median case.
     layered::restore_pure_loop_port_areas_for_graph(arena, graph_id);
+    layered::wrapping::before_placement(arena, graph_id)?;
     layered::redistribute_ordered_implicit_ports(arena, graph_id);
     trace_phase!("nested", "redistribute_after_ordering");
     trace_arena!("nested", "redistribute_after_ordering", arena);
@@ -2302,6 +2328,10 @@ fn finish_nested_graph_scope(
     layered::restore_self_loop_edges_after_routing(arena, graph_id);
     trace_phase!("self_loops", "restore_edges_after_routing");
     trace_arena!("self_loops", "restore_edges_after_routing", arena);
+    if layered::wrapping::is_multi_edge(arena, graph_id) {
+        join_long_edges(arena, graph_id)?;
+        layered::wrapping::remove_breaking_points(arena, graph_id);
+    }
     postprocess_north_south_ports(arena, graph_id);
     trace_phase!("nested", "north_south_port_postprocessor");
     trace_arena!("nested", "north_south_port_postprocessor", arena);
@@ -3765,8 +3795,12 @@ fn layout_with_wire_pipeline(
     // The wire solver already routed to the table's fixed/dynamic ports.
     // d2elklayout preserves these endpoints while removing outside margins;
     // recomputing them from the shrunken table moves column attachments.
+    let keep_routes = options::mr_tree_routes(graph, &elk, elk_options);
+    options::trim_mr_tree_routes(graph, &mut result, &keep_routes);
     shape_trace::trace_routes(graph, &mut result);
-    bends::delete_bends(graph, &mut result);
+    if elk_options.layered.edge_routing != Some("POLYLINE") {
+        bends::delete_bends_with_options(graph, &mut result, elk_options.layered, &keep_routes);
+    }
     deconflict_self_loop_labels(graph, &mut result);
     // Go ELK publishes orthogonal sections without setting Edge.IsCurve.
     // Authored curve flags, if present on an API graph, remain unchanged.
@@ -3811,13 +3845,17 @@ pub fn layout_with_options(
         source: Box::new(error),
     })?;
     let configured = &graph.layout_engine_options;
-    if let Some(value) = configured.elk_algorithm.as_deref() {
+    if let Some(value) = configured
+        .elk_algorithm
+        .as_deref()
+        .filter(|_| !graph.d2_config_data.contains_key("elk-algorithm"))
+    {
         // resolveAlgorithms supplies the default only for an empty option and
         // ignores unresolved algorithms on a scope without layout content.
         elk_options.algorithm = if value.is_empty() || graph.nodes().next().is_none() {
             ElkAlgorithm::Layered
         } else {
-            ElkAlgorithm::parse(value).map_err(|error| {
+            ElkAlgorithm::parse(&options::algorithm_name(value)).map_err(|error| {
                 [
                     "layout ELK graph",
                     "native ELK layout failed",
@@ -3843,6 +3881,7 @@ pub fn layout_with_options(
     if let Some(value) = configured.elk_self_loop_spacing {
         elk_options.self_loop_spacing = value as f64;
     }
+    elk_options = options::graph_options(graph, elk_options)?;
     validate_options(elk_options)?;
     match elk_options.algorithm {
         ElkAlgorithm::Layered => layout_with_layered_pipeline(graph, options, elk_options),
@@ -3902,6 +3941,7 @@ pub fn layout_with_options(
 
 fn validate_options(options: ElkOptions) -> Result<(), LayoutError> {
     for (name, value) in [
+        ("edge_edge_spacing", options.edge_edge_spacing),
         ("node_spacing", options.node_spacing),
         ("edge_node_spacing", options.edge_node_spacing),
         ("padding", options.padding),

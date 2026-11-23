@@ -14,6 +14,8 @@ pub enum Paint {
     Solid { color: [u8; 4] },
     #[serde(rename = "linear")]
     Linear {
+        #[serde(default, skip_serializing_if = "no_percentages")]
+        percentages: [bool; 4],
         start: [f64; 2],
         end: [f64; 2],
         stops: Vec<Stop>,
@@ -21,6 +23,22 @@ pub enum Paint {
         transform: [f64; 6],
         spread: u8,
     },
+    #[serde(rename = "radial")]
+    Radial {
+        #[serde(default)]
+        percentages: [bool; 6],
+        focal: [f64; 2],
+        center: [f64; 2],
+        radius: f64,
+        focal_radius: f64,
+        stops: Vec<Stop>,
+        units: u8,
+        transform: [f64; 6],
+        spread: u8,
+    },
+}
+fn no_percentages(value: &[bool; 4]) -> bool {
+    !value.iter().any(|v| *v)
 }
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Style {
@@ -50,7 +68,7 @@ pub struct Stroke {
     pub dashes: Option<Vec<f64>>,
     pub dash_offset: f64,
 }
-#[derive(Debug, serde::Serialize, serde::Deserialize, PartialEq)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
 pub struct Primitive {
     pub geometry: Geometry,
     pub fill: Option<Paint>,
@@ -104,44 +122,20 @@ pub fn opacity(
     let Some(paint) = paint else {
         return Ok(None);
     };
-    match paint {
-        Paint::Solid { color } => {
-            let mut color = *color;
-            color[3] = (f64::from(color[3]) * value).round() as u8;
-            Ok(Some(Paint::Solid { color }))
-        }
-        Paint::Linear {
-            start,
-            end,
-            stops,
-            units,
-            transform,
-            spread,
-        } => {
+    let mut owned = paint.clone();
+    match &mut owned {
+        Paint::Solid { color } => color[3] = (f64::from(color[3]) * value).round() as u8,
+        Paint::Linear { stops, .. } | Paint::Radial { stops, .. } => {
             context(cancel)?;
-            let mut copied = Vec::with_capacity(stops.len());
-            for (index, stop) in stops.iter().enumerate() {
-                if index & 255 == 0 {
-                    context(cancel)?;
-                }
-                copied.push(stop.clone());
-            }
-            for (index, stop) in copied.iter_mut().enumerate() {
+            for (index, stop) in stops.iter_mut().enumerate() {
                 if index & 255 == 0 {
                     context(cancel)?;
                 }
                 stop.color[3] = (f64::from(stop.color[3]) * value).round() as u8;
             }
-            Ok(Some(Paint::Linear {
-                start: *start,
-                end: *end,
-                stops: copied,
-                units: *units,
-                transform: *transform,
-                spread: *spread,
-            }))
         }
     }
+    Ok(Some(owned))
 }
 /// Emit admitted geometry using computed source style. Images retain their asset
 /// identity/box/aspect and bypass fill/stroke paint, matching source primitives.
@@ -152,6 +146,9 @@ pub fn emit(
 ) -> Result<(Option<Primitive>, usize), String> {
     if !style.visible {
         return Ok((None, 0));
+    }
+    if geometry.kind == 6 {
+        return Err("external image references are forbidden".into());
     }
     if geometry.kind == 4 {
         return Ok((

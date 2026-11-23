@@ -36,6 +36,7 @@ pub struct BlurPass {
 #[derive(Clone, Debug)]
 pub struct PreparedFilter {
     pub kind: FilterKind,
+    pub linear_rgb: bool,
     pub passes: Vec<BlurPass>,
     pub output: Rect,
     pub offset_x: f64,
@@ -46,6 +47,7 @@ pub struct PreparedFilter {
 #[derive(Clone, Copy, Debug)]
 pub struct NormalizedFilter {
     kind: FilterKind,
+    linear_rgb: bool,
     sigma_x: f64,
     sigma_y: f64,
     offset_x: f64,
@@ -71,6 +73,7 @@ pub fn normalize_node_filters(
     for (index, raw) in filters.iter().enumerate() {
         let mut filter = NormalizedFilter {
             kind: FilterKind::GaussianBlur,
+            linear_rgb: false,
             sigma_x: 0.0,
             sigma_y: 0.0,
             offset_x: 0.0,
@@ -79,7 +82,12 @@ pub fn normalize_node_filters(
             source_index: index,
         };
         match raw {
-            Filter::GaussianBlur { sigma_x, sigma_y } => {
+            Filter::GaussianBlur {
+                sigma_x,
+                sigma_y,
+                linear_rgb,
+            } => {
+                filter.linear_rgb = *linear_rgb;
                 filter.sigma_x = *sigma_x;
                 filter.sigma_y = *sigma_y;
             }
@@ -166,6 +174,7 @@ pub fn prepare_filters(
         })?;
         let mut prepared = PreparedFilter {
             kind: filter.kind,
+            linear_rgb: filter.linear_rgb,
             passes: Vec::new(),
             output: Rect::default(),
             offset_x: 0.0,
@@ -443,6 +452,9 @@ pub fn apply_prepared_filter(
 ) -> Result<(), String> {
     match filter.kind {
         FilterKind::GaussianBlur => {
+            if filter.linear_rgb {
+                convert_filter_color_space(current, &filter_color_tables().0);
+            }
             for (index, pass) in filter.passes.iter().enumerate() {
                 let (mut output, output_bytes) = scratch
                     .offscreen
@@ -452,6 +464,9 @@ pub fn apply_prepared_filter(
                 scratch.offscreen.release(*reservation);
                 *current = output;
                 *reservation = output_bytes;
+            }
+            if filter.linear_rgb {
+                convert_filter_color_space(current, &filter_color_tables().1);
             }
             Ok(())
         }
@@ -809,4 +824,38 @@ pub fn plan_filter_resources(
         }
     }
     Ok((peak, current_bytes))
+}
+
+// Upstream 8558856dc filter.go filterColorTables/convertFilterColorSpace.
+// Convert premultiplied bytes in place, using the same 8-bit linear layer.
+type FilterColorTable = [[u8; 256]; 256];
+fn filter_color_tables() -> &'static (Box<FilterColorTable>, Box<FilterColorTable>) {
+    static TABLES: std::sync::OnceLock<(Box<FilterColorTable>, Box<FilterColorTable>)> =
+        std::sync::OnceLock::new();
+    TABLES.get_or_init(|| {
+        let mut decode = Box::new([[0; 256]; 256]);
+        let mut encode = Box::new([[0; 256]; 256]);
+        for alpha in 1..256 {
+            for value in 0..=alpha {
+                let channel = value as f64 / alpha as f64;
+                decode[alpha][value] =
+                    rounded_byte(crate::paint::srgb_to_linear(channel) * alpha as f64);
+                encode[alpha][value] =
+                    rounded_byte(crate::paint::linear_to_srgb(channel) * alpha as f64);
+            }
+        }
+        (decode, encode)
+    })
+}
+fn convert_filter_color_space(layer: &mut RgbaBuf, table: &FilterColorTable) {
+    for y in layer.rect.min.y..layer.rect.max.y {
+        let offset = (y - layer.rect.min.y) as usize * layer.stride;
+        let length = layer.rect.dx() as usize * 4;
+        for pixel in layer.pix[offset..offset + length].chunks_exact_mut(4) {
+            let channels = &table[pixel[3] as usize];
+            for value in &mut pixel[..3] {
+                *value = channels[*value as usize];
+            }
+        }
+    }
 }

@@ -77,9 +77,20 @@ struct ClassicInkEdge {
 
 #[derive(Clone)]
 pub struct ClassicInkSegment {
+    pub crease: bool,
     pub a: Vec,
     pub c: Vec,
     pub support: std::vec::Vec<Rc<ClassicInkFacet>>,
+}
+
+impl ClassicInkSegment {
+    pub fn radius(&self, radius: f64) -> f64 {
+        if self.crease {
+            radius * (2.0 / 3.0)
+        } else {
+            radius
+        }
+    }
 }
 
 /// Projected finite supporting faces keep centered ink on its own surface.
@@ -245,6 +256,7 @@ pub fn classic_ink_segments_with_context(
                     contours.insert(
                         (pk, qk),
                         ClassicInkSegment {
+                            crease: false,
                             a: p,
                             c: q,
                             support: vec![],
@@ -293,6 +305,10 @@ pub fn classic_ink_segments_with_context(
     let mut keys: std::vec::Vec<ClassicInkPair> = edges.keys().copied().collect();
     keys.stable_sort();
     let full_rim = native_classic_rim(n);
+    let light_creases = full_rim
+        && !n.stroke_explicit
+        && !n.metadata.explicit_default_stroke_width
+        && n.stroke_width == 2;
     let radius = if ink_radius > 0.0 && caption_finite(&[ink_radius]) {
         ink_radius
     } else {
@@ -400,13 +416,16 @@ pub fn classic_ink_segments_with_context(
         if e.faces.len() > 2 {
             continue;
         }
-        let (mut front, mut back, mut painted_rim) = (false, false, false);
+        let (mut front_count, mut back, mut painted_rim) = (0, false, false);
         for f in &e.faces {
             let dot = ndot(f.normal, view);
-            front = front || dot > 1e-7;
+            if dot > 1e-7 {
+                front_count += 1;
+            }
             back = back || dot < -1e-7;
             painted_rim = painted_rim || f.cap;
         }
+        let front = front_count > 0;
         let top_boundary = e.faces.len() == 1
             && (e.a.y - e.c.y).abs() < CLASSIC_INK_WELD
             && e.faces[0].third.y < e.a.y - CLASSIC_INK_WELD;
@@ -435,6 +454,7 @@ pub fn classic_ink_segments_with_context(
                 a: e.a,
                 c: e.c,
                 support,
+                crease: light_creases && (top_boundary && front || front_count == 2),
             });
             if result.len() > MAX_CLASSIC_INK_SEGMENTS {
                 return Err(format!(
@@ -480,6 +500,9 @@ pub fn classic_ink_paths(
     vertices.stable_sort();
     let mut used = vec![false; segments.len()];
     let mut paths = vec![];
+    let continues = |indices: &[usize]| {
+        indices.len() == 2 && segments[indices[0]].crease == segments[indices[1]].crease
+    };
     let mut walk = |start: ClassicInkKey, first: usize, used: &mut std::vec::Vec<bool>| {
         let mut path = vec![];
         let (mut at, mut index) = (start, first);
@@ -492,7 +515,7 @@ pub fn classic_ink_paths(
             at = classic_ink_key_of(s.c);
             path.push(s);
             let next = &adjacent[&at];
-            if next.len() != 2 {
+            if !continues(next) {
                 break;
             }
             index = next[0];
@@ -503,7 +526,7 @@ pub fn classic_ink_paths(
         paths.push(path);
     };
     for p in &vertices {
-        if adjacent[p].len() == 2 {
+        if continues(&adjacent[p]) {
             continue;
         }
         for &i in &adjacent[p] {
@@ -597,12 +620,13 @@ impl MeshBuilder {
             if path.is_empty() {
                 return;
             }
-            b.classic_ink_ribbon(path, radius, &material);
+            b.classic_ink_ribbon(path, path[0].radius(radius), &material);
             ends.push(path[0].clone());
             let last = &path[path.len() - 1];
             ends.push(ClassicInkSegment {
                 a: last.c,
                 c: last.a,
+                crease: last.crease,
                 support: last.support.clone(),
             });
         };
@@ -635,6 +659,7 @@ impl MeshBuilder {
                     let next = go_min(length, at + remaining);
                     if on {
                         part.push(ClassicInkSegment {
+                            crease: false,
                             a: nlerp(s.a, s.c, at / length),
                             c: nlerp(s.a, s.c, next / length),
                             support: s.support.clone(),
@@ -851,17 +876,20 @@ impl MeshBuilder {
             BTreeMap::new();
         for s in ends {
             let key = classic_ink_key_of(s.a);
-            if degree.get(&key).copied().unwrap_or(0) > 2 {
+            if degree.get(&key).copied().unwrap_or(0) >= 2 {
                 junctions.entry(key).or_default().push(s.clone());
             }
         }
         let camera = native_camera_axes();
         let view = camera.direction;
         for incident in junctions.values() {
-            if incident.len() < 2 {
+            if incident.len() < 2
+                || degree[&classic_ink_key_of(incident[0].a)] == 2
+                    && incident[0].crease == incident[1].crease
+            {
                 continue;
             }
-            let mut rays: std::vec::Vec<(Vec, f64)> = vec![];
+            let mut rays: std::vec::Vec<(Vec, f64, f64)> = vec![];
             let mut support: std::vec::Vec<Rc<ClassicInkFacet>> = vec![];
             let mut seen: HashSet<*const ClassicInkFacet> = HashSet::new();
             for s in incident {
@@ -874,6 +902,7 @@ impl MeshBuilder {
                 rays.push((
                     direction,
                     gomath::atan2(ndot(direction, camera.up), ndot(direction, camera.right)),
+                    s.radius(radius),
                 ));
                 for face in &s.support {
                     if seen.insert(Rc::as_ptr(face)) {
@@ -915,10 +944,10 @@ impl MeshBuilder {
                 // Fill the outer wedge with a sharp miter, or a bounded bevel.
                 let u = ncross(view, a.0);
                 let v = nmul(ncross(view, c.0), -1.0);
-                let (l, r) = (nmul(u, radius), nmul(v, radius));
-                let miter = nmul(nadd(u, v), radius / go_max(1e-12, 1.0 + ndot(u, v)));
+                let (l, r) = (nmul(u, a.2), nmul(v, c.2));
+                let miter = nmul(nadd(u, v), a.2 / go_max(1e-12, 1.0 + ndot(u, v)));
                 let origin = vertex(Vec::default());
-                if nlen(miter) <= 2.0 * radius {
+                if a.2 == c.2 && nlen(miter) <= 2.0 * a.2 {
                     self.classic_ink_face(
                         [origin, vertex(l), vertex(miter)],
                         &support,

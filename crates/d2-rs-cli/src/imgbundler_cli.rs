@@ -118,3 +118,147 @@ mod tests {
         std::fs::remove_dir_all(root).unwrap();
     }
 }
+
+/// raster.go bundleRasterPreview: embed the native scene's immutable snapshot.
+/// Missing resources use the same SVG as the PNG, without retrying acquisition.
+pub(super) fn raster_preview(
+    svg: &[u8],
+    options: &d2_rs_render::RenderOptions,
+) -> Result<Vec<u8>, String> {
+    const MAX_SOURCE: usize = 32 << 20;
+    const MAX_OUTPUT: usize = 192 << 20;
+    const PREFIX: &[u8] = b"<image href=\"";
+    let context = || match watch::active_cancellation_token().and_then(|token| token.error()) {
+        Some(error) => Err(error.to_string()),
+        None => Ok(()),
+    };
+    context()?;
+    if svg.len() > MAX_SOURCE {
+        return Err(format!(
+            "source bytes {} exceed limit {MAX_SOURCE}",
+            svg.len()
+        ));
+    }
+    let mut references = Vec::new();
+    let mut resources = BTreeMap::<String, (&str, &[u8], usize)>::new();
+    let mut offset = 0;
+    let mut count = 0;
+    let mut output_bytes = svg.len();
+    while let Some(relative) = svg[offset..]
+        .windows(PREFIX.len())
+        .position(|s| s == PREFIX)
+    {
+        context()?;
+        let start = offset + relative + PREFIX.len();
+        let Some(length) = svg[start..].iter().position(|b| *b == b'"') else {
+            break;
+        };
+        let end = start + length;
+        offset = end + 1;
+        count += 1;
+        if count > 4096 {
+            return Err(format!("image references {count} exceed limit 4096"));
+        }
+        let raw = String::from_utf8_lossy(&svg[start..end]);
+        if raw
+            .get(..5)
+            .is_some_and(|s| s.eq_ignore_ascii_case("data:"))
+        {
+            continue;
+        }
+        let source = imgbundler::decode_href(&raw);
+        if !resources.contains_key(&source) {
+            let (mime, bytes) = if options.unavailable_images.contains(&source) {
+                (
+                    "image/svg+xml",
+                    d2_rs_scenebuild::UNAVAILABLE_IMAGE_SVG.as_bytes(),
+                )
+            } else {
+                let bytes = options.asset_data.get(&source).ok_or_else(|| {
+                    format!("preview image {source:?} was not resolved by the native scene")
+                })?;
+                (raster_asset::resource_mime(bytes), bytes.as_slice())
+            };
+            let uri_bytes = 5 + mime.len() + 8 + bytes.len().div_ceil(3) * 4;
+            if uri_bytes > MAX_OUTPUT {
+                return Err(format!("expanded output bytes exceed limit {MAX_OUTPUT}"));
+            }
+            resources.insert(source.clone(), (mime, bytes, uri_bytes));
+        }
+        output_bytes = output_bytes
+            .checked_sub(length)
+            .and_then(|n| n.checked_add(resources[&source].2))
+            .filter(|n| *n <= MAX_OUTPUT)
+            .ok_or_else(|| format!("expanded output bytes exceed limit {MAX_OUTPUT}"))?;
+        references.push((start, end, source));
+    }
+    let mut encoded = BTreeMap::new();
+    for (source, (mime, bytes, uri_bytes)) in resources {
+        let mut uri = String::with_capacity(uri_bytes);
+        uri.push_str(&format!("data:{mime};base64,"));
+        for chunk in bytes.chunks(48 << 10) {
+            context()?;
+            base64::engine::general_purpose::STANDARD.encode_string(chunk, &mut uri);
+        }
+        encoded.insert(source, uri);
+    }
+    let mut result = Vec::with_capacity(output_bytes);
+    let mut copied = 0;
+    for (start, end, source) in references {
+        context()?;
+        result.extend_from_slice(&svg[copied..start]);
+        result.extend_from_slice(encoded[&source].as_bytes());
+        copied = end;
+    }
+    result.extend_from_slice(&svg[copied..]);
+    context()?;
+    Ok(result)
+}
+
+#[cfg(test)]
+mod raster_preview_tests {
+    use super::*;
+    #[test]
+    fn snapshot_and_placeholder_unescape_without_reopening_sources() {
+        let mut options = d2_rs_render::RenderOptions::default();
+        let original = b"<svg width=\"1\" height=\"1\"/>".to_vec();
+        options
+            .asset_data
+            .insert("asset&one.svg".into(), original.clone());
+        options
+            .unavailable_images
+            .insert("missing&image.png".into());
+        let source =
+            br#"<svg><image href="asset&amp;one.svg"/><image href="missing&amp;image.png"/></svg>"#;
+        let output = String::from_utf8(raster_preview(source, &options).unwrap()).unwrap();
+        for bytes in [
+            original.as_slice(),
+            d2_rs_scenebuild::UNAVAILABLE_IMAGE_SVG.as_bytes(),
+        ] {
+            assert!(output.contains(&format!(
+                "data:image/svg+xml;base64,{}",
+                base64::engine::general_purpose::STANDARD.encode(bytes)
+            )));
+        }
+        assert!(!output.contains("&amp;"));
+    }
+    #[test]
+    fn counts_embedded_references_and_bounds_expansion() {
+        let mut options = d2_rs_render::RenderOptions::default();
+        let too_many = r#"<image href="data:image/png;base64,AA=="/>"#.repeat(4097);
+        assert!(
+            raster_preview(too_many.as_bytes(), &options)
+                .unwrap_err()
+                .contains("image references")
+        );
+        options
+            .asset_data
+            .insert("asset.svg".into(), vec![b' '; 65536]);
+        let expanding = r#"<image href="asset.svg"/>"#.repeat(3000);
+        assert!(
+            raster_preview(expanding.as_bytes(), &options)
+                .unwrap_err()
+                .contains("expanded output bytes")
+        );
+    }
+}

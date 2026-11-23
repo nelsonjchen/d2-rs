@@ -154,15 +154,7 @@ impl RouteCaptionPlacer {
                 go_min(l.length * 0.85, go_fnmsub(total, fraction, l.start)),
             )
         };
-        let normal_offset = go_max(0.25, depth / 2.0 + 0.075);
-        let fallback = caption_on_leg(
-            &legs[0],
-            anchor(&legs[0]),
-            normal_offset,
-            width,
-            depth,
-            points[0].y,
-        );
+        let fallback = default_caption(&legs[0], anchor(&legs[0]), width, depth, points[0].y);
         let (mut best, mut best_score) = (fallback, f64::INFINITY);
         let mut candidates = 0;
         for (leg_index, leg) in legs.iter().enumerate() {
@@ -172,13 +164,18 @@ impl RouteCaptionPlacer {
             {
                 break;
             }
+            let (angle, along_size, across_size) = leg_print_axis(leg, width, depth);
+            let normal_offset = go_max(0.25, across_size / 2.0 + 0.075);
             let inset = go_min(0.035, leg.length * 0.03);
-            let (lo, hi) = (width / 2.0 + inset, leg.length - width / 2.0 - inset);
+            let (lo, hi) = (
+                along_size / 2.0 + inset,
+                leg.length - along_size / 2.0 - inset,
+            );
             if lo > hi {
                 continue;
             }
             let preferred = go_max(lo, go_min(hi, anchor(leg)));
-            let step = width + 2.0 * ROUTE_CAPTION_GAP;
+            let step = along_size + 2.0 * ROUTE_CAPTION_GAP;
             let positions = [
                 preferred,
                 preferred - step,
@@ -191,8 +188,8 @@ impl RouteCaptionPlacer {
             for offset in [
                 normal_offset,
                 -normal_offset,
-                normal_offset + depth + 0.1,
-                -normal_offset - depth - 0.1,
+                normal_offset + across_size + 0.1,
+                -normal_offset - across_size - 0.1,
             ] {
                 for &along in &positions {
                     if along < lo || along > hi || candidates >= MAX_ROUTE_CAPTION_CANDIDATES {
@@ -203,7 +200,15 @@ impl RouteCaptionPlacer {
                     if fraction < 0.25 && arc > 0.4 || fraction > 0.75 && arc < 0.6 {
                         continue;
                     }
-                    let candidate = caption_on_leg(leg, along, offset, width, depth, points[0].y);
+                    let candidate = oriented_caption_on_leg(
+                        leg,
+                        along,
+                        offset,
+                        angle,
+                        width,
+                        depth,
+                        points[0].y,
+                    );
                     candidates += 1;
                     let (score, complete) = self.score(&caption_rect(&candidate, false));
                     if !complete {
@@ -248,7 +253,7 @@ impl RouteCaptionPlacer {
         }
     }
 
-    fn score(&mut self, r: &RouteCaptionRect) -> (f64, bool) {
+    pub(super) fn score(&mut self, r: &RouteCaptionRect) -> (f64, bool) {
         let mut seen: HashSet<usize> = HashSet::new();
         let mut score = 0.0;
         let mut check = |p: &mut RouteCaptionPlacer, id: usize| -> bool {
@@ -491,23 +496,74 @@ fn caption_fallback(points: &[Vec], fraction: f64, width: f64, depth: f64) -> La
                 length,
                 start: 0.0,
             };
-            return caption_on_leg(
-                &leg,
-                length / 2.0,
-                go_max(0.25, depth / 2.0 + 0.075),
-                width,
-                depth,
-                points[0].y,
-            );
+            return default_caption(&leg, length / 2.0, width, depth, points[0].y);
         }
     }
     LabelSurface::default()
 }
 
+pub fn upright_caption_span(ux: f64, uz: f64, width: f64, depth: f64) -> (f64, f64) {
+    (
+        ux.abs() * width + uz.abs() * depth,
+        uz.abs() * width + ux.abs() * depth,
+    )
+}
+pub fn caption_print_axis(mut ux: f64, mut uz: f64, width: f64, depth: f64) -> (f64, f64, f64) {
+    let camera = super::framing::native_camera_axes();
+    let direction = nv(ux, 0.0, uz);
+    let x = super::mesh::ndot(direction, camera.right);
+    if super::mesh::ndot(direction, camera.up).abs() > x.abs() {
+        let (along, across) = upright_caption_span(ux, uz, width, depth);
+        return (0.0, along, across);
+    }
+    if x < 0.0 {
+        ux = -ux;
+        uz = -uz;
+    }
+    (gomath::atan2(uz, ux), width, depth)
+}
+fn leg_print_axis(l: &RouteCaptionLeg, width: f64, depth: f64) -> (f64, f64, f64) {
+    caption_print_axis(
+        (l.b.x - l.a.x) / l.length,
+        (l.b.z - l.a.z) / l.length,
+        width,
+        depth,
+    )
+}
+fn default_caption(
+    l: &RouteCaptionLeg,
+    along: f64,
+    width: f64,
+    depth: f64,
+    y: f64,
+) -> LabelSurface {
+    let (angle, _, across) = leg_print_axis(l, width, depth);
+    oriented_caption_on_leg(
+        l,
+        along,
+        go_max(0.25, across / 2.0 + 0.075),
+        angle,
+        width,
+        depth,
+        y,
+    )
+}
 pub fn caption_on_leg(
     l: &RouteCaptionLeg,
     along: f64,
     offset: f64,
+    width: f64,
+    depth: f64,
+    y: f64,
+) -> LabelSurface {
+    let (angle, _, _) = leg_print_axis(l, width, depth);
+    oriented_caption_on_leg(l, along, offset, angle, width, depth, y)
+}
+fn oriented_caption_on_leg(
+    l: &RouteCaptionLeg,
+    along: f64,
+    offset: f64,
+    angle: f64,
     width: f64,
     depth: f64,
     y: f64,
@@ -524,7 +580,7 @@ pub fn caption_on_leg(
         center: nv(go_fmadd(uz, offset, x), y + 0.006, go_fmsub(ux, offset, z)),
         width,
         depth,
-        angle: gomath::atan2(uz, ux),
+        angle,
         ..Default::default()
     }
 }

@@ -12,8 +12,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/yuin/goldmark/ast"
-	gmtext "github.com/yuin/goldmark/text"
+	"github.com/yuin/goldmark/v2/ast"
+	gmtext "github.com/yuin/goldmark/v2/text"
 )
 
 func d2rsMarkdownIO(t *testing.T, v any) string {

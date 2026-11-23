@@ -130,6 +130,7 @@ impl MeshBuilder {
             url: region.url,
             tooltip: region.tooltip,
             target: region.target,
+            ..Default::default()
         });
     }
 
@@ -161,6 +162,27 @@ impl MeshBuilder {
         self.add_native_link(surface_corners(s), native_link_destination(link, tooltip));
     }
 
+    pub fn add_object_link(&mut self, link: &str, tooltip: &str, first: usize) {
+        if self.options.links.is_none()
+            || link.is_empty() && tooltip.is_empty()
+            || first == self.triangles.len()
+        {
+            return;
+        }
+        if self.options.vector {
+            let before = self.links.len();
+            self.add_native_link([Vec::default(); 4], native_link_destination(link, tooltip));
+            if self.links.len() > before {
+                let last = self.triangles.len();
+                let region = self.links.last_mut().unwrap();
+                region.mesh_start = first;
+                region.mesh_end = last;
+            }
+            return;
+        }
+        self.add_mesh_link(link, tooltip, first);
+    }
+
     /// `first` starts the component's triangles (Go passes a subslice).
     pub fn add_mesh_link(&mut self, link: &str, tooltip: &str, first: usize) {
         if self.options.links.is_none()
@@ -173,7 +195,20 @@ impl MeshBuilder {
             return;
         }
         let mut e = ProjectedExtent::default();
-        e.mesh(&self.triangles[first..]);
+        for t in &self.triangles[first..] {
+            if t.material
+                .as_ref()
+                .is_some_and(|m| m.borrow().outside_caption)
+            {
+                continue;
+            }
+            for v in &t.v {
+                e.add(v.position);
+            }
+        }
+        if !e.valid {
+            return;
+        }
         let c = native_camera_axes();
         let point = |x: f64, y: f64| {
             nadd(

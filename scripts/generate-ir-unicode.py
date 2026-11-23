@@ -8,7 +8,7 @@ assert record['binary_sha256']==digest(go)
 assert record['harness_sha256']==digest(ROOT/'tools/parser-oracle/main.go')
 assert record['go_toolchain']==MANIFEST['d2']['go_toolchain']
 data=json.loads(subprocess.check_output([str(go),'unicode']))
-output='// SPDX-License-Identifier: MPL-2.0\n// Generated from pinned Go 1.27.0 Unicode '+data['version']+'.\n'
+output='// SPDX-License-Identifier: MPL-2.0\n// Generated from pinned Go 1.27.4 Unicode '+data['version']+'.\n'
 output+='pub(super) fn simple_fold(r:char)->char{let r=r as u32;let i=FOLD.partition_point(|p|p.0<r);char::from_u32(FOLD.get(i).filter(|p|p.0==r).map_or(r,|p|p.1)).unwrap()}\n'
 output+='const FOLD:&[(u32,u32)]=&[\n'+''.join(f'(0x{a:x},0x{b:x}),\n' for a,b in data['fold'])+'];\n'
 output+='pub(super) fn to_lower(r:char)->char{let r=r as u32;let i=LOWER.partition_point(|p|p.0<r);char::from_u32(LOWER.get(i).filter(|p|p.0==r).map_or(r,|p|p.1)).unwrap()}\n'

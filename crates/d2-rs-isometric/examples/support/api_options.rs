@@ -14,6 +14,7 @@ pub fn assets(options: &Value) -> Option<AssetOptions> {
     let n = |v: &Value, key: &str| v[key].as_i64().unwrap_or(0);
     Some(AssetOptions {
         svg_import_limits: SvgImportLimits {
+            max_decoded_raster_bytes: 0,
             max_bytes: n(l, "MaxBytes"),
             max_depth: n(l, "MaxDepth"),
             max_elements: n(l, "MaxElements"),

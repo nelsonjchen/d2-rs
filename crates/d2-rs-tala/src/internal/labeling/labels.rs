@@ -2536,6 +2536,7 @@ mod tests {
 
     fn node(name: &str, width: f64, height: f64, shape: ShapeKind) -> Node {
         Node {
+            elk_layer_constraint: String::new(),
             d2_near_key: None,
             external_id: name.into(),
             size: Size { width, height },

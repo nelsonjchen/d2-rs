@@ -117,6 +117,54 @@ impl Arena {
             map = parent;
         }
     }
+    pub fn may_have_edges(&self, map: NodeId) -> bool {
+        matches!(self.node(map), Node::Map(m) if m.edges.as_ref().is_some_and(|e| !e.is_empty()) || m.first_edge_field.is_some())
+    }
+    pub(super) fn add_edge_field(&mut self, map: NodeId, field: NodeId) {
+        let Node::Map(m) = self.node(map) else {
+            unreachable!()
+        };
+        let next = m.first_edge_field;
+        let Node::Field(f) = self.node_mut(field) else {
+            unreachable!()
+        };
+        f.next_edge_field = next;
+        f.in_edge_fields = true;
+        let Node::Map(m) = self.node_mut(map) else {
+            unreachable!()
+        };
+        m.first_edge_field = Some(field);
+    }
+    pub fn note_edges(&mut self, mut field: NodeId) {
+        loop {
+            let Node::Field(f) = self.node(field) else {
+                return;
+            };
+            if f.in_edge_fields {
+                return;
+            }
+            let Some(parent) = self.parent(field) else {
+                return;
+            };
+            if !matches!(self.node(parent), Node::Map(_)) {
+                return;
+            }
+            self.add_edge_field(parent, field);
+            let Some(next) = self.parent(parent) else {
+                return;
+            };
+            field = next;
+        }
+    }
+    pub fn set_composite(&mut self, field: NodeId, value: Option<NodeId>) {
+        let Node::Field(f) = self.node_mut(field) else {
+            panic!("expected field")
+        };
+        f.composite = value;
+        if self.map(field).is_some_and(|m| self.may_have_edges(m)) {
+            self.note_edges(field);
+        }
+    }
     pub fn append_field(&mut self, map: NodeId, field: NodeId) {
         let old_len = self.map_fields(map).len();
         let key = self.node_field_key(field);
@@ -125,6 +173,9 @@ impl Arena {
         };
         m.fields.get_or_insert_default().push(field);
         self.extend_field_index(map, old_len, field, key);
+        if self.map(field).is_some_and(|m| self.may_have_edges(m)) {
+            self.note_edges(field);
+        }
         self.mark_structure_changed(map);
     }
     pub fn insert_field(&mut self, map: NodeId, index: usize, field: NodeId) {
@@ -135,6 +186,9 @@ impl Arena {
         };
         m.fields.get_or_insert_default().insert(index, field);
         self.extend_field_index(map, old_len, field, key);
+        if self.map(field).is_some_and(|m| self.may_have_edges(m)) {
+            self.note_edges(field);
+        }
         self.mark_structure_changed(map);
     }
     fn extend_field_index(
@@ -161,6 +215,45 @@ impl Arena {
             panic!("expected IR map")
         };
         let field = m.fields.as_mut().expect("nil map fields").remove(index);
+        let Node::Field(f) = self.node(field) else {
+            unreachable!()
+        };
+        let mut current = if f.in_edge_fields {
+            let Node::Map(m) = self.node(map) else {
+                unreachable!()
+            };
+            m.first_edge_field
+        } else {
+            None
+        };
+        let mut previous = None;
+        while let Some(child) = current {
+            let Node::Field(f) = self.node(child) else {
+                unreachable!()
+            };
+            let next = f.next_edge_field;
+            if child == field {
+                if let Some(previous) = previous {
+                    let Node::Field(f) = self.node_mut(previous) else {
+                        unreachable!()
+                    };
+                    f.next_edge_field = next;
+                } else {
+                    let Node::Map(m) = self.node_mut(map) else {
+                        unreachable!()
+                    };
+                    m.first_edge_field = next;
+                }
+                let Node::Field(f) = self.node_mut(field) else {
+                    unreachable!()
+                };
+                f.in_edge_fields = false;
+                f.next_edge_field = None;
+                break;
+            }
+            previous = current;
+            current = next;
+        }
         self.field_indexes.remove(&map);
         self.mark_structure_changed(map);
         field
@@ -180,6 +273,9 @@ impl Arena {
             cache.size += 1;
         } else {
             self.edge_indexes.remove(&map);
+        }
+        if let Some(field) = self.parent(map) {
+            self.note_edges(field);
         }
         self.mark_structure_changed(map);
     }

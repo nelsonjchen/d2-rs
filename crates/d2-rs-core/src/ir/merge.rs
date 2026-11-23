@@ -128,10 +128,8 @@ impl Arena {
                 _ => {
                     let before = self.structure_counts(self.map(base));
                     let copy = self.copy(composite, Some(base));
-                    let Node::Field(f) = self.node_mut(base) else {
-                        panic!("expected base field")
-                    };
-                    f.composite = Some(copy);
+
+                    self.set_composite(base, Some(copy));
                     self.mark_structure_count_delta(self.parent_map(base), before, self.map(base));
                 }
             }

@@ -53,6 +53,7 @@ impl Chars {
 struct Canvas {
     rows: Vec<Vec<char>>,
     chars: Chars,
+    labels_above: std::collections::BTreeMap<i64, Vec<(i64, String)>>,
 }
 impl Canvas {
     fn new(width: i64, height: i64, chars: Chars) -> Result<Self, String> {
@@ -67,6 +68,7 @@ impl Canvas {
         Ok(Self {
             rows: vec![vec![' '; width]; height],
             chars,
+            labels_above: Default::default(),
         })
     }
     fn inside(&self, x: i64, y: i64) -> bool {
@@ -87,59 +89,72 @@ impl Canvas {
         self.inside(x, y).then(|| self.rows[y as usize][x as usize])
     }
     fn label(&mut self, x: i64, y: i64, value: &str) {
-        // Go's range index is a UTF-8 byte offset, not a rune count. The start
-        // cell must itself be in bounds before any line is painted.
+        // The start cell must itself be in bounds before any line is painted.
         if !self.inside(x, y) {
             return;
         }
         for (line_no, line) in value.split('\n').enumerate() {
-            for (offset, c) in line.char_indices() {
+            for (offset, c) in line.chars().enumerate() {
                 self.set(x + offset as i64, y + line_no as i64, c);
             }
         }
     }
-    fn label_bytes(&mut self, x: i64, y: i64, value: &[u8]) {
-        if !self.inside(x, y) {
-            return;
-        }
-        for (line_no, line) in value.split(|b| *b == b'\n').enumerate() {
-            let mut offset = 0;
-            while offset < line.len() {
-                let first = line[offset];
-                let width = match first {
-                    0..=0x7f => 1,
-                    0xc2..=0xdf => 2,
-                    0xe0..=0xef => 3,
-                    0xf0..=0xf4 => 4,
-                    _ => 1,
-                };
-                let valid = line
-                    .get(offset..offset + width)
-                    .and_then(|bytes| std::str::from_utf8(bytes).ok())
-                    .and_then(|s| s.chars().next());
-                self.set(
-                    x + offset as i64,
-                    y + line_no as i64,
-                    valid.unwrap_or('\u{fffd}'),
-                );
-                offset += if valid.is_some() { width } else { 1 };
+    fn label_above(&mut self, x: i64, y: i64, text: &str) {
+        self.labels_above
+            .entry(y)
+            .or_default()
+            .push((x, text.into()));
+    }
+    // Insert caption rows only at serialization, preserving all route coordinates.
+    fn rows_with_labels(&self) -> (Vec<Vec<char>>, std::collections::BTreeSet<usize>) {
+        let mut rows = Vec::new();
+        let mut label_rows = std::collections::BTreeSet::new();
+        let vertical = self.chars.glyph('│');
+        for (y, row) in self.rows.iter().enumerate() {
+            if let Some(labels) = self.labels_above.get(&(y as i64)) {
+                let guides: Vec<char> = row
+                    .iter()
+                    .enumerate()
+                    .map(|(x, &cell)| {
+                        if cell == vertical
+                            || (cell != ' ' && self.get(x as i64, y as i64 - 1) == Some(vertical))
+                        {
+                            vertical
+                        } else {
+                            ' '
+                        }
+                    })
+                    .collect();
+                for (x, text) in labels {
+                    for line in text.split('\n') {
+                        let mut caption = guides.clone();
+                        for (offset, c) in line.chars().enumerate() {
+                            let col = x + offset as i64;
+                            if col >= 0 && (col as usize) < caption.len() {
+                                caption[col as usize] = c;
+                            }
+                        }
+                        label_rows.insert(rows.len());
+                        rows.push(caption);
+                    }
+                }
             }
+            rows.push(row.clone());
         }
+        (rows, label_rows)
     }
     fn finish(&self) -> String {
-        if self.rows.is_empty() {
+        let expanded = (!self.labels_above.is_empty()).then(|| self.rows_with_labels());
+        let rows = expanded.as_ref().map_or(&self.rows, |(rows, _)| rows);
+        if rows.is_empty() {
             return String::new();
         }
         let nonempty = |row: &Vec<char>| row.iter().any(|c| !c.is_whitespace());
-        let start = self.rows.iter().position(nonempty).unwrap_or(0);
-        let end = self
-            .rows
-            .iter()
-            .rposition(nonempty)
-            .unwrap_or(self.rows.len() - 1);
-        let width = self.rows[0].len();
+        let start = rows.iter().position(nonempty).unwrap_or(0);
+        let end = rows.iter().rposition(nonempty).unwrap_or(rows.len() - 1);
+        let width = rows[0].len();
         let occupied = |x: usize| {
-            self.rows[start..=end]
+            rows[start..=end]
                 .iter()
                 .any(|row| row.get(x).is_some_and(|c| *c != ' '))
         };
@@ -147,7 +162,7 @@ impl Canvas {
         let right = (0..width).rfind(|x| occupied(*x)).unwrap_or(0);
         let mut output = String::new();
         let mut previous: Option<(Vec<usize>, char)> = None;
-        for row in &self.rows[start..=end] {
+        for (index, row) in rows.iter().enumerate().take(end + 1).skip(start) {
             let line: String = row
                 .iter()
                 .skip(left)
@@ -155,7 +170,9 @@ impl Canvas {
                 .collect();
             let mut columns = Vec::new();
             let mut kind = None;
-            let mut only_routes = true;
+            let mut only_routes = !expanded
+                .as_ref()
+                .is_some_and(|(_, labels)| labels.contains(&index));
             for (offset, c) in line.char_indices() {
                 if c == self.chars.glyph('│') || c == self.chars.glyph('─') {
                     columns.push(offset);
@@ -208,9 +225,9 @@ fn adjust_width(width: i64, label: &str) -> i64 {
     if label.is_empty() {
         return width;
     }
-    let available = width - label.len() as i64;
+    let available = width - label.chars().count() as i64;
     if available < 2 {
-        label.len() as i64 + 2
+        label.chars().count() as i64 + 2
     } else if available % 2 == 1 {
         width - 1
     } else {
@@ -230,7 +247,11 @@ fn shape_label(
     if label.is_empty() {
         return;
     }
-    let max = label.split('\n').map(str::len).max().unwrap_or(0) as i64;
+    let max = label
+        .split('\n')
+        .map(|line| line.chars().count())
+        .max()
+        .unwrap_or(0) as i64;
     canvas.label(
         x + (width - max) / 2,
         label_y(y, bottom, height, position),
@@ -277,13 +298,17 @@ fn separator(canvas: &mut Canvas, x: i64, right: i64, y: i64) {
 fn field(canvas: &mut Canvas, x: i64, right: i64, y: i64, width: i64, name: &str, kind: &str) {
     canvas.label(x + 1, y, name);
     if !kind.is_empty() {
-        let maximum = width - name.len() as i64 - 4;
-        let mut bytes = kind.as_bytes().to_vec();
-        if bytes.len() as i64 > maximum && maximum > 3 {
-            bytes.truncate(maximum as usize - 3);
-            bytes.extend_from_slice(b"...");
+        let maximum = width - name.chars().count() as i64 - 4;
+        let mut field_type = kind.to_owned();
+        if kind.chars().count() as i64 > maximum && maximum > 3 {
+            field_type = kind.chars().take(maximum as usize - 3).collect();
+            field_type.push_str("...");
         }
-        canvas.label_bytes(right - bytes.len() as i64 - 1, y, &bytes);
+        canvas.label(
+            right - field_type.chars().count() as i64 - 1,
+            y,
+            &field_type,
+        );
     }
 }
 
@@ -362,7 +387,7 @@ fn boundary(shape: &Value, connections: &[Value]) -> Boundary {
     );
     let label = text(shape, "label");
     if preserve_width(shape, connections) && !label.is_empty() {
-        let available = w - label.len() as i64;
+        let available = w - label.chars().count() as i64;
         if available >= 2 && available % 2 == 1 {
             width += FW.trunc();
             x = round(px / FW);
@@ -472,7 +497,7 @@ fn process_route(
 }
 fn raw_label(canvas: &mut Canvas, x: i64, y: i64, label: &str) {
     for (line_no, line) in label.split('\n').enumerate() {
-        for (offset, c) in line.char_indices() {
+        for (offset, c) in line.chars().enumerate() {
             canvas.set(x + offset as i64, y + line_no as i64, c);
         }
     }
@@ -543,7 +568,11 @@ fn draw_route(
                 } else {
                     a.0
                 };
-                let length = label.split('\n').map(str::len).max().unwrap_or(0) as i64;
+                let length = label
+                    .split('\n')
+                    .map(|line| line.chars().count())
+                    .max()
+                    .unwrap_or(0) as i64;
                 label_position = Some((index, round(best_x) - length / 2, difference));
             }
             old_scale = scale;
@@ -559,6 +588,8 @@ fn draw_route(
         let (mut fx, mut fy) = (ax, ay);
         let (mut x, mut y) = (round(ax), round(ay));
         let mut attempt = 0;
+        let mut label_cell = None;
+        let mut arrowheads = Vec::new();
         loop {
             attempt += 1;
             if (x == round(cx) && y == round(cy)) || attempt == 200 {
@@ -591,13 +622,23 @@ fn draw_route(
                     let (arrow_x, arrow_y) = (x - round(sx), y - round(sy));
                     if boundary_char && canvas.inside(arrow_x, arrow_y) {
                         canvas.paint(arrow_x, arrow_y, glyph);
+                        if label_position.is_some() {
+                            arrowheads.push((arrow_x, arrow_y));
+                        }
                     } else {
                         canvas.paint(x, y, glyph);
+                        if label_position.is_some() {
+                            arrowheads.push((x, y));
+                        }
                     }
                 }
                 if !connection["dstLabel"].is_null() {
                     let value = text(&connection["dstLabel"], "label");
-                    let length = value.split('\n').map(str::len).max().unwrap_or(0) as i64;
+                    let length = value
+                        .split('\n')
+                        .map(|line| line.chars().count())
+                        .max()
+                        .unwrap_or(0) as i64;
                     let (lx, ly) = if sx.abs() > 0.0 {
                         (
                             if sx > 0.0 {
@@ -622,9 +663,16 @@ fn draw_route(
                 if let Some(glyph) = arrow(-sx, -sy) {
                     canvas.paint(x, y, glyph);
                 }
+                if label_position.is_some() {
+                    arrowheads.push((x, y));
+                }
                 if !connection["srcLabel"].is_null() {
                     let value = text(&connection["srcLabel"], "label");
-                    let length = value.split('\n').map(str::len).max().unwrap_or(0) as i64;
+                    let length = value
+                        .split('\n')
+                        .map(|line| line.chars().count())
+                        .max()
+                        .unwrap_or(0) as i64;
                     let (lx, ly) = if sx.abs() > 0.0 {
                         (
                             if sx > 0.0 {
@@ -670,7 +718,7 @@ fn draw_route(
                     );
                 }
             }
-            if let Some((segment, label_x, difference)) = label_position {
+            if let Some((segment, _, difference)) = label_position {
                 let middle = if sy != 0.0 {
                     round(ay) + round(difference / 2.0) * sign(sy) == y
                 } else if sx != 0.0 {
@@ -679,37 +727,58 @@ fn draw_route(
                     false
                 };
                 if segment == index && middle {
-                    if sy != 0.0 {
-                        canvas.set(x, y, ' ');
-                        raw_label(canvas, label_x, y, label);
-                    } else if sx != 0.0 {
-                        let position = text(connection, "labelPosition");
-                        let y_factor = if position.contains("TOP") {
-                            -1
-                        } else if position.contains("BOTTOM") {
-                            1
-                        } else {
-                            0
-                        };
-                        let mut x_pos = label_x;
-                        if position.contains("LEFT") {
-                            let point = original
-                                .get(segment + ((sign(sx) - 1) / 2).unsigned_abs() as usize)
-                                .ok_or("source ASCII route label index out of range")?;
-                            x_pos = point.0 as i64;
-                        } else if position.contains("RIGHT") {
-                            let point = original
-                                .get(segment + ((sign(sx) + 1) / 2) as usize)
-                                .ok_or("source ASCII route label index out of range")?;
-                            x_pos = point.0 as i64
-                                - label.split('\n').map(str::len).max().unwrap_or(0) as i64 / 2;
-                        }
-                        raw_label(canvas, x_pos, y + y_factor, label);
-                    }
+                    label_cell = Some((x, y));
                 }
             }
             fx += sx;
             fy += sy;
+        }
+        if let (Some((x, y)), Some((segment, label_x, _))) = (label_cell, label_position) {
+            if sy != 0.0 {
+                canvas.set(x, y, ' ');
+                raw_label(canvas, label_x, y, label);
+            } else if sx != 0.0 {
+                let position = text(connection, "labelPosition");
+                let y_factor = if position.contains("TOP") {
+                    -1
+                } else if position.contains("BOTTOM") {
+                    1
+                } else {
+                    0
+                };
+                let mut x_pos = label_x;
+                if position.contains("LEFT") {
+                    let point = original
+                        .get(segment + ((sign(sx) - 1) / 2).unsigned_abs() as usize)
+                        .ok_or("source ASCII route label index out of range")?;
+                    x_pos = point.0 as i64;
+                } else if position.contains("RIGHT") {
+                    let point = original
+                        .get(segment + ((sign(sx) + 1) / 2) as usize)
+                        .ok_or("source ASCII route label index out of range")?;
+                    x_pos = point.0 as i64
+                        - label
+                            .split('\n')
+                            .map(|line| line.chars().count())
+                            .max()
+                            .unwrap_or(0) as i64
+                            / 2;
+                }
+                let label_y = y + y_factor;
+                let lines: Vec<_> = label.split('\n').collect();
+                let covers_arrow = arrowheads.iter().any(|&(arrow_x, arrow_y)| {
+                    let row = arrow_y - label_y;
+                    row >= 0
+                        && (row as usize) < lines.len()
+                        && arrow_x >= x_pos
+                        && arrow_x - x_pos < lines[row as usize].chars().count() as i64
+                });
+                if covers_arrow {
+                    canvas.label_above(x_pos, y, label);
+                } else {
+                    raw_label(canvas, x_pos, label_y, label);
+                }
+            }
         }
     }
     Ok(())
@@ -813,7 +882,7 @@ fn draw_shape(
                     canvas.set(ix, iy, ' ');
                 }
             }
-            canvas.label(x + (w - label.len() as i64) / 2, current, label);
+            canvas.label(x + (w - label.chars().count() as i64) / 2, current, label);
             separator(canvas, x, right, current + 2);
             current += 3;
         }
@@ -1151,7 +1220,7 @@ fn draw_shape(
     if kind == "cylinder" {
         if !label.is_empty() {
             canvas.label(
-                x + (w - label.len() as i64) / 2,
+                x + (w - label.chars().count() as i64) / 2,
                 label_y(y + 1, bottom, h, position),
                 label,
             );
@@ -1164,7 +1233,7 @@ fn draw_shape(
                 _ => h,
             };
             canvas.label(
-                x + (w - label.len() as i64) / 2,
+                x + (w - label.chars().count() as i64) / 2,
                 label_y(y, bottom, height, position),
                 label,
             );
@@ -1225,9 +1294,9 @@ pub fn render_with_nested_bounds(
             }
             let mid_y = (number(&route[0], "y") + number(route.last().unwrap(), "y")) / 2.0;
             include(
-                best_x - label.len() as f64 / 2.0 * FW,
+                best_x - label.chars().count() as f64 / 2.0 * FW,
                 mid_y - FH,
-                best_x + label.len() as f64 / 2.0 * FW,
+                best_x + label.chars().count() as f64 / 2.0 * FW,
                 mid_y + FH,
             );
         }
@@ -1236,7 +1305,7 @@ pub fn render_with_nested_bounds(
                 if let Some(point) = point {
                     let x = number(point, "x");
                     let y = number(point, "y");
-                    let length = text(&connection[key], "label").len() as f64 * FW;
+                    let length = text(&connection[key], "label").chars().count() as f64 * FW;
                     include(x - length, y - FH, x + length, y + FH);
                 }
             }
@@ -1246,7 +1315,7 @@ pub fn render_with_nested_bounds(
     let offset_y = (-bounds[1]).max(0.0);
     let padding = shapes
         .iter()
-        .map(|s| text(s, "label").len())
+        .map(|s| text(s, "label").chars().count())
         .max()
         .unwrap_or(0) as i64
         + 2;
@@ -1285,7 +1354,7 @@ pub fn render_with_nested_bounds(
         });
         let mut width = w;
         let label = text(shape, "label");
-        let available = round(w / FW) - label.len() as i64;
+        let available = round(w / FW) - label.chars().count() as i64;
         if preserve_width && !label.is_empty() && available >= 2 && available % 2 == 1 {
             width += FW.trunc();
         }
@@ -1322,8 +1391,189 @@ pub fn render_with_nested_bounds(
 
 #[cfg(test)]
 mod source_contract {
-    #[cfg(feature = "oracle-fixtures")]
     use super::*;
+
+    fn canvas(standard: bool) -> Canvas {
+        Canvas::new(50, 20, Chars { standard }).unwrap()
+    }
+
+    fn connection(start: (i64, i64), end: (i64, i64), label: &str) -> Value {
+        serde_json::json!({
+            "src": "a", "dst": "b", "srcArrow": "none", "dstArrow": "triangle",
+            "label": label,
+            "route": [
+                {"x": start.0 as f64 * FW, "y": start.1 as f64 * FH},
+                {"x": end.0 as f64 * FW, "y": end.1 as f64 * FH}
+            ]
+        })
+    }
+
+    // 4307b0d11: vietnamese-labels; all text occupies one column per rune.
+    #[test]
+    fn unicode_shape_labels_use_rune_widths() {
+        for mode in ["standard", "extended"] {
+            let target: TargetDiagram = serde_json::from_value(serde_json::json!({
+                "shapes": [{"id": "a", "type": "rectangle", "label": "Người dùng",
+                    "labelPosition": "INSIDE_MIDDLE_CENTER", "pos": {"x": 0, "y": 0},
+                    "width": 195, "height": 90}]
+            }))
+            .unwrap();
+            let output = render(&target, mode, None).unwrap();
+            let line = output
+                .lines()
+                .find(|line| line.contains("Người dùng"))
+                .unwrap();
+            assert_eq!(
+                line.chars().skip(1).take(19).collect::<String>(),
+                "    Người dùng     "
+            );
+            assert_eq!(line.chars().count(), 21);
+        }
+    }
+
+    #[test]
+    fn unicode_field_types_truncate_at_rune_boundaries() {
+        let mut canvas = canvas(false);
+        field(&mut canvas, 0, 14, 2, 14, "名", "Đăngnhậpcơsở");
+        // Maximum type width = 14 - 1 - 4 = 9; retain six runes and ellipsis.
+        assert_eq!(canvas.rows[2][1], '名');
+        assert_eq!(
+            canvas.rows[2][4..13].iter().collect::<String>(),
+            "Đăngnh..."
+        );
+    }
+
+    // 1678ae3a2: vietnamese-horizontal-edge-label, including the old ASCII case.
+    #[test]
+    fn connection_labels_keep_spaces_after_segment_drawing() {
+        for standard in [false, true] {
+            for label in ["sang Mỹ", "hello world", "first line\nsecond line"] {
+                for (start, end) in [((2, 5), (25, 5)), ((25, 5), (2, 5))] {
+                    let mut canvas = canvas(standard);
+                    let conn = connection(start, end, label);
+                    draw_route(&mut canvas, &conn, &[], &[], 0.0, 0.0).unwrap();
+                    let output = canvas.finish();
+                    for line in label.split('\n') {
+                        assert!(output.contains(line), "{output:?} missing {line:?}");
+                    }
+                    assert!(output.contains(canvas.chars.glyph(if end.0 > start.0 {
+                        '▶'
+                    } else {
+                        '◀'
+                    })));
+                    assert!(canvas.labels_above.is_empty());
+                }
+            }
+        }
+    }
+
+    // 34e39e0fd: sequence-label-arrowheads, both directions and bidirectional.
+    #[test]
+    fn long_labels_preserve_horizontal_arrowheads_and_neighboring_routes() {
+        for standard in [false, true] {
+            for (start, end) in [((10, 5), (18, 5)), ((18, 5), (10, 5))] {
+                for bidirectional in [false, true] {
+                    let mut canvas = canvas(standard);
+                    let mut conn = connection(start, end, "initializing...\n\n\nawaiting reply");
+                    if bidirectional {
+                        conn["srcArrow"] = "triangle".into();
+                    }
+                    // Sequence lifelines continue through inserted caption rows.
+                    for y in 1..12 {
+                        canvas.paint(9, y, '│');
+                        canvas.paint(19, y, '│');
+                    }
+                    draw_route(&mut canvas, &conn, &[], &[], 0.0, 0.0).unwrap();
+                    let neighbor = connection((10, 7), (18, 7), "");
+                    draw_route(&mut canvas, &neighbor, &[], &[], 0.0, 0.0).unwrap();
+                    assert_eq!(
+                        canvas.get(end.0, end.1),
+                        Some(canvas.chars.glyph(if end.0 > start.0 { '▶' } else { '◀' }))
+                    );
+                    if bidirectional {
+                        assert_eq!(
+                            canvas.get(start.0, start.1),
+                            Some(canvas.chars.glyph(if end.0 > start.0 { '◀' } else { '▶' }))
+                        );
+                    }
+                    assert_eq!(canvas.get(18, 7), Some(canvas.chars.glyph('▶')));
+                    let (rows, labels) = canvas.rows_with_labels();
+                    assert_eq!(rows.len(), 24);
+                    assert_eq!(labels.len(), 4);
+                    // Empty caption lines retain the lifelines and are not collapsed.
+                    for y in [6, 7] {
+                        assert_eq!(rows[y][9], canvas.chars.glyph('│'));
+                        assert_eq!(rows[y][19], canvas.chars.glyph('│'));
+                    }
+                    let output = canvas.finish();
+                    assert!(output.contains("initializing..."));
+                    assert!(output.contains("awaiting reply"));
+                    assert_eq!(output, canvas.finish());
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn unicode_caption_collision_uses_runes_instead_of_bytes() {
+        for standard in [false, true] {
+            let mut canvas = canvas(standard);
+            let conn = connection((10, 5), (18, 5), "sang Mỹ");
+            draw_route(&mut canvas, &conn, &[], &[], 0.0, 0.0).unwrap();
+            assert!(canvas.labels_above.is_empty());
+            assert_eq!(canvas.rows[5][11..18].iter().collect::<String>(), "sang Mỹ");
+            assert_eq!(canvas.get(18, 5), Some(canvas.chars.glyph('▶')));
+        }
+    }
+
+    #[test]
+    fn unicode_endpoint_labels_are_contiguous_and_aligned() {
+        for standard in [false, true] {
+            let mut canvas = canvas(standard);
+            let mut conn = connection((2, 5), (25, 5), "");
+            conn["srcArrow"] = "triangle".into();
+            conn["srcLabel"] = serde_json::json!({"label": "Người dùng"});
+            conn["dstLabel"] = serde_json::json!({"label": "Đăng nhập"});
+            draw_route(&mut canvas, &conn, &[], &[], 0.0, 0.0).unwrap();
+            assert_eq!(
+                canvas.rows[4][2..12].iter().collect::<String>(),
+                "Người dùng"
+            );
+            assert_eq!(
+                canvas.rows[4][17..26].iter().collect::<String>(),
+                "Đăng nhập"
+            );
+        }
+    }
+
+    #[test]
+    fn shifted_destination_arrowhead_is_protected() {
+        for standard in [false, true] {
+            let mut canvas = canvas(standard);
+            canvas.paint(18, 5, '│');
+            let conn = connection((10, 5), (18, 5), "initializing...");
+            draw_route(&mut canvas, &conn, &[], &[], 0.0, 0.0).unwrap();
+            assert_eq!(canvas.get(17, 5), Some(canvas.chars.glyph('▶')));
+            assert_eq!(canvas.get(18, 5), Some(canvas.chars.glyph('│')));
+            assert_eq!(canvas.labels_above[&5][0].1, "initializing...");
+        }
+    }
+
+    #[test]
+    fn inserted_route_glyph_caption_rows_are_not_collapsed() {
+        for standard in [false, true] {
+            let mut canvas = canvas(standard);
+            canvas.paint(3, 2, '│');
+            canvas.paint(3, 3, '│');
+            let glyph = canvas.chars.glyph('│');
+            canvas.label_above(3, 3, &format!("{glyph}\n{glyph}"));
+            assert_eq!(
+                canvas.finish(),
+                format!("{glyph}\n{glyph}\n{glyph}\n{glyph}\n")
+            );
+        }
+    }
+
     #[cfg(feature = "oracle-fixtures")]
     #[test]
     fn complete_original_go_target_ascii_outcomes() {

@@ -169,13 +169,24 @@ fn document_compile_error(path: &Path, error: String) -> String {
     format!("err: failed to compile {}: {error}", human_path(path))
 }
 
+/// Native providers own path resolution, matching lib/localfile.Policy.
+fn compile_ir_with_native_imports(
+    source: Shared<d2_rs_core::ast::Map>,
+    options: compiler::CompileOptions,
+) -> Result<(compiler::Compiler, d2_rs_core::ir::NodeId), compiler::CompileError> {
+    compiler::compile_ir_with_import_resolver(
+        source,
+        options,
+        compiler::CompileLimits::default(),
+        None,
+        Some(Box::new(compiler::imports::native_import_path)),
+    )
+}
+
 fn filesystem_import_opener() -> ImportOpener {
     Box::new(|path| {
-        let file = watch::open_tracked_file(
-            &d2_rs_scenebuild::ImageLocalFiles::Unrestricted,
-            Path::new(path),
-        )
-        .map_err(|error| error.to_string())?;
+        let file = watch::open_tracked_file(&http_asset::local_files(), Path::new(path))
+            .map_err(|error| error.to_string())?;
         Ok(Box::new(file))
     })
 }
@@ -1669,7 +1680,7 @@ fn compile_source(input: &[u8], args: &[String]) -> Result<Vec<u8>, String> {
     if let Some(error) = parsed.error {
         return Err(error.to_string());
     }
-    let (compiler, root) = compiler::compile_ir_with_options(
+    let (compiler, root) = compile_ir_with_native_imports(
         Shared::new(parsed.map),
         compiler::CompileOptions {
             import_opener: Some(filesystem_import_opener()),
@@ -1718,7 +1729,7 @@ fn graph_source(input: &[u8], args: &[String]) -> Result<Vec<u8>, String> {
     if let Some(error) = parsed.error {
         return Err(error.to_string());
     }
-    let (compiler, root) = compiler::compile_ir_with_options(
+    let (compiler, root) = compile_ir_with_native_imports(
         Shared::new(parsed.map),
         compiler::CompileOptions {
             import_opener: Some(filesystem_import_opener()),
@@ -2159,7 +2170,7 @@ fn compile_board_source(
     if let Some(error) = parsed.error {
         return Err(error.to_string());
     }
-    let (compiler, root) = compiler::compile_ir_with_options(
+    let (compiler, root) = compile_ir_with_native_imports(
         Shared::new(parsed.map),
         compiler::CompileOptions {
             import_opener: Some(filesystem_import_opener()),
@@ -2263,7 +2274,7 @@ fn source_board_titles(
     if let Some(error) = parsed.error {
         return Err(error.to_string());
     }
-    let (compiler, root) = compiler::compile_ir_with_options(
+    let (compiler, root) = compile_ir_with_native_imports(
         Shared::new(parsed.map),
         compiler::CompileOptions {
             import_opener: Some(filesystem_import_opener()),
@@ -2603,7 +2614,7 @@ fn source_render_layout_uncached(
             if let Some(error) = parsed.error {
                 return Err(error.to_string());
             }
-            let (compiler, root) = compiler::compile_ir_with_options(
+            let (compiler, root) = compile_ir_with_native_imports(
                 Shared::new(parsed.map),
                 compiler::CompileOptions {
                     import_opener: Some(filesystem_import_opener()),
@@ -3419,7 +3430,7 @@ fn render_source_format_with_pptx_properties(
                 &preview_options,
                 sketch,
             )?;
-            let svg = imgbundle_d2svg(&source_args, true, svg);
+            let svg = imgbundler_cli::raster_preview(&svg, &preview_options)?;
             Some(if preview_appendix {
                 d2_rs_render::d2svg_append_appendix(
                     &graph,
@@ -4891,6 +4902,10 @@ fn run_document_with_stdout(
     let mut raw_interval = go_env("D2_ANIMATE_INTERVAL")
         .and_then(|s| s.parse::<i64>().ok())
         .unwrap_or(0);
+    // Flags and environment values left unset defer to vars.d2-config.
+    let mut interval_explicit = go_env("D2_ANIMATE_INTERVAL").is_some();
+    let mut scale_explicit = go_env("SCALE").is_some();
+    let mut force_appendix_explicit = go_env("D2_FORCE_APPENDIX").is_some();
     // D2 v0.9.0's document command defaults to Dagre. The source-oriented
     // `layout-source` command keeps its explicit TALA default for diagnostics.
     let environment_layout = go_env("D2_LAYOUT");
@@ -5085,8 +5100,10 @@ fn run_document_with_stdout(
             omit_version = true;
         } else if let Some(value) = argument.strip_prefix("--force-appendix=") {
             force_appendix = parse_bool_flag(value, "force-appendix")?;
+            force_appendix_explicit = true;
         } else if argument == "--force-appendix" {
             force_appendix = true;
+            force_appendix_explicit = true;
         } else if let Some(value) = argument.strip_prefix("--bundle=") {
             bundle = parse_bool_flag(value, "bundle")?;
         } else if argument == "--bundle" || argument == "-b" {
@@ -5121,6 +5138,7 @@ fn run_document_with_stdout(
                 .map_err(|error| format!("invalid scale value {value:?}: {error}"))?;
             raw_scale = parsed;
             scale = (parsed > 0.0).then_some(parsed);
+            scale_explicit = true;
         } else if argument == "--scale" {
             index += 1;
             let value = args
@@ -5131,6 +5149,7 @@ fn run_document_with_stdout(
                 .map_err(|error| format!("invalid scale value {value:?}: {error}"))?;
             raw_scale = parsed;
             scale = (parsed > 0.0).then_some(parsed);
+            scale_explicit = true;
         } else if let Some(value) = argument.strip_prefix("--salt=") {
             if value.is_empty() {
                 return Err("salt must not be empty".into());
@@ -5222,6 +5241,7 @@ fn run_document_with_stdout(
                 .map_err(|error| format!("invalid animate-interval value {value:?}: {error}"))?;
             raw_interval = parsed;
             animate_interval = u64::try_from(parsed).ok().filter(|interval| *interval > 0);
+            interval_explicit = true;
         } else if argument == "--animate-interval" {
             index += 1;
             let value = args
@@ -5232,6 +5252,7 @@ fn run_document_with_stdout(
                 .map_err(|error| format!("invalid animate-interval value {value:?}: {error}"))?;
             raw_interval = parsed;
             animate_interval = u64::try_from(parsed).ok().filter(|interval| *interval > 0);
+            interval_explicit = true;
         } else if let Some(value) = argument.strip_prefix("--timeout=") {
             let parsed = value
                 .parse::<i64>()
@@ -5351,25 +5372,10 @@ fn run_document_with_stdout(
         )
         .map_err(command_line::usage)?;
     }
-    // d2cli/main.go:252–258 checks the destination before reading the source.
-    // The stdout destination deliberately bypasses this file-only restriction.
-    let animation_destination = output_path
-        .as_deref()
-        .map(PathBuf::from)
-        .or_else(|| default_output_path(&input_path, output_format));
-    if isometric != Some(true)
-        && animate_interval.is_some_and(|interval| interval > 0)
-        && !matches!(output_format, ExportFormat::Svg | ExportFormat::Gif)
-        && let Some(destination) = animation_destination
-        && destination.as_os_str() != "-"
-    {
-        let extension = destination
-            .extension()
-            .map(|extension| format!(".{}", extension.to_string_lossy()))
-            .unwrap_or_default();
-        return Err(command_line::usage(format!(
-            "--animate-interval can only be used when exporting to SVG or GIF.\nYou provided: {extension}"
-        )));
+    // d2cli.validateAnimateInterval checks the flag's interval against the
+    // output format before reading the source (the isometric form above).
+    if isometric != Some(true) {
+        validate_animate_interval(raw_interval, output_format)?;
     }
     // main.go:318 and :360 log the flag/environment themes (unset is 0)
     // before source configuration is read.
@@ -5488,6 +5494,7 @@ fn run_document_with_stdout(
         remember_source_config(&input, &input_path, &config);
         let _compiled_source_scope = CompiledSourceScope::enter(compiled.clone());
         let mut compiled_source = Some(compiled);
+        let mut source_interval = None;
         if let Some(config) = config? {
             if !layout_explicit {
                 if let Some(layout_engine) = config.layout_engine.as_deref() {
@@ -5526,6 +5533,20 @@ fn run_document_with_stdout(
             if sketch.is_none() {
                 sketch = config.sketch;
             }
+            if !scale_explicit && let Some(configured) = config.scale {
+                raw_scale = configured;
+                scale = (configured > 0.0).then_some(configured);
+            }
+            if !force_appendix_explicit && let Some(configured) = config.force_appendix {
+                force_appendix = configured;
+            }
+            if !interval_explicit && let Some(configured) = config.animate_interval {
+                raw_interval = configured;
+                animate_interval = u64::try_from(configured)
+                    .ok()
+                    .filter(|interval| *interval > 0);
+                source_interval = Some(configured);
+            }
         } else if !layout_explicit && output_format == ExportFormat::Ascii {
             layout = "elk".to_owned();
         }
@@ -5533,6 +5554,21 @@ fn run_document_with_stdout(
         // before resolving the layout engine or validating export options.
         if sketch == Some(true) && isometric == Some(true) {
             return Err("sketch cannot be combined with isometric rendering".into());
+        }
+        // d2cli.compile validates a source interval against the output format
+        // right after compiling.
+        if let Some(configured) = source_interval {
+            if isometric == Some(true) {
+                if !(0..=600000).contains(&configured)
+                    || configured > 0 && output_format != ExportFormat::Gif
+                {
+                    return Err(command_line::usage(
+                        "--isometric --animate-interval requires GIF and an interval from 1 to 600000 milliseconds",
+                    ));
+                }
+            } else {
+                validate_animate_interval(configured, output_format)?;
+            }
         }
         // d2plugin.FindPlugin matches the bundled names with EqualFold.
         let selected_engine = match layout.to_lowercase().as_str() {
@@ -6475,7 +6511,7 @@ fn run_layout_command(args: &[String]) -> Result<Vec<u8>, String> {
     };
     let long_help = match layout.as_str() {
         "dagre" => format!(
-            "dagre is a directed graph layout algorithm implemented natively in Go by Dagro.\nSee https://d2lang.com/tour/dagre for more.\n\nDagro implements the Dagre 3.1.1 layout surface used by D2: https://github.com/d2lang/dagro.\n\nFlags correspond to ones found at https://github.com/dagrejs/dagre/wiki.\n\nFlags:\n{}\n",
+            "dagre is a directed graph layout algorithm implemented natively in Go by Dagro.\nSee https://d2lang.com/tour/dagre for more.\n\nDagro implements the Dagre 3.1.1 layout surface used by D2: https://github.com/d2lang/dagro.\n\nSet dagre-nodesep and dagre-edgesep in vars.d2-config.data to specify spacing in pixels.\nDiagram data takes precedence over the corresponding command-line flags.\n\nFlags correspond to ones found at https://github.com/dagrejs/dagre/wiki.\n\nFlags:\n{}\n",
             command_line::layout_flags("dagre")
         ),
         "elk" => format!(
@@ -6509,6 +6545,23 @@ fn cli_stdout_format(value: &str) -> Result<ExportFormat, String> {
 
 /// d2cli/export.go getExportExtension: exact filename extensions, with SVG
 /// as the fallback. The library parser also accepts aliases and upper case.
+/// d2cli.validateAnimateInterval for ordinary (non-isometric) exports.
+fn validate_animate_interval(interval: i64, format: ExportFormat) -> Result<(), String> {
+    if interval > 0 && !matches!(format, ExportFormat::Svg | ExportFormat::Gif) {
+        let extension = match format {
+            ExportFormat::Png => ".png",
+            ExportFormat::Pdf => ".pdf",
+            ExportFormat::Pptx => ".pptx",
+            ExportFormat::Ascii => ".txt",
+            _ => "",
+        };
+        return Err(command_line::usage(format!(
+            "--animate-interval can only be used when exporting to SVG or GIF.\nYou provided: {extension}"
+        )));
+    }
+    Ok(())
+}
+
 fn cli_export_extension(path: &str) -> ExportFormat {
     let extension = path.rsplit('/').next().unwrap_or("").rsplit_once('.');
     match extension.map(|(_, extension)| extension) {
@@ -6751,6 +6804,11 @@ fn apply_network_policy(args: Vec<String>) -> Vec<String> {
         std::env::var("D2_ALLOW_PRIVATE_NETWORK").as_deref(),
         Ok("1" | "true")
     );
+    // The boundary validated D2_ALLOW_LOCAL_FILES as a Bool environment value.
+    let mut allow_local_files = !matches!(
+        std::env::var("D2_ALLOW_LOCAL_FILES").as_deref(),
+        Ok("0" | "false")
+    );
     let mut remaining = Vec::with_capacity(args.len());
     let mut ended = false;
     for argument in args {
@@ -6760,10 +6818,15 @@ fn apply_network_policy(args: Vec<String>) -> Vec<String> {
                 allow = value == "true";
                 continue;
             }
+            if let Some(value) = argument.strip_prefix("--allow-local-files=") {
+                allow_local_files = value == "true";
+                continue;
+            }
         }
         remaining.push(argument);
     }
     http_asset::set_allow_private_network(allow);
+    http_asset::set_allow_local_files(allow_local_files);
     remaining
 }
 
@@ -10813,6 +10876,125 @@ layers: {
                 .contains("data:image/svg+xml;base64,")
         );
         let _ = std::fs::remove_dir_all(base);
+    }
+
+    #[test]
+    fn png_watch_preview_embeds_local_snapshot_and_retries_missing_image() {
+        // Upstream 6012a84bd and 1c7d0204e PNG watch contracts.
+        let root = std::env::temp_dir().join(format!("d2-port-watch-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let args = [
+            "--engine=dagre".into(),
+            format!("--path={}", root.join("input.d2").display()),
+        ];
+        let source = b"x: {shape: image; icon: missing&image.svg; width: 64; height: 64}";
+        let render = || {
+            render_source_format_with_preview(
+                source,
+                &args,
+                ExportFormat::Png,
+                Some(1),
+                None,
+                true,
+                false,
+            )
+            .unwrap()
+        };
+        let (png, preview) = render();
+        assert!(png.starts_with(b"\x89PNG"));
+        let placeholder = format!(
+            "data:image/svg+xml;base64,{}",
+            base64::engine::general_purpose::STANDARD
+                .encode(d2_rs_scenebuild::UNAVAILABLE_IMAGE_SVG)
+        );
+        assert!(
+            String::from_utf8(preview.unwrap())
+                .unwrap()
+                .contains(&placeholder)
+        );
+        let asset =
+            br#"<svg width="64" height="64"><rect width="64" height="64" fill="red"/></svg>"#;
+        std::fs::write(root.join("missing&image.svg"), asset).unwrap();
+        let (next_png, next_preview) = render();
+        assert_ne!(png, next_png);
+        let expected = format!(
+            "data:image/svg+xml;base64,{}",
+            base64::engine::general_purpose::STANDARD.encode(asset)
+        );
+        let next_preview = String::from_utf8(next_preview.unwrap()).unwrap();
+        assert!(next_preview.contains(&expected));
+        assert!(!next_preview.contains(&placeholder));
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn catalog_gradient_image_multiple_exports_png_and_gif_pixels() {
+        // Upstream 8558856dc TestSVGIconAcrossNativeExports, pixel contract.
+        let root = std::env::temp_dir().join(format!("d2-port-catalog-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("icon.svg"), br##"<svg viewBox="0 0 40 20"><linearGradient id="g"><stop stop-color="red"/><stop offset="100%" stop-color="blue"/></linearGradient><rect width="40" height="20" fill="url(#g)"/></svg>"##).unwrap();
+        let source = b"x: {shape: image; icon: ./icon.svg; style.multiple: true}";
+        let args = [
+            "--engine=dagre".into(),
+            "--pad=0".into(),
+            "--scale=1".into(),
+            format!("--path={}", root.join("input.d2").display()),
+        ];
+        let (png, _) = render_source_format_with_preview(
+            source,
+            &args,
+            ExportFormat::Png,
+            Some(1),
+            None,
+            false,
+            false,
+        )
+        .unwrap();
+        let mut reader = png::Decoder::new(std::io::Cursor::new(png))
+            .read_info()
+            .unwrap();
+        let mut pixels = vec![0; reader.output_buffer_size().unwrap()];
+        let info = reader.next_frame(&mut pixels).unwrap();
+        let check = |pixel: &[u8], red: bool| {
+            assert!(pixel[1] < 32, "{pixel:?}");
+            if red {
+                assert!(
+                    pixel[0] > 144 && pixel[0] as u16 > pixel[2] as u16 * 2,
+                    "{pixel:?}"
+                );
+            } else {
+                assert!(
+                    pixel[2] > 144 && pixel[2] as u16 > pixel[0] as u16 * 2,
+                    "{pixel:?}"
+                );
+            }
+        };
+        for (fraction, red) in [(2, true), (8, false)] {
+            let offset = ((info.height / 2 * info.width + info.width * fraction / 10)
+                * info.color_type.samples() as u32) as usize;
+            check(&pixels[offset..offset + 3], red);
+        }
+        let (gif, _) = render_source_format_with_preview(
+            source,
+            &args,
+            ExportFormat::Gif,
+            None,
+            Some(100),
+            false,
+            false,
+        )
+        .unwrap();
+        let mut options = gif::DecodeOptions::new();
+        options.set_color_output(gif::ColorOutput::RGBA);
+        let mut reader = options.read_info(std::io::Cursor::new(gif)).unwrap();
+        let frame = reader.read_next_frame().unwrap().unwrap();
+        for (fraction, red) in [(2, true), (8, false)] {
+            let offset = (frame.height as usize / 2 * frame.width as usize
+                + frame.width as usize * fraction / 10)
+                * 4;
+            check(&frame.buffer[offset..offset + 3], red);
+        }
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

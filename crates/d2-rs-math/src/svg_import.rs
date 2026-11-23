@@ -55,9 +55,23 @@ pub fn import_labeled(
     current_color: Option<[u8; 4]>,
     cancel: Option<&d2_rs_core::CancellationToken>,
 ) -> Result<Outcome, String> {
+    import_labeled_with_decoded_limit(source, data, limits, current_color, 0, cancel)
+}
+
+/// Import with an independent embedded-raster decoded-pixel ceiling.
+/// Zero retains the original source-byte fallback.
+pub fn import_labeled_with_decoded_limit(
+    source: &str,
+    data: &[u8],
+    limits: [usize; 9],
+    current_color: Option<[u8; 4]>,
+    decoded_limit: usize,
+    cancel: Option<&d2_rs_core::CancellationToken>,
+) -> Result<Outcome, String> {
     let color = current_color.unwrap_or([0, 0, 0, 255]);
     let document = super::svg_xml_document::parse_bytes(source, data, limits, cancel)?;
     let mut compiled = Compilation::with_images(&document);
+    compiled.image_assets.as_mut().unwrap().decoded_limit = decoded_limit;
     if let super::svg_compile::Progress::Image(index) =
         super::svg_compile::compile(source, &document, &mut compiled, limits, color, cancel)?
     {
@@ -76,6 +90,7 @@ pub fn import_labeled(
     )?;
     let mut inherited = super::svg_style::Style::default();
     inherited.paint.color = color;
+    inherited.viewport = viewport.view_box;
     let mut scene = Scene::default();
     let mut work = Work {
         budget: super::svg_primitive::Budget {
@@ -108,6 +123,8 @@ pub fn import_labeled(
             transform: [1., 0., 0., 1., 0., 0.],
             opacity: 1.,
             clip: None,
+            mask: None,
+            filters: Vec::new(),
             primitive: None,
             children: Vec::new(),
         });
@@ -129,7 +146,7 @@ pub fn import_labeled(
         parsed_attribute_bytes: document.counts[2],
         parsed_path_commands: compiled.parsed_commands,
         parsed_transform_funcs: compiled.work.transforms,
-        declared_resources: document.ids.len()
+        declared_resources: document.declared_ids()
             + compiled.image_assets.as_ref().unwrap().entries.len(),
         expanded_use_instances: work.uses,
         emitted_elements: work.budget.elements,
@@ -260,5 +277,288 @@ mod image_tests {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod catalog_contracts {
+    use super::*;
+    use crate::svg_primitive::Paint;
+    fn import(source: &str) -> Imported {
+        match import_labeled(
+            "icon",
+            source.as_bytes(),
+            [262144, 32, 2048, 4096, 262144, 16384, 512, 8, 512],
+            None,
+            None,
+        )
+        .unwrap()
+        {
+            Outcome::Imported(imported) => imported,
+            _ => panic!("image unexpectedly pending"),
+        }
+    }
+    #[test]
+    fn radial_defaults_percentages_and_opacity() {
+        // Upstream 8558856dc gradient.go: radial percentages use the normalized diagonal.
+        let imported = import(
+            r##"<svg viewBox="0 0 40 20"><radialGradient id="g" gradientUnits="userSpaceOnUse" cx="25%" fr="10%" spreadMethod="repeat"><stop stop-color="red"/><stop offset="100%" stop-color="blue"/></radialGradient><rect width="40" height="20" fill="url(#g)" fill-opacity=".5"/><svg width="10" height="10" viewBox="0 0 8 4"><rect width="8" height="4" fill="url(#g)"/></svg></svg>"##,
+        );
+        let paints: Vec<_> = imported
+            .scene
+            .nodes
+            .iter()
+            .filter_map(|n| n.primitive.as_ref()?.fill.as_ref())
+            .collect();
+        assert_eq!(paints.len(), 2);
+        for (paint, w, h, alpha) in [
+            (paints[0], 40_f64, 20_f64, 128),
+            (paints[1], 8_f64, 4_f64, 255),
+        ] {
+            let Paint::Radial {
+                center,
+                focal,
+                radius,
+                focal_radius,
+                units,
+                spread,
+                stops,
+                ..
+            } = paint
+            else {
+                panic!("radial")
+            };
+            assert_eq!(*center, [w * 0.25, h * 0.5]);
+            assert_eq!(center, focal);
+            let diagonal =
+                crate::gomath::hypot(w / std::f64::consts::SQRT_2, h / std::f64::consts::SQRT_2);
+            assert_eq!(*radius, diagonal * 0.5);
+            assert_eq!(*focal_radius, diagonal * 0.1);
+            assert_eq!((*units, *spread), (1, 2));
+            assert_eq!(stops[0].color, [255, 0, 0, alpha]);
+        }
+    }
+    #[test]
+    fn radial_rejects_negative_radii_and_invalid_units() {
+        for attrs in [
+            r#"r="-1""#,
+            r#"fr="-1%""#,
+            r#"gradientUnits="bad""#,
+            r#"r="2 %""#,
+        ] {
+            let source =
+                format!(r#"<svg width="4" height="4"><radialGradient id="g" {attrs}/></svg>"#);
+            assert!(
+                import_labeled(
+                    "icon",
+                    source.as_bytes(),
+                    [262144, 32, 2048, 4096, 262144, 16384, 512, 8, 512],
+                    None,
+                    None
+                )
+                .is_err(),
+                "{attrs}"
+            );
+        }
+    }
+    #[test]
+    fn gradient_defaults_and_referencing_viewports() {
+        // Upstream 8558856dc TestIconGradientCoordinatesAndPixels.
+        let imported = import(
+            r##"<svg viewBox="0 0 40 20"><linearGradient id="g" gradientUnits="userSpaceOnUse" x1="25%" spreadMethod="reflect"><stop stop-color="red"/><stop offset="100%" stop-color="blue"/></linearGradient><rect width="40" height="20" fill="url(#g)"/><svg width="10" height="10" viewBox="0 0 8 4"><rect width="8" height="4" fill="url(#g)"/></svg></svg>"##,
+        );
+        let paints: Vec<_> = imported
+            .scene
+            .nodes
+            .iter()
+            .filter_map(|n| n.primitive.as_ref())
+            .filter_map(|p| p.fill.as_ref())
+            .collect();
+        assert_eq!(paints.len(), 2);
+        for (paint, expected) in paints.into_iter().zip([(10., 40.), (2., 8.)]) {
+            let Paint::Linear {
+                start,
+                end,
+                units,
+                spread,
+                stops,
+                ..
+            } = paint
+            else {
+                panic!("linear")
+            };
+            assert_eq!((start[0], end[0]), expected);
+            assert_eq!((*units, *spread), (1, 1));
+            assert_eq!(stops[0].color, [255, 0, 0, 255]);
+            assert_eq!(stops[1].color, [0, 0, 255, 255]);
+        }
+        let imported = import(
+            r##"<svg viewBox="0 0 40 20"><linearGradient id="g"><stop/><stop offset="100%"/></linearGradient><rect width="40" height="20" fill="url(#g)"/></svg>"##,
+        );
+        let paint = imported
+            .scene
+            .nodes
+            .iter()
+            .find_map(|n| n.primitive.as_ref().and_then(|p| p.fill.as_ref()))
+            .unwrap();
+        assert!(matches!(
+            paint,
+            Paint::Linear {
+                start: [0., 0.],
+                end: [1., 0.],
+                units: 0,
+                ..
+            }
+        ));
+    }
+    #[test]
+    fn empty_degenerate_gradients_and_clamped_stops() {
+        // Upstream 8558856dc TestIconGradientStopDefaultsAndDegeneratePaint.
+        let imported = import(
+            r##"<svg viewBox="0 0 4 2"><defs><linearGradient/><linearGradient id="empty"/><linearGradient id="step" x2="0" spreadMethod="repeat"><stop offset="-20%"/><stop offset=".75"/><stop offset=".25"/><stop offset="150%" stop-color="red"/></linearGradient></defs><rect width="2" height="2" fill="url(#empty)"/><rect x="2" width="2" height="2" fill="url(#step)"/></svg>"##,
+        );
+        let primitives: Vec<_> = imported
+            .scene
+            .nodes
+            .iter()
+            .filter_map(|n| n.primitive.as_ref())
+            .collect();
+        // compile.go svgGeometry.primitive omits an unpainted rectangle.
+        assert_eq!(primitives.len(), 1);
+        assert_eq!(primitives[0].geometry.bounds[0], 2.);
+        let Some(Paint::Linear {
+            start,
+            end,
+            stops,
+            spread,
+            ..
+        }) = &primitives[0].fill
+        else {
+            panic!("linear")
+        };
+        assert_eq!(start, end);
+        assert_eq!(*spread, 2);
+        assert_eq!(
+            stops.iter().map(|s| s.offset).collect::<Vec<_>>(),
+            [0., 0.75, 0.75, 1.]
+        );
+    }
+    #[test]
+    fn clip_chain_cycles_and_work_are_bounded() {
+        for body in [
+            r##"<clipPath id="a" clip-path="url(#a)"><rect width="8" height="8"/></clipPath><rect width="8" height="8" clip-path="url(#a)"/>"##,
+            r##"<clipPath id="a" clip-path="url(#b)"><rect width="8" height="8"/></clipPath><clipPath id="b" clip-path="url(#a)"><rect width="8" height="8"/></clipPath><rect width="8" height="8" clip-path="url(#a)"/>"##,
+        ] {
+            let source = format!("<svg width=\"8\" height=\"8\">{body}</svg>");
+            assert!(
+                import_labeled(
+                    "icon",
+                    source.as_bytes(),
+                    [262144, 32, 2048, 4096, 262144, 16384, 512, 8, 512],
+                    None,
+                    None
+                )
+                .err()
+                .unwrap()
+                .contains("clip-path chain exceeds depth limit 8 or contains a cycle")
+            );
+        }
+    }
+    #[test]
+    fn ambiguous_ids_and_hidden_external_image_sentinels() {
+        // Upstream 8558856dc TestIconResourceLimitsAndVisibility and import.go.
+        const HIDDEN: &str = r#"<style>.archive{display:none}</style><g class="archive"><image id="old" width="8" height="8" href="unused.jpg"/></g>"#;
+        let source = format!(
+            r#"<svg width="8" height="8">{HIDDEN}<g id="unused"/><g id="unused"/><g id="unused"/><rect width="8" height="8"/></svg>"#
+        );
+        let imported = import(&source);
+        assert_eq!(imported.metrics.declared_resources, 4);
+        assert_eq!(imported.metrics.embedded_raster_assets, 0);
+        assert!(!imported.scene.nodes.iter().any(|n| n.id == "unused"));
+        for (body, message) in [
+            (format!(r##"{HIDDEN}<use href="#old"/>"##), "external"),
+            (r##"<g id="x"/><g id="x"/><use href="#x"/>"##.into(), "ambiguous"),
+            (r##"<linearGradient id="x"/><linearGradient id="x"/><rect width="8" height="8" fill="url(#x)"/>"##.into(), "ambiguous"),
+            (r##"<clipPath id="x"><rect width="2" height="2"/></clipPath><g id="x"/><rect width="8" height="8" clip-path="url(#x)"/>"##.into(), "ambiguous"),
+            (r#"<image width="8" height="8" href="unused.jpg" visibility="hidden"/>"#.into(), "external"),
+            (r#"<g display="none"><image width="0" height="8" href="unused.jpg"/></g>"#.into(), "positive"),
+            (r#"<g display="none"><image width="8" height="8" href="unused.jpg" overflow="visible" preserveAspectRatio="xMidYMid slice"/></g>"#.to_string(), "overflow"),
+        ] {
+            let source = format!("<svg width=\"8\" height=\"8\">{body}</svg>");
+            let error = import_labeled("icon", source.as_bytes(), [262144,32,2048,4096,262144,16384,512,8,512], None, None).err().unwrap();
+            assert!(error.contains(message), "{error}");
+        }
+        let source = r#"<svg width="8" height="8"><g id="x"/><g id="x"/><g id="x"/></svg>"#;
+        let mut limits = [262144, 32, 2048, 4096, 262144, 16384, 512, 8, 512];
+        limits[8] = 2;
+        assert!(
+            import_labeled("icon", source.as_bytes(), limits, None, None)
+                .err()
+                .unwrap()
+                .contains("ID resource count exceeds limit 2")
+        );
+    }
+    #[test]
+    fn editor_inert_properties_and_unreferenced_clips() {
+        // Upstream 8558856dc style.go/boilerplate.go and TestIconResourceLimitsAndVisibility.
+        let imported = import(
+            r##"<svg width="8" height="8"><style>.one{isolation:isolate;mix-blend-mode:normal;vector-effect:none;enable-background:accumulate}</style><clipPath><rect width="2" height="2"/></clipPath><g class="one" style="enable-background:new 0 0 8 8"><svg width="8" height="8" viewBox="0 0 8 8" enable-background="inherit"><path d="M0 0H8V8Z" href="#editor" text-indent="0" text-align="start" text-decoration-line="none" text-decoration-style="solid" text-decoration-color="black" text-transform="none" block-progression="tb" white-space="normal" font-size="16" font-family="sans-serif" solid-color="red" solid-opacity="1" fill="red"/></svg></g><defs><path id="p" d="M0 0H1V1Z"/></defs><use href="#p" overflow="visible"/></svg>"##,
+        );
+        assert_eq!(
+            imported
+                .scene
+                .nodes
+                .iter()
+                .filter(|n| n.primitive.is_some())
+                .count(),
+            2
+        );
+        for body in [
+            r#"<g isolation="bad"/>"#,
+            r#"<g mix-blend-mode="multiply"/>"#,
+            r#"<path vector-effect="non-scaling-stroke"/>"#,
+            r#"<g overflow="visible"/>"#,
+            r#"<image overflow="hidden"/>"#,
+            r#"<g enable-background="new 0 0 0 8"/>"#,
+            r##"<path href="#bad id"/>"##,
+            r#"<style>.unused{isolation:bad}</style>"#,
+        ] {
+            let source = format!("<svg width=\"8\" height=\"8\">{body}</svg>");
+            assert!(
+                import_labeled(
+                    "icon",
+                    source.as_bytes(),
+                    [262144, 32, 2048, 4096, 262144, 16384, 512, 8, 512],
+                    None,
+                    None
+                )
+                .is_err(),
+                "{body}"
+            );
+        }
+    }
+    #[test]
+    fn editor_descriptions_optional_metadata_and_class_lists() {
+        let imported = import(
+            r##"<svg viewBox="0 0 48 24" version="1.2" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/"><desc>Editor description</desc><metadata><rdf:RDF><cc:Work><dc:format>image/svg+xml</dc:format><dc:title>Logo</dc:title></cc:Work></rdf:RDF></metadata><style>.one,.two{fill:red}.two{fill:blue}</style><rect width="4" height="4" class="one"/><rect x="4" width="4" height="4" class="two"/></svg>"##,
+        );
+        let colors: Vec<_> = imported
+            .scene
+            .nodes
+            .iter()
+            .filter_map(|n| n.primitive.as_ref())
+            .map(|p| p.fill.clone())
+            .collect();
+        assert_eq!(
+            colors,
+            [
+                Some(Paint::Solid {
+                    color: [255, 0, 0, 255]
+                }),
+                Some(Paint::Solid {
+                    color: [0, 0, 255, 255]
+                })
+            ]
+        );
     }
 }

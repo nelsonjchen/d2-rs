@@ -44,9 +44,36 @@ fn paint(p: &svg_primitive::Paint) -> Paint {
             units,
             transform,
             spread,
+            ..
         } => Paint::LinearGradient(LinearGradient {
             start: point(*start),
             end: point(*end),
+            stops: stops
+                .iter()
+                .map(|s| GradientStop {
+                    offset: s.offset,
+                    color: color(s.color),
+                })
+                .collect(),
+            units: PaintUnits(*units),
+            transform: matrix(*transform),
+            spread: SpreadMethod(*spread),
+        }),
+        svg_primitive::Paint::Radial {
+            center,
+            focal,
+            radius,
+            focal_radius,
+            stops,
+            units,
+            transform,
+            spread,
+            ..
+        } => Paint::RadialGradient(RadialGradient {
+            center: point(*center),
+            focal: point(*focal),
+            radius: *radius,
+            focal_radius: *focal_radius,
             stops: stops
                 .iter()
                 .map(|s| GradientStop {
@@ -122,7 +149,7 @@ fn primitive(p: &svg_primitive::Primitive) -> Primitive {
 
 /// Consume the arena iteratively. Reverse traversal guarantees children are
 /// moved exactly once, without recursive cloning or a source-depth stack.
-fn root(scene: d2_rs_math::svg_scene::Scene) -> Node {
+pub(crate) fn root(scene: d2_rs_math::svg_scene::Scene) -> Node {
     let mut mapped: Vec<Option<Node>> = (0..scene.nodes.len()).map(|_| None).collect();
     let root = scene.root.expect("importer always emits a root");
     let mut stack = vec![(root, false)];
@@ -131,6 +158,9 @@ fn root(scene: d2_rs_math::svg_scene::Scene) -> Node {
         if !visited {
             stack.push((index, true));
             stack.extend(n.children.iter().rev().map(|&c| (c, false)));
+            if let Some(mask) = &n.mask {
+                stack.push((mask.root, false));
+            }
             continue;
         }
         let mut out = Node::new(n.primitive.as_ref().map(primitive));
@@ -145,6 +175,23 @@ fn root(scene: d2_rs_math::svg_scene::Scene) -> Node {
                 ..Default::default()
             },
             transform: matrix(c.transform),
+        });
+        out.filters = (!n.filters.is_empty()).then(|| {
+            n.filters
+                .iter()
+                .map(|b| Filter::GaussianBlur {
+                    sigma_x: b.sigma_x,
+                    sigma_y: b.sigma_y,
+                    linear_rgb: b.linear_rgb,
+                })
+                .collect()
+        });
+        out.mask = n.mask.as_ref().map(|m| Mask {
+            r#type: MaskType(m.kind),
+            transform: Matrix::identity(),
+            root: Some(std::sync::Arc::new(
+                mapped[m.root].take().expect("owned mask"),
+            )),
         });
         out.children = (!n.children.is_empty()).then(|| {
             n.children
@@ -265,8 +312,26 @@ impl Builder<'_> {
             object.to_owned()
         };
         let limits = self.remaining_svg_limits(&budget_object)?;
-        let outcome = d2_rs_math::svg_import::import_labeled(source, data, limits, current, None)
-            .map_err(|e| {
+        let decoded_limit = self
+            .options
+            .assets
+            .as_ref()
+            .unwrap()
+            .svg_import_limits
+            .max_decoded_raster_bytes;
+        let outcome = if decoded_limit < 0 {
+            Err("d2svgimport: all import limits must be positive".to_owned())
+        } else {
+            d2_rs_math::svg_import::import_labeled_with_decoded_limit(
+                source,
+                data,
+                limits,
+                current,
+                decoded_limit as usize,
+                None,
+            )
+        }
+        .map_err(|e| {
             Error(if latex {
                 format!("scene: {object} latex SVG: {e}")
             } else {
@@ -354,4 +419,199 @@ pub(crate) fn redact_source(source: &str) -> String {
         }
     }
     source.into()
+}
+
+#[cfg(test)]
+mod icon_effect_tests {
+    use super::*;
+    fn imported(svg: &str) -> d2_rs_math::svg_import::Imported {
+        let Outcome::Imported(out) = d2_rs_math::svg_import::import_labeled(
+            "icon.svg",
+            svg.as_bytes(),
+            [
+                1_000_000, 100, 10_000, 100_000, 1_000_000, 1_000_000, 10_000, 100, 10_000,
+            ],
+            None,
+            None,
+        )
+        .unwrap() else {
+            panic!("unexpected image continuation")
+        };
+        out
+    }
+    fn frame(svg: &str) -> d2_rs_raster::NrgbaImage {
+        let out = imported(svg);
+        let doc = Document {
+            logical_width: out.viewport.width,
+            logical_height: out.viewport.height,
+            view_box: Box {
+                width: out.viewport.width,
+                height: out.viewport.height,
+                ..Default::default()
+            },
+            root: Some(std::boxed::Box::new(root(out.scene))),
+            ..Default::default()
+        };
+        d2_rs_raster::render(
+            &doc,
+            &d2_rs_raster::FrameOptions {
+                scale: 1.,
+                max_width: 1000,
+                max_height: 1000,
+                max_pixels: 1_000_000,
+                max_nodes: 10_000,
+                max_depth: 100,
+                max_path_commands: 1_000_000,
+                max_animation_tracks: 10_000,
+                max_animation_keyframes: 100_000,
+                max_assets: 100,
+                max_asset_bytes: 64 * 1024 * 1024,
+                max_decoded_asset_bytes: 64 * 1024 * 1024,
+                max_import_depth: 100,
+                max_offscreen_bytes: 64 * 1024 * 1024,
+                max_scanline_work: 1_000_000_000,
+                max_even_odd_clip_work: 1_000_000_000,
+                ..Default::default()
+            },
+        )
+        .unwrap()
+    }
+    fn pixel(frame: &d2_rs_raster::NrgbaImage, x: usize, y: usize) -> [u8; 4] {
+        frame.pix[y * frame.stride + x * 4..y * frame.stride + x * 4 + 4]
+            .try_into()
+            .unwrap()
+    }
+    // Upstream icon_test.go TestIconMaskRegionContentAndType.
+    #[test]
+    fn mask_region_content_and_type() {
+        for (mode, alpha) in [("", 0), (" mask-type=\"alpha\"", 255)] {
+            let svg = format!(
+                r##"<svg viewBox="0 0 32 16"><mask id="m" x="25%" width="50%" maskContentUnits="objectBoundingBox"{mode}><rect width=".5" height="1" fill="white"/><rect x=".5" width=".5" height="1" fill="black"/></mask><g transform="translate(4 0)" mask="url(#m)"><rect x="2" y="2" width="16" height="12" fill="red"/></g></svg>"##
+            );
+            let f = frame(&svg);
+            assert_eq!(pixel(&f, 9, 8)[3], 0);
+            assert_eq!(pixel(&f, 11, 8), [255, 0, 0, 255]);
+            assert_eq!(pixel(&f, 16, 8)[3], alpha);
+            assert_eq!(pixel(&f, 18, 8)[3], 0);
+        }
+    }
+    // Upstream icon_test.go TestIconGaussianBlurColorSpaceAndRegion.
+    #[test]
+    fn gaussian_blur_color_space_and_region() {
+        let mut colors = Vec::new();
+        for space in ["", " color-interpolation-filters=\"sRGB\""] {
+            let svg = format!(
+                r##"<svg viewBox="0 0 36 24"><filter id="blur" x="0" y="-50%" width="1" height="200%"{space}><feGaussianBlur stdDeviation="2"/></filter><g filter="url(#blur)"><rect x="6" y="6" width="12" height="12" fill="red"/><rect x="18" y="6" width="12" height="12" fill="blue"/></g></svg>"##
+            );
+            let f = frame(&svg);
+            let edge = pixel(&f, 12, 4);
+            assert!(edge[0] >= 240 && edge[3] > 0 && edge[3] < 255, "{edge:?}");
+            assert_eq!(pixel(&f, 5, 12)[3], 0);
+            colors.push(pixel(&f, 17, 12));
+        }
+        assert!(
+            colors[0][0] > colors[1][0] + 20 && colors[0][2] > colors[1][2] + 20,
+            "{colors:?}"
+        );
+    }
+    #[test]
+    fn gaussian_filter_admission_and_primitive_units() {
+        for (body, expected) in [
+            (
+                r##"<filter id="f"><feGaussianBlur in="BackgroundImage"/></filter>"##,
+                "SourceGraphic",
+            ),
+            (
+                r##"<filter id="f"><feGaussianBlur stdDeviation="-1"/></filter>"##,
+                "deviation",
+            ),
+            (
+                r##"<filter id="f"><feGaussianBlur/><feGaussianBlur/></filter>"##,
+                "one feGaussianBlur",
+            ),
+            (
+                r##"<filter id="f" style="opacity:1"><feGaussianBlur/></filter>"##,
+                "unsupported attribute",
+            ),
+        ] {
+            let svg = format!("<svg width=\"8\" height=\"8\">{body}</svg>");
+            let error = d2_rs_math::svg_import::import_labeled(
+                "icon.svg",
+                svg.as_bytes(),
+                [10000, 100, 1000, 1000, 10000, 10000, 1000, 100, 1000],
+                None,
+                None,
+            )
+            .err()
+            .expect("rejected filter");
+            assert!(error.contains(expected), "{error}");
+        }
+        let out = imported(
+            r##"<svg width="40" height="20"><filter id="f" primitiveUnits="objectBoundingBox" color-interpolation-filters="sRGB"><feGaussianBlur stdDeviation=".1 .2" color-interpolation-filters="inherit"/></filter><rect width="30" height="10" filter="url(#f)"/></svg>"##,
+        );
+        let blur = out
+            .scene
+            .nodes
+            .iter()
+            .find_map(|n| n.filters.first())
+            .unwrap();
+        assert_eq!(
+            (blur.sigma_x, blur.sigma_y, blur.linear_rgb),
+            (3., 2., false)
+        );
+    }
+    // Upstream icon_test.go TestIconEditorMetadataClassListsAndPositionedText.
+    #[test]
+    fn positioned_text_and_tspan_pixels() {
+        let f = frame(
+            r##"<svg viewBox="0 0 48 24"><style>.one,.two{fill:red;isolation:isolate}.two{fill:blue}</style><g style="enable-background:new 0 0 48 24;mix-blend-mode:normal"><text x="2" y="18" font-size="16" class="one">A</text><text font-size="16"><tspan x="26" y="18" class="two">B</tspan></text></g></svg>"##,
+        );
+        let (mut red, mut blue) = (0, 0);
+        for y in 2..18 {
+            for x in 0..48 {
+                let p = pixel(&f, x, y);
+                if x < 20 && p[0] > 200 && p[3] > 128 {
+                    red += 1;
+                }
+                if x >= 26 && p[2] > 200 && p[3] > 128 {
+                    blue += 1;
+                }
+            }
+        }
+        assert!(red >= 10 && blue >= 10, "red={red}, blue={blue}");
+    }
+    #[test]
+    fn mask_definition_inherits_its_ancestors() {
+        let f = frame(
+            r##"<svg viewBox="0 0 8 8"><defs fill="white"><mask id="m"><rect width="8" height="8"/></mask></defs><rect width="8" height="8" fill="red" mask="url(#m)"/></svg>"##,
+        );
+        assert_eq!(pixel(&f, 4, 4), [255, 0, 0, 255]);
+    }
+    #[test]
+    fn mask_references_are_bounded_and_typed() {
+        for (body, expected) in [
+            (
+                r##"<mask id="m"><rect width="8" height="8" mask="url(#m)"/></mask><rect width="8" height="8" mask="url(#m)"/>"##,
+                "nested mask",
+            ),
+            (r##"<mask id="m"/><use href="#m"/>"##, "unsupported <mask>"),
+            (
+                r##"<g id="g"/><rect width="8" height="8" mask="url(#g)"/>"##,
+                "<mask> resource",
+            ),
+            (r##"<mask id="m" width="-1"/>"##, "negative region"),
+        ] {
+            let svg = format!("<svg width=\"8\" height=\"8\">{body}</svg>");
+            let e = d2_rs_math::svg_import::import_labeled(
+                "icon.svg",
+                svg.as_bytes(),
+                [10000, 100, 1000, 1000, 10000, 10000, 1000, 100, 1000],
+                None,
+                None,
+            )
+            .err()
+            .expect("rejected mask");
+            assert!(e.contains(expected), "{e}");
+        }
+    }
 }

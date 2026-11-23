@@ -59,11 +59,30 @@ impl Compiler {
         dst: NodeId,
         selector: bool,
     ) -> bool {
+        self.reserve_edge_work(segment) && self.reserve_edge_pair(segment, glob, src, dst, selector)
+    }
+    pub(super) fn reserve_edge_work(&mut self, segment: &ast::Shared<ast::Edge>) -> bool {
         if self.stopped() {
             return false;
         }
+        if let Err(message) = self.edge_expansion.reserve_work() {
+            self.errors
+                .push(error(&ast::Child::Edge(segment.clone()), message));
+            self.halted = true;
+            return false;
+        }
+        true
+    }
+    pub(super) fn reserve_edge_pair(
+        &mut self,
+        segment: &ast::Shared<ast::Edge>,
+        glob: Option<GlobId>,
+        src: NodeId,
+        dst: NodeId,
+        selector: bool,
+    ) -> bool {
         let budget = &mut self.edge_expansion;
-        let reservation = budget.reserve_work().and_then(|()| {
+        let reservation: Result<(), String> = (|| {
             let pair = (
                 glob,
                 &*segment.read() as *const _ as usize,
@@ -77,7 +96,7 @@ impl Compiler {
             budget.reserve_pair()?;
             budget.pairs.insert(pair);
             Ok(())
-        });
+        })();
         if let Err(message) = reservation {
             self.errors
                 .push(error(&ast::Child::Edge(segment.clone()), message));

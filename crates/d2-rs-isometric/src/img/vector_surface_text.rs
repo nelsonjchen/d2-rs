@@ -3,7 +3,7 @@
 use super::vector_surface_svg::{SurfaceSvg, attr};
 use d2_rs_fontface::{self as fontface, ParsedFace, ShapeFace, ShapeLimits, ShapingWorkspace};
 use d2_rs_scene::*;
-use fontface::sfnt::{Hinting, SegmentOp};
+use fontface::sfnt::Hinting;
 use std::{collections::HashSet, rc::Rc};
 
 impl SurfaceSvg<'_> {
@@ -257,42 +257,18 @@ impl SurfaceSvg<'_> {
     }
 }
 fn glyph_path(face: &ParsedFace, id: u32, ppem: i32, origin: Point) -> Result<Path, String> {
-    if id == 0 || id > u16::MAX as u32 || id as usize >= face.outline().num_glyphs() {
-        return Err(format!("native SVG has invalid glyph ID {id}"));
-    }
-    let segments = face
-        .outline()
-        .load_glyph(id as u16, ppem)
-        .map_err(|e| format!("native SVG glyph {id} outline: {e}"))?;
-    let mut path = Path::default();
-    let mut open = false;
-    for s in segments {
-        let point = |i: usize| {
-            Point::new(
-                origin.x + s.args[i].x as f64 / 64.0,
-                origin.y + s.args[i].y as f64 / 64.0,
-            )
-        };
-        let (a, b, c) = (point(0), point(1), point(2));
-        match s.op {
-            SegmentOp::MoveTo => {
-                if open {
-                    path.commands.push(PathCommand::close())
-                }
-                path.commands.push(PathCommand::move_to(a.x, a.y));
-                open = true
-            }
-            SegmentOp::LineTo => path.commands.push(PathCommand::line_to(a.x, a.y)),
-            SegmentOp::QuadTo => path
-                .commands
-                .push(PathCommand::quadratic_to(a.x, a.y, b.x, b.y)),
-            SegmentOp::CubeTo => path
-                .commands
-                .push(PathCommand::cubic_to(a.x, a.y, b.x, b.y, c.x, c.y)),
-        }
-    }
-    if open {
-        path.commands.push(PathCommand::close())
-    }
-    Ok(path)
+    let commands = d2_rs_fontface::glyph_path(face, id, ppem, [origin.x, origin.y])?;
+    Ok(Path {
+        commands: commands
+            .into_iter()
+            .map(|c| PathCommand {
+                kind: d2_rs_scene::PathCommandKind(c.kind),
+                p1: Point::new(c.points[0][0], c.points[0][1]),
+                p2: Point::new(c.points[1][0], c.points[1][1]),
+                p3: Point::new(c.points[2][0], c.points[2][1]),
+                ..Default::default()
+            })
+            .collect(),
+        ..Default::default()
+    })
 }

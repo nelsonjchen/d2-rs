@@ -37,6 +37,8 @@ pub struct Scalar {
 pub struct Field {
     pub import_ast: Option<Child>,
     pub suspended: bool,
+    pub in_edge_fields: bool,
+    pub next_edge_field: Option<NodeId>,
     pub name: StringBox,
     pub primary: Option<NodeId>,
     pub composite: Option<NodeId>,
@@ -61,6 +63,7 @@ pub struct Map {
     pub fields: Option<Vec<NodeId>>,
     pub edges: Option<Vec<NodeId>>,
     pub structure_version: u64,
+    pub first_edge_field: Option<NodeId>,
     pub globs: Option<ast::SharedSlice<Option<super::GlobId>>>,
 }
 #[derive(Clone, Debug)]
@@ -180,6 +183,8 @@ impl Arena {
                 s.value = ScalarBox::from_child(s.value.unbox().as_ref().map(super::clone_ast))
             }
             Node::Field(f) => {
+                f.in_edge_fields = false;
+                f.next_edge_field = None;
                 f.references = f.references.take().filter(|r| !r.is_empty());
                 f.primary = f.primary.map(|n| self.copy(n, Some(id)));
                 f.composite = f.composite.map(|n| self.copy(n, Some(id)));
@@ -199,6 +204,7 @@ impl Arena {
             }
             Node::Map(m) => {
                 m.structure_version = 0;
+                m.first_edge_field = None;
                 m.fields = Some(
                     m.fields
                         .take()
@@ -216,6 +222,14 @@ impl Arena {
         }
         let root = new_parent.is_none() && matches!(node, Node::Map(_));
         *self.node_mut(id) = node;
+        if let Node::Map(m) = self.node(id) {
+            let fields = m.fields.clone().unwrap_or_default();
+            for field in fields {
+                if self.map(field).is_some_and(|m| self.may_have_edges(m)) {
+                    self.add_edge_field(id, field);
+                }
+            }
+        }
         if root {
             self.init_root(id);
         }

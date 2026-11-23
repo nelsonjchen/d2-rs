@@ -69,6 +69,17 @@ impl TargetShape {
         self.pretty_link.as_deref().unwrap_or("")
     }
 
+    /// Shape.AppendixLinkText: every link marker must have an appendix row.
+    pub(crate) fn appendix_link_text(&self) -> &str {
+        if self.link.is_empty() {
+            ""
+        } else if !self.pretty_link_str().is_empty() {
+            self.pretty_link_str()
+        } else {
+            &self.link
+        }
+    }
+
     pub(crate) fn top_left(&self) -> Point {
         Point::new(self.pos.x as f64, self.pos.y as f64)
     }

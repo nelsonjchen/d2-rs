@@ -103,21 +103,33 @@ impl MeshBuilder {
         placer: &mut RouteCaptionPlacer,
         s: &Scene,
     ) -> std::vec::Vec<PacketRoute> {
-        let mut packets = vec![];
-        let theme = caption_theme(s);
-        let (lanes, paths) = match native_edge_routes_with_context(
+        match self.prepare_edges(edges, placer, s) {
+            Ok(routes) => self.draw_edges(edges, placer, s, routes),
+            Err(e) => {
+                self.fail(e);
+                vec![]
+            }
+        }
+    }
+    pub fn prepare_edges(
+        &mut self,
+        edges: &[Edge],
+        placer: &mut RouteCaptionPlacer,
+        s: &Scene,
+    ) -> Result<
+        (
+            std::vec::Vec<std::vec::Vec<Vec>>,
+            std::vec::Vec<std::vec::Vec<Vec>>,
+        ),
+        String,
+    > {
+        let (lanes, paths) = native_edge_routes_with_context(
             edges,
             &s.nodes,
             &s.boards,
             &self.hierarchy_supports,
             &self.geometry.context,
-        ) {
-            Ok(p) => p,
-            Err(e) => {
-                self.fail(e);
-                return packets;
-            }
-        };
+        )?;
         for (i, e) in edges.iter().enumerate() {
             if e.opacity <= 0.0 || lanes[i].len() < 2 {
                 continue;
@@ -126,7 +138,7 @@ impl MeshBuilder {
                 self.reserve_sequence_edge(e, &paths[i], placer);
                 continue;
             }
-            if e.stroke_width > 0 {
+            if super::route_bridges::native_route_visible(e) {
                 placer.avoid_route(&paths[i], native_route_radius(e) * 1.6)
             }
             let icon = !e.icon.is_empty() && e.metadata.original.icon.is_some();
@@ -147,6 +159,21 @@ impl MeshBuilder {
                 placer.reserve(caption_rect(&surface, true));
             }
         }
+        Ok((lanes, paths))
+    }
+    pub fn draw_edges(
+        &mut self,
+        edges: &[Edge],
+        placer: &mut RouteCaptionPlacer,
+        s: &Scene,
+        routes: (
+            std::vec::Vec<std::vec::Vec<Vec>>,
+            std::vec::Vec<std::vec::Vec<Vec>>,
+        ),
+    ) -> std::vec::Vec<PacketRoute> {
+        let mut packets = vec![];
+        let theme = caption_theme(s);
+        let (lanes, paths) = routes;
         for (i, e) in edges.iter().enumerate() {
             if self.err.is_some() {
                 return packets;

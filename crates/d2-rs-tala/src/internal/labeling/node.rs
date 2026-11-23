@@ -1509,6 +1509,7 @@ mod tests {
     fn recovered_image_icon_does_not_suppress_the_same_label_position() {
         let mut input = Graph::default();
         let image_node = Node {
+            elk_layer_constraint: String::new(),
             d2_near_key: None,
             external_id: "image".into(),
             size: Size {
