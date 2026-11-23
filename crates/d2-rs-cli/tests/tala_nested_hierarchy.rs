@@ -235,12 +235,13 @@ fn transpose_resizes_cluster_vessels_after_wrapping_container_members() {
 fn sized_swaps_preserve_self_loop_clearance_with_explicit_direction() {
     // Pinned placement/optimization_guard.go:439-488 uses Node.DeltaTo for
     // both swap checks. layoutgraph/node.go:846-860 includes loop clearance
-    // regardless of graph direction. Complete geometry/routes from Go, seed 1.
+    // regardless of graph direction. Complete geometry/routes from Go 710a5d7b
+    // (nearest-six swap candidates), seed 1.
     let svg = render_tala_seed("direction: right\nn3 -> c0\nn0 -> c0.n4\nn0 -> n0\n", "1");
     let document = roxmltree::Document::parse(&svg).unwrap();
     assert_eq!(
         document.root_element().attribute("viewBox"),
-        Some("0 0 571 577")
+        Some("0 0 601 428")
     );
     let rectangles = document
         .descendants()
@@ -251,10 +252,10 @@ fn sized_swaps_preserve_self_loop_clearance_with_explicit_direction() {
     assert_eq!(
         rectangles,
         [
-            ["0", "249", "62", "66"],
-            ["186", "189", "183", "186"],
-            ["246", "30", "62", "66"],
-            ["246", "249", "63", "66"],
+            ["30", "123", "62", "66"],
+            ["216", "30", "183", "186"],
+            ["30", "30", "62", "66"],
+            ["276", "90", "63", "66"],
         ]
     );
     let routes = document
@@ -270,9 +271,9 @@ fn sized_swaps_preserve_self_loop_clearance_with_explicit_direction() {
     assert_eq!(
         routes,
         [
-            "M 64 282 L 182 282",
-            "M 277 98 L 277 245",
-            "M 244 47 L 226 47 S 216 47 216 37 L 216 10 S 216 0 226 0 L 252 0 S 262 0 262 10 L 262 26",
+            "M 94 156 L 212 156",
+            "M 94 60 L 297 60 S 307 60 307 70 L 307 86",
+            "M 28 47 L 10 47 S 0 47 0 37 L 0 10 S 0 0 10 0 L 36 0 S 46 0 46 10 L 46 26",
         ]
     );
 }

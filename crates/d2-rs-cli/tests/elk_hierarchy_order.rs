@@ -33,7 +33,7 @@ fn assert_elk_svg(source: &str, expected: &[(&str, &str)]) {
 
 #[test]
 fn elk_nested_crossings_keep_saved_long_edge_targets() {
-    // Complete SVGs from pinned D2 6a7b48378, --layout=elk --omit-version.
+    // Complete SVGs from pinned D2 710a5d7b, --layout=elk --omit-version.
     // elk-go v0.2.0 intermediate/sort_by_input_model.go LongEdgeTargetNode
     // checks the helper's saved target before walking its outgoing edges.
     assert_elk_svg(
@@ -42,19 +42,19 @@ fn elk_nested_crossings_keep_saved_long_edge_targets() {
         &[
             (
                 "down",
-                "1eb90ad32eb6a92eb3a60a14af4dce275b99c70becdc895c19f70bf09c3b3c54",
+                "e30aa4eab6c489537196e9415f3e5a33515abfe36693a8ff646e601845203599",
             ),
             (
                 "up",
-                "1b7bff058ec8907ecee9067527014f222ef085b7389f89c561addefe05b51cbe",
+                "37bcd698fa469b2cc9d83d1adfaf108397d5b507b9b354fca46d37b5abc0fc1b",
             ),
             (
                 "right",
-                "64c1655f7a7e2e9bb8f9461a5872de7d49d3ba86166b55acbb1346ba440f7df0",
+                "5a823ea348ef639b24071c36d38deefcc12f5f5595718c670a68cc2434d7e41e",
             ),
             (
                 "left",
-                "acdfb85c8ad2ac9c633edca3537b25618cb040e433489fcad5ca406833b23b9b",
+                "ef009eab16c85dd07771aed8b8124717802993bee35304274f412977479150e1",
             ),
         ],
     );
@@ -128,7 +128,7 @@ fn elk_compound_loop_keeps_detached_hierarchy_port_in_routing_order() {
     // Pinned elk-go selfloop_preprocessor.go keeps hierarchical ports attached;
     // loops/ordering/port_restorer.go preserves them when PortsHidden is false.
     // RoutingDirector includes the temporarily unconnected port in its penalty.
-    // Complete SVGs from pinned D2 6a7b48378, --layout=elk --omit-version.
+    // Complete SVGs from pinned D2 710a5d7b, --layout=elk --omit-version.
     assert_elk_svg(
         "n0: {n1}\nn0 -> n0\nn0.n1 -> n0\n",
         &[
@@ -157,25 +157,25 @@ fn elk_compound_loop_preserves_all_transferred_port_positions() {
     // Pinned elk-go hierarchical_ports.go transferHierarchyGraphToNode copies
     // every external dummy, including self-loop ports. label_and_node_size.go
     // ProcessLabelAndNodeSizes preserves their fixed along-side coordinates.
-    // Complete SVGs from pinned D2 6a7b48378, --layout=elk --omit-version.
+    // Complete SVGs from pinned D2 710a5d7b, --layout=elk --omit-version.
     assert_elk_svg(
         "n0\nn1: {n2}\nn0 -> n1\nn1 -> n1\nn1 -> n1.n2\n",
         &[
             (
                 "down",
-                "686d56a7b2c546059435471f4560261cb81abfa72877a1181b608fdcea8da1cf",
+                "1796528bdc2865ed7bae8c41b9c6429bd1ee2224dda2b81e24db71dbe52dc438",
             ),
             (
                 "up",
-                "9c402c7028fe6b12fa6238c241413a616b96f80ec89637482c36feca95551888",
+                "43b553aebd8961ace966b9750b70adba6def19af1acfada12ecd6550a121c235",
             ),
             (
                 "right",
-                "b40952945fe7c437917c45416ad1625b16fb0f17b440ed4b42895e570b9b58f1",
+                "6a0f7511f947580d7fb9db1c49b8c435f2afa545de9ebb67d1f63b08f8e26833",
             ),
             (
                 "left",
-                "668542354bcc500803b303cfb94e56fff3f600fa5e86e904039edd6426cee8be",
+                "eb55ca7e3f3b8bcc8a8fde37258feb38dde8abbada798ca70714ace5b50268c1",
             ),
         ],
     );
@@ -207,7 +207,7 @@ fn elk_long_edge_dummies_follow_compound_port_adjacency() {
     // Pinned elk-go intermediate/long_edge.go SplitLongEdges walks node.Ports
     // and each outgoing edge slice. Compound splitting and cycle reversal
     // leave their order different from the edge arena insertion order.
-    // Complete SVGs from pinned D2 6a7b48378, --layout=elk --omit-version.
+    // Complete SVGs from pinned D2 710a5d7b, --layout=elk --omit-version.
     assert_elk_svg(
         "n0: {n1; n2: {n3}}\nn4\nn4 -> n0.n2.n3\nn0 -> n0.n2\n\
          n0.n2.n3 -> n4\nn0.n2 -> n0.n1\n",
@@ -237,7 +237,7 @@ fn elk_nested_loop_bends_keep_node_local_rounding_before_padding() {
     // Pinned elk-go PostprocessSelfLoops translates node-local bends before
     // Transferrer.edgeLayoutOffsets adds Graph.Offset+Padding. Keeping that
     // order preserves the residual that cancels a fractional graph offset.
-    // Complete SVGs from pinned D2 6a7b48378, --layout=elk --omit-version.
+    // Complete SVGs from pinned D2 710a5d7b, --layout=elk --omit-version.
     assert_elk_svg(
         "n0: {n1; n2}\nn0.n1 -> n0\nn0.n1 -> n0.n1\n\
          n0.n1 -> n0.n2\nn0.n2 -> n0.n1\n",
@@ -307,7 +307,7 @@ fn elk_nested_loop_bends_keep_node_local_rounding_before_padding() {
 
 #[test]
 fn elk_compound_bounds_add_padding_after_measuring_content() {
-    // Complete SVGs from pristine pinned D2 6a7b48378, elk-go v0.2.0.
+    // Complete SVGs from pristine pinned D2 710a5d7b, elk-go v0.2.0.
     // ComponentsCompactor measures the unpadded hull; HierarchicalNodeResizer
     // uses GraphActualSize before publishing translated node positions.
     assert_elk_svg(
@@ -379,25 +379,25 @@ fn elk_compound_bounds_add_padding_after_measuring_content() {
 fn elk_compound_loop_dummies_keep_imported_port_order() {
     // Pinned elk-go compound.go ensureCompoundPortDummies visits imported
     // node ports before SelfLoopPortRestorer changes their perimeter order.
-    // Complete SVGs from pinned D2 6a7b48378, --layout=elk --omit-version.
+    // Complete SVGs from pinned D2 710a5d7b, --layout=elk --omit-version.
     assert_elk_svg(
         "n1: {n2}\nn1 -> n1: e0\nn1 -> n1: e1\nn1.n2 -> n0: e2\n",
         &[
             (
                 "down",
-                "1be68a41b9850c2310ec4a1353cb208bfc65e83aaf68dab87175d633b0d2a17a",
+                "fd0ef80d431d29d0d385e7d602452497624335eb5dca55cc547a1289e86d3028",
             ),
             (
                 "up",
-                "495a8a533b8653779d654d75d59351306142f6bab96cad02d64f86f1938a552b",
+                "c3239865672f93f9a20d090dab08bc31e9d712387a17a2fb53d4e919b5550256",
             ),
             (
                 "right",
-                "b8585b0155fdfb8f1c57b490ca2b0fbd476bc7ae7abe98d7c0bb74ceb71f2f17",
+                "a4bede2794d98bf122be4066dd627567adddf3d96ce0b7856c22c202b690a005",
             ),
             (
                 "left",
-                "f295d2b22e9cc42dd9f496189f46645caaaba6e4b6bfa301e76f7beb5501cf1b",
+                "03c85667843c377e463fa8e4a06d6a295b9483873d2b2433130503c4d0b0c4c3",
             ),
         ],
     );
@@ -406,19 +406,19 @@ fn elk_compound_loop_dummies_keep_imported_port_order() {
         &[
             (
                 "down",
-                "07ceb4b9e3d3669a9ba41e93909caaa0d2d1830f8e16ba7bb03a1c414dfd3105",
+                "4e702d6d3dacce454d6f581dbb89b3953be5c5921b64d15b48f536e020616f3b",
             ),
             (
                 "up",
-                "299cb9555824a1c1bf34b2e31bccb4eef8c86d2c2257a8c8e8a27aad4319f685",
+                "376a4b49e7d85cd921c49ed6abf8388fd110d701cce398a81834e964d22353d8",
             ),
             (
                 "right",
-                "faef4b34ada0611ba1e92e8ece392018dae74b29d2470c3e409614a50e64aa9d",
+                "b60eba69ce3c6793ff1c4950a0a05be65e712a11c1947ef2ed5130a763d93f60",
             ),
             (
                 "left",
-                "ef593cd5d030acacf801aa03aced1c76673175e04d798b09df04a0b3dfe37042",
+                "61a93309cf911202018d70d78b5703d44cb4eaaad76e5908fa54d71d69f72349",
             ),
         ],
     );
@@ -427,19 +427,19 @@ fn elk_compound_loop_dummies_keep_imported_port_order() {
         &[
             (
                 "down",
-                "b3d9fc6e50d92bac23cdb4a0f69e011420c67cdd167b7244b4450a19206e55b2",
+                "46ea740d52f321259c7f72ab1544450045f8718596ede0e341848c0e2832c41e",
             ),
             (
                 "up",
-                "cf39c6c54569580f86b1f18f44827f960a5509461fa39c72dc47c7b083212982",
+                "843ed63d8eb0e86c2ffe29f36b839c5f9b141165e069ea8683fb0abf3d6fd39d",
             ),
             (
                 "right",
-                "54b9119b534495d0dbc0b57030f5ae8dc8fb0a5cebd3fc47b51144040558d144",
+                "b654a184ccbdf0a383772c64146c2231397b48b278c121062f91a760039ab634",
             ),
             (
                 "left",
-                "a656e2cdae78576fa5da9ce4c04f83189d36bb11ead6a74b96ba4406a3579100",
+                "e439c0276178bd42e5e3eef1d2bf15b81a91eac72fdf68ce425ad136882ed325",
             ),
         ],
     );
@@ -450,7 +450,7 @@ fn elk_crossing_counts_keep_initial_hierarchy_sweep_membership() {
     // Pinned elk-go p3order/graph_info_holder.go freezes UseBottomUp during
     // holder initialization. countCurrentNumberOfCrossings includes the same
     // child scopes even after in-layer dependencies have changed node order.
-    // Complete SVGs from pinned D2 6a7b48378, --layout=elk --omit-version.
+    // Complete SVGs from pinned D2 710a5d7b, --layout=elk --omit-version.
     assert_elk_svg(
         "n0: {n1; n2: {n4}; n3}\nn0 -> n0.n2.n4: e0\nn0 -> n0.n2.n4: e1\nn0.n2 -> n0.n3: e2\nn0.n3 -> n0.n2: e3\n",
         &[
@@ -500,7 +500,7 @@ fn elk_ancestor_routes_use_transformed_hierarchy_offsets() {
     // Pinned elk-go compound.go changes each segment into the ancestor's
     // reference graph after GraphTransformer; Transferrer.applyEdge removes
     // the base offset from ancestor-source anchors before edgeLayoutOffsets.
-    // Complete SVGs from pinned D2 6a7b48378, --layout=elk --omit-version.
+    // Complete SVGs from pinned D2 710a5d7b, --layout=elk --omit-version.
     assert_elk_svg(
         "outer: {\nn0: {n1; n2: {n4}; n3}\nn0 -> n0.n2.n4: e0\nn0 -> n0.n2.n4: e1\nn0.n2 -> n0.n3: e2\nn0.n3 -> n0.n2: e3\n}\n",
         &[
@@ -527,19 +527,19 @@ fn elk_ancestor_routes_use_transformed_hierarchy_offsets() {
         &[
             (
                 "down",
-                "8c82217d509b20fc03f79caf2173124c055b43320d3eab6e568f37c639893907",
+                "045562f2eeb0d49c3c489e319c93e76d67f248aed0b0d0412857e6330b8b0e93",
             ),
             (
                 "up",
-                "9d52a1888a37277d5928347313fbffd635e1627864f39df35ffb1621302d6825",
+                "ee41d6b1e511a85b82dacc61db34cc966dc1b551c359881ea3014f421aacf697",
             ),
             (
                 "right",
-                "ab1860bf6a76a09e0f5aa6980bdddd098de2c8021d757eb907b3b60ca8a41139",
+                "44b6c2d367946d50527a029f2a3dc0ad6afccdce57851894079109f23f39068b",
             ),
             (
                 "left",
-                "7091d29f996160f6617ef8d5bddf7113ee0f7a3589075ca76e33f84db5fd85cc",
+                "575f58583d1345a8416307dafafd1efb26243b0d68bae03558c4fead42902f33",
             ),
         ],
     );
@@ -571,7 +571,7 @@ fn elk_ancestor_routes_keep_fractional_source_frame_arithmetic() {
     // Transferrer.applyEdge sums node, port and anchor before edgeLayoutOffsets.
     // Ancestor edges use their contained graph as CoordinateSystemOrigin;
     // reflecting an already joined route changes fractional anchors and labels.
-    // Complete SVGs from pinned D2 6a7b48378, --layout=elk --omit-version.
+    // Complete SVGs from pinned D2 710a5d7b, --layout=elk --omit-version.
     assert_elk_svg(
         "n0: {n1: {n3; n4}; n2}\nn0.n2 -> n0.n1.n4: e0\nn0.n2 -> n0.n1.n3: e1\nn0.n1.n3 -> n0: e2\nn0.n2 -> n0.n1.n3: e3\n",
         &[
@@ -641,7 +641,7 @@ fn elk_ancestor_routes_keep_fractional_source_frame_arithmetic() {
 fn elk_root_loop_slots_and_labels_keep_node_local_arithmetic() {
     // Pinned elk-go orthogonal_router.go computeRoutingSlotPositions and
     // routes bends before selfloop_postprocessor.go adds node.Position.
-    // Complete SVGs from pinned D2 6a7b48378, --layout=elk --omit-version.
+    // Complete SVGs from pinned D2 710a5d7b, --layout=elk --omit-version.
     assert_elk_svg(
         "n0: {n1}\nn2: {n3}\nn4\nn0 -> n2.n3: e0\nn2 -> n2: e1\nn4 -> n2.n3: e2\nn2 -> n2: e3\n",
         &[
@@ -709,7 +709,7 @@ fn elk_root_loop_slots_and_labels_keep_node_local_arithmetic() {
 
 #[test]
 fn elk_hierarchy_routing_continues_the_ordering_random_stream() {
-    // Complete SVGs from pristine pinned D2 6a7b48378, elk-go v0.2.0.
+    // Complete SVGs from pristine pinned D2 710a5d7b, elk-go v0.2.0.
     // p3order GraphInfoHolder retains the graph Random property; the P5
     // orthogonal generator continues it when splitting critical cycles.
     assert_elk_svg(
@@ -717,19 +717,19 @@ fn elk_hierarchy_routing_continues_the_ordering_random_stream() {
         &[
             (
                 "down",
-                "2f7b0ab8d636593465f43f39c20b89767064ca33db109fffd383251772d16043",
+                "72c02d41dfb9cea56048a6b89560067df8a7169dd33d39dea8972aca6bece20b",
             ),
             (
                 "up",
-                "d21fc152a19be91bd57dedec3f357d87bd6c0a37b0ef825234abf58ca2f41192",
+                "5c59fb124c1ff2a1675aadb74d9cc6364fb28dc315871cbff3b915595a4554cb",
             ),
             (
                 "right",
-                "ed83cccf8ae4c50faea058cbaa44b787f9e3d460edef737a43723f2967cd4c76",
+                "7a04c4585a1158e4150148e7f51299ad281ceac4b9416499372df97700c81ace",
             ),
             (
                 "left",
-                "7a9738737d1a45fa5ae5154c4d997345fc5460a78a1cd642d746d2978ae34038",
+                "c5ab87a867bdb704f3b5ff425854176500fd2c685a5c2376e20374c5b093cc64",
             ),
         ],
     );
@@ -738,19 +738,19 @@ fn elk_hierarchy_routing_continues_the_ordering_random_stream() {
         &[
             (
                 "down",
-                "a0e64a6a18ac589ceef6d4c5e531ad897bfe7cecaf38a4b46a4d1e2eac95e6f9",
+                "7adb1a6d268a86a960bd0a90361b0ab34790a7b77a7a1f2e8383f0ada550f824",
             ),
             (
                 "up",
-                "5b2916c1aad1785fa043b1d9af4623235ea695fef3efec93ae52c15868d74446",
+                "ce70a8232ba0820fe2239b3447d904ac76d08d9c448d9570c29245822f452783",
             ),
             (
                 "right",
-                "e8e5ad05d821fca26c618d286679787070e3b39ed16e4fd4c4a2da83695705f2",
+                "2919ac5bf8547477089368e9b3fb7530d653e4ecff7b66520e02230c535225aa",
             ),
             (
                 "left",
-                "372e4b8688b56b8ec34eb136c75434ad3f750aacb8e9ad13d1621fdf16719ba8",
+                "2c3b4949f5649fb5095fcbec9fe1852c18a01fae75c42896f1db9a6f2803be74",
             ),
         ],
     );
@@ -759,19 +759,19 @@ fn elk_hierarchy_routing_continues_the_ordering_random_stream() {
         &[
             (
                 "down",
-                "e59515fea3a9c22fda70a99dfcd8c09504b633427374d6181c5ea0c9627044cc",
+                "76a9989bc83672801da2c3968041c00acc4d52ec159f9f5e677af24fed5eeab7",
             ),
             (
                 "up",
-                "cdea8a35f7c8743827b5a5a60321674218c55b65b14c88403d88ad9d1a4330c5",
+                "5ae60927a03013f2cd29d7a77a4168fd3714e8da19c99def09ffa3946782cf59",
             ),
             (
                 "right",
-                "9c0fe9af46d389b832b1fdcfff73e1504aabb299276e1c6230be84982ccf242b",
+                "acd73c8bdbd09aaa4f95b997df4228f22e2d6e6ce7997bce6578226bb598000a",
             ),
             (
                 "left",
-                "45c456ea964691038dd400d8682d55f65128df723228427b9bb70f2ecf2808b7",
+                "f172c69643e07c05923d3ae76d900706e60a0904cee3f8edd20f1bd845926245",
             ),
         ],
     );
@@ -780,19 +780,19 @@ fn elk_hierarchy_routing_continues_the_ordering_random_stream() {
         &[
             (
                 "down",
-                "f47efc0469862eeb8dbed8b6cd0f5a2144ae196e9f1cc6acab1049c2d0f0f74e",
+                "053bdd5346c6f3ff8e3ba10c757b9361ac5fdf8eec40ba2f66349ab64c4df750",
             ),
             (
                 "up",
-                "aaec5c6dbf507e8ecb2d176fdaf90c9f5f3d29a8bf0dc52ad66eb0e74c43bc96",
+                "d9e4e721fe77796e2f740727db874f85a0e07a2fe4c02883b167276e4dd79d36",
             ),
             (
                 "right",
-                "e14f6b155f4727094214dac64df86a4b5bfd3f0891f8d6795e8fa761fea23dd4",
+                "19af77be86d476f053c337455408ad27c0af079e5829e38c4307a6935bd100bc",
             ),
             (
                 "left",
-                "2d3905466f0d3b50e142f4b60a800749a7eb6cd6b388f220e2c365466e2aa3c5",
+                "355a32b9085d1ceaf8bb39b3ce765471c590999e878a1f21d954872c5a31aac6",
             ),
         ],
     );
@@ -803,7 +803,7 @@ fn elk_compound_content_bounds_preserve_negative_coordinate_extents() {
     // Pinned elk-go v0.2.0 components/components_compactor.go starts the hull's
     // bottomRight at negative infinity. P4 stores normalization in Graph.Offset;
     // zero is not an extra hull point when all routed geometry is negative.
-    // Complete SVGs from pristine D2 6a7b48378, --layout=elk --omit-version.
+    // Complete SVGs from pristine D2 710a5d7b, --layout=elk --omit-version.
     assert_elk_svg(
         "n0: {n1: {n2}; n3; n4}\nn0.n1 -> n0.n3\nn0.n1.n2 -> n0.n3\nn0.n1.n2 -> n0.n4\nn0.n3 -> n0.n1\n",
         &[
