@@ -49,6 +49,41 @@ pub(super) fn allow_private_network() -> bool {
     ALLOW_PRIVATE_NETWORK.load(Ordering::Acquire)
 }
 
+// d2cli.withLocalFiles: --allow-local-files=false applies the deny-all
+// localfile.Policy to imports and to the images bundled into or rendered in
+// the output. Like the network policy, it is process state.
+static ALLOW_LOCAL_FILES: AtomicBool = AtomicBool::new(true);
+
+pub(super) fn set_allow_local_files(allow: bool) {
+    ALLOW_LOCAL_FILES.store(allow, Ordering::Release);
+}
+
+pub(super) fn allow_local_files() -> bool {
+    ALLOW_LOCAL_FILES.load(Ordering::Acquire)
+}
+
+/// The localfile.Policy for the diagram's local reads.
+pub(super) fn local_files() -> d2_rs_scenebuild::ImageLocalFiles {
+    if allow_local_files() {
+        d2_rs_scenebuild::ImageLocalFiles::Unrestricted
+    } else {
+        d2_rs_scenebuild::ImageLocalFiles::Denied
+    }
+}
+
+/// The resolver's local file reader under the process policy.
+pub(super) fn image_files() -> std::sync::Arc<dyn d2_rs_scenebuild::ImageFileReader> {
+    if allow_local_files() {
+        std::sync::Arc::new(d2_rs_scenebuild::UnrestrictedImageFiles::new())
+    } else {
+        std::sync::Arc::new(d2_rs_scenebuild::ImageLocalFiles::Denied)
+    }
+}
+
+/// The detail localfile.Policy{} gives for every access.
+pub(super) const LOCAL_FILES_DISABLED: &str =
+    "localfile: access denied: local-file access is disabled";
+
 use d2_rs_scenebuild::netpolicy::{BlockedAddress, host_is_blocked, public_client_builder};
 fn blocked_by_policy(error: &reqwest::Error) -> bool {
     let mut cause = error.source();

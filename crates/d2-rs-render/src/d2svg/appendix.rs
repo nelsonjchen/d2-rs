@@ -319,9 +319,10 @@ mod tests {
         ] {
             let diagram: TargetDiagram = serde_json::from_value(board(link, pretty)).unwrap();
             let svg = super::super::render::render(&diagram, &Default::default()).unwrap();
-            let out =
-                String::from_utf8(append(&diagram, &diagram.hash_id(None).unwrap(), &svg, None).unwrap())
-                    .unwrap();
+            let out = String::from_utf8(
+                append(&diagram, &diagram.hash_id(None).unwrap(), &svg, None).unwrap(),
+            )
+            .unwrap();
             let (markers, rows) = out.split_once("<g class=\"appendix\"").unwrap();
             assert_eq!(numbers(markers), [1, 2, 3]);
             assert_eq!(numbers(rows), [1, 2, 3]);

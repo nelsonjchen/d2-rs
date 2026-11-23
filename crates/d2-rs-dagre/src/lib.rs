@@ -230,7 +230,9 @@ fn diagram_spacing(
         serde_json::Value::Number(number) if number.is_i64() || number.is_u64() => {
             number.to_string()
         }
-        serde_json::Value::Number(number) => number.as_f64().map(|v| format!("{v}")).unwrap_or_default(),
+        serde_json::Value::Number(number) => {
+            number.as_f64().map(|v| format!("{v}")).unwrap_or_default()
+        }
         _ => String::new(),
     };
     Some(match text.parse::<i64>() {

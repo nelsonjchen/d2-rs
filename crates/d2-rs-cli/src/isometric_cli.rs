@@ -114,7 +114,7 @@ fn resources(
             max_cumulative_encoded_bytes: 448 << 20,
             max_cumulative_decoded_bytes: 512 << 20,
         },
-        Arc::new(foundation::UnrestrictedImageFiles::new()),
+        http_asset::image_files(),
     )
     .map_err(|e| e.to_string())?
     .with_http_client(Arc::new(foundation::NativeImageHttpClient {

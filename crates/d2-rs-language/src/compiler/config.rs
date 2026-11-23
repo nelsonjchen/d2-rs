@@ -388,9 +388,8 @@ impl Compiler {
                     }
                 }
                 "scale" => {
-                    let valid = d2_rs_core::parse_d2_float(&value).is_some_and(|scale| {
-                        scale.is_finite() && (scale > 0.0 || scale == -1.0)
-                    });
+                    let valid = d2_rs_core::parse_d2_float(&value)
+                        .is_some_and(|scale| scale.is_finite() && (scale > 0.0 || scale == -1.0));
                     if !valid || composite {
                         self.config_error(
                             field,
@@ -402,20 +401,22 @@ impl Compiler {
                     }
                 }
                 "sketch" | "isometric" | "center" | "force-appendix" => {
-                    if (name == "force-appendix" && composite) || !matches!(
-                        value.as_str(),
-                        "1" | "t"
-                            | "T"
-                            | "TRUE"
-                            | "true"
-                            | "True"
-                            | "0"
-                            | "f"
-                            | "F"
-                            | "FALSE"
-                            | "false"
-                            | "False"
-                    ) {
+                    if (name == "force-appendix" && composite)
+                        || !matches!(
+                            value.as_str(),
+                            "1" | "t"
+                                | "T"
+                                | "TRUE"
+                                | "true"
+                                | "True"
+                                | "0"
+                                | "f"
+                                | "F"
+                                | "FALSE"
+                                | "false"
+                                | "False"
+                        )
+                    {
                         self.config_error(
                             field,
                             format!("expected a boolean for \"{name}\", got \"{value}\""),

@@ -185,11 +185,8 @@ fn compile_ir_with_native_imports(
 
 fn filesystem_import_opener() -> ImportOpener {
     Box::new(|path| {
-        let file = watch::open_tracked_file(
-            &d2_rs_scenebuild::ImageLocalFiles::Unrestricted,
-            Path::new(path),
-        )
-        .map_err(|error| error.to_string())?;
+        let file = watch::open_tracked_file(&http_asset::local_files(), Path::new(path))
+            .map_err(|error| error.to_string())?;
         Ok(Box::new(file))
     })
 }
@@ -6807,6 +6804,11 @@ fn apply_network_policy(args: Vec<String>) -> Vec<String> {
         std::env::var("D2_ALLOW_PRIVATE_NETWORK").as_deref(),
         Ok("1" | "true")
     );
+    // The boundary validated D2_ALLOW_LOCAL_FILES as a Bool environment value.
+    let mut allow_local_files = !matches!(
+        std::env::var("D2_ALLOW_LOCAL_FILES").as_deref(),
+        Ok("0" | "false")
+    );
     let mut remaining = Vec::with_capacity(args.len());
     let mut ended = false;
     for argument in args {
@@ -6816,10 +6818,15 @@ fn apply_network_policy(args: Vec<String>) -> Vec<String> {
                 allow = value == "true";
                 continue;
             }
+            if let Some(value) = argument.strip_prefix("--allow-local-files=") {
+                allow_local_files = value == "true";
+                continue;
+            }
         }
         remaining.push(argument);
     }
     http_asset::set_allow_private_network(allow);
+    http_asset::set_allow_local_files(allow_local_files);
     remaining
 }
 

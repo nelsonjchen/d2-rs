@@ -274,6 +274,13 @@ pub(super) fn resolve(icon: &str, base: &Path) -> Result<Outcome, String> {
             format!("unsupported URI scheme {}", go_quote(scheme)),
         ));
     }
+    if !http_asset::allow_local_files() {
+        return Err(source_error(
+            "classify source",
+            &display_source(icon),
+            http_asset::LOCAL_FILES_DISABLED,
+        ));
+    }
     let path = Path::new(icon);
     let joined = if path.is_absolute() {
         path.to_owned()
@@ -403,7 +410,7 @@ fn inline_image_resolver(
             max_cumulative_encoded_bytes: if gif { 64 << 20 } else { 448 << 20 },
             max_cumulative_decoded_bytes: if gif { 128 << 20 } else { 512 << 20 },
         },
-        std::sync::Arc::new(d2_rs_scenebuild::UnrestrictedImageFiles::new()),
+        http_asset::image_files(),
     )
     .map_err(|e| e.to_string())
 }

@@ -445,7 +445,11 @@ fn compile_and_publish<F>(
     } else {
         std::fs::read(&config.input_path)
             .ok()
-            .and_then(|input| super::source_config(&input, &config.input_path).ok().flatten())
+            .and_then(|input| {
+                super::source_config(&input, &config.input_path)
+                    .ok()
+                    .flatten()
+            })
             .and_then(|source| source.scale)
             .filter(|scale| *scale > 0.0)
     };

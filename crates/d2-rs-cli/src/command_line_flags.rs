@@ -53,6 +53,16 @@ vec![
     },
     Flag {
         kind: "Bool".into(),
+        env: "D2_ALLOW_LOCAL_FILES".into(),
+        name: "allow-local-files".into(),
+        short: "".into(),
+        default: "true".into(),
+        usage: "allow the diagram to read local files: imports, and images bundled into or rendered in the output. Disable it to render untrusted diagrams".into(),
+        hidden: false,
+        default_env: "".into(),
+    },
+    Flag {
+        kind: "Bool".into(),
         env: "D2_FORCE_APPENDIX".into(),
         name: "force-appendix".into(),
         short: "".into(),
